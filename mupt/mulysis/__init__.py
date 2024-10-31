@@ -1,0 +1,1 @@
+'''Polymer property analysis methods'''
