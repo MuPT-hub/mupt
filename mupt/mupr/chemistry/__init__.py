@@ -1,0 +1,1 @@
+'''For encoding primitive chemistries and manipulating SMILES-based structures'''
