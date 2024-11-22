@@ -1,0 +1,1 @@
+'''For representing coordinate arrays and transformations, either for geometric objects or molecular conformers'''
