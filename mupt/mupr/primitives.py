@@ -22,6 +22,7 @@ class MolecularPrimitive:
     chemistry     : Optional[str] = None # a SMILES-like string which represents the internal chemistry of the primitive
     conformer     : Optional[Conformer] = None # the spatial coordinates of constituent atoms (if chemistry is specified)
     shape         : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive as a unit
+    # TODO: conformer could be made a BoundedShape through the use of a convex hull around the atom coords; this would further unify how primitives are treated
     
     # Note that, by default ALL fields are optional; this is to reflect the fact that use-cases and levels of info provided may vary
     # 
