@@ -1,0 +1,1 @@
+'''Readers and writers for polymer line notations (akin to BigSMILES)'''
