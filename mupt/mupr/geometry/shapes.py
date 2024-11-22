@@ -1,5 +1,8 @@
 '''For encoding rigid bodies in space'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 from typing import Generic, TypeVar
 
 T = TypeVar('T')

@@ -1,5 +1,8 @@
 '''Definition of inter-atom bonding placeholders and how they interact'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 # want to think about how neutronium ("*~*") groups are considered for bonding before transferring from polymerist
 
 from dataclasses import dataclass

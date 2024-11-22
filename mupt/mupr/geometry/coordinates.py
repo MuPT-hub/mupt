@@ -1,5 +1,8 @@
 '''For representing coordinate arrays and transformations'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 from typing import Generic, TypeVar
 from numbers import Number
 

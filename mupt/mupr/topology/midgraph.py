@@ -1,5 +1,8 @@
 '''Monomer Interconnectivity and Degree (MID) graphs, for encoding connectivity of a polymer system'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 from typing import Generator
 import networkx as nx
 

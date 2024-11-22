@@ -1,5 +1,8 @@
 '''Representations and calculation methods for crystallographic unit cells, lattice parameters, and lattice coordinates'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 from dataclasses import dataclass, field
 from numbers import Real
 

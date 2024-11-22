@@ -1,5 +1,8 @@
 '''Information classes for sets of polymer unit primitives'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 from typing import Optional
 from dataclasses import dataclass, field
 from enum import Enum # consider having a bitwise Enum to encode possible specification states of a primitive??
