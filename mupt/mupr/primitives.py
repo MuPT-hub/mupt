@@ -17,7 +17,7 @@ from .chemistry.conformations import Conformer
 class MolecularPrimitive:
     '''Fundamental building block which represents a grouping of some number of molecules'''
     # excluding naming for now as this may screw up comparison of otherwise identical primitives (maybe we'd want that down the line?)
-    num_atoms     : Optional[int] = None # number of atoms
+    num_atoms     : Optional[int] = None # number of atoms (these are precisely periodic-table atoms, NOT other generic particles)
     functionality : Optional[int] = None # number of linker sites, which can connect to other primitives
     chemistry     : Optional[str] = None # a SMILES-like string which represents the internal chemistry of the primitive
     conformer     : Optional[Conformer] = None # the spatial coordinates of constituent atoms (if chemistry is specified)
