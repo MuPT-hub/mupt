@@ -1,0 +1,55 @@
+strict graph mupt_concept_map {
+	fontname="Helvetica,Arial,sans-serif"
+	node [fontname="Helvetica,Arial,sans-serif"]
+	edge [fontname="Helvetica,Arial,sans-serif"]
+
+	node [shape=diamond]; LAMMPS; Gromacs; OpenMM; Hoomd; CHARMM; Amber;	
+	node [shape=ellipse]; XPB; PySoftK; RadonPy; RDkit; Polymerist; OpenFF;OPLS;Martini;PolyPly;pysimm;SPACIER;GAFF;SmiPoly;Foyer;GMSO;mbuild;GriTs;REACTER;LUNAR;EMC;Polymatic;PyCHARMM;PolymerizeIt;espoloma;BigSMILES;CRIPT;	
+	
+	
+	XPB -- Amber;
+	XPB -- LAMMPS;
+	PySoftK -- RadonPy;
+	PySoftK -- RDkit;
+	Polymerist -- RDkit;
+	Polymerist -- OpenFF;
+	PolyPly -- Gromacs;
+	PolyPly -- OPLS;
+	PolyPly -- Martini;
+	OpenMM -- CHARMM;
+	OpenMM -- Gromacs;
+	OpenMM -- LAMMPS;
+	LAMMPS -- RadonPy -- OpenMM;
+	SPACIER -- LAMMPS;
+	SPACIER -- GAFF;
+	SPACIER -- RadonPy;
+	SPACIER -- SmiPoly;
+	Foyer -- GMSO -- mbuild;
+	Foyer -- OpenFF;
+	GMSO -- Gromacs;
+	GMSO -- LAMMPS;
+	GMSO -- OpenMM;
+	msibi -- Hoomd;
+	GriTs -- mbuild;
+	GriTs -- OpenBabel;
+	REACTER -- LAMMPS;
+	REACTER -- LUNAR -- LAMMPS;
+	pysimm -- LAMMPS;
+	Polymatic -- LAMMPS;
+	EMC -- LAMMPS;
+	EMC -- Martini;
+	EMC -- OPLS;
+	EMC -- CHARMM;
+	OpenFF -- OpenMM;
+	OpenFF -- espoloma;
+	OpenFF -- LAMMPS;
+	OpenFF -- Gromacs;
+	OpenFF -- Amber;
+	PyCHARMM -- CHARMM;
+	PyCHARMM -- OpenMM;
+	flowerMD -- mbuild;
+	flowerMD -- Hoomd;
+	PolymerizeIt -- Gromacs;
+	BigSMILES -- CRIPT;	
+}
+
