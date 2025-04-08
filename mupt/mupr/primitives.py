@@ -3,36 +3,45 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional
+from typing import Any, Hashable, Optional, Union
 from dataclasses import dataclass, field
 from enum import Enum # consider having a bitwise Enum to encode possible specification states of a primitive??
 
 from rdkit import Chem
+from rdkit.Chem.rdchem import ChiralType, StereoDescriptor, StereoInfo, StereoType
 
 from .geometry.shapes import BoundedShape
 from .chemistry.conformations import Conformer
 
 
 @dataclass
-class MolecularPrimitive:
-    '''Fundamental building block which represents a grouping of some number of molecules'''
+class Primitive:
+    '''Represents a fundamental (but not necessarily irreducible) building block of a polymer system in the abstract 
+    
+    Note that, by default ALL fields are optional; this is to reflect the fact that use-cases and levels of info provided may vary
+    
+    For example, one might object that functionality and number of atoms could be derived from the SMILES string and are therefore redundant;
+    However, in the case where no chemistry is explicitly provided, it's still perfectly valid to define numbers of atoms present
+    E.g. a coarse-grained sticker-and-spacer model
+    
+    As another example, a 0-functionality primitive is also totally legal (ex. as a complete small molecule in an admixture)
+    But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
+    '''
     # excluding naming for now as this may screw up comparison of otherwise identical primitives (maybe we'd want that down the line?)
     num_atoms     : Optional[int] = None # number of atoms (these are precisely periodic-table atoms, NOT other generic particles)
     functionality : Optional[int] = None # number of linker sites, which can connect to other primitives
+    
+    # would also be cool to have chemistry-free method of labelling ports (perhaps passing Sequence of Port-type objects in addition to chemistry?)
     chemistry     : Optional[str] = None # a SMILES-like string which represents the internal chemistry of the primitive
+    stereo_marker : Optional[ChiralType] = None
+    
+    # TODO: conformer could be made a BoundedShape through the use of a convex hull around the atom coords; this would further unify how primitives are treated
     conformer     : Optional[Conformer] = None # the spatial coordinates of constituent atoms (if chemistry is specified)
     shape         : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive as a unit
-    # TODO: conformer could be made a BoundedShape through the use of a convex hull around the atom coords; this would further unify how primitives are treated
     
-    # Note that, by default ALL fields are optional; this is to reflect the fact that use-cases and levels of info provided may vary
-    # 
-    # For example, one might object that functionality and number of atoms could be derived from the SMILES string and are therefore redundant;
-    # However, in the case where no chemistry is explicitly provided, it's still perfectly valid to define numbers of atoms present
-    # E.g. a coarse-grained sticker-and-spacer model
-    #
-    # As another example, a 0-functionality primitive is also totally legal (ex. as a complete small molecule in an admixture)
-    # But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
-
+    metadata : dict[Hashable, Any] = field(default_factory=dict)
+    
+    # cleanup and validation
     def __post_init__(self) -> None:
         self._cleanup()
         
@@ -53,19 +62,34 @@ class MolecularPrimitive:
             if self.shape is not None:
                 for coord in self.conformer:
                     assert(self.shape.contains(coord)) # this is maybe too stringent, but simplifies primitive-level intersections later on
+    
+    # initialization methods    
+    @classmethod
+    def from_SMILES(self, smiles : str) -> 'Primitive':
+        pass
+    # validate SMILES
+    
+    # locate ports, set functionality
+    
+    # align conformer, if present
         
-    # would also be cool to have chemistry-free method of labelling ports (perhaps passing Sequence of Port-type objects in addition to chemistry?)
-        
+    # comparison methods    
     def __hash__(self):
         raise NotImplemented # critical that this exists to allow comparison between primitives
     
     def __eq__(self, value):
         raise NotImplemented # chemical equality will likely be the hardest part to compare - SMILES canonicalization might alleviate this?
 
+    # properties
+    @property
+    def is_atomic(self) -> bool:
+        '''Test if the primitive at hand represents a single atom from the periodic table'''
+        ...
+
 @dataclass
 class PrimitiveLexicon:
     '''Collection of primitives which form the basis of a'''
-    primitives : dict[str, MolecularPrimitive] = field(default_factory=dict) # priitives keyed by aliases
+    primitives : dict[str, Primitive] = field(default_factory=dict) # priitives keyed by aliases
     
     # this will likely need **some** methods, but most of the sanitization ought to be the responsibility of the MID graph
     # this is more-or-less a glorified container for now
