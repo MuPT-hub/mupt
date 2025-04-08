@@ -3,10 +3,10 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generator
+from typing import Generator, Mapping
 import networkx as nx
 
-from ..primitives import MolecularPrimitive, PrimitiveLexicon
+from ..primitives import Primitive, PrimitiveLexicon
 
 
 class PolymerTopologyGraph(nx.Graph):
@@ -51,11 +51,11 @@ class PolymerTopologyGraph(nx.Graph):
             
             
     # primitive handlers
-    def insert_primitives(self, lexicon : PrimitiveLexicon) -> None:
-        '''Map infomration from primitive lexicon basis set into graph topology'''
+    def insert_primitives(self, lexicon : Mapping[str, Primitive]) -> None:
+        '''Map information from primitive lexicon basis into graph topology'''
         raise NotImplemented
 
-    def _validate(self, lexicon : PrimitiveLexicon) -> bool:
+    def covered_by_primitives(self, lexicon : Mapping[str, Primitive]) -> bool:
         '''Check whether a primitive lexicon provided is compatible with a graph'''
         raise NotImplemented
 
