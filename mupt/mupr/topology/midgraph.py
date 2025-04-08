@@ -10,33 +10,33 @@ from ..primitives import MolecularPrimitive, PrimitiveLexicon
 
 
 class PolymerTopologyGraph(nx.Graph):
-    '''A graph representation of the connectivity of monomer fragments in a polymer topology'''
+    '''A graph representation of the connectivity of primitives in a polymer topology'''
 
     # network properties
     @property
-    def num_monomers(self) -> int:
-        '''Number of monomer units represented in the current polymer'''
+    def num_primitives(self) -> int:
+        '''Number of primitive units represented in the current topology'''
         return self.number_of_nodes()
-    DOP = num_monomers
+    DOP = num_primitives
 
     @property
     def is_unbranched(self) -> bool:
-        '''Whether the monomer graph represents straight chain(s) without branching'''
+        '''Whether the topology represents contains all straight, unbranching chain(s)'''
         return all(node_deg <= 2 for node_id, node_deg in self.degree)
     is_linear = is_unbranched
 
     @property
     def is_unbranched(self) -> bool:
-        '''Whether the monomer graph represents straight chain(s) without branching'''
+        '''Whether the topology represents straight chain(s) without branching'''
         return not self.is_unbranched
     
     @property
-    def terminal_monomers(self) -> Generator[int, None, None]:
-        '''Generates the indices of all nodes corresponding to terminal monomers (i.e. those wiht only one outgoing bond)'''
+    def termini(self) -> Generator[int, None, None]:
+        '''Generates the indices of all nodes corresponding to terminal primitives (i.e. those with only one outgoing bond)'''
         for node_idx, degree in self.degree:
             if degree == 1:
                 yield node_idx
-    termini = leaves = terminal_monomers
+    leaves = termini
     
     @property
     def num_chains(self) -> int:
