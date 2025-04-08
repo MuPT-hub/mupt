@@ -9,6 +9,7 @@ T = TypeVar('T')
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from functools import cached_property
 
 import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
@@ -123,7 +124,7 @@ class Sphere(BoundedShape[float], dimension=3):
         return bool(np.linalg.norm(self.center - point) < self.radius) # need to cast from numpy bool to Python bool
     
     def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Sphere':
-        return Sphere( # TODO: should return an ellipsoid if scaling in anisotropic
+        return Sphere( # TODO: should return an ellipsoid if scaling in anisotropically
             radius=self.radius * np.linalg.det(affine_matrix)**(1/3), # scale radius appropriately
             center=apply_affine_transform_to_points(self.center, affine_matrix),
         ) # TODO: have non-isometric affine transforms correctly return an Ellipsoid, once implemented
@@ -134,13 +135,20 @@ class Sphere(BoundedShape[float], dimension=3):
 class PointCloud(BoundedShape[float], dimension=3):
     '''A cluster of points in 3D space'''
     coordinates : np.ndarray[Shape[3], float]
-    convex_hull : ConvexHull = field(init=False)
-    triangulation : Delaunay = field(init=False)
+    _convex_hull : ConvexHull = field(init=False, default=None)
+    _triangulation : Delaunay = field(init=False, default=None)
     
-    def __post_init__(self) -> None:
-        # TODO: validate coordinates
-        self.convex_hull = ConvexHull(self.coordinates)
-        self.triangulation = Delaunay(self.convex_hull)
+    @property
+    def convex_hull(self) -> ConvexHull:
+        if self._convex_hull is None:
+            self._convex_hull = ConvexHull(self.coordinates)
+        return self._convex_hull
+
+    @property
+    def triangulation(self) -> Delaunay:
+        if self._triangulation is None:
+            self._triangulation = Delaunay(self.coordinates)
+        return self._triangulation
     
     @property
     def centroid(self) -> np.ndarray[Shape[3], float]:
@@ -150,7 +158,7 @@ class PointCloud(BoundedShape[float], dimension=3):
     def volume(self) -> float:
         return self.convex_hull.volume
     
-    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
+    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:
         return bool(self.triangulation.find_simplex(point) != -1) # need to cast from numpy bool to Python bool
     
     def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'PointCloud':
