@@ -4,7 +4,7 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Union
-from mupt.mutils.arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
+from ..geometry.arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
 
 import numpy as np
 

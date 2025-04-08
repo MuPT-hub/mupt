@@ -10,8 +10,7 @@ from enum import Enum # consider having a bitwise Enum to encode possible specif
 from rdkit import Chem
 from rdkit.Chem.rdchem import ChiralType, StereoDescriptor, StereoInfo, StereoType
 
-from .geometry.shapes import BoundedShape
-from .chemistry.conformations import Conformer
+from ..geometry.shapes import BoundedShape, PointCloud, Sphere
 
 
 @dataclass
@@ -30,14 +29,11 @@ class Primitive:
     # excluding naming for now as this may screw up comparison of otherwise identical primitives (maybe we'd want that down the line?)
     num_atoms     : Optional[int] = None # number of atoms (these are precisely periodic-table atoms, NOT other generic particles)
     functionality : Optional[int] = None # number of linker sites, which can connect to other primitives
+    shape         : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive in space
     
     # would also be cool to have chemistry-free method of labelling ports (perhaps passing Sequence of Port-type objects in addition to chemistry?)
     chemistry     : Optional[str] = None # a SMILES-like string which represents the internal chemistry of the primitive
     stereo_marker : Optional[ChiralType] = None
-    
-    # TODO: conformer could be made a BoundedShape through the use of a convex hull around the atom coords; this would further unify how primitives are treated
-    conformer     : Optional[Conformer] = None # the spatial coordinates of constituent atoms (if chemistry is specified)
-    shape         : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive as a unit
     
     metadata : dict[Hashable, Any] = field(default_factory=dict)
     
