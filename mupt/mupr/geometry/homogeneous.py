@@ -1,4 +1,4 @@
-'''For handling affine transformations and homogeneous coordinates'''
+'''For handling array conversions to and from homogeneous coordinates'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
@@ -8,8 +8,6 @@ from mupt.mutils.arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
 
 import numpy as np
 
-
-# TODO: populate affine matrix constructors
 
 def coordlike(coords : Union[np.ndarray[Shape[Dims], Numeric], np.ndarray[Shape[N, Dims], Numeric]]) -> np.ndarray[Shape[N, Dims], Numeric]:
     '''Standardizes input for applications which expect an NxD vector off D-dimensional coordinates
