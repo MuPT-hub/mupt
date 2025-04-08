@@ -11,8 +11,8 @@ from rdkit.Chem import Mol
 from rdkit.Chem.rdmolops import SanitizeMol, SanitizeFlags, SANITIZE_ALL, SANITIZE_NONE
 from rdkit.Chem.rdmolops import AromaticityModel, SetAromaticity, Kekulize
 
-from ...mutils.decorators.functional import optional_in_place
-from ...mutils.decorators.meta import extend_to_methods
+from ..mutils.decorators.functional import optional_in_place
+from ..mutils.decorators.meta import extend_to_methods
 
 
 @optional_in_place
