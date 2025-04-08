@@ -22,6 +22,7 @@ Shape = tuple # the shape field of a numpy array
 DType = TypeVar('DType', bound=np.generic) # the data type of a numpy array
 
 Dims = TypeVar('Dims', bound=int) # intended to typehint the number of dimensions
+DimsPlus = TypeVar('Dims', bound=int) # intended to typehint the number of dimensions +1 (no easy way to do arithmetic to generic types yet)
 M = TypeVar('M', bound=int) # typehint the size of a given dimension
 N = TypeVar('N', bound=int) # typehint the size of a given dimension
 P = TypeVar('P', bound=int) # typehint the size of a given dimension
