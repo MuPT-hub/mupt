@@ -9,7 +9,7 @@ from numbers import Real
 import numpy as np
 
 from .coordinates import Coordinates
-from ...mutils.arraytypes import Shape, Array3x3
+from .arraytypes import ndarray, Shape
 
 
 @dataclass
@@ -24,10 +24,10 @@ class LatticeParameters: # TODO : incorporate unit-awareness
     gamma : float = field(default=np.pi / 2) # make cell orthorhombic by default
     
     @classmethod
-    def from_lattice_vectors(self, lattice_vectors : Array3x3) -> 'LatticeParameters':
+    def from_lattice_vectors(self, lattice_vectors : ndarray[Shape[3, 3], float]) -> 'LatticeParameters':
         raise NotImplemented
     
-    def to_lattice_vectors(self) -> Array3x3:
+    def to_lattice_vectors(self) -> ndarray[Shape[3, 3], float]:
         raise NotImplemented
     
 # Coordinate subclasses
