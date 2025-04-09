@@ -25,6 +25,7 @@ from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
 
 from ..chemistry.sanitization import sanitize_mol
+from ..chemistry.ports import get_num_linkers
 
 
 @dataclass
@@ -52,69 +53,6 @@ class Primitive:
     
     metadata : dict[Hashable, Any] = field(default_factory=dict)
     
-    # cleanup and validation
-    def __post_init__(self) -> None:
-        self._cleanup()
-        
-    def _cleanup(self) -> None:
-        '''Perform some sanitization based on which inputs are provided and what those inputs are'''
-        if self.chemistry is None:
-            return # skip cleanup if no internal chemistry is provided
-    
-    # initialization methods    
-    @classmethod
-    def from_SMILES(cls,
-            smiles : str,
-            positions : Optional[ndarray[Shape[N, 3], float]]=None,
-        ) -> 'Primitive':
-        '''Initialize a chemically-explicit Primitive from a SMILES string representation of the molecular graph'''
-        # initialize mol and sanitize
-        smiles_sanitized = sanitize_mol(
-            smiles,
-            sanitize_ops=SANITIZE_ALL,          # TODO: add option to specify sanitation
-            aromaticity_model=AROMATICITY_MDL,  # TODO: add option to specify sanitation
-            in_place=False,
-        )
-
-        # initialize RDKit representation of molecule
-        mol = Chem.MolFromSmiles(smiles_sanitized, sanitize=False)
-        num_atoms = mol.GetNumAtoms()
-
-        # align conformer, if present
-        shape = None
-        if positions is not None:
-            shape = PointCloud(coordinates=positions)
-
-            # assign conformer to RDKit molcule... | DEVNOTE: should this override the primary (idx 0) conformer?
-            assert (len(positions) == num_atoms)
-            rdconf = Conformer(num_atoms)
-            rdconf.SetPositions(positions)
-            conf_id = mol.AddConformer(rdconf) 
-        
-        # locate ports, set functionality
-        functionality = 0
-        ... # insert mechanism for counting linker sites here
-
-        return cls(
-            num_atoms=num_atoms - functionality, # don't count placeholder sites as "real" atoms
-            functionality=functionality,
-            shape=shape,
-            chemistry=mol,
-            stereo_marker=None, # TODO: add perception of this
-            _smiles=smiles_sanitized,
-        )
-        
-    @classmethod
-    def from_rdkit(cls, mol : Mol) -> 'Primitive':
-        '''Initialize a chemically-explicit Primitive from an RDKit Mol'''
-        shape = None
-        if mol.GetNumConformers() > 0:
-            conformer = mol.GetConformer(0)
-            positions = conformer.GetPositions()
-            shape = PointCloud(coordinates=positions)
-        
-        raise NotImplementedError
-        
     # comparison methods    
     def __hash__(self):
         raise NotImplemented # critical that this exists to allow comparison between primitives
@@ -127,6 +65,75 @@ class Primitive:
     def is_atomic(self) -> bool:
         '''Test if the primitive at hand represents a single atom from the periodic table'''
         ...
+
+    @property
+    def has_chemistry(self) -> bool:
+        '''Check whether the Primitive has chemical information explicitly specified'''
+        return self.chemistry is not None
+    
+    # initialization methods    
+    def __post_init__(self) -> None:
+        self._cleanup()
+        
+    def _cleanup(self) -> None:
+        '''Perform some sanitization based on which inputs are provided and what those inputs are'''
+        ...
+        
+    def set_positions(self, positions : Optional[ndarray[Shape[N, 3], float]]) -> None:
+        '''Set Primitive shape as an array of coordinates, and (if chemistry is explicit) on the internal Mol representation'''
+        if positions is None: #if positions is None:
+            return # TODO: handle null positions case monadically?
+        
+        self.shape = PointCloud(coordinates=positions)
+        if self.has_chemistry and isinstance(self.chemistry, Mol):
+            n_atoms = self.chemistry.GetNumAtoms()
+            assert (n_atoms == len(positions)) # TODO: have RDKit conformer setting account for null atoms/ports
+
+            rdconf = Conformer(n_atoms)
+            rdconf.SetPositions(positions)
+            conf_id = self.chemistry.AddConformer(rdconf, assignId=0) # always assign to conformer 0 by default
+    
+    @classmethod
+    def from_rdkit(cls, mol : Mol, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
+        '''Initialize a chemically-explicit Primitive from an RDKit Mol'''
+        mol_sanitized = sanitize_mol(
+            mol,
+            sanitize_ops=SANITIZE_ALL,          # TODO: add option to specify sanitation
+            aromaticity_model=AROMATICITY_MDL,  # TODO: add option to specify sanitation
+            in_place=False, # don't modify original
+        )
+        
+        primitive = cls(
+            num_atoms=mol_sanitized.GetNumAtoms(),
+            functionality=get_num_linkers(mol_sanitized), # TODO: generalize Ports to work EVEN without explicit chemistry
+            shape=None,
+            chemistry=mol_sanitized,
+            smiles=Chem.MolToSmiles(
+                mol,
+                canonical=True,         # canonicalize to allow uniqueness check
+                isomericSmiles=True,    # include stereo info
+                allHsExplicit=True,     # include all Hs
+                allBondsExplicit=True,  # show all bonds
+                ignoreAtomMapNumbers=False, # preserve mapped atoms
+                doRandom=False,         # make SMILES deterministic
+            ),
+            stereo_marker=None, # TODO: add perception of this
+        )
+
+        if (positions is None) and (mol_sanitized.GetNumConformers() > 0): # attempt to get positions from Mol directly, if no explicit positions as passed but a conformer is present 
+            positions = mol_sanitized.GetConformer(0).GetPositions() # for now, will always assume active conformer is the first
+        primitive.set_positions(positions) # harmonize positions between shape and chemistry
+
+        return primitive
+    
+    @classmethod
+    def from_SMILES(cls, smiles : str, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
+        '''Initialize a chemically-explicit Primitive from a SMILES string representation of the molecular graph'''
+        return cls.from_rdkit(
+            mol=Chem.MolFromSmiles(smiles, sanitize=False), # don't mangle molecule with default sanitization - read SMILES verbatim
+            positions=positions,    
+        )
+
 
 @dataclass
 class PrimitiveLexicon:
