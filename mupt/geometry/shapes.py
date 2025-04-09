@@ -16,7 +16,7 @@ from scipy.spatial import ConvexHull, Delaunay
 
 from .homogeneous import apply_affine_transform_to_points
 from ..mutils.decorators.classmod import register_abstract_class_attrs
-from .arraytypes import Shape, Numeric, DType, M, N, Dims, Vector3, ArrayNxN
+from .arraytypes import Shape, Numeric, M, N, Dims
 
 type Point3D = np.ndarray[Shape[3], Numeric]
 
