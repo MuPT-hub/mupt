@@ -134,10 +134,12 @@ class Sphere(BoundedShape[float], dimension=3):
 @dataclass
 class PointCloud(BoundedShape[float], dimension=3):
     '''A cluster of points in 3D space'''
-    coordinates : np.ndarray[Shape[3], float]
+    coordinates : np.ndarray[Shape[3], float] = field(default_factory=lambda : np.array([]), repr=False) # don't show when printing
     _convex_hull : ConvexHull = field(init=False, default=None)
     _triangulation : Delaunay = field(init=False, default=None)
     
+    # TODO: add better __repr__
+
     @property
     def convex_hull(self) -> ConvexHull:
         if self._convex_hull is None:
