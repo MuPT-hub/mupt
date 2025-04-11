@@ -3,14 +3,19 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
+from typing import Generic
 from dataclasses import dataclass, field
 from numbers import Real
 
 import numpy as np
 
 from .coordinates import Coordinates
-from .arraytypes import ndarray, Shape
+from .arraytypes import ndarray, Shape, Numeric
 
+
+class Coordinates(Generic[Numeric]):
+    '''Encapsulation class for storing sets of coordinates and performing transfomations on those coordinates'''
+    pass
 
 @dataclass
 class LatticeParameters: # TODO : incorporate unit-awareness
