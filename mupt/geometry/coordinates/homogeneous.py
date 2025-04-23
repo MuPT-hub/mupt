@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Union
+from typing import Optional, Union
 from ..arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
 
 import numpy as np
@@ -32,6 +32,30 @@ def from_homogeneous_coords(coords : np.ndarray[Shape[N, DimsPlus], Numeric]) ->
     coords = coordlike(coords)
     
     return coords[:, :-1] / coords[:, [-1]]
+
+
+def affine_matrix_from_linear_and_center(
+        matrix : np.ndarray[Shape[Dims, Dims], Numeric],
+        center : Optional[np.ndarray[Shape[Dims], Numeric]],
+        dtype : Optional[type]=None,
+    ) -> np.ndarray[Shape[DimsPlus, DimsPlus], Numeric]:
+        '''Instantiate an affine transformation matrix from a linear transformation and a new origin location'''
+        (n_rows, n_cols) = matrix.shape
+        assert n_rows == n_cols
+        dimension = n_cols
+        
+        if dtype is None:
+            dtype = matrix.dtype
+        
+        if center is None:
+            center = np.zeros(dimension, dtype=dtype)
+        
+        affine_matrix = np.zeros((dimension + 1, dimension + 1), dtype=dtype)
+        affine_matrix[:-1, :-1] = matrix
+        affine_matrix[:-1, -1]  = center
+        affine_matrix[-1, -1]   = 1
+        
+        return affine_matrix
 
 def apply_affine_transform_to_points(
         coords : np.ndarray[Shape[N, Dims], Numeric],
