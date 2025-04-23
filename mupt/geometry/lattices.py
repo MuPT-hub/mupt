@@ -9,7 +9,6 @@ from numbers import Real
 
 import numpy as np
 
-from .coordinates import Coordinates
 from .arraytypes import ndarray, Shape, Numeric
 
 
