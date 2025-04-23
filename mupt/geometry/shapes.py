@@ -14,9 +14,10 @@ from functools import cached_property
 import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 
-from .coordinates.homogeneous import apply_affine_transform_to_points
 from ..mutils.decorators.classmod import register_abstract_class_attrs
 from .arraytypes import Shape, Numeric, M, N, Dims
+from .coordinates.homogeneous import apply_affine_transform_to_points
+from .coordinates.basis import is_orthogonal
 
 
 @dataclass
@@ -81,7 +82,7 @@ class BoundedShape(ABC, Generic[T]): # template for numeric type (some iteration
         ...
         
     @abstractmethod
-    def contains(self, point : np.ndarray[Shape[Dims], T]) -> bool:
+    def contains(self, point : np.ndarray[Shape[Dims], T]) -> bool: # TODO: enforce generalization to vectors of coordinates, rather than individual points
         '''Whether a given coordinate lies within the boundary of the body'''
         ... 
         
@@ -111,29 +112,6 @@ class BoundedShape(ABC, Generic[T]): # template for numeric type (some iteration
         
 
 # Concrete BoundedShape implementations
-@dataclass
-class Sphere(BoundedShape[float], dimension=3):
-    '''A spherical body with arbitrary radius and center'''
-    radius : float
-    center : np.ndarray[Shape[3], float]
-    
-    @property
-    def centroid(self) -> np.ndarray[Shape[3], float]:
-        return self.center
-    
-    @property
-    def volume(self) -> float:
-        return 4/3 * np.pi * self.radius**3
-    
-    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
-        return bool(np.linalg.norm(self.center - point) < self.radius) # need to cast from numpy bool to Python bool
-    
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Sphere':
-        return Sphere( # TODO: should return an ellipsoid if scaling in anisotropically
-            radius=self.radius * np.linalg.det(affine_matrix)**(1/3), # scale radius appropriately
-            center=apply_affine_transform_to_points(self.center, affine_matrix),
-        ) # TODO: have non-isometric affine transforms correctly return an Ellipsoid, once implemented
-
 @dataclass
 class PointCloud(BoundedShape[float], dimension=3):
     '''A cluster of points in 3D space'''
@@ -171,3 +149,69 @@ class PointCloud(BoundedShape[float], dimension=3):
             positions=apply_affine_transform_to_points(self.positions, affine_matrix)
         )
     
+@dataclass
+class Ellipsoid(BoundedShape[float], dimension=3):
+    '''A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
+    Represented by an affine transformation of a unit sphere centered at the origin'''
+    # affine matrix with principal basis as linear part and location of center as translational part
+    basis : np.ndarray[Shape[4, 4], float] = field(default_factory=lambda : np.eye(4, dtype=float))
+    basis_inverse : np.ndarray[Shape[4, 4], float] = field(init=False)
+    
+    def __post_init__(self) -> None:
+        assert self.is_valid_ellipsoid_matrix(self.basis)
+        self.basis_inverse = np.linalg.inv(self.basis) # precompute inverse for later use
+    
+    @staticmethod
+    def is_valid_ellipsoid_matrix(basis : np.ndarray[Shape[4, 4], float]) -> bool:
+        '''Check that an affine matrix could represent an ellipsoid'''
+        assert basis.shape == (4, 4)
+        axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more leegant way to do this splitting
+        
+        assert (
+            is_orthogonal(axes) # ensure principal axes are mutually orthogonal
+            and np.allclose(projective_part, 0.0) # ensure axes have apply no projective transformation
+            and np.isclose(w, 1.0), # ensure homogeneous scale of the center is 1 (i.e. unprojected)
+        )
+        
+    @property
+    def centroid(self) -> np.ndarray[Shape[3], float]:
+        return self.basis[:-1, -1] # return translation vector of center
+    
+    @property
+    def volume(self) -> float:
+        return 4/3 * np.pi * np.linalg.det(self.basis)
+    
+    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
+        return bool(
+            np.linalg.norm(apply_affine_transform_to_points(
+                coords=point,
+                transform=self.basis_inverse # apply inverse transform mapps all points inside the ellipsoid to points within the unit ball
+            )) < 1) # need to cast from numpy bool to Python bool
+    
+    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'PointCloud':
+        return Ellipsoid(affine_matrix @ self.basis)
+    
+@dataclass # TODO: reimplement in terms of Ellipsoid
+class Sphere(BoundedShape[float], dimension=3):
+    '''A spherical body with arbitrary radius and center'''
+    radius : float
+    center : np.ndarray[Shape[3], float]
+    
+    @property
+    def centroid(self) -> np.ndarray[Shape[3], float]:
+        return self.center
+    
+    @property
+    def volume(self) -> float:
+        return 4/3 * np.pi * self.radius**3
+    
+    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
+        return bool(np.linalg.norm(self.center - point) < self.radius) # need to cast from numpy bool to Python bool
+    
+    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Sphere':
+        return Sphere( # TODO: should return an ellipsoid if scaling in anisotropically
+            radius=self.radius * np.linalg.det(affine_matrix)**(1/3), # scale radius appropriately
+            center=apply_affine_transform_to_points(self.center, affine_matrix),
+        ) # TODO: have non-isometric affine transforms correctly return an Ellipsoid, once implemented
+        
+    # TODO: add mpl-compatible visualizer methods?
