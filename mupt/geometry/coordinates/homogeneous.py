@@ -33,8 +33,16 @@ def from_homogeneous_coords(coords : np.ndarray[Shape[N, DimsPlus], Numeric]) ->
     
     return coords[:, :-1] / coords[:, [-1]]
 
-def apply_affine_transform_to_points(coords : np.ndarray[Shape[N, Dims], Numeric], transform : np.ndarray[Shape[DimsPlus, DimsPlus], Numeric]):
+def apply_affine_transform_to_points(
+        coords : np.ndarray[Shape[N, Dims], Numeric],
+        transform : np.ndarray[Shape[DimsPlus, DimsPlus], Numeric],
+        preserve_vector_shape : bool=True
+    ):
     '''Take a vector of coordinates in D dimensions, apply a [D + 1] dimensional affine
     transformation, then project back down to D dimensions and return the output'''
     # TODO: check that matrix is compatible shape
-    return from_homogeneous_coords(to_homogeneous_coords(coords) @ transform.T)
+    result = from_homogeneous_coords(to_homogeneous_coords(coords) @ transform.T)
+    if preserve_vector_shape:
+        result = np.squeeze(result) # squeeze preserves 1-dimensionality when applied to vectors
+
+    return result
