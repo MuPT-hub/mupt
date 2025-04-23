@@ -14,11 +14,9 @@ from functools import cached_property
 import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 
-from .homogeneous import apply_affine_transform_to_points
+from .coordinates.homogeneous import apply_affine_transform_to_points
 from ..mutils.decorators.classmod import register_abstract_class_attrs
 from .arraytypes import Shape, Numeric, M, N, Dims
-
-type Point3D = np.ndarray[Shape[3], Numeric]
 
 
 @dataclass
@@ -33,7 +31,7 @@ class Plane(Generic[Numeric]):
     d : Numeric = 0
     
     @classmethod
-    def from_normal_and_point(cls, normal : Point3D, point : Point3D) -> 'Plane':
+    def from_normal_and_point(cls, normal : np.ndarray[Shape[3], Numeric], point : np.ndarray[Shape[3], Numeric]) -> 'Plane':
         '''Initialize from a normal vector and an arbitrary point know to lie in the plane'''
         assert isinstance(point, np.ndarray) and point.size == 3
         a, b, c = normal
@@ -44,7 +42,7 @@ class Plane(Generic[Numeric]):
         return cls(a, b, c, -d)
     
     @property
-    def normal(self) -> Point3D:
+    def normal(self) -> np.ndarray[Shape[3], Numeric]:
         return np.array([self.a, self.b, self.c])
     
     def contains(self, *point : Sequence[Numeric]) -> bool:
@@ -57,7 +55,7 @@ class Plane(Generic[Numeric]):
         
         return np.isclose(self.a*x + self.b*y + self.c*z + self.d, 0.0).astype(object) # convert from Numpy to Python bool
     
-    def sample(self, radius : Numeric=1.0, n : int=1) -> Point3D:
+    def sample(self, radius : Numeric=1.0, n : int=1) -> np.ndarray[Shape[3], Numeric]:
         '''Sample a random point from the plane within a given distance from the origin in the XY-plane (default 1 unit)'''
         x = np.random.uniform(-radius, radius, size=n)
         y = np.random.uniform(-radius, radius, size=n)
@@ -104,6 +102,13 @@ class BoundedShape(ABC, Generic[T]): # template for numeric type (some iteration
     # def support(self, direction : np.ndarray[Shape[Dims], T]) -> np.ndarray[Shape[Dims], T]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
     #     ...
+    
+    # @classmethod
+    # @abstractmethod
+    # def from_coordinates(cls, positions : np.ndarray[Shape[N, Dims], T]) -> 'BoundedShape':
+    #     '''Initialize a body from a list of positions'''
+    #     ...
+        
 
 # Concrete BoundedShape implementations
 @dataclass
@@ -129,12 +134,10 @@ class Sphere(BoundedShape[float], dimension=3):
             center=apply_affine_transform_to_points(self.center, affine_matrix),
         ) # TODO: have non-isometric affine transforms correctly return an Ellipsoid, once implemented
 
-# TODO: implement Ellipsoid subclass
-
 @dataclass
 class PointCloud(BoundedShape[float], dimension=3):
     '''A cluster of points in 3D space'''
-    coordinates : np.ndarray[Shape[3], float] = field(default_factory=lambda : np.array([]), repr=False) # don't show when printing
+    positions : np.ndarray[Shape[3], float] = field(default_factory=lambda : np.array([]), repr=False) # don't show when printing
     _convex_hull : ConvexHull = field(init=False, default=None)
     _triangulation : Delaunay = field(init=False, default=None)
     
@@ -143,18 +146,18 @@ class PointCloud(BoundedShape[float], dimension=3):
     @property
     def convex_hull(self) -> ConvexHull:
         if self._convex_hull is None:
-            self._convex_hull = ConvexHull(self.coordinates)
+            self._convex_hull = ConvexHull(self.positions)
         return self._convex_hull
 
     @property
     def triangulation(self) -> Delaunay:
         if self._triangulation is None:
-            self._triangulation = Delaunay(self.coordinates)
+            self._triangulation = Delaunay(self.positions)
         return self._triangulation
     
     @property
     def centroid(self) -> np.ndarray[Shape[3], float]:
-        return self.coordinates.mean(axis=0)
+        return self.positions.mean(axis=0)
     
     @property
     def volume(self) -> float:
@@ -165,6 +168,6 @@ class PointCloud(BoundedShape[float], dimension=3):
     
     def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'PointCloud':
         return PointCloud(
-            coordinates=apply_affine_transform_to_points(self.coordinates, affine_matrix)
+            positions=apply_affine_transform_to_points(self.positions, affine_matrix)
         )
     
