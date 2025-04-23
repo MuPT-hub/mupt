@@ -16,8 +16,9 @@ from scipy.spatial import ConvexHull, Delaunay
 
 from ..mutils.decorators.classmod import register_abstract_class_attrs
 from .arraytypes import Shape, Numeric, M, N, Dims
-from .coordinates.homogeneous import apply_affine_transform_to_points
-from .coordinates.basis import is_orthogonal
+
+from .coordinates.basis import is_columnspace_mutually_orthogonal
+from .coordinates.homogeneous import apply_affine_transform_to_points, affine_matrix_from_linear_and_center
 
 
 @dataclass
@@ -173,7 +174,7 @@ class Ellipsoid(BoundedShape[float], dimension=3):
         axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more leegant way to do this splitting
         
         return bool(
-            is_orthogonal(axes) # ensure principal axes are mutually orthogonal
+            is_columnspace_mutually_orthogonal(axes) # ensure principal axes are mutually orthogonal
             and np.allclose(projective_part, 0.0) # ensure axes have apply no projective transformation
             and np.isclose(w, 1.0), # ensure homogeneous scale of the center is 1 (i.e. unprojected)
         )
@@ -182,17 +183,12 @@ class Ellipsoid(BoundedShape[float], dimension=3):
     def from_axes_and_center(
         cls,
         axes : np.ndarray[Shape[3, 3], float],
-        center : Optional[np.ndarray[Shape[3], float]],
+        center : Optional[np.ndarray[Shape[3], float]]=None,
     ) -> 'Ellipsoid':
         '''Instantiate an ellipsoid from a matrix of its axes and
         an (optional) location for its center (by default, the origin)'''
-        basis = np.zeros((4, 4), dtype=float)
-        basis[:-1, :-1] = axes
-        basis[:-1, -1]  = center
-        basis[-1, -1]   = 1.0
-        
-        # return cls(basis=basis)
-        return Ellipsoid(basis=basis) # NOTE: explicitly using Ellipsoid (rather than cls) to prevent circular call in child classes (i.e. Sphere)
+        # NOTE: explicitly using Ellipsoid (rather than cls) to prevent circular call in child classes (i.e. Sphere)
+        return Ellipsoid(basis=affine_matrix_from_linear_and_center(axes, center=center))
         
     @property
     def centroid(self) -> np.ndarray[Shape[3], float]:
@@ -214,42 +210,19 @@ class Ellipsoid(BoundedShape[float], dimension=3):
     def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Ellipsoid':
         return Ellipsoid(affine_matrix @ self.basis)
     
-class Sphere2(Ellipsoid):
+class Sphere(Ellipsoid):
     '''A spherical body with arbitrary radius and center'''
-    def __new__(cls, radius : float=1.0, center : np.ndarray[Shape[3], float]=None, *args, **kwargs) -> 'Sphere2':
-        if center is None:
-            center = np.zeros(3, dtype=float)
-            
-        inst = super().from_axes_and_center(
-            axes=radius * np.eye(3, dtype=float),
+    def __init__(self, radius : float=1.0, center : np.ndarray[Shape[3], float]=None) -> 'Sphere':
+        super().__init__(affine_matrix_from_linear_and_center(
+            matrix=radius * np.eye(3, dtype=float),
             center=center,
-        )
-        inst.radius = radius
-        inst.center = center
-        
-        return inst
+        ))
+        self.radius = radius
+        self.center = center
     
-@dataclass # TODO: reimplement in terms of Ellipsoid
-class Sphere(BoundedShape[float], dimension=3):
-    '''A spherical body with arbitrary radius and center'''
-    radius : float
-    center : np.ndarray[Shape[3], float]
+    def __repr__(self):
+        return f'Sphere(r={self.radius})'
     
-    @property
-    def centroid(self) -> np.ndarray[Shape[3], float]:
-        return self.center
+    # TODO: address creation from axes (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     
-    @property
-    def volume(self) -> float:
-        return 4/3 * np.pi * self.radius**3
-    
-    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
-        return bool(np.linalg.norm(self.center - point) < self.radius) # need to cast from numpy bool to Python bool
-    
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Sphere':
-        return Sphere( # TODO: should return an ellipsoid if scaling in anisotropically
-            radius=self.radius * np.linalg.det(affine_matrix)**(1/3), # scale radius appropriately
-            center=apply_affine_transform_to_points(self.center, affine_matrix),
-        ) # TODO: have non-isometric affine transforms correctly return an Ellipsoid, once implemented
-        
-    # TODO: add mpl-compatible visualizer methods?
+    # NOTE: affine transformations will produce Ellipsoid instances, as one would expect
