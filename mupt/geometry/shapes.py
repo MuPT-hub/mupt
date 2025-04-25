@@ -15,7 +15,7 @@ import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 
 from ..mutils.decorators.classmod import register_abstract_class_attrs
-from .arraytypes import Shape, Numeric, M, N, Dims
+from .arraytypes import Shape, Numeric, M, N, P, Dims
 
 from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.affine import (
@@ -154,15 +154,22 @@ class PointCloud(BoundedShape[float], dimension=3):
     
 @dataclass
 class Ellipsoid(BoundedShape[float], dimension=3):
-    '''A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
-    Represented by an affine transformation of a unit sphere centered at the origin'''
-    # affine matrix with principal basis as linear part and location of center as translational part
+    '''
+    A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
+    
+    Represented by an affine transformation of a unit sphere centered at the origin,
+    with principal axes as linear part and location of center as translational part
+    '''
+    # initialization
     def __init__(self, basis : np.ndarray[Shape[4, 4], float]=None) -> None:
         if basis is None:
             basis = np.eye(4, dtype=float)
             
         assert self.is_valid_ellipsoid_matrix(basis)
         self.basis = basis
+        
+    def __repr__(self):
+        return f'{self.__class__.__name__}(radii={self.radii}, center={self.centroid})'
         
     @cached_property
     def basis_inverse(self) -> np.ndarray[Shape[4, 4], float]:
@@ -192,7 +199,23 @@ class Ellipsoid(BoundedShape[float], dimension=3):
         an (optional) location for its center (by default, the origin)'''
         # NOTE: explicitly using Ellipsoid (rather than cls) to prevent circular call in child classes (i.e. Sphere)
         return Ellipsoid(basis=affine_matrix_from_linear_and_center(axes, center=center))
+    
+    @classmethod
+    def from_axis_lengths_and_center(
+        cls,
+        radius_x : float=1.0,
+        radius_y : float=1.0,
+        radius_z : float=1.0, 
+        center : Optional[np.ndarray[Shape[3], float]]=None,
+    ) -> 'Ellipsoid':
+        '''Instantiate an ellipsoid its axis lengths andan (optional) location for its center (by default, the origin)'''
+        # TODO: add some "smart" conversion of arrays/diagonal matrices as input
+        return cls.from_axes_and_center(
+            axes=np.diag([radius_x, radius_y, radius_z]),
+            center=center
+        )
         
+    # interfaces
     @property
     def centroid(self) -> np.ndarray[Shape[3], float]:
         return self.basis[:-1, -1] # return translation vector of center
@@ -212,6 +235,52 @@ class Ellipsoid(BoundedShape[float], dimension=3):
     
     def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Ellipsoid':
         return Ellipsoid(affine_matrix @ self.basis)
+    
+    # visualization
+    @property
+    def radii(self) -> np.ndarray[Shape[3], float]:
+        '''The lengths of the principal axes of the ellipsoid'''
+        return np.linalg.norm(self.basis[:-1, :-1], axis=0)
+    axes_lengths = radii # alias for convenience
+    
+    def surface_mesh(self, n_theta : int=100, n_phi : int=100) -> np.ndarray[Shape[M, P, 3], float]:
+        '''
+        Generate a mesh of points on the surface of the ellipsoid
+        
+        Parameters
+        ----------
+        n_theta : int, default 100
+            Number of points in the azimuthal angle direction
+            Equivalent to longitudinal resolution
+            
+            Theta is taken to be the angle CC from the +x axis in the xy-plane,
+            following the mathematics (not physics!) convention
+        n_phi : int, default 100
+            Number of points in the polar angle direction
+            Equivalent to latitudinal resolution
+            
+            Phi is taken to be the angle "downwards" from the +z axis
+            following the mathematics (not physics!) convention
+            
+        Returns
+        -------
+        ellipsoid_mesh : Array[[n_M, P, 3], float]
+            A mesh of points on the surface of the ellipsoid
+            M is the number of points in the azimuthal direction
+            P is the number of points in the polar direction
+        '''
+        r : float = 1.0 # NOTE: this is NOT a parameter, but is left here to make clear tht we start with a UNIT sphere
+        theta, phi = np.mgrid[
+            0.0:2*np.pi:n_theta*1j,
+            0.0:np.pi:n_phi*1j,
+        ] # (magnitude of) complex step size is interpreted by numpy as a number of points
+
+        positions = np.zeros((n_theta, n_phi, 3), dtype=float)
+        positions[..., 0] = r * np.sin(phi) * np.cos(theta)
+        positions[..., 1] = r * np.sin(phi) * np.sin(theta)
+        positions[..., 2] = r * np.cos(phi)
+        
+        return apply_affine_transformation_to_points(positions, self.basis)
     
 class Sphere(Ellipsoid):
     '''A spherical body with arbitrary radius and center'''
