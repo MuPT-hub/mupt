@@ -25,7 +25,7 @@ from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
 
 from ..chemistry.sanitization import sanitize_mol
-from ..chemistry.ports import get_num_linkers
+from ..chemistry.linkers import get_num_linkers
 
 
 @dataclass
