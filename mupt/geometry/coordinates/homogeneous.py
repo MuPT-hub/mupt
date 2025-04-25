@@ -9,30 +9,18 @@ from ..arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
 import numpy as np
 
 
-def coordlike(coords : Union[np.ndarray[Shape[Dims], Numeric], np.ndarray[Shape[N, Dims], Numeric]]) -> np.ndarray[Shape[N, Dims], Numeric]:
-    '''Standardizes input for applications which expect an NxD vector off D-dimensional coordinates
-    Specifically handles the case of broadcasting 1-dimensional arrays into the right 2-dimensional shape'''
-    if coords.ndim == 1:
-        coords = coords.reshape(1, -1)
-    assert coords.ndim == 2
-    
-    return coords
-
 def to_homogeneous_coords(coords : np.ndarray[Shape[N, Dims], Numeric], projection : float=1.0) -> np.ndarray[Shape[N, DimsPlus], Numeric]:
     '''Convert an array of N points in D dimensions to one of N points in
     [D + 1] dimensions, with arbitrary uniform projection (1.0 by default)'''
-    coords = coordlike(coords)
-    n_points, dimension = coords.shape
+    pad_widths = np.zeros((coords.ndim, 2), dtype=int) # pad nowhere...
+    pad_widths[-1, -1] = 1 # ...EXCEPT exactly one layer AFTER the final dimension (and 0 before)
     
-    return np.hstack([coords, np.full(shape=(n_points, 1), fill_value=projection, dtype=coords.dtype)])
-    
+    return np.pad(coords, pad_width=pad_widths, mode='constant', constant_values=projection)
+      
 def from_homogeneous_coords(coords : np.ndarray[Shape[N, DimsPlus], Numeric]) -> np.ndarray[Shape[N, Dims], Numeric]:
     '''Project down from an array of N points in [D + 1] dimensions to an array
     of N points in D dimensions, normalizing out by the homogeneous coordinate'''
-    coords = coordlike(coords)
-    
-    return coords[:, :-1] / coords[:, [-1]]
-
+    return coords[..., :-1] / coords[..., -1, None] # strip off and normalize by the projective part (via broadcast)
 
 def affine_matrix_from_linear_and_center(
         matrix : np.ndarray[Shape[Dims, Dims], Numeric],
