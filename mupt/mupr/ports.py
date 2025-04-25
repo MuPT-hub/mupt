@@ -49,11 +49,11 @@ class Port:
         '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
         conformer = mol.GetConformer(conf_id) if (mol.GetNumConformers() > 0) else None
         for (linker_idx, bh_idx) in mol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
-            bh_atom = mol.GetAtomWithIdx(bh_idx)
             port = cls(
-                bridgehead=bh_atom,
+                linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
                 linker_flavor=mol.GetAtomWithIdx(linker_idx).GetIsotope(),
                 bondtype=mol.GetBondBetweenAtoms(bh_idx, linker_idx).GetBondType(),
+                bridgehead=bh_idx,
             )
             
             if conformer: # solicit coordinates, if available
