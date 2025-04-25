@@ -18,7 +18,10 @@ from ..mutils.decorators.classmod import register_abstract_class_attrs
 from .arraytypes import Shape, Numeric, M, N, Dims
 
 from .coordinates.basis import is_columnspace_mutually_orthogonal
-from .coordinates.homogeneous import apply_affine_transform_to_points, affine_matrix_from_linear_and_center
+from .transforms.affine import (
+    affine_matrix_from_linear_and_center,
+    apply_affine_transform_to_points,
+)
 
 
 @dataclass

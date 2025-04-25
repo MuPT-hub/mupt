@@ -1,18 +1,84 @@
-'''For construction and application of affine transformation matrices in 3 dimensions'''
+'''Application and construction of common affine transformations of points in 3D space'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Union
+from typing import Any, Optional, Union
 import numpy as np
 
-from ..arraytypes import Shape, Numeric, N, Dims
+from ..arraytypes import Shape, Numeric, N, Dims, DimsPlus
 type AffineMatrix = np.ndarray[Shape[4, 4], Numeric]
+
+from ..coordinates.homogeneous import from_homogeneous_coords, to_homogeneous_coords
 
 
 # APPLICATION OF AFFINE TRANSFORMATIONS
+def apply_affine_transform_to_points(
+        positions : np.ndarray[Shape[Any, Dims], Numeric],
+        transform : np.ndarray[Shape[DimsPlus, DimsPlus], Numeric],
+    ) -> np.ndarray[Shape[Any, Dims], Numeric]:
+    '''
+    Take a vector of coordinates in D dimensions, apply a [D + 1] dimensional affine
+    transformation, then project back down to D dimensions and return the output
+    
+    Parameters
+    ----------
+    positions : Array[[..., D], Numeric]
+        An array of points in D-dimensional space
+        Can be nested to any level of depth, as long as the last dimension is D
+    transform : Array[[D + 1, D + 1], Numeric]
+        A [D + 1] dimensional affine transformation matrix      
+        
+    Returns
+    -------
+    Array[[..., D], Numeric]
+        An array of the transformed points in D-dimensional space
+        Has the same shape as the input
+    '''
+    # TODO: check that matrix is compatible shape
+    return from_homogeneous_coords(to_homogeneous_coords(positions) @ transform.T)
 
 # CONSTRUCTION OF AFFINE MATRICES
+def affine_matrix_from_linear_and_center(
+        matrix : np.ndarray[Shape[Dims, Dims], Numeric],
+        center : Optional[np.ndarray[Shape[Dims], Numeric]],
+        dtype : Optional[type]=None,
+    ) -> np.ndarray[Shape[DimsPlus, DimsPlus], Numeric]:
+        '''
+        Instantiate an affine transformation matrix from a linear transformation and a new origin location
+        
+        Parameters
+        ----------
+        matrix : Array[[D, D], Numeric]
+            A D-dimensional linear transformation matrix
+        center : Array[[D,], Numeric]
+            A D-dimensional vector representing the new origin location
+        dtype : type
+            The data type of the output matrix
+            If None, will be the same as the input matrix
+            
+        Returns
+        -------
+        Array[[D + 1, D + 1], Numeric]
+            The corresponding [D + 1] dimensional affine transformation matrix
+        '''
+        (n_rows, n_cols) = matrix.shape # implicitly enforces 2-dimensionality
+        assert n_rows == n_cols # check squareness
+        dimension = n_cols
+        
+        if dtype is None:
+            dtype = matrix.dtype
+        
+        if center is None:
+            center = np.zeros(dimension, dtype=dtype)
+        
+        affine_matrix = np.zeros((dimension + 1, dimension + 1), dtype=dtype)
+        affine_matrix[:-1, :-1] = matrix
+        affine_matrix[:-1, -1]  = center
+        affine_matrix[-1, -1]   = 1
+        
+        return affine_matrix
+
 def translation(x : float=0.0, y : float=0.0, z : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix:
     '''
     Generates an affine matrix which translated the origin (and all points in space along with it) to the point (x, y, z)
