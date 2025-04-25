@@ -20,7 +20,7 @@ from .arraytypes import Shape, Numeric, M, N, Dims
 from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.affine import (
     affine_matrix_from_linear_and_center,
-    apply_affine_transform_to_points,
+    apply_affine_transformation_to_points,
 )
 
 
@@ -149,7 +149,7 @@ class PointCloud(BoundedShape[float], dimension=3):
     
     def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'PointCloud':
         return PointCloud(
-            positions=apply_affine_transform_to_points(self.positions, affine_matrix)
+            positions=apply_affine_transformation_to_points(self.positions, affine_matrix)
         )
     
 @dataclass
@@ -203,8 +203,8 @@ class Ellipsoid(BoundedShape[float], dimension=3):
     
     def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
         return (np.linalg.norm(
-            apply_affine_transform_to_points(
-                coords=point,
+            apply_affine_transformation_to_points(
+                positions=point,
                 transform=self.basis_inverse, # inverse transform maps all points inside the ellipsoid to points within the unit ball
             ),
             axis=-1,

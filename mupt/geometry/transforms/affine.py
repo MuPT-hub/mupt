@@ -13,7 +13,7 @@ from ..coordinates.homogeneous import from_homogeneous_coords, to_homogeneous_co
 
 
 # APPLICATION OF AFFINE TRANSFORMATIONS
-def apply_affine_transform_to_points(
+def apply_affine_transformation_to_points(
         positions : np.ndarray[Shape[Any, Dims], Numeric],
         transform : np.ndarray[Shape[DimsPlus, DimsPlus], Numeric],
     ) -> np.ndarray[Shape[Any, Dims], Numeric]:
