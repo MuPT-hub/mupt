@@ -25,6 +25,12 @@ from rdkit.Chem.rdmolops import (
 
 from .ports import Port
 from ..chemistry.sanitization import sanitize_mol
+from ..chemistry.selection import (
+    bonds_by_condition,
+    bond_condition_by_atom_condition_factory,
+    atom_is_linker,
+    logical_or,
+)
 from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
 
@@ -143,19 +149,23 @@ class Primitive:
     def to_rdkit(self) -> Mol:
         '''Convert Primitive to an RDKit Mol'''
         if self.chemistry is None:
-            raise ValueError('Primitive does not have chemistry')
+            raise ValueError('Primitive with no explicit chemistry cannot be exported to RDKit')
         
-        rdmol = Chem.MolFromSmiles(self.chemistry, sanitize=False) # don't mangle molecule with default sanitization - read SMILES verbatim
-        # TODO: add sanitization here
-        num_atoms_total = rdmol.GetNumAtoms() # number of atoms INCLUDING virtual linker atoms
+        mol = sanitize_mol(
+            Chem.MolFromSmiles(self.chemistry, sanitize=False), # don't mangle molecule with default sanitization - read SMILES verbatim
+            sanitize_ops=SANITIZE_ALL,          # TODO: add option to specify sanitization flags
+            aromaticity_model=AROMATICITY_MDL,  # TODO: add option to specify sanitization flags
+            in_place=False, # don't modify original Mol instance!
+        )
+        num_atoms_total = mol.GetNumAtoms() # number of atoms INCLUDING virtual linker atoms
         assert num_atoms_total == self.num_atoms + self.functionality
         
         # TODO: add check on uniqueness and completeness of atom map numbers
         atom_order_map = {
             atom.GetIdx(): atom.GetAtomMapNum()
-                for atom in rdmol.GetAtoms()
+                for atom in mol.GetAtoms()
         }
-        rdmol = Chem.RenumberAtoms(rdmol, sorted(atom_order_map, key=atom_order_map.get)) # renumber atoms to be in the order prescribed by the SMIRKS string
+        mol = Chem.RenumberAtoms(mol, sorted(atom_order_map, key=atom_order_map.get)) # renumber atoms to be in the order prescribed by the SMIRKS string
         
         # set conformer on RDKit Mol if atom positions are specified
         if isinstance(self.shape, PointCloud):
@@ -169,17 +179,38 @@ class Primitive:
             
             rdconf = Conformer(num_atoms_total)
             rdconf.SetPositions(positions)
-            conf_id = rdmol.AddConformer(rdconf, assignId=0) # always assign to conformer 0 by default
+            conf_id = mol.AddConformer(rdconf, assignId=0) # always assign to conformer 0 by default
         
-        return rdmol
+        return mol
     
     # interaction methods
-    def atomize(self) -> Generator['Primitive', None, None]:
+    def atomize(self, uniquify: bool=False) -> Generator['Primitive', None, None]:
         '''Decompose primitive into its unique, constituent single-atom primitives'''
-        if not self.has_chemistry:
-            raise ValueError
+        mol = self.to_rdkit()
+        real_bond_idxs = bonds_by_condition(
+            mol,
+            condition=bond_condition_by_atom_condition_factory(
+                atom_condition=atom_is_linker, # check if either atom in the bond is a linker
+                binary_operator=logical_or,
+            ),
+            as_indices=True,
+            as_pairs=False, 
+            negate=True, # exclude all bonds but those between 2 non-linker atoms
+        )
         
-        raise NotImplemented
+        seen_primitive_hashes : set[int] = set()
+        mol_fragmented : Mol = Chem.FragmentOnBonds(mol, real_bond_idxs, addDummies=True)
+        for fragment in Chem.GetMolFrags(mol_fragmented, asMols=True, sanitizeFrags=False):
+            for atom in fragment.GetAtoms(): # DEVNOTE: for now, clear all linker flavor markers; eventually, want to keep labels for...
+                atom.SetIsotope(0) # ...those which were also linkers in the unfragmented moleucle (won't worry about it for now though)
+
+            sub_primitive = self.from_rdkit(fragment)
+            sub_hash = hash(sub_primitive)
+            if uniquify and (sub_hash in seen_primitive_hashes):
+                continue # skip sub-primitives we've already seen, as requested
+            
+            seen_primitive_hashes.add(sub_hash)
+            yield sub_primitive
 
 
 @dataclass
