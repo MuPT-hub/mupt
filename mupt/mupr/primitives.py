@@ -3,9 +3,11 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Hashable, Optional, Union
+from typing import Any, Generator, Hashable, Optional, Sequence, Union
 from dataclasses import dataclass, field
 from enum import Enum # consider having a bitwise Enum to encode possible specification states of a primitive??
+
+import numpy as np
 
 from rdkit import Chem
 from rdkit.Chem.rdchem import (
@@ -21,11 +23,10 @@ from rdkit.Chem.rdmolops import (
     AROMATICITY_MDL,
 )
 
+from .ports import Port
+from ..chemistry.sanitization import sanitize_mol
 from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
-
-from ..chemistry.sanitization import sanitize_mol
-from ..chemistry.linkers import get_num_linkers
 
 
 @dataclass
@@ -41,24 +42,23 @@ class Primitive:
     As another example, a 0-functionality primitive is also totally legal (ex. as a complete small molecule in an admixture)
     But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
     '''
-    # excluding naming for now as this may screw up comparison of otherwise identical primitives (maybe we'd want that down the line?)
-    num_atoms     : Optional[int] = None # number of atoms (these are precisely periodic-table atoms, NOT other generic particles)
-    functionality : Optional[int] = None # number of linker sites, which can connect to other primitives
-    shape         : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive in space
+    num_atoms : Optional[int] = None # number of atoms AS APPEARING ON the periodic, i.e. NOT other generic primitives or virtual linker atoms
+    chemistry : Optional[str] = None # line notation specification of chemistry, for now as SMIRKS (numbered SMARTS)
+    shape     : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive in space
+    ports     : set[Port] = field(default_factory=set) # a list of ports which are available for bonding to other primitives
     
-    # would also be cool to have chemistry-free method of labelling ports (perhaps passing Sequence of Port-type objects in addition to chemistry?)
-    chemistry     : Optional[Mol] = None # a SMILES-like string which represents the internal chemistry of the primitive
-    smiles        : Optional[str] = None #field(init=False, default=None)
-    stereo_marker : Optional[ChiralType] = None
-    
+    stereo_marker : Optional[ChiralType] = None # DEVNOTE: decide if this should be explicit, or be looked for in metadata
     metadata : dict[Hashable, Any] = field(default_factory=dict)
     
     # comparison methods    
-    def __hash__(self):
-        raise NotImplemented # critical that this exists to allow comparison between primitives
+    def __hash__(self): # critical that this exists to allow comparison between primitives
+        return hash(f'{self.num_atoms}{self.chemistry}{type(self.shape).__name__}{len(self.ports)}')
     
-    def __eq__(self, value):
-        raise NotImplemented # chemical equality will likely be the hardest part to compare - SMILES canonicalization might alleviate this?
+    def __eq__(self, other : object) -> bool:
+        '''Check whether two primitives are equivalent'''
+        if not isinstance(other, Primitive):
+            raise TypeError(f'Cannot compare Primitive to {type(other)}')
+        return self.__hash__() == other.__hash__()
 
     # properties
     @property
@@ -71,6 +71,11 @@ class Primitive:
         '''Check whether the Primitive has chemical information explicitly specified'''
         return self.chemistry is not None
     
+    @property
+    def functionality(self) -> int:
+        '''Number of neighboring primitives which can be attached to this primitive'''
+        return len(self.ports)
+    
     # initialization methods    
     def __post_init__(self) -> None:
         self._cleanup()
@@ -78,38 +83,45 @@ class Primitive:
     def _cleanup(self) -> None:
         '''Perform some sanitization based on which inputs are provided and what those inputs are'''
         ...
-        
-    def set_positions(self, positions : Optional[ndarray[Shape[N, 3], float]]) -> None:
-        '''Set Primitive shape as an array of coordinates, and (if chemistry is explicit) on the internal Mol representation'''
-        if positions is None: #if positions is None:
-            return # TODO: handle null positions case monadically?
-        
-        self.shape = PointCloud(coordinates=positions)
-        if self.has_chemistry and isinstance(self.chemistry, Mol):
-            n_atoms = self.chemistry.GetNumAtoms()
-            assert (n_atoms == len(positions)) # TODO: have RDKit conformer setting account for null atoms/ports
-
-            rdconf = Conformer(n_atoms)
-            rdconf.SetPositions(positions)
-            conf_id = self.chemistry.AddConformer(rdconf, assignId=0) # always assign to conformer 0 by default
+           
+    # TODO: add descriptor for automatically sanitizing and canonicalizing chemistry attr when set
     
     @classmethod
-    def from_rdkit(cls, mol : Mol, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
+    def from_rdkit(cls, mol : Mol) -> 'Primitive':
         '''Initialize a chemically-explicit Primitive from an RDKit Mol'''
+        # clean up RDMol instance
         mol_sanitized = sanitize_mol(
             mol,
-            sanitize_ops=SANITIZE_ALL,          # TODO: add option to specify sanitation
-            aromaticity_model=AROMATICITY_MDL,  # TODO: add option to specify sanitation
-            in_place=False, # don't modify original
+            sanitize_ops=SANITIZE_ALL,          # TODO: add option to specify sanitization flags
+            aromaticity_model=AROMATICITY_MDL,  # TODO: add option to specify sanitization flags
+            in_place=False, # don't modify original Mol instance!
         )
+        num_atoms_total = mol_sanitized.GetNumAtoms() # number of atoms INCLUDING virtual linker atoms
+        for atom in mol_sanitized.GetAtoms(): # inject map numbers to faithfully preserve atom order
+            atom.SetAtomMapNum(atom.GetIdx())
         
-        primitive = cls(
-            num_atoms=mol_sanitized.GetNumAtoms(),
-            functionality=get_num_linkers(mol_sanitized), # TODO: generalize Ports to work EVEN without explicit chemistry
-            shape=None,
-            chemistry=mol_sanitized,
-            smiles=Chem.MolToSmiles(
-                mol,
+        # determine which atoms are "real" and which are "virtual" (linker sites)
+        ports : tuple[Port] = tuple(Port.ports_from_rdkit(mol_sanitized)) # convert from generator to tuple (need a Sequence-like type)
+        num_ports : int = len(ports)
+        
+        linker_idxs : list[int] = [port.linker for port in ports] # nneds to be list to properly handle numpy "smart" indexing
+        real_atoms_mask = np.ones(num_atoms_total, dtype=bool) # for indexing which atoms are "real" (i.e. not linker atoms)
+        real_atoms_mask[linker_idxs] = False # exclude linker atoms from the shape
+        
+        # determine shape of Primitive; for now either its atomic coordinates (if a conformer is present) or no shape at all
+        if (mol_sanitized.GetNumConformers() <= 0): 
+            shape = None
+        else:
+            # for now, will always assume active conformer is the first (idx 0)
+            shape = PointCloud(positions=mol_sanitized.GetConformer(0).GetPositions()[real_atoms_mask])
+        
+        # intialize and return Primitive
+        return cls(
+            num_atoms=num_atoms_total - num_ports, # exclude "virtual" liker atoms from atom count
+            ports=ports,
+            shape=shape,
+            chemistry=Chem.MolToSmiles(
+                mol_sanitized,
                 canonical=True,         # canonicalize to allow uniqueness check
                 isomericSmiles=True,    # include stereo info
                 allHsExplicit=True,     # include all Hs
@@ -117,14 +129,8 @@ class Primitive:
                 ignoreAtomMapNumbers=False, # preserve mapped atoms
                 doRandom=False,         # make SMILES deterministic
             ),
-            stereo_marker=None, # TODO: add perception of this
+            stereo_marker=None, # TODO: add stereochemical perception, when atomic
         )
-
-        if (positions is None) and (mol_sanitized.GetNumConformers() > 0): # attempt to get positions from Mol directly, if no explicit positions as passed but a conformer is present 
-            positions = mol_sanitized.GetConformer(0).GetPositions() # for now, will always assume active conformer is the first
-        primitive.set_positions(positions) # harmonize positions between shape and chemistry
-
-        return primitive
     
     @classmethod
     def from_SMILES(cls, smiles : str, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
@@ -133,6 +139,42 @@ class Primitive:
             mol=Chem.MolFromSmiles(smiles, sanitize=False), # don't mangle molecule with default sanitization - read SMILES verbatim
             positions=positions,    
         )
+        
+    def to_rdkit(self) -> Mol:
+        '''Convert Primitive to an RDKit Mol'''
+        if self.chemistry is None:
+            raise ValueError('Primitive does not have chemistry')
+        
+        rdmol = Chem.MolFromSmiles(self.chemistry, sanitize=False) # don't mangle molecule with default sanitization - read SMILES verbatim
+        # TODO: add sanitization here
+        num_atoms_total = rdmol.GetNumAtoms() # number of atoms INCLUDING virtual linker atoms
+        assert num_atoms_total == self.num_atoms + self.functionality
+        # TODO: add ceck on uniqueness and completeness of atom map numbers
+        rdmol = Chem.RenumberAtoms(rdmol, [atom.GetAtomMapNum() for atom in rdmol.GetAtoms()]) # renumber atoms to match original order 
+        
+        # set conformer on RDKit Mol if atom positions are specified
+        if isinstance(self.shape, PointCloud):
+            positions = np.zeros((num_atoms_total, 3), dtype=float) 
+            real_atoms_mask = np.ones(num_atoms_total, dtype=bool) # for indexing which atoms are "real" (i.e. not linker atoms)
+            for port in self.ports:
+                real_atoms_mask[port.linker] = False 
+                if port.linker_position is not None: # only attempt to set linker positions if they are
+                    positions[port.linker] = port.linker_position 
+            positions[real_atoms_mask] = self.shape.positions
+            
+            rdconf = Conformer(num_atoms_total)
+            rdconf.SetPositions(positions)
+            conf_id = rdmol.AddConformer(rdconf, assignId=0) # always assign to conformer 0 by default
+        
+        return rdmol
+    
+    # interaction methods
+    def atomize(self) -> Generator['Primitive', None, None]:
+        '''Decompose primitive into its unique, constituent single-atom primitives'''
+        if not self.has_chemistry:
+            raise ValueError
+        
+        raise NotImplemented
 
 
 @dataclass
