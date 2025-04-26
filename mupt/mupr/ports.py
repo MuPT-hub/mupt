@@ -30,30 +30,30 @@ LINKER_QUERY_MOL : Mol = Chem.MolFromSmarts(LINKER_QUERY)
 # ...or if there's ever a case where the two would not produce identical results; both seem to handle higher-order bonds correctly (i.e. treat double bond as "one" connection)
 
 # PORT REPRESENTATION
-@dataclass(frozen=True)
+@dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Port:
     '''Class for encapsulating the components of a "port" bonding site (linker-bond-bridgehead)'''
     linker : Any # TODO: nail down exactly what objects these should be to work in general (wihtout depending on definition of Primitives or Atoms)
-    linker_flavor : int = 0
-    linker_position : Optional[np.ndarray[Shape[3], float]] = None
-    
     bondtype : BondType
-    
     bridgehead : Any # TODO: nail down exactly what objects these should be to work in general (wihtout depending on definition of Primitives or Atoms)
+    
+    linker_flavor : int = 0
+    
+    linker_position : Optional[np.ndarray[Shape[3], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[3], float]] = None
     normal : Optional[np.ndarray[Shape[3], float]] = None 
 
     # initialization
     @classmethod
-    def from_rdkit(cls, mol : Mol, conf_id : int=-1) -> Generator['Port', None, None]:
+    def ports_from_rdkit(cls, mol : Mol, conf_id : int=-1) -> Generator['Port', None, None]:
         '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
         conformer = mol.GetConformer(conf_id) if (mol.GetNumConformers() > 0) else None
         for (linker_idx, bh_idx) in mol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
             port = cls(
                 linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
-                linker_flavor=mol.GetAtomWithIdx(linker_idx).GetIsotope(),
-                bondtype=mol.GetBondBetweenAtoms(bh_idx, linker_idx).GetBondType(),
                 bridgehead=bh_idx,
+                bondtype=mol.GetBondBetweenAtoms(bh_idx, linker_idx).GetBondType(),
+                linker_flavor=mol.GetAtomWithIdx(linker_idx).GetIsotope(),
             )
             
             if conformer: # solicit coordinates, if available
