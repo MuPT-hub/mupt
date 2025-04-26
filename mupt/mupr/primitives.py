@@ -149,8 +149,13 @@ class Primitive:
         # TODO: add sanitization here
         num_atoms_total = rdmol.GetNumAtoms() # number of atoms INCLUDING virtual linker atoms
         assert num_atoms_total == self.num_atoms + self.functionality
-        # TODO: add ceck on uniqueness and completeness of atom map numbers
-        rdmol = Chem.RenumberAtoms(rdmol, [atom.GetAtomMapNum() for atom in rdmol.GetAtoms()]) # renumber atoms to match original order 
+        
+        # TODO: add check on uniqueness and completeness of atom map numbers
+        atom_order_map = {
+            atom.GetIdx(): atom.GetAtomMapNum()
+                for atom in rdmol.GetAtoms()
+        }
+        rdmol = Chem.RenumberAtoms(rdmol, sorted(atom_order_map, key=atom_order_map.get)) # renumber atoms to be in the order prescribed by the SMIRKS string
         
         # set conformer on RDKit Mol if atom positions are specified
         if isinstance(self.shape, PointCloud):

@@ -57,8 +57,8 @@ class Port:
             )
             
             if conformer: # solicit coordinates, if available
-                port.bridgehead_coord = np.array(conformer.GetAtomPosition(bh_idx))
-                port.linker_coord     = np.array(conformer.GetAtomPosition(linker_idx))
+                port.bridgehead_position = np.array(conformer.GetAtomPosition(bh_idx))
+                port.linker_position     = np.array(conformer.GetAtomPosition(linker_idx))
                 # for neighbor in bh_atom.GetNeighbors():
                 #     if neighbor.GetAtomicNum() > 0: # take first real neighbor atom as stabilizer
                 #         port.set_normal_from_stabilizer(stabilizer=conformer.GetAtomPosition(neighbor.GetIdx()))
@@ -81,13 +81,13 @@ class Port:
     # geometric properties
     @property
     def has_coords(self) -> bool:
-        return not ((self.bridgehead_coord is None) or (self.linker_coord is None))
+        return not ((self.bridgehead_position is None) or (self.linker_position is None))
     
     @property
     def bond_vector(self) -> np.ndarray[Shape[3], float]:
         if not self.has_coords:
             raise ValueError
-        return self.linker_coord - self.bridgehead_coord
+        return self.linker_position - self.bridgehead_position
     
     @property
     def bond_length(self) -> float:
@@ -100,12 +100,12 @@ class Port:
     
     def set_bond_length(self, new_bond_length : float) -> None:
         '''Move the linker site along the bond axis to a set distance away from the bridgehead'''
-        self.linker_coord = new_bond_length*self.unit_bond_vector + self.bridgehead_coord
+        self.linker_position = new_bond_length*self.unit_bond_vector + self.bridgehead_position
         
     def set_normal_from_stabilizer(self, stabilizer : np.ndarray[Shape[3], float]) -> None:
         '''Determine (and set) a unit vector normal to the plane containing the
         bridgehead, linker, and a third "stabilizer" point (provided as arg)'''
-        normal = np.cross(self.bond_vector, stabilizer - self.bridgehead_coord)
+        normal = np.cross(self.bond_vector, stabilizer - self.bridgehead_position)
         unit_normal = normal / np.linalg.norm(normal)
         
         self.normal = unit_normal
