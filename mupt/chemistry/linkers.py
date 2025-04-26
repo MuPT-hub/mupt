@@ -32,3 +32,16 @@ def get_linker_and_bridgehead_idxs(rdmol : Mol) -> Generator[tuple[int, int], No
     # DON'T de-duplify indices of substruct matches (fails to catch both ports on a neutronium)
     for (linker_id, bh_id) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False):
         yield linker_id, bh_id # unpacked purely for self-documentation
+
+def renumber_linkers_as_last(rdmol : Mol) -> None:
+    '''
+    Returns a copy of a Mol whose atom indices are renumbered such that:
+    * all #L linker atoms are assigned the last L indices (i.e. occur after all real atoms in order)
+    * all non-linker (i.e. "real") atom are numbered in the order they appear in the original Mol
+    '''
+    linker_idxs : list[int] = []
+    real_atom_idxs : list[int] = []
+    for atom in rdmol.GetAtoms():
+        (real_atom_idxs, linker_idxs)[is_linker(atom)].append(atom.GetIdx())
+        
+    return Chem.RenumberAtoms(rdmol, real_atom_idxs + linker_idxs)
