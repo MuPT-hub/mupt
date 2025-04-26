@@ -157,7 +157,7 @@ def bond_condition_by_atom_condition_factory(
 
 # QUERIES BY PREDEFINED CONDITIONS
 atom_is_mapped : AtomCondition = lambda atom : atom.GetAtomMapNum() != 0
-atom_adjoins_linker : AtomCondition = lambda atom : atom.GetAtomicNum() == 0
+atom_is_linker : AtomCondition = lambda atom : atom.GetAtomicNum() == 0
 
 def mapped_atoms(mol : Mol, as_indices : bool=False) -> Generator[AtomLike, None, None]:
     '''Return all atoms (either as Atom objects or as indices) which have been assigned a nonzero atom map number'''
