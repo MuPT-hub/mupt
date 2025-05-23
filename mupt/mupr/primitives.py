@@ -107,10 +107,10 @@ class Primitive:
             atom.SetAtomMapNum(atom.GetIdx())
         
         # determine which atoms are "real" and which are "virtual" (linker sites)
-        ports : tuple[Port] = tuple(Port.ports_from_rdkit(mol_sanitized)) # convert from generator to tuple (need a Sequence-like type)
+        ports : tuple[Port, ...] = tuple(Port.ports_from_rdkit(mol_sanitized)) # convert from generator to tuple (need a Sequence-like type)
         num_ports : int = len(ports)
         
-        linker_idxs : list[int] = [port.linker for port in ports] # nneds to be list to properly handle numpy "smart" indexing
+        linker_idxs : list[int] = [port.linker for port in ports] # needs to be list to properly handle numpy "smart" indexing
         real_atoms_mask = np.ones(num_atoms_total, dtype=bool) # for indexing which atoms are "real" (i.e. not linker atoms)
         real_atoms_mask[linker_idxs] = False # exclude linker atoms from the shape
         
@@ -141,10 +141,14 @@ class Primitive:
     @classmethod
     def from_SMILES(cls, smiles : str, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
         '''Initialize a chemically-explicit Primitive from a SMILES string representation of the molecular graph'''
-        return cls.from_rdkit(
-            mol=Chem.MolFromSmiles(smiles, sanitize=False), # don't mangle molecule with default sanitization - read SMILES verbatim
-            positions=positions,    
-        )
+        mol = Chem.MolFromSmiles(smiles, sanitize=False) # don't mangle molecule with default sanitization - read SMILES verbatim
+        if positions is not None:
+            assert len(positions) == mol.GetNumAtoms(), 'Number of positions provided does not match number of atoms in the molecule'
+            rdconf = Conformer(len(positions))
+            rdconf.SetPositions(positions)
+            conf_id = mol.AddConformer(rdconf, assignId=0) # always assign to conformer 0 by default
+        
+        return cls.from_rdkit(mol)
         
     def to_rdkit(self) -> Mol:
         '''Convert Primitive to an RDKit Mol'''
