@@ -91,6 +91,10 @@ class Primitive:
         '''Perform some sanitization based on which inputs are provided and what those inputs are'''
         ...
            
+    def copy(self) -> 'Primitive':
+        '''Return a new Primitive with the same information as this one'''
+        return Primitive(**self.__dict__)
+           
     # TODO: add descriptor for automatically sanitizing and canonicalizing chemistry attr when set
     
     @classmethod
