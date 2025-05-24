@@ -3,14 +3,64 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Optional, Union
+from typing import Any, Literal, Mapping, Optional, Sequence, Union
+from typing import Protocol, runtime_checkable
+
 import numpy as np
 
 from ..arraytypes import Shape, Numeric, N, Dims, DimsPlus
-type AffineMatrix = np.ndarray[Shape[4, 4], Numeric]
+type AffineMatrix4x4 = np.ndarray[Shape[Literal[4], Literal[4]], Numeric]
 
 from ..coordinates.homogeneous import from_homogeneous_coords, to_homogeneous_coords
 
+
+# INTERFACES FOR TRANFORMABLE OBJECTS
+@runtime_checkable
+class AffineTransformable(Protocol):
+    '''Interface for objects that can undergo an affine transformation'''
+    def affine_transformation(self, transformation: np.ndarray[Shape[N, N], float]) -> Any: 
+        # DEVNOTE: regarding typehints, returned type may be different to type of self, and is not necessarily transformable either
+        ...
+
+def apply_affine_transform_recursive(
+        obj : Union[object, Sequence[Any], Mapping[str, Any]],
+        affine_matrix : np.ndarray[Shape[N, N], float],
+    ) -> Union[object, Sequence[Any], dict[str, Any]]:
+    '''Apply an affine transformation to an object, if it supports such a transformation,
+    and, if the object is a Sequence or Mapping, attempt to transform its members recursively
+    
+    Parameters
+    ----------
+    obj : Any
+        The object to be transformed, which may be a single object, a Sequence, or a Mapping
+    affine_matrix : Array[[N, N], float]
+        The affine transformation matrix to apply to the object
+        
+    Returns
+    -------
+    Any
+        The transformed object, which (depending on the transformability of the input
+        and its members and the return type of the transform method of members),
+        may or many not be of the same type as the initial object
+    '''
+    # top-level application check
+    if isinstance(obj, AffineTransformable):
+        obj = obj.affine_transformation(affine_matrix)
+        
+    # recursive iteration, as necessary
+    if isinstance(obj, Sequence):  # DEVNOTE: specifically opted for Sequence over Iterable here to avoid double-covering Mappings and unpacking generators
+        return type(obj)( # DEVNOTE: most common Sequence types (e.g. tuple, str, list) support init from comprehension; may revisit if this is not always the case
+            apply_affine_transform_recursive(value, affine_matrix)
+                for value in obj
+        ) 
+    elif isinstance(obj, Mapping):
+        return {
+            key : apply_affine_transform_recursive(value, affine_matrix)
+                for (key, value) in obj.items()
+        }
+        
+    return obj
+    
 
 # APPLICATION OF AFFINE TRANSFORMATIONS
 def apply_affine_transformation_to_points(
@@ -79,7 +129,7 @@ def affine_matrix_from_linear_and_center(
         
         return affine_matrix
 
-def translation(x : float=0.0, y : float=0.0, z : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix:
+def translation(x : float=0.0, y : float=0.0, z : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix4x4:
     '''
     Generates an affine matrix which translated the origin (and all points in space along with it) to the point (x, y, z)
     
@@ -107,7 +157,7 @@ def translation(x : float=0.0, y : float=0.0, z : float=0.0, dtype : Union[str, 
         [0, 0, 0, 1],
     ], dtype=dtype)
 
-def scaling(sx : float=1.0, sy : float=1.0, sz : float=1.0, dtype : Union[str, type]='float64') -> AffineMatrix:
+def scaling(sx : float=1.0, sy : float=1.0, sz : float=1.0, dtype : Union[str, type]='float64') -> AffineMatrix4x4:
     '''
     Generates an affine matrix which scales the basis by factors 
     of (sx, sy, sz) along the x, y, and z axes, respectively
@@ -136,7 +186,7 @@ def scaling(sx : float=1.0, sy : float=1.0, sz : float=1.0, dtype : Union[str, t
         [ 0,  0,  0, 1],
     ], dtype=dtype)
 
-def rotation_x(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix:
+def rotation_x(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix4x4:
     '''
     Generates an affine matrix which rotates about the positive x-axis by "angle_rad" radians
     
@@ -163,7 +213,7 @@ def rotation_x(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> Aff
         [0, 0,  0, 1],
     ], dtype=dtype)
 
-def rotation_y(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix:
+def rotation_y(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix4x4:
     '''
     Generates an affine matrix which rotates about the positive y-axis by "angle_rad" radians
     
@@ -190,7 +240,7 @@ def rotation_y(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> Aff
         [0, 0,  0, 1],
     ], dtype=dtype)
 
-def rotation_z(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix:
+def rotation_z(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> AffineMatrix4x4:
     '''
     Generates an affine matrix which rotates about the positive z-axis by "angle_rad" radians
     
@@ -217,7 +267,7 @@ def rotation_z(angle_rad : float=0.0, dtype : Union[str, type]='float64') -> Aff
         [0,  0, 0, 1],
     ], dtype=dtype)
 
-def rotation_random(about_x : bool=True, about_y : bool=True, about_z : bool=True, dtype : Union[str, type]='float64') -> AffineMatrix:
+def rotation_random(about_x : bool=True, about_y : bool=True, about_z : bool=True, dtype : Union[str, type]='float64') -> AffineMatrix4x4:
     '''
     Generates an affine matrix which rotates by a random amount [0, 2pi)
     about any subset of the x, y, and z axes (including all 3 or neither)
