@@ -33,6 +33,7 @@ from ..chemistry.selection import (
 )
 from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
+from ..geometry.transforms.affine import apply_affine_transform_recursive
 
 
 @dataclass
@@ -51,14 +52,14 @@ class Primitive:
     num_atoms : Optional[int] = None # number of atoms AS APPEARING ON the periodic, i.e. NOT other generic primitives or virtual linker atoms
     chemistry : Optional[str] = None # line notation specification of chemistry, for now as SMIRKS (numbered SMARTS)
     shape     : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive in space
-    ports     : set[Port] = field(default_factory=set) # a list of ports which are available for bonding to other primitives
+    ports     : tuple[Port] = field(default_factory=tuple) # a collection of ports which are available for bonding to other primitives
     
     stereo_marker : Optional[ChiralType] = None # DEVNOTE: decide if this should be explicit, or be looked for in metadata
     metadata : dict[Hashable, Any] = field(default_factory=dict)
     
     # comparison methods    
     def __hash__(self): # critical that this exists to allow comparison between primitives
-        return hash(f'{self.num_atoms}{self.chemistry}{type(self.shape).__name__}{len(self.ports)}')
+        return hash(f'{self.num_atoms}{self.chemistry}{type(self.shape).__name__}{self.functionality}')
     
     def __eq__(self, other : object) -> bool:
         '''Check whether two primitives are equivalent'''
@@ -215,6 +216,11 @@ class Primitive:
             
             seen_primitive_hashes.add(sub_hash)
             yield sub_primitive
+            
+    # geometric methods
+    def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], float]) -> 'Primitive':
+        '''Apply an affine transformation to all parts of a Primitive which support it'''
+        return Primitive(**apply_affine_transform_recursive(self.__dict__, affine_matrix))
 
 
 @dataclass
