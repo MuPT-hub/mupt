@@ -33,7 +33,7 @@ def get_linker_and_bridgehead_idxs(rdmol : Mol) -> Generator[tuple[int, int], No
     for (linker_id, bh_id) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False):
         yield linker_id, bh_id # unpacked purely for self-documentation
 
-def renumber_linkers_as_last(rdmol : Mol) -> None:
+def renumber_linkers_as_last(rdmol : Mol) -> Mol:
     '''
     Returns a copy of a Mol whose atom indices are renumbered such that:
     * all #L linker atoms are assigned the last L indices (i.e. occur after all real atoms in order)
