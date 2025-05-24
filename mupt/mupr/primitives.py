@@ -52,7 +52,7 @@ class Primitive:
     num_atoms : Optional[int] = None # number of atoms AS APPEARING ON the periodic, i.e. NOT other generic primitives or virtual linker atoms
     chemistry : Optional[str] = None # line notation specification of chemistry, for now as SMIRKS (numbered SMARTS)
     shape     : Optional[BoundedShape] = None # a rigid shape which approximates and abstracts the behavoir of the primitive in space
-    ports     : tuple[Port] = field(default_factory=tuple) # a collection of ports which are available for bonding to other primitives
+    ports     : tuple[Port, ...] = field(default_factory=tuple) # a collection of ports which are available for bonding to other primitives
     
     stereo_marker : Optional[ChiralType] = None # DEVNOTE: decide if this should be explicit, or be looked for in metadata
     metadata : dict[Hashable, Any] = field(default_factory=dict)
