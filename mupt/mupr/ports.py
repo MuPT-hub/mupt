@@ -10,7 +10,7 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem.rdchem import Mol, BondType
 
-from ..geometry.arraytypes import Shape, N
+from ..geometry.arraytypes import Shape, Dims, DimsPlus
 from ..geometry.transforms.affine import apply_affine_transformation_to_points
 
 
@@ -39,14 +39,14 @@ class Port:
     bondtype : BondType = BondType.UNSPECIFIED
     linker_flavor : int = 0
     
-    linker_position : Optional[np.ndarray[Shape[N], float]] = None
-    bridgehead_position : Optional[np.ndarray[Shape[N], float]] = None
-    normal : Optional[np.ndarray[Shape[N], float]] = None 
+    linker_position : Optional[np.ndarray[Shape[Dims], float]] = None
+    bridgehead_position : Optional[np.ndarray[Shape[Dims], float]] = None
+    normal : Optional[np.ndarray[Shape[Dims], float]] = None 
 
     # initialization
     def copy(self) -> 'Port':
-        '''Return a new Port with the same inforation as this one'''
-        return Port(**self.__dict__) # DEVNOTE: this is a bit of a hack, but it works for now
+        '''Return a new Port with the same information as this one'''
+        return Port(**self.__dict__)
     
     @classmethod
     def ports_from_rdkit(cls, mol : Mol, conf_id : int=-1) -> Generator['Port', None, None]:
@@ -88,7 +88,7 @@ class Port:
         return not ((self.bridgehead_position is None) or (self.linker_position is None))
     
     @property
-    def bond_vector(self) -> np.ndarray[Shape[N], float]:
+    def bond_vector(self) -> np.ndarray[Shape[Dims], float]:
         if not self.has_coords:
             raise ValueError
         return self.linker_position - self.bridgehead_position
@@ -98,7 +98,7 @@ class Port:
         return np.linalg.norm(self.bond_vector)
     
     @property
-    def unit_bond_vector(self) -> np.ndarray[Shape[N], float]:
+    def unit_bond_vector(self) -> np.ndarray[Shape[Dims], float]:
         '''Unit vector in the same direction as the bond (oriented from bridgehead to linker)'''
         return self.bond_vector / self.bond_length
     
@@ -106,7 +106,7 @@ class Port:
         '''Move the linker site along the bond axis to a set distance away from the bridgehead'''
         self.linker_position = new_bond_length*self.unit_bond_vector + self.bridgehead_position
         
-    def set_normal_from_stabilizer(self, stabilizer : np.ndarray[Shape[N], float]) -> None:
+    def set_normal_from_stabilizer(self, stabilizer : np.ndarray[Shape[Dims], float]) -> None:
         '''Determine (and set) a unit vector normal to the plane containing the
         bridgehead, linker, and a third "stabilizer" point (provided as arg)'''
         normal = np.cross(self.bond_vector, stabilizer - self.bridgehead_position)
@@ -114,7 +114,7 @@ class Port:
         
         self.normal = unit_normal
         
-    def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], float]) -> 'Port':
+    def affine_transformation(self, affine_matrix : np.ndarray[Shape[DimsPlus, DimsPlus], float]) -> 'Port':
         '''Return a Port whose linker and bridgehead positions and normal orientation (if provided)
         have been transformed by a given affine transformation matrix'''
         new_port = self.copy()
