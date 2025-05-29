@@ -2,7 +2,7 @@ Multiscale Polymer Toolkit
 ==============================
 [//]: # (Badges)
 [![GitHub Actions Build Status](https://github.com/MuPT_Hub/mupt/workflows/CI/badge.svg)](https://github.com/MuPT_Hub/mupt/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/MuPT_Hub/Multiscale Polymer Toolkit/branch/main/graph/badge.svg)](https://codecov.io/gh/MuPT_Hub/Multiscale Polymer Toolkit/branch/main)
+[![codecov](https://codecov.io/gh/MuPT_Hub/mupt/branch/main/graph/badge.svg)](https://codecov.io/gh/MuPT_Hub/mupt/branch/main)
 
 
 Drafting repository for the core functionality of the Multiscale Polymer Toolkit (MuPT)
