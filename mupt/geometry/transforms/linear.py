@@ -26,10 +26,25 @@ def orthogonal_projector(direction_vector : np.ndarray[Shape[Dims], Numeric]) ->
     return np.eye(dim, dtype=direction_vector.dtype) - parallel_projector(direction_vector) # equivalent to substracting parallel part off of vector transform is applied to
 perpendicular_projector = orthogonal_projector # alias for convenience
 
-# TODO: make separate constructor function for Householder matrices
+def axial_rotator(axis_vector : np.ndarray[Shape[Dims], Numeric], angle_rad : float=0.0) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+   # DEVNOTE: should type annotations be for general dimension? (i.e. not just 3 where the cross product is well-defined?)
+   ''' 
+   Computes a linear transformation which, when applied to an arbitrary vector,
+   rotates that vector by "angle_rad" radians around the axis defined by "axis_vector"
+   (in a right-handed coordinate systems)
+   
+   Returns an orthogonal matrix which represents the rotation transformation. 
+   Calculation is based on the Rodrigues' rotation formula.
+   '''
+   (dims,) = axis_vector.shape # implicitly enforce 1D rotation axis
+   I = np.eye(dims, dtype=axis_vector.dtype)
+   axis_cross = np.cross(I, axis_vector / np.linalg.norm(axis_vector)) # linear transform equivalent to taking the cross product with the (unit) axis vector
+   
+   return I + np.sin(angle_rad)*axis_cross + (1 - np.cos(angle_rad))*(axis_cross @ axis_cross)
 
 def alignment_transform(initial_vector : np.ndarray[Shape[Dims], Numeric], final_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    '''Compute an orthogonal linear transformation which takes a given initial vector to a final vector
+    # TODO: rename this to something more accurate, i.e. "Householder Reflector"
+    '''Computes an orthogonal linear transformation which takes a given initial vector to a final vector
     while preserving the relative orientations of the basis vectors to one another
     
     Returns an orthogonal Householder matrix which represents the transformation'''
