@@ -110,9 +110,7 @@ class Port:
         '''Determine (and set) a unit vector normal to the plane containing the
         bridgehead, linker, and a third "stabilizer" point (provided as arg)'''
         normal = np.cross(self.bond_vector, stabilizer - self.bridgehead_position)
-        unit_normal = normal / np.linalg.norm(normal)
-        
-        self.normal = unit_normal
+        self.normal = normal / np.linalg.norm(normal)
         
     def affine_transformation(self, affine_matrix : np.ndarray[Shape[DimsPlus, DimsPlus], float]) -> 'Port':
         '''Return a Port whose linker and bridgehead positions and normal orientation (if provided)
