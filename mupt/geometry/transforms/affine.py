@@ -91,7 +91,7 @@ def apply_affine_transformation_to_points(
 # CONSTRUCTION OF AFFINE MATRICES
 def affine_matrix_from_linear_and_center(
         matrix : np.ndarray[Shape[Dims, Dims], Numeric],
-        center : Optional[np.ndarray[Shape[Dims], Numeric]],
+        center : Optional[np.ndarray[Shape[Dims], Numeric]]=None,
         dtype : Optional[type]=None,
     ) -> np.ndarray[Shape[DimsPlus, DimsPlus], Numeric]:
         '''
