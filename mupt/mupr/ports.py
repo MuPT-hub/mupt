@@ -4,14 +4,22 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Generator, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem.rdchem import Mol, BondType
 
 from ..geometry.arraytypes import Shape, Dims, DimsPlus
-from ..geometry.transforms.affine import apply_affine_transformation_to_points
+from ..geometry.transforms.linear import (
+    planar_reflector,
+    axial_rotator,
+)
+from ..geometry.transforms.affine import (
+    apply_affine_transformation_to_points,
+    affine_matrix_from_linear_and_center,
+    translation,
+)
 
 
 # EXCEPTIONS
@@ -34,14 +42,14 @@ LINKER_QUERY_MOL : Mol = Chem.MolFromSmarts(LINKER_QUERY)
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Port:
     '''Class for encapsulating the components of a "port" bonding site (linker-bond-bridgehead)'''
-    linker : Any # TODO: nail down exactly what objects these should be to work in general (without depending on definition of Primitives or Atoms)
+    linker     : Any # TODO: nail down exactly what objects these should be to work in general (without depending on definition of Primitives or Atoms)
     bridgehead : Any # TODO: nail down exactly what objects these should be to work in general (without depending on definition of Primitives or Atoms)
     bondtype : BondType = BondType.UNSPECIFIED
     linker_flavor : int = 0
     
-    linker_position : Optional[np.ndarray[Shape[Dims], float]] = None
+    linker_position     : Optional[np.ndarray[Shape[Dims], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[Dims], float]] = None
-    normal : Optional[np.ndarray[Shape[Dims], float]] = None 
+    normal_vector       : Optional[np.ndarray[Shape[Dims], float]] = None # TODO: validate this is orthogonal to the bond vector (if present)
 
     # initialization
     def copy(self) -> 'Port':
@@ -63,10 +71,12 @@ class Port:
             if conformer: # solicit coordinates, if available
                 port.bridgehead_position = np.array(conformer.GetAtomPosition(bh_idx))
                 port.linker_position     = np.array(conformer.GetAtomPosition(linker_idx))
-                # for neighbor in bh_atom.GetNeighbors():
-                #     if neighbor.GetAtomicNum() > 0: # take first real neighbor atom as stabilizer
-                #         port.set_normal_from_stabilizer(stabilizer=conformer.GetAtomPosition(neighbor.GetIdx()))
-                #         break
+                
+                # TODO: offer option to make this more selective (i.e. choose which neghbor atom to use as stabilizer)
+                for neighbor in mol.GetAtomWithIdx(bh_idx).GetNeighbors():
+                    if neighbor.GetAtomicNum() > 0: # take first real neighbor atom as stabilizer
+                        port.set_normal_from_stabilizer(stabilizer=conformer.GetAtomPosition(neighbor.GetIdx()))
+                        break
                         
             yield port
 
@@ -84,12 +94,13 @@ class Port:
     
     # geometric properties
     @property
-    def has_coords(self) -> bool:
-        return not ((self.bridgehead_position is None) or (self.linker_position is None))
+    def has_positions(self) -> bool:
+        return (self.bridgehead_position is not None) and (self.linker_position is not None)
     
+    ## bond vector
     @property
     def bond_vector(self) -> np.ndarray[Shape[Dims], float]:
-        if not self.has_coords:
+        if not self.has_positions:
             raise ValueError
         return self.linker_position - self.bridgehead_position
     
@@ -106,18 +117,60 @@ class Port:
         '''Move the linker site along the bond axis to a set distance away from the bridgehead'''
         self.linker_position = new_bond_length*self.unit_bond_vector + self.bridgehead_position
         
+    ## normal vector
+    @property
+    def is_orientable(self) -> bool:
+        '''Determine whether this port has a normal vector (i.e. dihedral plane orientation) defined'''
+        return self.normal_vector is not None
+    
+    @property
+    def unit_normal_vector(self) -> np.ndarray[Shape[Dims], float]:
+        '''Unit vector in the same direction as the normal (oriented in the dihedral plane normal direction)'''
+        return self.normal_vector / np.linalg.norm(self.normal_vector)
+
     def set_normal_from_stabilizer(self, stabilizer : np.ndarray[Shape[Dims], float]) -> None:
         '''Determine (and set) a unit vector normal to the plane containing the
         bridgehead, linker, and a third "stabilizer" point (provided as arg)'''
-        normal = np.cross(self.bond_vector, stabilizer - self.bridgehead_position)
-        self.normal = normal / np.linalg.norm(normal)
+        normal_vector = np.cross(self.bond_vector, stabilizer - self.bridgehead_position)
+        self.normal_vector = normal_vector / np.linalg.norm(normal_vector)
         
+    ## applying transformations
     def affine_transformation(self, affine_matrix : np.ndarray[Shape[DimsPlus, DimsPlus], float]) -> 'Port':
         '''Return a Port whose linker and bridgehead positions and normal orientation (if provided)
         have been transformed by a given affine transformation matrix'''
         new_port = self.copy()
-        for attr in ('linker_position', 'bridgehead_position', 'normal'):
+        for attr in ('linker_position', 'bridgehead_position', 'normal_vector'):
             if (vector := getattr(new_port, attr)) is not None:
                 setattr(new_port, attr, apply_affine_transformation_to_points(vector, affine_matrix))
                 
+        return new_port
+    
+    def alignment_transform_to(self, other : 'Port', dihedral_angle_rad : float=0.0) -> np.ndarray[Shape[DimsPlus, DimsPlus], float]:
+        '''Compute an affine transformation which aligns this port with another port'''
+        if not (self.has_positions and other.has_positions):
+            raise ValueError('Cannot compute alignment transform with undefined Port positions')
+        
+        if not (self.is_orientable and other.is_orientable):
+            raise ValueError('Cannot compute faithful orientation for alignment transform with undefined Port orientations')
+
+        # TODO: make these orthogonality assertions the respnsibility of each respective Port instance        
+        assert np.isclose(np.dot(self.bond_vector, self.normal_vector), 0.0)
+        assert np.isclose(np.dot(other.bond_vector, other.normal_vector), 0.0)
+
+        ## B reflects this Port's bond vector to the NEGATIVE of the other Port's bond vector (flips handedness)
+        ## N aligns this Port's normal vector to the other Port's normal vector, after bond vector alignment (restores handedness)
+        ## After bond and normal alignment, the dihedral angle is 0; R then sets this to the desired angle (negative is due to the trasnformed bond vectors being antiparallel)
+        B = planar_reflector(self.unit_bond_vector - (-other.unit_bond_vector)) # NOTE: deliberately didn't simplify minus sign to make operation clearer
+        N = planar_reflector((B @ self.unit_normal_vector) - other.unit_normal_vector)
+        D = axial_rotator((B @ self.unit_bond_vector), dihedral_angle_rad) # NOTE: don't need to apply N here, since the aligned bond vector lies within N's reflection plane
+        
+        return translation(*other.linker_position) \
+            @ affine_matrix_from_linear_and_center(matrix=(D @ N @ B), center=None) \
+            @ translation(*(-self.bridgehead_position))
+
+    def align_to(self, other : 'Port', dihedral_angle_rad : float=0.0) -> 'Port':
+        '''Return a new Port which is aligned to another Port'''
+        new_port = self.affine_transformation(self.alignment_transform_to(other, dihedral_angle_rad))
+        new_port.set_bond_length(other.bond_length) # ensure bond length matches the other port
+        
         return new_port
