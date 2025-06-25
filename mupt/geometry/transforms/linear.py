@@ -37,13 +37,12 @@ def planar_reflector(normal_vector : np.ndarray[Shape[Dims], Numeric]) -> np.nda
 
 # DEVNOTE: deprecate this, or reimplement this correctly (i.e. preserve handedness)
 def alignment_transform(initial_vector : np.ndarray[Shape[Dims], Numeric], final_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    # TODO: rename this to something more accurate, i.e. "Householder Reflector"
     '''Computes an orthogonal linear transformation which reflects initial_vector onto final_vector
     while preserving the relative orientations of the basis vectors to one another
     
     Returns an orthogonal Householder matrix which represents the transformation'''
     assert final_vector.shape == initial_vector.shape # ensure both vectors have 
-    # DEVNOTE: worth verifying that magnitudes of vectors are the same? (or just be content with matching span)
+    assert np.linalg.norm(initial_vector) == np.linalg.norm(final_vector) # ensure both vectors have the same magnitude
 
     return planar_reflector(final_vector - initial_vector)
 
