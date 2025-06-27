@@ -11,14 +11,11 @@ from rdkit import Chem
 from rdkit.Chem.rdchem import Mol, BondType
 
 from ..geometry.arraytypes import Shape, Dims, DimsPlus
-from ..geometry.transforms.linear import (
-    planar_reflector,
-    axial_rotator,
-)
+from ..geometry.transforms.linear import reflector, rotator
 from ..geometry.transforms.affine import (
-    apply_affine_transformation_to_points,
-    affine_matrix_from_linear_and_center,
     translation,
+    affine_matrix_from_linear_and_center,
+    apply_affine_transformation_to_points,
 )
 
 
@@ -50,6 +47,7 @@ class Port:
     linker_position     : Optional[np.ndarray[Shape[Dims], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[Dims], float]] = None
     normal_vector       : Optional[np.ndarray[Shape[Dims], float]] = None # TODO: validate this is orthogonal to the bond vector (if present)
+    normalizer          : Optional[np.ndarray[Shape[Dims], float]] = None 
 
     # initialization
     def copy(self) -> 'Port':
@@ -133,15 +131,17 @@ class Port:
         bridgehead, linker, and a third "stabilizer" point (provided as arg)'''
         normal_vector = np.cross(self.bond_vector, stabilizer - self.bridgehead_position)
         self.normal_vector = normal_vector / np.linalg.norm(normal_vector)
+        self.normalizer = self.bridgehead_position + self.normal_vector 
         
     ## applying transformations
     def affine_transformation(self, affine_matrix : np.ndarray[Shape[DimsPlus, DimsPlus], float]) -> 'Port':
         '''Return a Port whose linker and bridgehead positions and normal orientation (if provided)
         have been transformed by a given affine transformation matrix'''
         new_port = self.copy()
-        for attr in ('linker_position', 'bridgehead_position', 'normal_vector'):
+        for attr in ('linker_position', 'bridgehead_position', 'normal_vector', 'normalizer'):
             if (vector := getattr(new_port, attr)) is not None:
                 setattr(new_port, attr, apply_affine_transformation_to_points(vector, affine_matrix))
+        # TODO: verify that this correctly affects the normal vector
                 
         return new_port
     
@@ -160,15 +160,15 @@ class Port:
         ## B reflects this Port's bond vector to the NEGATIVE of the other Port's bond vector (flips handedness)
         ## N aligns this Port's normal vector to the other Port's normal vector, after bond vector alignment (restores handedness)
         ## After bond and normal alignment, the dihedral angle is 0; R then sets this to the desired angle (negative is due to the trasnformed bond vectors being antiparallel)
-        B = planar_reflector(self.unit_bond_vector - (-other.unit_bond_vector)) # NOTE: deliberately didn't simplify minus sign to make operation clearer
-        N = planar_reflector((B @ self.unit_normal_vector) - other.unit_normal_vector)
-        D = axial_rotator((B @ self.unit_bond_vector), dihedral_angle_rad) # NOTE: don't need to apply N here, since the aligned bond vector lies within N's reflection plane
+        B = reflector(self.unit_bond_vector - (-other.unit_bond_vector)) # NOTE: deliberately didn't simplify minus sign to make operation clearer
+        N = reflector((B @ self.unit_normal_vector) - other.unit_normal_vector)
+        D = rotator((B @ self.unit_bond_vector), -dihedral_angle_rad) # NOTE: don't need to apply N here, since the aligned bond vector lies within N's reflection plane
         
         return translation(*other.linker_position) \
             @ affine_matrix_from_linear_and_center(matrix=(D @ N @ B), center=None) \
             @ translation(*(-self.bridgehead_position))
 
-    def align_to(self, other : 'Port', dihedral_angle_rad : float=0.0) -> 'Port':
+    def aligned_to(self, other : 'Port', dihedral_angle_rad : float=0.0) -> 'Port':
         '''Return a new Port which is aligned to another Port'''
         new_port = self.affine_transformation(self.alignment_transform_to(other, dihedral_angle_rad))
         new_port.set_bond_length(other.bond_length) # ensure bond length matches the other port
