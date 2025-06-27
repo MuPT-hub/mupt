@@ -9,56 +9,66 @@ from scipy.spatial.transform import Rotation
 from ..arraytypes import Shape, N, Dims, Numeric
 
 
-def parallel_projector(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    '''Computes a linear transformation which, when applied to an arbitrary vector,
+def projector(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+    '''
+    Computes a linear transformation which, when applied to an arbitrary vector,
     yields the component of that vector parallel to the direction vector provided
     
-    Returns matrix which represents the parallel projector transformation'''
-    (dim,) = direction_vector.shape # extract dimension of vector space (and implicitly enforce 1D array)
+    Returns matrix which represents the parallel projector transformation
+    '''
+    (dim,) = direction_vector.shape # implicitly enforce 1D shape for vector
     return np.outer(direction_vector, direction_vector) / np.inner(direction_vector, direction_vector)
+parallel = projector
 
-def orthogonal_projector(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    '''Computes a linear transformation which, when applied to an arbitrary vector,
+def rejector(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+    '''
+    Computes a linear transformation which, when applied to an arbitrary vector,
     yields the component of that vector orthogonal to the direction vector provided
     
-    Returns matrix which represents the orthogonal projector transformation'''
-    (dim,) = direction_vector.shape # extract dimension of vector space (and implicitly enforce 1D array)
-    return np.eye(dim, dtype=direction_vector.dtype) - parallel_projector(direction_vector) # equivalent to substracting parallel part off of vector transform is applied to
-perpendicular_projector = orthogonal_projector # alias for convenience
+    Returns matrix which represents the orthogonal projector transformation
+    '''
+    (dim,) = direction_vector.shape # implicitly enforce 1D shape for vector
+    return np.eye(dim, dtype=direction_vector.dtype) - projector(direction_vector) # equivalent to substracting parallel part off of vector transform is applied to
+orthogonal = rejector
 
-def planar_reflector(normal_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    '''Computes a linear transformation which, when applied to an arbitrary vector,
+def reflector(normal_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+    '''
+    Computes a linear transformation which, when applied to an arbitrary vector,
     reflects it across the plane defined by the normal vector provided
     
     Returns an orthogonal Householder matrix which represents the transformation
     '''
-    (dim,) = normal_vector.shape # extract dimension of vector space (and implicitly enforce 1D array)
-    return np.eye(dim, dtype=normal_vector.dtype) - 2*parallel_projector(normal_vector) # compute Householder reflection
+    (dim,) = normal_vector.shape # implicitly enforce 1D shape for vector
+    return np.eye(dim, dtype=normal_vector.dtype) - 2*projector(normal_vector) # compute Householder reflection
+householder = reflector
 
-# DEVNOTE: deprecate this, or reimplement this correctly (i.e. preserve handedness)
-def alignment_transform(initial_vector : np.ndarray[Shape[Dims], Numeric], final_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    '''Computes an orthogonal linear transformation which reflects initial_vector onto final_vector
-    while preserving the relative orientations of the basis vectors to one another
+def orthogonalizer(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+    '''
+    Computes a linear transformation which, when applied to an arbitrary vector,
+    yields a vector orthogonal to both that vector and the direction vector provided here
+    Equivalent to taking the cross product of v with the direction vector
     
-    Returns an orthogonal Householder matrix which represents the transformation'''
-    assert final_vector.shape == initial_vector.shape # ensure both vectors have 
-    assert np.linalg.norm(initial_vector) == np.linalg.norm(final_vector) # ensure both vectors have the same magnitude
+    Returns matrix which represents the orthogonalization transformation
+    '''
+    (dims,) = direction_vector.shape # implicitly enforce 1D shape for vector
+    return np.cross(
+        np.eye(dims, dtype=direction_vector.dtype),
+        direction_vector / np.linalg.norm(direction_vector),
+    ) 
+cross = orthogonalizer
 
-    return planar_reflector(final_vector - initial_vector)
-
-def axial_rotator(axis_vector : np.ndarray[Shape[Dims], Numeric], angle_rad : float=0.0) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-   # DEVNOTE: should type annotations be for general dimension? (i.e. not just 3 where the cross product is well-defined?)
-   ''' 
-   Computes a linear transformation which, when applied to an arbitrary vector,
-   rotates that vector by "angle_rad" radians around the axis defined by "axis_vector"
-   (in a right-handed coordinate systems), as calculated by Rodrigues' rotation formula.
-   
-   Returns an orthogonal matrix which represents the rotation transformation. 
-   '''
-   (dims,) = axis_vector.shape # implicitly enforce 1D rotation axis
-   I = np.eye(dims, dtype=axis_vector.dtype)
-   axis_cross = np.cross(I, axis_vector / np.linalg.norm(axis_vector)) # linear transform equivalent to taking the cross product with the (unit) axis vector
-   
-   return I + np.sin(angle_rad)*axis_cross + (1 - np.cos(angle_rad))*(axis_cross @ axis_cross)
-
-
+# DEVNOTE: should type annotations be for general dimension? (i.e. not just 3 where the cross product is well-defined?)
+def rotator(direction_vector : np.ndarray[Shape[Dims], Numeric], angle_rad : float=0.0) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+    ''' 
+    Computes a linear transformation which, when applied to an arbitrary vector,
+    rotates that vector by "angle_rad" radians around the axis defined by "direction_vector"
+    (in a right-handed coordinate systems), as calculated by Rodrigues' rotation formula.
+    
+    Returns an orthogonal matrix which represents the rotation transformation. 
+    '''
+    (dims,) = direction_vector.shape # implicitly enforce 1D shape for vector
+    I = np.eye(dims, dtype=direction_vector.dtype)
+    K = orthogonalizer(direction_vector)
+    
+    return I + np.sin(angle_rad)*K + (1 - np.cos(angle_rad))*(K @ K)
+rodrigues = rotator
