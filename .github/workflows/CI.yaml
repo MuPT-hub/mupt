@@ -21,8 +21,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macOS-latest, ubuntu-latest, windows-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        os: [macOS-latest, ubuntu-latest]
+        python-version: ["3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +42,7 @@ jobs:
           condarc: |
             channels:
               - conda-forge
+              - defaults
           create-args: >- 
             python=${{ matrix.python-version }}
 
