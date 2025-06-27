@@ -3,26 +3,28 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  # Basic Python dependencies
-  - python>=3.12
-  - pip
-  - jupyterlab
+    # Basic Python dependencies
+    - python>=3.12
+    - pip
+    - jupyterlab
 
     # Unit testing
-  - pytest
+    - pytest
+    - pytest-cov
+    - codecov
 
-  # Scientific computing
-  - numpy>=2.0
-  - scipy
-  - networkx
+    # Scientific computing
+    - numpy>=2.0
+    - scipy
+    - networkx
 
-  # Visualization
-  - rich
-  - matplotlib
-  - ipympl
+    # Visualization
+    - rich
+    - matplotlib
+    - ipympl
 
-  # Molecular libraries
-  - rdkit
+    # Molecular libraries
+    - rdkit
 
-  # - pip:
-      # - scipy>=1.16.0 # plan to use eventually for new features
+    # - pip:
+        # - scipy>=1.16.0 # plan to use eventually for new features

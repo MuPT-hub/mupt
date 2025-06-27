@@ -38,7 +38,7 @@ jobs:
       - uses: mamba-org/setup-micromamba@v1
         with:
           generate-run-shell: false # recommended fix to weird ENOENT error (https://github.com/mamba-org/setup-micromamba/issues/130)
-          environment-file: devtools/conda-envs/release_env.yaml
+          environment-file: devtools/conda-envs/release-env.yaml
           environment-name: mupt-env
           condarc: |
             channels:
