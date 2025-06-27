@@ -32,7 +32,7 @@ def optional_in_place(funct : Callable[[Concatenate[object, Params]], None]) -> 
         if in_place:
             funct(obj, *args, **kwargs) # default call to writeable method - implicitly returns None
         else:
-            copy_obj = deepcopy(obj) # clone object to avoid modifying original
+            copy_obj = deepcopy(obj) # clone object to avoid modifying original - TODO: provide option to pass in custom copying method, with deepcopy default
             funct(copy_obj, *args, **kwargs) 
             return copy_obj # return the new object
     
