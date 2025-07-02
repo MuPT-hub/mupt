@@ -60,10 +60,10 @@ class Plane(Generic[Numeric]):
         
         return np.isclose(self.a*x + self.b*y + self.c*z + self.d, 0.0).astype(object) # convert from Numpy to Python bool
     
-    def sample(self, radius : Numeric=1.0, n : int=1) -> np.ndarray[Shape[3], Numeric]:
+    def sample(self, radius : Numeric=1.0, num_points : int=1) -> np.ndarray[Shape[N, 3], Numeric]:
         '''Sample a random point from the plane within a given distance from the origin in the XY-plane (default 1 unit)'''
-        x = np.random.uniform(-radius, radius, size=n)
-        y = np.random.uniform(-radius, radius, size=n)
+        x = np.random.uniform(-radius, radius, size=num_points)
+        y = np.random.uniform(-radius, radius, size=num_points)
         z = - (self.a*x + self.b*y + self.d)/(self.c) # z in constrained by first 2 choices
         
         return np.column_stack([x, y, z])
@@ -241,6 +241,7 @@ class Ellipsoid(BoundedShape[float], dimension=3):
     def radii(self) -> np.ndarray[Shape[3], float]:
         '''The lengths of the principal axes of the ellipsoid'''
         return np.linalg.norm(self.basis[:-1, :-1], axis=0)
+        # TODO: rewrite as transpose product, exploiting OD decomposition of valid ellipsoid matrix
     axes_lengths = radii # alias for convenience
     
     def surface_mesh(self, n_theta : int=100, n_phi : int=100) -> np.ndarray[Shape[M, P, 3], float]:

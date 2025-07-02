@@ -31,8 +31,6 @@ def is_orthogonal(matrix : np.ndarray[Shape[N, N], Numeric]) -> bool:
     Note that the matrix does not necessarily have to be square in order for it to be orthogonal
     '''
     (n_rows, n_cols) = matrix.shape # implicitly assert 2-dimensionality
-    prod = matrix @ matrix.T
-    
     return  np.allclose(matrix @ matrix.T, np.eye(n_rows, dtype=matrix.dtype)) \
         and np.allclose(matrix.T @ matrix, np.eye(n_cols, dtype=matrix.dtype)) # NOTE: can't optimize as the transpose of the above product for non-square matrices
 is_orthonormal = is_orthogonal
