@@ -1,4 +1,4 @@
-'''Application and construction of common affine transformations of points in 3D space'''
+'''Application and construction of common affine transformations'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
