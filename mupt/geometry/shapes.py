@@ -13,7 +13,7 @@ import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from .arraytypes import Shape, Numeric, M, N, P, Dims
+from .arraytypes import Shape, Numeric, M, N, P
 from .coordinates.basis import (
     is_columnspace_mutually_orthogonal,
     is_orthogonal,
@@ -32,7 +32,10 @@ class Plane(Generic[Numeric]):
     d : Numeric = 0.0
     
     @classmethod
-    def from_normal_and_point(cls, normal : np.ndarray[Shape[3], Numeric], point : np.ndarray[Shape[3], Numeric]) -> 'Plane':
+    def from_normal_and_point(cls,
+        normal : np.ndarray[Shape[3], Numeric],
+        point  : np.ndarray[Shape[3], Numeric],
+    ) -> 'Plane':
         '''Initialize from a normal vector and an arbitrary point know to lie in the plane'''
         assert isinstance(point, np.ndarray) and point.size == 3
         a, b, c = normal
@@ -70,7 +73,7 @@ class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some ite
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
     @property
     @abstractmethod
-    def centroid(self) -> np.ndarray[Shape[Dims], Numeric]:
+    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
         '''Coordinate of the geometric center of the body'''
         ...
     # COM = CoM = center_of_mass = centroid # aliases for convenience
@@ -82,7 +85,7 @@ class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some ite
         ...
         
     @abstractmethod
-    def contains(self, point : np.ndarray[Shape[Dims], Numeric]) -> bool: # TODO: enforce generalization to vectors of coordinates, rather than individual points
+    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]], Numeric]) -> bool: 
         '''Whether a given coordinate lies within the boundary of the body'''
         ... 
         
@@ -92,7 +95,7 @@ class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some ite
         ...
      
     # @abstractmethod
-    # def support(self, direction : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims], Numeric]:
+    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
     #     ...
         
@@ -126,9 +129,9 @@ class PointCloud(BoundedShape[Numeric]):
     def volume(self) -> Numeric:
         return self.convex_hull.volume
     
-    def contains(self, point : np.ndarray[Shape[3], Numeric]) -> bool:
-        return (self.triangulation.find_simplex(point) != -1).astype(object) # need to cast from numpy bool to Python bool
-    
+    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+        return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
+
     def apply_rigid_transformation(self, transform : RigidTransform) -> 'PointCloud':
         return PointCloud(positions=transform.apply(self.positions))
     
@@ -242,7 +245,7 @@ class Ellipsoid(BoundedShape[Numeric]):
         return np.linalg.inv(self.matrix) # precompute inverse for later use
     inv = inverse
         
-    # interfaces
+    # fulfilling BoundedShape contracts
     @property
     def centroid(self) -> np.ndarray[Shape[3], Numeric]:
         return self.center
@@ -251,10 +254,10 @@ class Ellipsoid(BoundedShape[Numeric]):
     def volume(self) -> Numeric:
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determination of rotation is always 1, so we may as well skip it and the whole determinant calculation
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
-    
-    def contains(self, point : np.ndarray[Shape[3], Numeric]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
+
+    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
         return (np.linalg.norm(
-            (self.transformation.inv().apply(point) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
+            (self.transformation.inv().apply(points) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
             axis=1,
         ) < 1).astype(object) # need to cast from numpy bool to Python bool
 
