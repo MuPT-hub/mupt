@@ -86,17 +86,9 @@ class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some ite
         ... 
         
     @abstractmethod
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], Numeric]) -> 'BoundedShape':
-        '''Implemenation of how the body should actually apply an affine transformation matrix'''
-        ...
-
     def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], Numeric]) -> 'BoundedShape':
-        '''
-        Apply an affine transformation to the body, as encoded by a transformation matrix
-        Matrix should be square and have dimension exactly one greater that that of the body
-        '''
-        assert(affine_matrix.shape == (self.dimension + 1, self.dimension + 1)) # enforce squareness and dimensionality of transform
-        return self._apply_affine_transformation(affine_matrix)
+        '''Apply a rigid transformation to the body'''
+        ...
      
     # @abstractmethod
     # def support(self, direction : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims], Numeric]:
@@ -136,7 +128,7 @@ class PointCloud(BoundedShape[Numeric]):
     def contains(self, point : np.ndarray[Shape[3], Numeric]) -> bool:
         return (self.triangulation.find_simplex(point) != -1).astype(object) # need to cast from numpy bool to Python bool
     
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], Numeric]) -> 'PointCloud':
+    def affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], Numeric]) -> 'PointCloud':
         return PointCloud(
             positions=apply_affine_transformation_to_points(self.positions, affine_matrix)
         )
@@ -222,7 +214,7 @@ class Ellipsoid(BoundedShape[Numeric]):
             axis=-1,
         ) < 1).astype(object) # need to cast from numpy bool to Python bool
     
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], Numeric]) -> 'Ellipsoid':
+    def affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], Numeric]) -> 'Ellipsoid':
         return Ellipsoid(affine_matrix @ self.basis)
     
     # visualization
@@ -265,7 +257,7 @@ class Ellipsoid(BoundedShape[Numeric]):
             0.0:np.pi:n_phi*1j,
         ] # (magnitude of) complex step size is interpreted by numpy as a number of points
 
-        positions = np.zeros((n_theta, n_phi, 3), dtype=Numeric)
+        positions = np.zeros((n_theta, n_phi, 3), dtype=float)
         positions[..., 0] = r * np.sin(phi) * np.cos(theta)
         positions[..., 1] = r * np.sin(phi) * np.sin(theta)
         positions[..., 2] = r * np.cos(phi)
