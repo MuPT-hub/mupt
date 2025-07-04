@@ -10,7 +10,6 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem.rdchem import Mol, BondType
 
-from ..mutils.decorators.functional import optional_in_place
 from ..geometry.arraytypes import Shape, Dims, DimsPlus
 from ..geometry.transforms.linear import reflector, rotator
 from ..geometry.transforms.affine import (

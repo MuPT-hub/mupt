@@ -33,7 +33,7 @@ from ..chemistry.selection import (
 )
 from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
-from ..geometry.transforms.affine import apply_affine_transform_recursive
+from ..geometry.transforms.affine import apply_affine_transformation_recursive
 
 
 @dataclass
@@ -224,7 +224,7 @@ class Primitive:
     # geometric methods
     def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], float]) -> 'Primitive':
         '''Apply an affine transformation to all parts of a Primitive which support it'''
-        return Primitive(**apply_affine_transform_recursive(self.__dict__, affine_matrix))
+        return Primitive(**apply_affine_transformation_recursive(self.__dict__, affine_matrix))
 
 
 @dataclass

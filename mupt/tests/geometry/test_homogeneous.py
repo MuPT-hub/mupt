@@ -7,7 +7,7 @@ import pytest
 from typing import Any
 import numpy as np
 
-from mupt.geometry.coordinates.homogeneous import (
+from mupt.geometry.transforms.affine.homogeneous import (
     to_homogeneous_coords,
     from_homogeneous_coords,
 )
