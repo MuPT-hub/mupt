@@ -57,8 +57,8 @@ def orthogonalizer(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.nd
     ) 
 cross = orthogonalizer
 
-# DEVNOTE: should type annotations be for general dimension? (i.e. not just 3 where the cross product is well-defined?)
 def rotator(direction_vector : np.ndarray[Shape[Dims], Numeric], angle_rad : float=0.0) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+    # DEVNOTE: should type annotations be for general dimension? (i.e. not just 3 where the cross product is well-defined?)
     ''' 
     Computes a linear transformation which, when applied to an arbitrary vector,
     rotates that vector by "angle_rad" radians around the axis defined by "direction_vector"

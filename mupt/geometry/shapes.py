@@ -170,7 +170,7 @@ class Ellipsoid(BoundedShape[Numeric]):
     def is_valid_ellipsoid_matrix(basis : np.ndarray[Shape[4, 4], Numeric]) -> bool:
         '''Check that an affine matrix could represent an ellipsoid'''
         assert basis.shape == (4, 4)
-        axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more leegant way to do this splitting
+        axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more elegant way to do this splitting
         
         return bool(
             is_columnspace_mutually_orthogonal(axes) # ensure principal axes are mutually orthogonal
