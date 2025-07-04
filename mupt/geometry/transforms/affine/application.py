@@ -12,7 +12,6 @@ from .homogeneous import from_homogeneous_coords, to_homogeneous_coords
 from ...arraytypes import Shape, Numeric, N, Dims, DimsPlus
 
 
-# INTERFACES FOR TRANFORMABLE OBJECTS
 @runtime_checkable
 class AffineTransformable(Protocol):
     '''Interface for objects that can undergo an affine transformation'''
