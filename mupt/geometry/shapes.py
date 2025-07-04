@@ -3,9 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generic, Optional, Sequence, TypeVar
-
-T = TypeVar('T')
+from typing import Generic, Optional, Sequence
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -14,9 +12,7 @@ from functools import cached_property
 import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 
-from ..mutils.decorators.classmod import register_abstract_class_attrs
 from .arraytypes import Shape, Numeric, M, N, P, Dims
-
 from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.affine import (
     affine_matrix_from_linear_and_center,
@@ -69,33 +65,32 @@ class Plane(Generic[Numeric]):
         return np.column_stack([x, y, z])
 
 
-@register_abstract_class_attrs('dimension') # requires that subclasses implement a dimensionality at the class level
-class BoundedShape(ABC, Generic[T]): # template for numeric type (some iterations of float in most cases)
+class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some iterations of float in most cases)
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
     @property
     @abstractmethod
-    def centroid(self) -> np.ndarray[Shape[Dims], T]:
+    def centroid(self) -> np.ndarray[Shape[Dims], Numeric]:
         '''Coordinate of the geometric center of the body'''
         ...
     # COM = CoM = center_of_mass = centroid # aliases for convenience
     
     @property
     @abstractmethod
-    def volume(self) -> T:
+    def volume(self) -> Numeric:
         '''Cumulative measure within the boundary of the body'''
         ...
         
     @abstractmethod
-    def contains(self, point : np.ndarray[Shape[Dims], T]) -> bool: # TODO: enforce generalization to vectors of coordinates, rather than individual points
+    def contains(self, point : np.ndarray[Shape[Dims], Numeric]) -> bool: # TODO: enforce generalization to vectors of coordinates, rather than individual points
         '''Whether a given coordinate lies within the boundary of the body'''
         ... 
         
     @abstractmethod
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], T]) -> 'BoundedShape':
+    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], Numeric]) -> 'BoundedShape':
         '''Implemenation of how the body should actually apply an affine transformation matrix'''
         ...
 
-    def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], T]) -> 'BoundedShape':
+    def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], Numeric]) -> 'BoundedShape':
         '''
         Apply an affine transformation to the body, as encoded by a transformation matrix
         Matrix should be square and have dimension exactly one greater that that of the body
@@ -104,21 +99,15 @@ class BoundedShape(ABC, Generic[T]): # template for numeric type (some iteration
         return self._apply_affine_transformation(affine_matrix)
      
     # @abstractmethod
-    # def support(self, direction : np.ndarray[Shape[Dims], T]) -> np.ndarray[Shape[Dims], T]:
+    # def support(self, direction : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims], Numeric]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
-    #     ...
-    
-    # @classmethod
-    # @abstractmethod
-    # def from_coordinates(cls, positions : np.ndarray[Shape[N, Dims], T]) -> 'BoundedShape':
-    #     '''Initialize a body from a list of positions'''
     #     ...
         
 
 # Concrete BoundedShape implementations
-class PointCloud(BoundedShape[float], dimension=3):
+class PointCloud(BoundedShape[Numeric]):
     '''A cluster of points in 3D space'''
-    def __init__(self, positions : np.ndarray[Shape[3], float]=None) -> None:
+    def __init__(self, positions : np.ndarray[Shape[3], Numeric]=None) -> None:
         if positions is None:
             positions = np.empty((0, 0))
         self.positions = positions
@@ -137,31 +126,31 @@ class PointCloud(BoundedShape[float], dimension=3):
         return Delaunay(self.positions)
     
     @property
-    def centroid(self) -> np.ndarray[Shape[3], float]:
+    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
         return self.positions.mean(axis=0)
     
     @property
-    def volume(self) -> float:
+    def volume(self) -> Numeric:
         return self.convex_hull.volume
     
-    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:
+    def contains(self, point : np.ndarray[Shape[3], Numeric]) -> bool:
         return (self.triangulation.find_simplex(point) != -1).astype(object) # need to cast from numpy bool to Python bool
     
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'PointCloud':
+    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], Numeric]) -> 'PointCloud':
         return PointCloud(
             positions=apply_affine_transformation_to_points(self.positions, affine_matrix)
         )
     
-@dataclass
-class Ellipsoid(BoundedShape[float], dimension=3):
+# @dataclass
+class Ellipsoid(BoundedShape[Numeric]):
     '''
     A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
     
-    Represented by an affine transformation of a unit sphere centered at the origin,
-    with principal axes as linear part and location of center as translational part
+    Represented by a (not necessarily isotropic) scaling of the basis vectors and a rigid transformation,
+    which, together, map the points on a unit sphere at the origin to the surface of the ellipsoid
     '''
     # initialization
-    def __init__(self, basis : np.ndarray[Shape[4, 4], float]=None) -> None:
+    def __init__(self, basis : np.ndarray[Shape[4, 4], Numeric]=None) -> None:
         if basis is None:
             basis = np.eye(4, dtype=float)
             
@@ -172,13 +161,13 @@ class Ellipsoid(BoundedShape[float], dimension=3):
         return f'{self.__class__.__name__}(radii={self.radii}, center={self.centroid})'
         
     @cached_property
-    def basis_inverse(self) -> np.ndarray[Shape[4, 4], float]:
+    def basis_inverse(self) -> np.ndarray[Shape[4, 4], Numeric]:
         '''Transformation which maps this ellipsoid to the unit sphere centered at the origin
         Cached to avoid matrix inverse recalculation'''
         return np.linalg.inv(self.basis) # precompute inverse for later use
     
     @staticmethod
-    def is_valid_ellipsoid_matrix(basis : np.ndarray[Shape[4, 4], float]) -> bool:
+    def is_valid_ellipsoid_matrix(basis : np.ndarray[Shape[4, 4], Numeric]) -> bool:
         '''Check that an affine matrix could represent an ellipsoid'''
         assert basis.shape == (4, 4)
         axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more leegant way to do this splitting
@@ -192,8 +181,8 @@ class Ellipsoid(BoundedShape[float], dimension=3):
     @classmethod
     def from_axes_and_center(
         cls,
-        axes : np.ndarray[Shape[3, 3], float],
-        center : Optional[np.ndarray[Shape[3], float]]=None,
+        axes : np.ndarray[Shape[3, 3], Numeric],
+        center : Optional[np.ndarray[Shape[3], Numeric]]=None,
     ) -> 'Ellipsoid':
         '''Instantiate an ellipsoid from a matrix of its axes and
         an (optional) location for its center (by default, the origin)'''
@@ -206,7 +195,7 @@ class Ellipsoid(BoundedShape[float], dimension=3):
         radius_x : float=1.0,
         radius_y : float=1.0,
         radius_z : float=1.0, 
-        center : Optional[np.ndarray[Shape[3], float]]=None,
+        center : Optional[np.ndarray[Shape[3], Numeric]]=None,
     ) -> 'Ellipsoid':
         '''Instantiate an ellipsoid its axis lengths andan (optional) location for its center (by default, the origin)'''
         # TODO: add some "smart" conversion of arrays/diagonal matrices as input
@@ -217,14 +206,14 @@ class Ellipsoid(BoundedShape[float], dimension=3):
         
     # interfaces
     @property
-    def centroid(self) -> np.ndarray[Shape[3], float]:
+    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
         return self.basis[:-1, -1] # return translation vector of center
     
     @property
-    def volume(self) -> float:
+    def volume(self) -> Numeric:
         return 4/3 * np.pi * np.linalg.det(self.basis)
     
-    def contains(self, point : np.ndarray[Shape[3], float]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
+    def contains(self, point : np.ndarray[Shape[3], Numeric]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
         return (np.linalg.norm(
             apply_affine_transformation_to_points(
                 positions=point,
@@ -233,18 +222,18 @@ class Ellipsoid(BoundedShape[float], dimension=3):
             axis=-1,
         ) < 1).astype(object) # need to cast from numpy bool to Python bool
     
-    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], T]) -> 'Ellipsoid':
+    def _apply_affine_transformation(self, affine_matrix : np.ndarray[Shape[4, 4], Numeric]) -> 'Ellipsoid':
         return Ellipsoid(affine_matrix @ self.basis)
     
     # visualization
     @property
-    def radii(self) -> np.ndarray[Shape[3], float]:
+    def radii(self) -> np.ndarray[Shape[3], Numeric]:
         '''The lengths of the principal axes of the ellipsoid'''
         return np.linalg.norm(self.basis[:-1, :-1], axis=0)
         # TODO: rewrite as transpose product, exploiting OD decomposition of valid ellipsoid matrix
     axes_lengths = radii # alias for convenience
     
-    def surface_mesh(self, n_theta : int=100, n_phi : int=100) -> np.ndarray[Shape[M, P, 3], float]:
+    def surface_mesh(self, n_theta : int=100, n_phi : int=100) -> np.ndarray[Shape[M, P, 3], Numeric]:
         '''
         Generate a mesh of points on the surface of the ellipsoid
         
@@ -265,7 +254,7 @@ class Ellipsoid(BoundedShape[float], dimension=3):
             
         Returns
         -------
-        ellipsoid_mesh : Array[[n_M, P, 3], float]
+        ellipsoid_mesh : Array[[M, P, 3], float]
             A mesh of points on the surface of the ellipsoid
             M is the number of points in the azimuthal direction
             P is the number of points in the polar direction
@@ -276,16 +265,16 @@ class Ellipsoid(BoundedShape[float], dimension=3):
             0.0:np.pi:n_phi*1j,
         ] # (magnitude of) complex step size is interpreted by numpy as a number of points
 
-        positions = np.zeros((n_theta, n_phi, 3), dtype=float)
+        positions = np.zeros((n_theta, n_phi, 3), dtype=Numeric)
         positions[..., 0] = r * np.sin(phi) * np.cos(theta)
         positions[..., 1] = r * np.sin(phi) * np.sin(theta)
         positions[..., 2] = r * np.cos(phi)
         
         return apply_affine_transformation_to_points(positions, self.basis)
     
-class Sphere(Ellipsoid):
+class Sphere(Ellipsoid[Numeric]):
     '''A spherical body with arbitrary radius and center'''
-    def __init__(self, radius : float=1.0, center : np.ndarray[Shape[3], float]=None) -> 'Sphere':
+    def __init__(self, radius : float=1.0, center : np.ndarray[Shape[3], Numeric]=None) -> 'Sphere':
         super().__init__(affine_matrix_from_linear_and_center(
             matrix=radius * np.eye(3, dtype=float),
             center=center,
