@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from rdkit import Chem
-from rdkit.Chem.rdchem import Atom, Mol, BondType
+from rdkit.Chem.rdchem import Atom, Bond, Mol, BondType
 
 from ..geometry.arraytypes import Shape, Dims, DimsPlus
 from ..geometry.transforms.linear import reflector, rotator
@@ -44,7 +44,7 @@ class Port:
     
     bondtype : BondType = BondType.UNSPECIFIED
     linker_flavor : int = 0
-    linker_smarts : str = ''
+    query_smarts : str = ''
     
     linker_position     : Optional[np.ndarray[Shape[Dims], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[Dims], float]] = None
@@ -61,19 +61,25 @@ class Port:
         conformer = mol.GetConformer(conf_id) if (mol.GetNumConformers() > 0) else None
         for (linker_idx, bh_idx) in mol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
             linker_atom : Atom = mol.GetAtomWithIdx(linker_idx)
+            port_bond   : Bond = mol.GetBondBetweenAtoms(bh_idx, linker_idx)
+            
             port = cls(
                 linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
                 bridgehead=bh_idx,
-                bondtype=mol.GetBondBetweenAtoms(bh_idx, linker_idx).GetBondType(),
+                bondtype=port_bond.GetBondType(),
                 linker_flavor=linker_atom.GetIsotope(),
-                linker_smarts=linker_atom.GetSmarts(),
+                query_smarts=Chem.MolFragmentToSmarts(
+                    mol,
+                    atomsToUse=[linker_idx, bh_idx],
+                    bondsToUse=[port_bond.GetIdx()],
+                )
             )
             
             if conformer: # solicit coordinates, if available
-                port.bridgehead_position = np.array(conformer.GetAtomPosition(bh_idx))
                 port.linker_position     = np.array(conformer.GetAtomPosition(linker_idx))
+                port.bridgehead_position = np.array(conformer.GetAtomPosition(bh_idx))
                 
-                # TODO: offer option to make this more selective (i.e. choose which neghbor atom to use as stabilizer)
+                # TODO: offer option to make this more selective (i.e. choose which neighbor atom to use as stabilizer)
                 for neighbor in mol.GetAtomWithIdx(bh_idx).GetNeighbors():
                     if neighbor.GetAtomicNum() > 0: # take first real neighbor atom as stabilizer
                         port.set_normal_from_stabilizer(stabilizer=conformer.GetAtomPosition(neighbor.GetIdx()))
