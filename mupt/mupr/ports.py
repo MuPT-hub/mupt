@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from rdkit import Chem
-from rdkit.Chem.rdchem import Mol, BondType
+from rdkit.Chem.rdchem import Atom, Mol, BondType
 
 from ..geometry.arraytypes import Shape, Dims, DimsPlus
 from ..geometry.transforms.linear import reflector, rotator
@@ -41,8 +41,10 @@ class Port:
     '''Class for encapsulating the components of a "port" bonding site (linker-bond-bridgehead)'''
     linker     : Any
     bridgehead : Any
+    
     bondtype : BondType = BondType.UNSPECIFIED
     linker_flavor : int = 0
+    linker_smarts : str = ''
     
     linker_position     : Optional[np.ndarray[Shape[Dims], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[Dims], float]] = None
@@ -58,11 +60,13 @@ class Port:
         '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
         conformer = mol.GetConformer(conf_id) if (mol.GetNumConformers() > 0) else None
         for (linker_idx, bh_idx) in mol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
+            linker_atom : Atom = mol.GetAtomWithIdx(linker_idx)
             port = cls(
                 linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
                 bridgehead=bh_idx,
                 bondtype=mol.GetBondBetweenAtoms(bh_idx, linker_idx).GetBondType(),
-                linker_flavor=mol.GetAtomWithIdx(linker_idx).GetIsotope(),
+                linker_flavor=linker_atom.GetIsotope(),
+                linker_smarts=linker_atom.GetSmarts(),
             )
             
             if conformer: # solicit coordinates, if available
@@ -123,7 +127,7 @@ class Port:
     @property
     def normal_vector(self) -> np.ndarray[Shape[Dims], float]:
         # DEVNOTE: opted not to provide separate unit_normal_vector property,
-        # since only the direction(not magnitude) matters for calculations
+        # since only the direction (not magnitude) matters for calculations
         '''Vector normal to the dihedral plane containing the bridgehead and linker'''
         if not self.is_orientable:
             raise ValueError('Port does not have a dihedral orientation set')
