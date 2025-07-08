@@ -73,7 +73,7 @@ def random_walk_jointed_chain(
         if step_direction_prev is None:
             step_direction_prev = step_direction
             
-        # over [-pi, pi], cosine is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
+        # over [0, pi], cosine is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
         while np.dot(step_direction, step_direction_prev) < c_max: 
             step_direction = random_direction(dimension=dimension) # draw new step within cone of movement by rejection sampling
         
