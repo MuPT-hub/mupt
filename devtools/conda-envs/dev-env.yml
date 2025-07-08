@@ -1,0 +1,30 @@
+name: mupt-dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+    # Basic Python dependencies
+    - python>=3.12
+    - pip
+    - jupyterlab
+
+    # Unit testing
+    - pytest
+    - pytest-cov
+    - codecov
+
+    # Scientific computing
+    - numpy>=2.0
+    - scipy>=1.16.0 # required to allow use of RigidTransform
+    - networkx
+
+    # Visualization
+    - rich
+    - matplotlib
+    - ipympl
+
+    # Molecular libraries
+    - rdkit
+
+    # - pip:
+        # - foo>=bar

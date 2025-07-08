@@ -7,12 +7,6 @@ import numpy as np
 from ..arraytypes import Shape, N, Dims, Numeric
 
 
-orthogonality_test = np.array([
-    [1, 2, 5],
-    [2, 2, -4],
-    [3, -2, 1],
-]) # an example of a matrix whose columns are mutually orthogonal but whose rows are not
-
 def is_diagonal(matrix : np.ndarray[Shape[N, N], Numeric]) -> bool: # TODO: generalize to work for other diagonals
     '''Determine whether a matrix is digonal, i.e. has no nonzero elements off of the main diagonal'''
     return np.allclose(matrix - np.diag(np.diagonal(matrix)), 0.0)

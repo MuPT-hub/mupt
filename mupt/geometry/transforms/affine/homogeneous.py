@@ -4,7 +4,7 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 import numpy as np
-from ..arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
+from ...arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
 
 
 def to_homogeneous_coords(positions : np.ndarray[Shape[N, Dims], Numeric], projection : float=1.0) -> np.ndarray[Shape[N, DimsPlus], Numeric]:
@@ -19,3 +19,4 @@ def from_homogeneous_coords(positions : np.ndarray[Shape[N, DimsPlus], Numeric])
     '''Project down from an array of N points in [D + 1] dimensions to an array
     of N points in D dimensions, normalizing out by the homogeneous coordinate'''
     return positions[..., :-1] / positions[..., -1, None] # strip off and normalize by the projective part (via broadcast)
+

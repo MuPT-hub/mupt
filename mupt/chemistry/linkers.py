@@ -29,11 +29,11 @@ def get_num_linkers(rdmol : Mol) -> int:
     
 def get_linker_and_bridgehead_idxs(rdmol : Mol) -> Generator[tuple[int, int], None, None]:
     '''Get the linker and bridgehead indices of all ports found in an RDKit Mol'''
-    # DON'T de-duplify indices of substruct matches (fails to catch both ports on a neutronium)
+    # DON'T de-duplify (i.e. uniquify) indices of substruct matches (fails to catch both ports on a neutronium)
     for (linker_id, bh_id) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False):
         yield linker_id, bh_id # unpacked purely for self-documentation
 
-def renumber_linkers_as_last(rdmol : Mol) -> Mol:
+def renumber_linkers_as_last(rdmol : Mol) -> Mol: # TODO: make optionally in-place
     '''
     Returns a copy of a Mol whose atom indices are renumbered such that:
     * all #L linker atoms are assigned the last L indices (i.e. occur after all real atoms in order)

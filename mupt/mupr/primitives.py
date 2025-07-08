@@ -3,11 +3,12 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Generator, Hashable, Optional, Sequence, Union
+from typing import Any, Generator, Hashable, Optional
 from dataclasses import dataclass, field
 from enum import Enum # consider having a bitwise Enum to encode possible specification states of a primitive??
 
-import numpy as np
+import numpy as np # TODO: deprecate use of numpy for bitmasks; all array operations should be handled outside of this module!
+from scipy.spatial.transform import RigidTransform
 
 from rdkit import Chem
 from rdkit.Chem.rdchem import (
@@ -33,7 +34,7 @@ from ..chemistry.selection import (
 )
 from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud, Sphere
-from ..geometry.transforms.affine import apply_affine_transform_recursive
+from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
 
 
 @dataclass
@@ -222,9 +223,9 @@ class Primitive:
             yield sub_primitive
             
     # geometric methods
-    def affine_transformation(self, affine_matrix : np.ndarray[Shape[N, N], float]) -> 'Primitive':
-        '''Apply an affine transformation to all parts of a Primitive which support it'''
-        return Primitive(**apply_affine_transform_recursive(self.__dict__, affine_matrix))
+    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive':
+        '''Apply an isometric (i.e. rigid) transformation to all parts of a Primitive which support it'''
+        return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
 
 
 @dataclass
