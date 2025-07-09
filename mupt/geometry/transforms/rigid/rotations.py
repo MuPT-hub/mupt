@@ -34,28 +34,29 @@ def rotator(rotation_axis : np.ndarray[Shape[3], Numeric], angle_rad : float=0.0
 rodrigues = rotator
 
 def alignment_rotation(
-        initial_vector : np.ndarray[Shape[3], Numeric],
-        final_vector   : np.ndarray[Shape[3], Numeric],
+        moved_vector : np.ndarray[Shape[3], Numeric],
+        onto_vector : np.ndarray[Shape[3], Numeric],
         orthogonal_vector : Optional[np.ndarray[Shape[3], Numeric]]=None,
     ) -> Rotation:
     '''
-    Compute a rotation which aligns initial_vector to final_vector, preserving orientation
-    Can optionally provide a vector orthogonal to initial_vector to define the local coordinate system;
+    Compute a rotation which aligns moved_vector to onto_vector, preserving handedness
+    
+    Can optionally provide a vector orthogonal to moved_vector to define the local coordinate system;
     If none is provided, an orthogonal vector will be selected randomly instead
     
     Implemented as a composition of 2 Householder reflections to avoid
     any angle calculations with inverse trigonometric functions
     '''
     if orthogonal_vector is None:
-        orthogonal_vector = random_orthogonal_vector(initial_vector)
+        orthogonal_vector = random_orthogonal_vector(moved_vector)
         
-    if not np.isclose(np.dot(initial_vector, orthogonal_vector), 0.0):
+    if not np.isclose(np.dot(moved_vector, orthogonal_vector), 0.0):
         raise ValueError('Orthogonal vector must be orthogonal to the initial vector')
 
     ## pre-reflect to invert handedness without moving the initial vector...
     ## ...then align by reflecting along the bisecting plane, restoring handedness
-    preflip_reflection = reflector(np.cross(initial_vector, orthogonal_vector))
-    alignment_reflection = reflector(normalized(initial_vector) - normalized(final_vector))
+    preflip_reflection = reflector(np.cross(moved_vector, orthogonal_vector))
+    alignment_reflection = reflector(normalized(moved_vector) - normalized(onto_vector))
     rotation_matrix = alignment_reflection @ preflip_reflection
     assert np.isclose(np.linalg.det(rotation_matrix), 1.0), 'Proper rotation must have determinant 1.0'
     

@@ -5,3 +5,4 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 from .application import apply_rigid_transformation_recursive, RigidTransformable
+from .rotations import rotator, rodrigues, alignment_rotation
