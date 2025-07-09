@@ -10,7 +10,6 @@ from ...arraytypes import Shape, Numeric, Dims, DimsPlus
 type AffineMatrix4x4 = np.ndarray[Shape[Literal[4], Literal[4]], Numeric]
 
 
-
 def affine_matrix_from_linear_and_center(
         matrix : np.ndarray[Shape[Dims, Dims], Numeric],
         center : Optional[np.ndarray[Shape[Dims], Numeric]]=None,

@@ -42,7 +42,7 @@ def reflector(normal_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Sh
     return np.eye(dim, dtype=normal_vector.dtype) - 2*projector(normal_vector) # compute Householder reflection
 householder = reflector
 
-def orthogonalizer(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.ndarray[Shape[Dims, Dims], Numeric]:
+def orthogonalizer(direction_vector : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3, 3], Numeric]:
     '''
     Computes a linear transformation which, when applied to an arbitrary vector,
     yields a vector orthogonal to both that vector and the direction vector provided here
@@ -57,8 +57,8 @@ def orthogonalizer(direction_vector : np.ndarray[Shape[Dims], Numeric]) -> np.nd
     ) 
 cross = orthogonalizer
 
-def rotator(direction_vector : np.ndarray[Shape[Dims], Numeric], angle_rad : float=0.0) -> np.ndarray[Shape[Dims, Dims], Numeric]:
-    # DEVNOTE: should type annotations be for general dimension? (i.e. not just 3 where the cross product is well-defined?)
+def rotator(direction_vector : np.ndarray[Shape[3], Numeric], angle_rad : float=0.0) -> np.ndarray[Shape[3, 3], Numeric]:
+    # DEVNOTE: deprecate in favor of scipy.spatial..transform.Rotation.from_rotvec(), etc.
     ''' 
     Computes a linear transformation which, when applied to an arbitrary vector,
     rotates that vector by "angle_rad" radians around the axis defined by "direction_vector"
