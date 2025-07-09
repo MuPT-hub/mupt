@@ -11,6 +11,8 @@ from scipy.spatial.transform import Rotation
 from ..linear import reflector, orthogonalizer
 from ...arraytypes import Shape, Numeric
 from ...measure import normalized
+
+from ...coordinates.basis import is_orthogonal
 from ...coordinates.directions import random_orthogonal_vector
 
 
@@ -36,28 +38,14 @@ rodrigues = rotator
 def alignment_rotation(
         moved_vector : np.ndarray[Shape[3], Numeric],
         onto_vector : np.ndarray[Shape[3], Numeric],
-        orthogonal_vector : Optional[np.ndarray[Shape[3], Numeric]]=None,
     ) -> Rotation:
     '''
-    Compute a rotation which aligns moved_vector to onto_vector, preserving handedness
-    
-    Can optionally provide a vector orthogonal to moved_vector to define the local coordinate system;
-    If none is provided, an orthogonal vector will be selected randomly instead
-    
-    Implemented as a composition of 2 Householder reflections to avoid
-    any angle calculations with inverse trigonometric functions
+    Compute a rotation which takes moved_vector parallel to the span of onto_vector
+    Implemented as a composition of 2 Householder reflections to avoid any explicit angle calculations
     '''
-    if orthogonal_vector is None:
-        orthogonal_vector = random_orthogonal_vector(moved_vector)
-        
-    if not np.isclose(np.dot(moved_vector, orthogonal_vector), 0.0):
-        raise ValueError('Orthogonal vector must be orthogonal to the initial vector')
+    ## double reflection ensures handedness of basis is preserved; have found that reflection about the mean axis is
+    ## more numerically stable than about the difference axis, especially for nearly-identical vectors
+    rotation_matrix = reflector(onto_vector) @ reflector(onto_vector + moved_vector)
+    assert is_orthogonal(rotation_matrix), 'Calculated alignment is not a proper rotation'
 
-    ## pre-reflect to invert handedness without moving the initial vector...
-    ## ...then align by reflecting along the bisecting plane, restoring handedness
-    preflip_reflection = reflector(np.cross(moved_vector, orthogonal_vector))
-    alignment_reflection = reflector(normalized(moved_vector) - normalized(onto_vector))
-    rotation_matrix = alignment_reflection @ preflip_reflection
-    assert np.isclose(np.linalg.det(rotation_matrix), 1.0), 'Proper rotation must have determinant 1.0'
-    
     return Rotation.from_matrix(rotation_matrix)
