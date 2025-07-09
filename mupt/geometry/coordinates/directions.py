@@ -37,10 +37,10 @@ def random_orthogonal_vector(
     while not are_linearly_independent(random_direction, vector): # rejection sampling avoids colinear vector edge case
         random_direction = random_vector(ndim, low=-1.0, high=1.0, normalized=True)
 
-    tangent = rejector(vector) @ random_vector
+    tangent = rejector(vector) @ random_direction
     if normalized:
         normalize(tangent)
-    assert np.iclose(np.dot(tangent, vector), 0.0), 'Calculation error; tangent vector not orthogonal to input vector'
+    assert np.isclose(np.dot(tangent, vector), 0.0), 'Calculation error; tangent vector not orthogonal to input vector'
         
     return tangent
 random_tangent = random_orthogonal_vector  # alias for convenience
