@@ -13,7 +13,6 @@ from ...arraytypes import Shape, Numeric
 from ...measure import normalized
 
 from ...coordinates.basis import is_orthogonal
-from ...coordinates.directions import random_orthogonal_vector
 
 
 def rotator(rotation_axis : np.ndarray[Shape[3], Numeric], angle_rad : float=0.0) -> Rotation:
@@ -43,9 +42,14 @@ def alignment_rotation(
     Compute a rotation which takes moved_vector parallel to the span of onto_vector
     Implemented as a composition of 2 Householder reflections to avoid any explicit angle calculations
     '''
-    ## double reflection ensures handedness of basis is preserved; have found that reflection about the mean axis is
-    ## more numerically stable than about the difference axis, especially for nearly-identical vectors
-    rotation_matrix = reflector(onto_vector) @ reflector(onto_vector + moved_vector)
+    ## double reflection ensures handedness of basis is preserved; have found that reflection about bisector (mean)
+    ## axis is more numerically stable than about the difference axis, especially for nearly-identical vectors
+    
+    ## bisector <=> vector which bisects the angle between the pair of vectors;
+    ## proportional to the mean of any pair of equal length vectors on the two vectors' respective spans,
+    ## e.g. the sum of normal vectors on the two spans will do the trick
+    bisector = normalized(onto_vector) + normalized(moved_vector) 
+    rotation_matrix = reflector(onto_vector) @ reflector(bisector) # onto_vector doesn't need to be normalized
     assert is_orthogonal(rotation_matrix), 'Calculated alignment is not a proper rotation'
 
     return Rotation.from_matrix(rotation_matrix)
