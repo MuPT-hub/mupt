@@ -1,5 +1,4 @@
 '''Perception and manipulation of wild-type "linker" atoms and their in an RDKit molecule'''
-# DEVNOTE: flagged for deprecationn, unless it is determined later that these functions are useful elsewhere besdies Port.from_rdkit
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'

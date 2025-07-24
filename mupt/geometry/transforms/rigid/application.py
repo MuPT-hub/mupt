@@ -1,4 +1,4 @@
-'''Utilities for representing and applying rigid transformations to points in 3D space (i.e. working with the Euclidean isometry group E(3))'''
+'''Utilities for applying rigid transformations to other objects (not necessarily just points!)'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
