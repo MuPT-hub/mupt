@@ -18,7 +18,7 @@ from .selection import (
 )
 
 
-def chemical_graph_from_rdmol(
+def chemical_graph_from_rdkit(
     rdmol : Mol,
     atom_condition : AtomCondition=None,
     label_method : Callable[[Atom], Hashable]=lambda atom : atom.GetIdx(),
