@@ -1,4 +1,4 @@
-'''Monomer Interconnectivity and Degree (MID) graphs, for encoding connectivity of a polymer system'''
+'''Monomer Interconnectivity and Degree (MID) graphs, for encoding the topological connectivity of a polymer system'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'

@@ -21,7 +21,8 @@ from rdkit.Chem.rdchem import (
 )
 
 from .ports import Port
-from .topology.midgraph import PolymerTopologyGraph
+from .topology import PolymerTopologyGraph
+
 from ..geometry.arraytypes import ndarray, N, Shape
 from ..geometry.shapes import BoundedShape, PointCloud
 from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
