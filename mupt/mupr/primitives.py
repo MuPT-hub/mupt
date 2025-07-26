@@ -29,7 +29,7 @@ from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
 
 
 # @dataclass
-type PrimitiveStructure = Union[PolymerTopologyGraph, Atom, None]
+PrimitiveStructure = Union[PolymerTopologyGraph, Atom, None]
 class BadPrimitiveStructure(TypeError):
     '''Exception raised when a Primitive is initialized with an invalid structure'''
     ...
@@ -66,12 +66,12 @@ class Primitive:
             self.metadata = metadata or {}          # literally any other information the user may want to bind to this Primitive
 
     def __str__(self) -> str:
-        pass
+        return f'{self.label}{self.functionality}{type(self.shape).__name__}{type(self.structure).__name__}'
     
     ## comparison methods    
     def __hash__(self):
         # TODO: include information about content (not just number) of Ports, find way to make distinguishable
-        return hash(f'{self.label}{self.functionality}{type(self.shape).__name__}{type(self.shape).__name__}')
+        return hash(str(self))
     
     # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
     def __eq__(self, other : object) -> bool:
@@ -112,16 +112,16 @@ class Primitive:
     def num_atoms(self) -> int:
         '''Number of atoms the Primitive and its internal structure collectively represent'''
         # TODO: add ability to custom for advanced usage (e.g. indeterminate base CG chemistry?)
-        if self.num_atoms is not None:
+        if self.structure is None:
             return 0
-        elif self.is_atomic:
+        elif isinstance(self.structure, Atom):
             return 1
         elif isinstance(self.structure, PolymerTopologyGraph):
             _num_atoms : int = 0
-            for sum_primitive in self.structure:
-                if not isinstance(sum_primitive, Primitive):
-                    raise TypeError(f'Primitive Topology improperly embedded; cannot determine number of atoms from non-Primitive {sum_primitive}')
-                _num_atoms += sum_primitive.num_atoms
+            for subprimitive in self.structure:
+                if not isinstance(subprimitive, Primitive):
+                    raise TypeError(f'Primitive Topology improperly embedded; cannot determine number of atoms from non-Primitive {subprimitive}')
+                _num_atoms += subprimitive.num_atoms
             return _num_atoms
 
     @property
