@@ -50,7 +50,7 @@ class Primitive:
             structure : PrimitiveStructure=None,
             ports : Optional[list[Port]]=None,
             shape : Optional[BoundedShape]=None,
-            label : Optional[Any]=None,
+            label : Optional[Hashable]=None,
             stereo_info : Optional[StereoInfo]=None,
             metadata : Optional[dict[Hashable, Any]]=None,
         ) -> None:
@@ -68,8 +68,9 @@ class Primitive:
         pass
     
     ## comparison methods    
-    def __hash__(self): # critical that this exists to allow comparison between primitives
-        return hash(self.label)
+    def __hash__(self):
+        # TODO: include information about content (not just number) of Ports, find way to make distinguishable
+        return hash(f'{self.label}{self.functionality}{type(self.shape).__name__}{type(self.shape).__name__}')
     
     # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
     def __eq__(self, other : object) -> bool:
