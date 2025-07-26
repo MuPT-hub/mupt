@@ -19,6 +19,12 @@ def is_linker(rdatom : Atom) -> bool:
     '''Indicate whether an atom is a linker (intermonomer "*" type atom)'''
     return rdatom.GetAtomicNum() == 0
 
+def not_linker(rdatom : Atom) -> bool:
+    '''Indicate whether an atom is NOT a linker, i.e. is a "real" atom'''
+    # return rdatom.GetAtomicNum() != 0
+    return not is_linker(rdatom)
+is_real_atom = not_linker
+
 def get_num_linkers(rdmol : Mol) -> int:
     '''Count how many wild-type inter-molecule linker atoms are in a Mol'''
     return sum(
