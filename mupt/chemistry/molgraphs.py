@@ -3,9 +3,11 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Callable, Hashable, Optional
+from typing import Callable, Hashable, Optional, Type, TypeVar
 
 import networkx as nx
+GraphLike = TypeVar('GraphLike', bound=nx.Graph)
+
 from rdkit import Atom, Mol
 
 from .selection import (
@@ -20,10 +22,11 @@ from .selection import (
 
 def chemical_graph_from_rdkit(
     rdmol : Mol,
-    atom_condition : AtomCondition=None,
+    atom_condition : Optional[AtomCondition]=None,
     label_method : Callable[[Atom], Hashable]=lambda atom : atom.GetIdx(),
     binary_operator : Callable[[bool, bool], bool]=logical_or,
-) -> nx.Graph:
+    graph_type : Type[GraphLike]=nx.Graph,
+) -> GraphLike:
     '''
     Create a graph from an RDKit Mol whose:
     * Vertices correspond to all atoms satisfying the given atom condition, and
@@ -45,8 +48,8 @@ def chemical_graph_from_rdkit(
     if not atom_condition:
         atom_condition : AtomCondition = all_atoms
     bond_condition : BondCondition = bond_condition_by_atom_condition_factory(atom_condition, binary_operator)
-    
-    return nx.Graph(
+
+    return graph_type(
         (label_method(atom_begin), label_method(atom_end))
             for (atom_begin, atom_end) in bonds_by_condition(
                 rdmol,

@@ -9,7 +9,7 @@ from rdkit.Chem.rdchem import (
     StereoDescriptor,
     ChiralType,
 )
-# DEVNOTE: just doing akitchen sink import for now so I remember later what all RDKit has to offer here
+# DEVNOTE: just doing a kitchen sink import for now so I remember later what all RDKit has to offer here
 # for comprehensive documentation, see https://www.rdkit.org/docs/source/rdkit.Chem.rdmolops.html#rdkit.Chem.rdmolops
 from rdkit.Chem.rdmolops import ( 
     AssignStereochemistry,
