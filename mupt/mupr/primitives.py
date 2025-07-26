@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Generator, Hashable, Optional, Union
+from typing import Any, Generator, Hashable, Optional, Union, get_args
 from dataclasses import dataclass, field
 from enum import Enum # consider having a bitwise Enum to encode possible specification states of a primitive??
 
@@ -28,6 +28,11 @@ from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
 
 
 # @dataclass
+type PrimitiveStructure = Union[PolymerTopologyGraph, Atom, None]
+class BadPrimitiveStructure(TypeError):
+    '''Exception raised when a Primitive is initialized with an invalid structure'''
+    ...
+
 class Primitive:
     '''Represents a fundamental (but not necessarily irreducible) building block of a polymer system in the abstract 
     
@@ -42,7 +47,7 @@ class Primitive:
     '''
     def __init__(
             self,
-            structure : Union[PolymerTopologyGraph, Atom, None]=None,
+            structure : PrimitiveStructure=None,
             ports : Optional[list[Port]]=None,
             shape : Optional[BoundedShape]=None,
             label : Optional[Any]=None,
@@ -50,7 +55,7 @@ class Primitive:
             metadata : Optional[dict[Hashable, Any]]=None,
         ) -> None:
             # essential structural information
-            self.structure = structure  # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy
+            self._structure = structure  # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy
             self.ports = ports or []    # a collection of sites representing bonds to other Primitives
             self.shape = shape          # a rigid shape which approximates and abstracts the behavoir of the primitive in space
 
@@ -75,9 +80,31 @@ class Primitive:
        
     # properties
     @property
+    def structure(self) -> PrimitiveStructure:
+        '''The internal chemical structure (or lack thereof) of this Primitive'''
+        if not isinstance(self._structure, get_args(PrimitiveStructure)):
+            raise TypeError(f'Primitive internal structure must be one of {get_args(PrimitiveStructure)}; got {type(self._structure)}')
+        return self._structure
+    
+    @structure.setter
+    def structure(self, new_structure : PrimitiveStructure) -> None:
+        '''Set the internal chemical structure of this Primitive'''
+        raise NotImplementedError
+    
+    @property
     def is_atomic(self) -> bool:
         '''Test if the primitive at hand represents a single atom from the periodic table'''
         return isinstance(self.structure, Atom)
+    
+    @property
+    def is_all_atom(self) -> bool:
+        '''Test if Primitive collectively represents a system defined to periodic table atom resolution'''
+        if self.structure is None:
+            return False
+        elif isinstance(self.structure, Atom):
+            return True
+        elif isinstance(self.structure, PolymerTopologyGraph):
+            return all(primitive.is_all_atom for primitive in self.structure)
     
     @property
     def num_atoms(self) -> int:
@@ -94,14 +121,11 @@ class Primitive:
                     raise TypeError(f'Primitive Topology improperly embedded; cannot determine number of atoms from non-Primitive {sum_primitive}')
                 _num_atoms += sum_primitive.num_atoms
             return _num_atoms
-        else:
-            raise TypeError(f'Invalid type {type(self.structure)} for Primitive structure; cannot determine number of atoms')
-    
+
     @property
     def functionality(self) -> int:
         '''Number of neighboring primitives which can be attached to this primitive'''
         return len(self.ports)
-    
     
     # initialization methods         
     def copy(self) -> 'Primitive':
@@ -134,7 +158,7 @@ class Primitive:
         ...
         
     # geometric methods
-    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive':
+    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on shape, ports, and structure?
         '''Apply an isometric (i.e. rigid) transformation to all parts of a Primitive which support it'''
         return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
 
