@@ -154,7 +154,7 @@ class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some ite
 # Concrete BoundedShape implementations
 class PointCloud(BoundedShape[Numeric]):
     '''A cluster of points in 3D space'''
-    def __init__(self, positions : np.ndarray[Shape[3], Numeric]=None) -> None:
+    def __init__(self, positions : np.ndarray[Shape[N, 3], Numeric]=None) -> None:
         if positions is None:
             positions = np.empty((0, 3), dtype=float)
         self.positions = positions
