@@ -8,7 +8,7 @@ from typing import Callable, Hashable, Optional, Type, TypeVar
 import networkx as nx
 GraphLike = TypeVar('GraphLike', bound=nx.Graph)
 
-from rdkit import Atom, Mol
+from rdkit.Chem.rdchem import Atom, Mol
 
 from .selection import (
     AtomCondition,
