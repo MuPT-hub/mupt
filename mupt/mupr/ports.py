@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Literal, Optional
+from typing import Any, ClassVar, Literal, Optional
 Shape = tuple # alias for typehinting array shapes
 from dataclasses import dataclass, field
 
@@ -37,12 +37,16 @@ class Port:
     
     linker_position     : Optional[np.ndarray[Shape[Literal[3]], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    tangent_position    : Optional[np.ndarray[Shape[Literal[3]], float]] = None # TODO: validate this is orthogonal to the bond vector (if present)
+    tangent_position    : Optional[np.ndarray[Shape[Literal[3]], float]] = None
+    
+    # DEVNOTE: this will need updating if more position-type attributes are added; manually curating this is fine for now
+    _POSITION_ATTRS : ClassVar[tuple[str]] = ('linker_position', 'bridgehead_position', 'tangent_position') 
 
     # initialization
     def copy(self) -> 'Port':
         '''Return a new Port with the same information as this one'''
         return Port(**self.__dict__)
+
 
     # comparison methods
     def __hash__(self) -> int:
@@ -56,11 +60,40 @@ class Port:
         '''Determine whether two ports are bondable to each other'''
         raise NotImplementedError
     
+    @staticmethod
+    def compare_optional_positions(
+        position_1 : Optional[np.ndarray[Shape[Any], float]],
+        position_2 : Optional[np.ndarray[Shape[Any], float]],
+        **kwargs,
+    ) -> bool:
+        '''Check that two positional attributes are either 1) both undefined, or 2) both defined and equal'''
+        if type(position_1) != type(position_2):
+            return False
+        
+        if position_1 is None: # both are None
+            return True
+        elif isinstance(position_1, np.ndarray):
+            return np.allclose(position_1, position_2, **kwargs)
+        else:
+            raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
+    
+    def coincides_with(self, other : 'Port') -> bool:
+        '''Determine whether this Port coincides with another Port'''
+        return all(
+            self.compare_optional_positions(getattr(self, position_attr), getattr(other, position_attr))
+                for position_attr in self._POSITION_ATTRS
+        )
+
     
     # geometric properties
     @property
     def has_positions(self) -> bool:
         return (self.bridgehead_position is not None) and (self.linker_position is not None)
+    
+    @property
+    def has_defined_dihedral_plane(self) -> bool:
+        '''Determine whether this port has a tangent vector (i.e. dihedral plane orientation) defined'''
+        return (self.tangent_position is not None)
     
     ## bond vector
     @property
@@ -83,11 +116,6 @@ class Port:
         self.linker_position = new_bond_length*self.unit_bond_vector + self.bridgehead_position
         
     ## tangent vector (defines dihedral plane)
-    @property
-    def has_defined_dihedral_plane(self) -> bool:
-        '''Determine whether this port has a tangent vector (i.e. dihedral plane orientation) defined'''
-        return (self.tangent_position is not None)
-    
     @property
     def tangent_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
         '''
