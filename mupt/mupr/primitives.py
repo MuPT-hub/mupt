@@ -44,6 +44,7 @@ class Primitive:
     As another example, a 0-functionality primitive is also totally legal (ex. as a complete small molecule in an admixture)
     But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
     '''
+    # initialization methods         
     def __init__(
             self,
             structure : PrimitiveStructure=None,
@@ -62,21 +63,74 @@ class Primitive:
             self.label = label                      # a handle for users to identify and distinguish Primitives by
             self.stereo_info = stereo_info or {}    # additional info about stereogenic atoms or bonds, if applicable
             self.metadata = metadata or {}          # literally any other information the user may want to bind to this Primitive
+    
+    def copy(self) -> 'Primitive':
+        '''Return a new Primitive with the same information as this one'''
+        return Primitive(**self.__dict__) # TODO: deepcopy attributes dict?
 
+    # @classmethod
+    # def from_smiles(cls, smiles : str, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
+    #     '''Initialize a chemically-explicit Primitive from a SMILES string representation of the molecular graph'''
+    #     ...
+    # from_SMILES = from_smiles
+
+    # @classmethod
+    # def from_rdkit(cls, mol : Mol, conf_id : int=-1) -> 'Primitive':
+    #     '''Initialize a chemically-explicit Primitive from an RDKit Mol'''
+    #     ...
+    
+    # # export methods
+    # def to_rdkit(self) -> Mol:
+    #     '''Convert Primitive to an RDKit Mol'''
+    #     ...
+
+
+    # comparison methods
+    ## canonical forms to be used for equivalence relations
+    # DEVNOTE: hashing needs to be stricter than equality, i.e. two Primitives may be indistinguishable by hash, but nevertheless equivalent
+    def _canonical_form_ports(self) -> str:
+        '''Return a canonical string representation of the Primitive's ports'''
+        return NotImplemented
+
+    def _canonical_form_shape(self) -> str:
+        '''Return a canonical string representation of the Primitive's shape'''
+        return type(self.shape).__name__ # still holds for NoneType
+
+    def _canonical_form_structure(self) -> str:
+        '''Return a canonical string representation of the Primitive's structure'''
+        return NotImplemented
+
+    def canonical_form(self) -> str:
+        '''
+        Return a canonical string representation of the Primitive
+        Two Primitives having the same canonical form are interchangable within a polymer system
+        '''
+        return f'{self._canonical_form_ports()}{self._canonical_form_shape()}{self._canonical_form_structure()}'
+    
+    def canonical_form_peppered(self) -> str:
+        '''
+        Return a canonical string representation of the Primitive with peppered metadata
+        Used to distinguish two otherwise-equivalent Primitives, e.g. as needed for graph embedding
+        '''
+        return f'{self.canonical_form()}{self.label}'#{self.metadata}'
+
+    ## dunders based on canonical and normal forms    
     def __str__(self) -> str:
         return f'{self.label}{self.functionality}{type(self.shape).__name__}{type(self.structure).__name__}'
     
-    ## comparison methods    
     def __hash__(self):
-        # TODO: include information about content (not just number) of Ports, find way to make distinguishable
+        '''Hash used to compare Primitives for identity (NOT equivalence)'''
+        # return hash(self.canonical_form())
         return hash(str(self))
     
-    # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
     def __eq__(self, other : object) -> bool:
+        # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
         '''Check whether two primitives are equivalent (but not necessarily identical)'''
         if not isinstance(other, Primitive):
             raise TypeError(f'Cannot compare Primitive to {type(other)}')
-        return NotImplemented
+
+        return self.canonical_form_peppered() == other.canonical_form_peppered()
+       
        
     # properties
     @property
@@ -127,26 +181,6 @@ class Primitive:
         '''Number of neighboring primitives which can be attached to this primitive'''
         return len(self.ports)
     
-    # initialization methods         
-    def copy(self) -> 'Primitive':
-        '''Return a new Primitive with the same information as this one'''
-        return Primitive(**self.__dict__)
-
-    # @classmethod
-    # def from_smiles(cls, smiles : str, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
-    #     '''Initialize a chemically-explicit Primitive from a SMILES string representation of the molecular graph'''
-    #     ...
-    # from_SMILES = from_smiles
-
-    # @classmethod
-    # def from_rdkit(cls, mol : Mol, conf_id : int=-1) -> 'Primitive':
-    #     '''Initialize a chemically-explicit Primitive from an RDKit Mol'''
-    #     ...
-    
-    # # export methods
-    # def to_rdkit(self) -> Mol:
-    #     '''Convert Primitive to an RDKit Mol'''
-    #     ...
     
     # resolution shift methods
     def atomize(self, uniquify: bool=False) -> Generator['Primitive', None, None]:
@@ -156,6 +190,7 @@ class Primitive:
     def coagulate(self) -> 'Primitive':
         '''Combine all constituent primitives into a single, larger primitive'''
         ...
+        
         
     # geometric methods
     def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on shape, ports, and structure?
