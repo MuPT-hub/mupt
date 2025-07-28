@@ -5,7 +5,6 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Generator, Hashable, Optional, Union, get_args
 from dataclasses import dataclass, field
-from enum import Enum # consider having a bitwise Enum to encode possible specification states of a primitive??
 
 from scipy.spatial.transform import RigidTransform
 
@@ -23,8 +22,7 @@ from rdkit.Chem.rdchem import (
 from .ports import Port
 from .topology import PolymerTopologyGraph
 
-from ..geometry.arraytypes import ndarray, N, Shape
-from ..geometry.shapes import BoundedShape, PointCloud
+from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
 
 
