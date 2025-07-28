@@ -4,10 +4,11 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 
-from typing import Hashable, Optional
+from typing import Callable, Generator, Hashable, Optional, Type, TypeVar
 
-import networkx as nx
 import numpy as np
+import networkx as nx
+GraphLike = TypeVar('GraphLike', bound=nx.Graph)
 
 from rdkit.Chem.rdchem import (
     Atom,
@@ -17,7 +18,7 @@ from rdkit.Chem.rdchem import (
     StereoInfo
 )
 from rdkit.Chem.rdmolops import FindPotentialStereo
-from rdkit.Chem.rdmolfiles import MolToSmiles
+from rdkit.Chem.rdmolfiles import MolToSmiles, MolFragmentToSmarts
 
 from ..mupr.ports import Port
 from ..mupr.primitives import Primitive
@@ -25,11 +26,96 @@ from ..mupr.topology import PolymerTopologyGraph
 
 from ..geometry.shapes import PointCloud
 
-from ..chemistry.linkers import is_linker, not_linker
-from ..chemistry.selection import atoms_by_condition, logical_and
-from ..chemistry.molgraphs import chemical_graph_from_rdkit
+from ..chemistry.linkers import is_linker, not_linker, LINKER_QUERY_MOL
+from ..chemistry.selection import (
+    AtomCondition,
+    BondCondition,
+    logical_or,
+    logical_and,
+    all_atoms,
+    atoms_by_condition,
+    bonds_by_condition,
+    bond_condition_by_atom_condition_factory
+)
 
 
+def chemical_graph_from_rdkit(
+    rdmol : Mol,
+    atom_condition : Optional[AtomCondition]=None,
+    label_method : Callable[[Atom], Hashable]=lambda atom : atom.GetIdx(),
+    binary_operator : Callable[[bool, bool], bool]=logical_or,
+    graph_type : Type[GraphLike]=nx.Graph,
+) -> GraphLike:
+    '''
+    Create a graph from an RDKit Mol whose:
+    * Vertices correspond to all atoms satisfying the given atom condition, and
+    * Edges are all bonds between the selected atoms
+    
+    Parameters
+    ----------
+    rdmol : Chem.Mol
+        The RDKit Mol object to convert.
+    atom_condition : Optional[Callable[[Chem.Atom], bool]], default None
+        Condition on atoms which returns bool; 
+        Always returns True if unset
+    label_method : Callable[[Chem.Atom], Hashable], default lambda atom : atom.GetIdx()
+        Method to uniquely label each atom as a vertex in the graph
+        Default to choosing the atom's index
+    binary_operator : Callable[[bool, bool], bool], default logical_or
+        Binary logical operator used to 
+    '''
+    if not atom_condition:
+        atom_condition : AtomCondition = all_atoms
+    bond_condition : BondCondition = bond_condition_by_atom_condition_factory(atom_condition, binary_operator)
+
+    return graph_type(
+        (label_method(atom_begin), label_method(atom_end))
+            for (atom_begin, atom_end) in bonds_by_condition(
+                rdmol,
+                condition=bond_condition,
+                as_pairs=True,      # return bond as pair of atoms,
+                as_indices=False,   # ...each as Atom objects
+                negate=False,
+            )
+    )
+
+def ports_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None]) -> Generator['Port', None, None]:
+        '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
+        # Extract information from the RDKit Mol
+        conformer : Optional[Conformer] = None
+        if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
+            conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
+            positions = conformer.GetPositions()
+
+        for (linker_idx, bh_idx) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
+            linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
+            bh_atom     : Atom = rdmol.GetAtomWithIdx(bh_idx)
+            port_bond   : Bond = rdmol.GetBondBetweenAtoms(bh_idx, linker_idx)
+
+            port = Port(
+                linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
+                bridgehead=bh_idx,
+                bondtype=port_bond.GetBondType(),
+                linker_flavor=linker_atom.GetIsotope(),
+                query_smarts=MolFragmentToSmarts(
+                    rdmol,
+                    atomsToUse=[linker_idx, bh_idx],
+                    bondsToUse=[port_bond.GetIdx()],
+                )
+            )
+            
+            if conformer: # solicit coordinates, if available
+                port.linker_position     = positions[linker_idx]
+                port.bridgehead_position = positions[bh_idx]
+
+                # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
+                for neighbor in bh_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
+                    if neighbor.GetAtomicNum() > 0: # take first real neighbor atom for now
+                        port.set_tangent_from_coplanar_point(positions[neighbor.GetIdx()])
+                        break
+                        
+            yield port
+            
 def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label : Optional[Hashable]=None) -> Primitive:
     """ 
     Create a Primitive with chemically-accuracy ports and internal structure from an RDKit Mol
@@ -123,3 +209,4 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
         stereo_info=None,
         metadata=None,
     )
+    

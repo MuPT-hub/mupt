@@ -3,20 +3,17 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Generator, Literal, Optional
+from typing import Any, Literal, Optional
 Shape = tuple # alias for typehinting array shapes
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
-
-from rdkit import Chem
-from rdkit.Chem.rdchem import Atom, Bond, Mol, BondType
+from rdkit.Chem.rdchem import BondType
 
 from ..geometry.measure import normalized
 from ..geometry.transforms.linear import rejector
 from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..chemistry.linkers import LINKER_QUERY_MOL
 
 
 class MolPortError(Exception):
@@ -40,44 +37,12 @@ class Port:
     
     linker_position     : Optional[np.ndarray[Shape[Literal[3]], float]] = None
     bridgehead_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    tangent_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None # TODO: validate this is orthogonal to the bond vector (if present)
+    tangent_position    : Optional[np.ndarray[Shape[Literal[3]], float]] = None # TODO: validate this is orthogonal to the bond vector (if present)
 
     # initialization
     def copy(self) -> 'Port':
         '''Return a new Port with the same information as this one'''
         return Port(**self.__dict__)
-    
-    @classmethod
-    def ports_from_rdkit(cls, mol : Mol, conf_id : int=-1) -> Generator['Port', None, None]:
-        '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
-        conformer = mol.GetConformer(conf_id) if (mol.GetNumConformers() > 0) else None
-        for (linker_idx, bh_idx) in mol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
-            linker_atom : Atom = mol.GetAtomWithIdx(linker_idx)
-            port_bond   : Bond = mol.GetBondBetweenAtoms(bh_idx, linker_idx)
-            
-            port = cls(
-                linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
-                bridgehead=bh_idx,
-                bondtype=port_bond.GetBondType(),
-                linker_flavor=linker_atom.GetIsotope(),
-                query_smarts=Chem.MolFragmentToSmarts(
-                    mol,
-                    atomsToUse=[linker_idx, bh_idx],
-                    bondsToUse=[port_bond.GetIdx()],
-                )
-            )
-            
-            if conformer: # solicit coordinates, if available
-                port.linker_position     = np.array(conformer.GetAtomPosition(linker_idx))
-                port.bridgehead_position = np.array(conformer.GetAtomPosition(bh_idx))
-                
-                # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-                for neighbor in mol.GetAtomWithIdx(bh_idx).GetNeighbors():
-                    if neighbor.GetAtomicNum() > 0: # take first real neighbor atom for now
-                        port.set_tangent_from_coplanar_point(conformer.GetAtomPosition(neighbor.GetIdx()))
-                        break
-                        
-            yield port
 
     # comparison methods
     def __hash__(self) -> int:
@@ -90,6 +55,7 @@ class Port:
     def is_bondable_to(cls, port1 : 'Port', port2 : 'Port') -> bool:
         '''Determine whether two ports are bondable to each other'''
         raise NotImplementedError
+    
     
     # geometric properties
     @property
