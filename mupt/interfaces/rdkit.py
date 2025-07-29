@@ -79,42 +79,42 @@ def chemical_graph_from_rdkit(
             )
     )
 
-def ports_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None]) -> Generator['Port', None, None]:
-        '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
-        # Extract information from the RDKit Mol
-        conformer : Optional[Conformer] = None
-        if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
-            conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
-            positions = conformer.GetPositions()
+def ports_from_rdkit(rdmol : Mol, conformer_id : Optional[int]=None) -> Generator['Port', None, None]:
+    '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
+    # Extract information from the RDKit Mol
+    conformer : Optional[Conformer] = None
+    if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
+        conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
+        positions = conformer.GetPositions()
 
-        for (linker_idx, bh_idx) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
-            linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
-            bh_atom     : Atom = rdmol.GetAtomWithIdx(bh_idx)
-            port_bond   : Bond = rdmol.GetBondBetweenAtoms(bh_idx, linker_idx)
+    for (linker_idx, bh_idx) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
+        linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
+        bh_atom     : Atom = rdmol.GetAtomWithIdx(bh_idx)
+        port_bond   : Bond = rdmol.GetBondBetweenAtoms(bh_idx, linker_idx)
 
-            port = Port(
-                linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
-                bridgehead=bh_idx,
-                bondtype=port_bond.GetBondType(),
-                linker_flavor=linker_atom.GetIsotope(),
-                query_smarts=MolFragmentToSmarts(
-                    rdmol,
-                    atomsToUse=[linker_idx, bh_idx],
-                    bondsToUse=[port_bond.GetIdx()],
-                )
+        port = Port(
+            linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
+            bridgehead=bh_idx,
+            bondtype=port_bond.GetBondType(),
+            linker_flavor=linker_atom.GetIsotope(),
+            query_smarts=MolFragmentToSmarts(
+                rdmol,
+                atomsToUse=[linker_idx, bh_idx],
+                bondsToUse=[port_bond.GetIdx()],
             )
-            
-            if conformer: # solicit coordinates, if available
-                port.linker_position     = positions[linker_idx]
-                port.bridgehead_position = positions[bh_idx]
+        )
+        
+        if conformer: # solicit coordinates, if available
+            port.linker_position     = positions[linker_idx]
+            port.bridgehead_position = positions[bh_idx]
 
-                # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-                for neighbor in bh_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
-                    if neighbor.GetAtomicNum() > 0: # take first real neighbor atom for now
-                        port.set_tangent_from_coplanar_point(positions[neighbor.GetIdx()])
-                        break
-                        
-            yield port
+            # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
+            for neighbor in bh_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
+                if neighbor.GetAtomicNum() > 0: # take first real neighbor atom for now
+                    port.set_tangent_from_coplanar_point(positions[neighbor.GetIdx()])
+                    break
+                    
+        yield port
             
 def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label : Optional[Hashable]=None) -> Primitive:
     """ 
@@ -165,6 +165,8 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
                 linker_position=np.array(conformer.GetAtomPosition(nb_idx)) if conformer else None,
                 # TODO: set tangent position from neighbor - decide upon rules for choosing which neighbor to pick for the dihedral plane
             )
+            
+            atom_ports.append(neighbor_port)
             if is_linker(neighbor): # bonds to linkers constitute Ports which persist at the fragment level
                 external_ports.append(neighbor_port)
         
