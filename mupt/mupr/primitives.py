@@ -5,6 +5,7 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Generator, Hashable, Optional, Union, get_args
 from dataclasses import dataclass, field
+from collections import Counter
 
 from scipy.spatial.transform import RigidTransform
 
@@ -12,6 +13,7 @@ from rdkit.Chem.rdchem import (
     Atom,
     Bond,
     Mol,
+    BondType,
     # DEVNOTE: not yet sure what the best way to represent stereochemistry is
     StereoInfo,
     StereoType,
@@ -64,10 +66,7 @@ class Primitive:
             self.stereo_info = stereo_info or {}    # additional info about stereogenic atoms or bonds, if applicable
             self.metadata = metadata or {}          # literally any other information the user may want to bind to this Primitive
     
-    def copy(self) -> 'Primitive':
-        '''Return a new Primitive with the same information as this one'''
-        return Primitive(**self.__dict__) # TODO: deepcopy attributes dict?
-
+    # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)
     # @classmethod
     # def from_smiles(cls, smiles : str, positions : Optional[ndarray[Shape[N, 3], float]]=None) -> 'Primitive':
     #     '''Initialize a chemically-explicit Primitive from a SMILES string representation of the molecular graph'''
@@ -82,23 +81,108 @@ class Primitive:
     # # export methods
     # def to_rdkit(self) -> Mol:
     #     '''Convert Primitive to an RDKit Mol'''
-    #     ...
-
-
+    #     ...      
+       
+    def copy(self) -> 'Primitive':
+        '''Return a new Primitive with the same information as this one'''
+        return Primitive(**self.__dict__) # TODO: deepcopy attributes dict?
+    
+    
+    # properties derived from core components
+    ## structural properties
+    @property
+    def structure(self) -> PrimitiveStructure:
+        '''The internal chemical structure (or lack thereof) of this Primitive'''
+        if not isinstance(self._structure, get_args(PrimitiveStructure)):
+            raise TypeError(f'Primitive internal structure must be one of {get_args(PrimitiveStructure)}; got {type(self._structure)}')
+        return self._structure
+    
+    @structure.setter
+    def structure(self, new_structure : PrimitiveStructure) -> None:
+        '''Set the internal chemical structure of this Primitive'''
+        raise NotImplementedError
+    
+    @property
+    def is_atomic(self) -> bool:
+        '''Whether the Primitive at hand represents a single atom from the periodic table'''
+        return isinstance(self.structure, Atom)
+    
+    @property
+    def is_leaf(self) -> bool:
+        '''Whether the Primitive at hand is at the bottom of a structural hierarchy'''
+        return isinstance(self.structure, [Atom, None])
+    
+    @property
+    def has_children(self) -> bool:
+        '''Whether the Primitive at hand has children in a multiscale hierarchy'''
+        return not self.is_leaf
+    
+    @property
+    def is_all_atom(self) -> bool:
+        '''Test if Primitive collectively represents a system defined to periodic table atom resolution'''
+        if self.structure is None:
+            return False
+        elif isinstance(self.structure, Atom):
+            return True
+        elif isinstance(self.structure, PolymerTopologyGraph):
+            return all(primitive.is_all_atom for primitive in self.structure)
+        
+    @property
+    def num_atoms(self) -> int:
+        '''Number of atoms the Primitive and its internal structure collectively represent'''
+        # TODO: add ability to custom for advanced usage (e.g. indeterminate base CG chemistry?)
+        if self.structure is None:
+            return 0
+        elif isinstance(self.structure, Atom):
+            return 1
+        elif isinstance(self.structure, PolymerTopologyGraph):
+            _num_atoms : int = 0
+            for subprimitive in self.structure:
+                if not isinstance(subprimitive, Primitive):
+                    raise TypeError(f'Primitive Topology improperly embedded; cannot determine number of atoms from non-Primitive {subprimitive}')
+                _num_atoms += subprimitive.num_atoms
+            return _num_atoms
+    
+    ## Shape properties
+    ...
+    
+    ## Port properties
+    @property
+    def functionality(self) -> int:
+        '''Number of neighboring primitives which can be attached to this primitive'''
+        return len(self.ports)
+    
+    @property
+    def bondtype_inventory(self) -> Counter[BondType]:
+        '''A Counter tracking the number of Ports of each BondType associated to this Primitive'''
+        return Counter(port.bondtype for port in self.ports)
+    
+    @property
+    def bondtype_index(self) -> tuple[tuple[int, int], ...]:
+        '''
+        Canonical identifier of all unique BondTypes by count among the Ports associated to this Primitive
+        Consists of all (integer bondtype, count) pairs, sorted lexicographically
+        '''
+        return tuple(sorted(
+            (int(bondtype), count)
+                for (bondtype, count) in self.bondtype_inventory.items()
+        ))
+    
+    
     # comparison methods
-    ## canonical forms to be used for equivalence relations
     # DEVNOTE: hashing needs to be stricter than equality, i.e. two Primitives may be indistinguishable by hash, but nevertheless equivalent
-    def _canonical_form_ports(self) -> str:
-        '''Return a canonical string representation of the Primitive's ports'''
-        return NotImplemented
+    ## canonical forms to be used for equivalence relations
+    def _canonical_form_ports(self, separator : str=':', joiner : str='-') -> str:
+        '''A canonical string representing this Primitive's ports'''
+        return joiner.join(f'{BondType.values[bondtype_idx]}{separator}{count}' for (bondtype_idx, count) in self.bondtype_index)
 
     def _canonical_form_shape(self) -> str:
-        '''Return a canonical string representation of the Primitive's shape'''
+        '''A canonical string representing this Primitive's shape'''
         return type(self.shape).__name__ # still holds for NoneType
 
     def _canonical_form_structure(self) -> str:
-        '''Return a canonical string representation of the Primitive's structure'''
-        return NotImplemented
+        '''A canonical string representing this Primitive's structure'''
+        raise NotImplementedError
 
     def canonical_form(self) -> str:
         '''
@@ -111,8 +195,11 @@ class Primitive:
         '''
         Return a canonical string representation of the Primitive with peppered metadata
         Used to distinguish two otherwise-equivalent Primitives, e.g. as needed for graph embedding
+        
+        Named for the cryptography technique of augmenting a hash by some external, stored data
+        (as described in https://en.wikipedia.org/wiki/Pepper_(cryptography))
         '''
-        return f'{self.canonical_form()}{self.label}'#{self.metadata}'
+        return f'{self.canonical_form()}{self.label}' #{self.metadata}'
 
     ## dunders based on canonical and normal forms    
     def __str__(self) -> str:
@@ -130,56 +217,6 @@ class Primitive:
             raise TypeError(f'Cannot compare Primitive to {type(other)}')
 
         return self.canonical_form_peppered() == other.canonical_form_peppered()
-       
-       
-    # properties
-    @property
-    def structure(self) -> PrimitiveStructure:
-        '''The internal chemical structure (or lack thereof) of this Primitive'''
-        if not isinstance(self._structure, get_args(PrimitiveStructure)):
-            raise TypeError(f'Primitive internal structure must be one of {get_args(PrimitiveStructure)}; got {type(self._structure)}')
-        return self._structure
-    
-    @structure.setter
-    def structure(self, new_structure : PrimitiveStructure) -> None:
-        '''Set the internal chemical structure of this Primitive'''
-        raise NotImplementedError
-    
-    @property
-    def is_atomic(self) -> bool:
-        '''Test if the primitive at hand represents a single atom from the periodic table'''
-        return isinstance(self.structure, Atom)
-    
-    @property
-    def is_all_atom(self) -> bool:
-        '''Test if Primitive collectively represents a system defined to periodic table atom resolution'''
-        if self.structure is None:
-            return False
-        elif isinstance(self.structure, Atom):
-            return True
-        elif isinstance(self.structure, PolymerTopologyGraph):
-            return all(primitive.is_all_atom for primitive in self.structure)
-    
-    @property
-    def num_atoms(self) -> int:
-        '''Number of atoms the Primitive and its internal structure collectively represent'''
-        # TODO: add ability to custom for advanced usage (e.g. indeterminate base CG chemistry?)
-        if self.structure is None:
-            return 0
-        elif isinstance(self.structure, Atom):
-            return 1
-        elif isinstance(self.structure, PolymerTopologyGraph):
-            _num_atoms : int = 0
-            for subprimitive in self.structure:
-                if not isinstance(subprimitive, Primitive):
-                    raise TypeError(f'Primitive Topology improperly embedded; cannot determine number of atoms from non-Primitive {subprimitive}')
-                _num_atoms += subprimitive.num_atoms
-            return _num_atoms
-
-    @property
-    def functionality(self) -> int:
-        '''Number of neighboring primitives which can be attached to this primitive'''
-        return len(self.ports)
     
     
     # resolution shift methods
