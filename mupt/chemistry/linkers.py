@@ -11,8 +11,8 @@ from rdkit.Chem import Atom, Bond, Mol
 
 # DEVNOTE: unclear whether X (total connections) or D (explicit connections) is the right choice for this query...
 # ...or if there's ever a case where the two would not produce identical results; both seem to handle higher-order bonds correctly (i.e. treat double bond as "one" connection)
-# LINKER_QUERY = '[#0D1]~[!#0]' # neutronium-excluding linker query; requires that the linker be attached to a non-linker atom
-LINKER_QUERY : str = '[#0X1]~*' # atomic number 0 (wild) attached to exactly 1 of anything (including possibly another wild-type atom)
+LINKER_QUERY = '[#0X1]~[!#0]' # neutronium-excluding linker query; requires that the linker be attached to a non-linker atom
+# LINKER_QUERY : str = '[#0X1]~*' # atomic number 0 (wild) attached to exactly 1 of anything (including possibly another wild-type atom)
 LINKER_QUERY_MOL : Mol = Chem.MolFromSmarts(LINKER_QUERY)
 
 def is_linker(rdatom : Atom) -> bool:
@@ -38,15 +38,23 @@ def get_linker_and_bridgehead_idxs(rdmol : Mol) -> Generator[tuple[int, int], No
     for (linker_id, bh_id) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False):
         yield linker_id, bh_id # unpacked purely for self-documentation
 
+def real_and_linker_atom_idxs(rdmol : Mol) -> tuple[list[int], list[int]]:
+    '''
+    Partition the atom indices of a Mol by whether or not their corresponding atom is a linker atom
+    Returns a pair of lists, the first containing the indices of non-linker (i.e. "real") atoms and the second containing indices of linkers
+    '''
+    idxs_partitioned_by_linker = ([], [])
+    for atom in rdmol.GetAtoms():
+        idxs_partitioned_by_linker[is_linker(atom)].append(atom.GetIdx())
+        
+    return idxs_partitioned_by_linker
+
 def renumber_linkers_as_last(rdmol : Mol) -> Mol: # TODO: make optionally in-place
     '''
     Returns a copy of a Mol whose atom indices are renumbered such that:
     * all #L linker atoms are assigned the last L indices (i.e. occur after all real atoms in order)
     * all non-linker (i.e. "real") atom are numbered in the order they appear in the original Mol
     '''
-    linker_idxs : list[int] = []
-    real_atom_idxs : list[int] = []
-    for atom in rdmol.GetAtoms():
-        (real_atom_idxs, linker_idxs)[is_linker(atom)].append(atom.GetIdx())
+    real_atom_idxs, linker_idxs = real_and_linker_atom_idxs(rdmol) 
         
-    return Chem.RenumberAtoms(rdmol, real_atom_idxs + linker_idxs)
+    return Chem.RenumberAtoms(rdmol, real_atom_idxs + linker_idxs) # place linker indices at end of list
