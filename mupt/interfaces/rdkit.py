@@ -17,16 +17,20 @@ from rdkit.Chem.rdchem import (
     Conformer,
     StereoInfo
 )
-from rdkit.Chem.rdmolops import FindPotentialStereo
+from rdkit.Chem.rdmolops import (
+    FragmentOnBonds,
+    GetMolFrags,
+    FindPotentialStereo,
+)
 from rdkit.Chem.rdmolfiles import MolToSmiles, MolFragmentToSmarts
 
 from ..mupr.ports import Port
-from ..mupr.primitives import Primitive
+from ..mupr.primitives import StructuralPrimitive, AtomicPrimitive
 from ..mupr.topology import PolymerTopologyGraph
 
 from ..geometry.shapes import PointCloud
 
-from ..chemistry.linkers import is_linker, not_linker, LINKER_QUERY_MOL
+from ..chemistry.linkers import LINKER_QUERY_MOL, not_linker, real_and_linker_atom_idxs
 from ..chemistry.selection import (
     AtomCondition,
     BondCondition,
@@ -81,12 +85,11 @@ def chemical_graph_from_rdkit(
 
 def ports_from_rdkit(rdmol : Mol, conformer_id : Optional[int]=None) -> Generator['Port', None, None]:
     '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
-    # Extract information from the RDKit Mol
     conformer : Optional[Conformer] = None
     if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
         conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
-        positions = conformer.GetPositions()
 
+    rdmol.UpdatePropertyCache() # avoids implicitValence errors on substructure match
     for (linker_idx, bh_idx) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
         linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
         bh_atom     : Atom = rdmol.GetAtomWithIdx(bh_idx)
@@ -105,18 +108,18 @@ def ports_from_rdkit(rdmol : Mol, conformer_id : Optional[int]=None) -> Generato
         )
         
         if conformer: # solicit coordinates, if available
-            port.linker_position     = positions[linker_idx]
-            port.bridgehead_position = positions[bh_idx]
+            port.linker_position     = conformer.GetAtomPosition(linker_idx)
+            port.bridgehead_position = conformer.GetAtomPosition(bh_idx)
 
             # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
             for neighbor in bh_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
-                if neighbor.GetAtomicNum() > 0: # take first real neighbor atom for now
-                    port.set_tangent_from_coplanar_point(positions[neighbor.GetIdx()])
-                    break
+                if not_linker(neighbor) and (neighbor.GetIdx() != linker_idx):
+                    port.set_tangent_from_coplanar_point(conformer.GetAtomPosition(neighbor.GetIdx()))
+                    break # stop iteration after first valid tangent neighbor is found
                     
         yield port
             
-def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label : Optional[Hashable]=None) -> Primitive:
+def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label : Optional[Hashable]=None) -> StructuralPrimitive:
     """ 
     Create a Primitive with chemically-accuracy ports and internal structure from an RDKit Mol
     
@@ -135,58 +138,55 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
     Primitive
         The created Primitive object.
     """
+    # TODO : separate RDKit Mol into distinct connected components (for handling topologies with multiple chains)
+    
     # Extract information from the RDKit Mol
     conformer : Optional[Conformer] = None
     if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
         conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
-
+    
     stereo_info_map : dict[int, StereoInfo] = {
-        stereo_info.centeredOn : stereo_info
-            for stereo_info in FindPotentialStereo(rdmol, cleanIt=True, flagPossible=True) # TODO: determine most appropriate choice of flags to use here
+        stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
+            for stereo_info in FindPotentialStereo(rdmol, cleanIt=True, flagPossible=True) 
     }
-    # TODO: renumber linkers last? 
+    real_atom_idxs, linker_idxs = real_and_linker_atom_idxs(rdmol)
+    print(linker_idxs)
+    # TODO: renumber linkers last? (don't want this done in-place for now)
     
     # 1) Populate bottom-level Primitives from real atoms in RDKit Mol
     external_ports : list[Port] = [] # this is for Ports which do not bond to atoms within the mol
-    atomic_primitive_map : dict[int, Primitive] = {} # map atom indices to their corresponding Primitive objects
-    for atom in atoms_by_condition(rdmol, condition=not_linker, as_indices=False, negate=False):
+    atomic_primitive_map : dict[int, AtomicPrimitive] = {} # map atom indices to their corresponding Primitive objects for embedding
+    
+    fragmented_mol = FragmentOnBonds(rdmol, [bond.GetIdx() for bond in rdmol.GetBonds()])
+    atom_mol_fragments : tuple[Mol, ...] = GetMolFrags(fragmented_mol, asMols=True, sanitizeFrags=False)
+    for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         atom_idx = atom.GetIdx()
-        atom_position : Optional[np.ndarray] = np.array(conformer.GetAtomPosition(atom_idx)) if conformer else None
-        
+        atom_shape : Optional[PointCloud] = PointCloud(np.array(conformer.GetAtomPosition(atom_idx))) if conformer else None
+
         ## Collate Port information
         atom_ports : list[Port] = []
-        for neighbor in atom.GetNeighbors():
-            nb_idx = neighbor.GetIdx()
-            neighbor_port = Port(
-                bridgehead=atom_idx,
-                linker=nb_idx,
-                bondtype=rdmol.GetBondBetweenAtoms(atom_idx, nb_idx).GetBondType(),
-                bridgehead_position=atom_position,
-                linker_position=np.array(conformer.GetAtomPosition(nb_idx)) if conformer else None,
-                # TODO: set tangent position from neighbor - decide upon rules for choosing which neighbor to pick for the dihedral plane
-            )
-            
-            atom_ports.append(neighbor_port)
-            if is_linker(neighbor): # bonds to linkers constitute Ports which persist at the fragment level
-                external_ports.append(neighbor_port)
+        for port in ports_from_rdkit(atom_mol, conformer_id=conformer_id): # NOTE: fragment conformers order and positions that of mirror parent molecule
+            atom_ports.append(port)
+            if port.linker_flavor in linker_idxs: # TODO: correct linker and bridgehead indices in fragments
+                external_ports.append(port) # bonds to linkers constitute Ports which persist at the fragment level
         
         ## assemble atomic-resolution Primitive
-        atomic_primitive_map[atom_idx] = Primitive(
+        atomic_primitive_map[atom_idx] = AtomicPrimitive(
             structure=atom,
             ports=atom_ports,
-            shape=PointCloud(atom_position) if conformer else None,
+            shape=atom_shape,
             label=atom_idx,
             stereo_info=stereo_info_map.get(atom_idx, None),
             metadata=atom.GetPropsAsDict(includePrivate=True), # TODO: set tighter scope for what's included here
         )
-    real_atom_idxs : list[int] = list(atomic_primitive_map.keys())
 
     # 2) assemble Primitive at top level  (i.e. at the resolution of the chemical fragment) Primitive
     ## extract topological structure and insert discovered bottom-level atomic Primitives
-    topology_graph = chemical_graph_from_rdkit( # TODO: build this up directly, rather than remapping the index graph
+    # TODO: build this up directly from bonds, rather than remapping the index graph - if not, at least reimplement as embedding
+    topology_graph = chemical_graph_from_rdkit( 
         rdmol,
-        atom_condition=not_linker, # only include "real" atoms in the topology graph
-        binary_operator=logical_and, # only include node if BOTH atoms are not linkers
+        atom_condition=not_linker,   # only include bonds between two "real" atoms in the topology graph
+        binary_operator=logical_and,
         graph_type=PolymerTopologyGraph,
     )
     topology_graph = nx.relabel_nodes(topology_graph, atomic_primitive_map, copy=True)
@@ -201,12 +201,16 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
             allHsExplicit=False,
             doRandom=False,        
         )
+        
+    molecule_shape : Optional[PointCloud] = None
+    if conformer is not None:
+        molecule_shape = PointCloud(np.array(conformer.GetPositions()[real_atom_idxs]))
     
-    return Primitive(
+    return StructuralPrimitive(
         structure=topology_graph,
         ports=external_ports,
         # TODO: find more robust way to make sure this PointCloud stays synchronized w/ the atom postiions
-        shape=PointCloud(np.array(conformer.GetPositions()[real_atom_idxs]) if conformer else None),
+        shape=molecule_shape,
         label=label,
         stereo_info=None,
         metadata=None,
