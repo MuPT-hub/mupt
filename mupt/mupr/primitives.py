@@ -316,6 +316,8 @@ class CardinalPrimitive(Primitive):
     def structure(self, new_structure : int) -> None:
         if not isinstance(new_structure, int):
             raise BadPrimitiveStructure(f'Primitive structure must be an integer, not {type(new_structure)}')
+        if new_structure < 0:
+            raise ValueError('Primitive cannot contain a negative number of atoms')
         
         self._structure = new_structure
     
