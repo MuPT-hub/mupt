@@ -23,6 +23,7 @@ from rdkit.Chem.rdchem import (
 
 from .ports import Port
 from .topology import PolymerTopologyGraph
+from .canonicalize import canonical_graph_property
 
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
@@ -97,10 +98,10 @@ class Primitive:
             raise TypeError(f'Primitive internal structure must be one of {get_args(PrimitiveStructure)}; got {type(self._structure)}')
         return self._structure
     
-    @structure.setter
-    def structure(self, new_structure : PrimitiveStructure) -> None:
-        '''Set the internal chemical structure of this Primitive'''
-        raise NotImplementedError
+    # @structure.setter
+    # def structure(self, new_structure : PrimitiveStructure) -> None:
+    #     '''Set the internal chemical structure of this Primitive'''
+    #     raise NotImplementedError
     
     @property
     def is_atomic(self) -> bool:
@@ -111,11 +112,6 @@ class Primitive:
     def is_leaf(self) -> bool:
         '''Whether the Primitive at hand is at the bottom of a structural hierarchy'''
         return isinstance(self.structure, [Atom, None])
-    
-    @property
-    def has_children(self) -> bool:
-        '''Whether the Primitive at hand has children in a multiscale hierarchy'''
-        return not self.is_leaf
     
     @property
     def is_all_atom(self) -> bool:
@@ -130,7 +126,7 @@ class Primitive:
     @property
     def num_atoms(self) -> int:
         '''Number of atoms the Primitive and its internal structure collectively represent'''
-        # TODO: add ability to custom for advanced usage (e.g. indeterminate base CG chemistry?)
+        # TODO: add ability to customize for advanced usage (e.g. indeterminate base CG chemistry?)
         if self.structure is None:
             return 0
         elif isinstance(self.structure, Atom):
@@ -182,14 +178,19 @@ class Primitive:
 
     def _canonical_form_structure(self) -> str:
         '''A canonical string representing this Primitive's structure'''
-        raise NotImplementedError
+        if self.structure is None:
+            return str(None) # NOTE: this could in principle be anything, as long as it can't be confused for an atom or graph hash
+        elif isinstance(self.structure, Atom):
+            return self.structure.GetSymbol() # TODO: make this more expressive, to capture stereo, aromaticity, etc
+        elif isinstance(self.structure, PolymerTopologyGraph):
+            return canonical_graph_property(self.structure) # DEVNOTE: this is a placeholder; needs to be implemented
 
-    def canonical_form(self) -> str:
+    def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
         '''
         Return a canonical string representation of the Primitive
         Two Primitives having the same canonical form are interchangable within a polymer system
         '''
-        return f'{self._canonical_form_ports()}{self._canonical_form_shape()}{self._canonical_form_structure()}'
+        return f'{self._canonical_form_structure()}({self._canonical_form_ports()})<{self._canonical_form_shape()}>'
     
     def canonical_form_peppered(self) -> str:
         '''
@@ -199,16 +200,19 @@ class Primitive:
         Named for the cryptography technique of augmenting a hash by some external, stored data
         (as described in https://en.wikipedia.org/wiki/Pepper_(cryptography))
         '''
-        return f'{self.canonical_form()}{self.label}' #{self.metadata}'
+        return f'{self.canonical_form()}-{self.label}' #{self.metadata}'
 
     ## dunders based on canonical and normal forms    
-    def __str__(self) -> str:
-        return f'{self.label}{self.functionality}{type(self.shape).__name__}{type(self.structure).__name__}'
+    def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
+        return f'{self.__class__.__name__}(structure_type={type(self.structure).__name__}, shape={type(self.shape).__name__}, functionality={self.functionality}, num_atoms={self.num_atoms}, label={self.label})'
+    
+    def __repr__(self):
+        return self.canonical_form_peppered()
     
     def __hash__(self):
         '''Hash used to compare Primitives for identity (NOT equivalence)'''
         # return hash(self.canonical_form())
-        return hash(str(self))
+        return hash(self.canonical_form_peppered())
     
     def __eq__(self, other : object) -> bool:
         # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
@@ -216,9 +220,9 @@ class Primitive:
         if not isinstance(other, Primitive):
             raise TypeError(f'Cannot compare Primitive to {type(other)}')
 
-        return self.canonical_form_peppered() == other.canonical_form_peppered()
-    
-    
+        return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
+
+
     # resolution shift methods
     def atomize(self, uniquify: bool=False) -> Generator['Primitive', None, None]:
         '''Decompose primitive into its unique, constituent single-atom primitives'''
