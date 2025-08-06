@@ -27,6 +27,7 @@ from rdkit.Chem.rdmolfiles import MolToSmiles, MolFragmentToSmarts
 from ..mupr.ports import Port
 from ..mupr.primitives import StructuralPrimitive, AtomicPrimitive
 from ..mupr.topology import PolymerTopologyGraph
+from ..mupr.embedding import embed_primitive_topology
 
 from ..geometry.shapes import PointCloud
 
@@ -183,13 +184,15 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
     # 2) assemble Primitive at top level  (i.e. at the resolution of the chemical fragment) Primitive
     ## extract topological structure and insert discovered bottom-level atomic Primitives
     # TODO: build this up directly from bonds, rather than remapping the index graph - if not, at least reimplement as embedding
-    topology_graph = chemical_graph_from_rdkit( 
-        rdmol,
-        atom_condition=not_linker,   # only include bonds between two "real" atoms in the topology graph
-        binary_operator=logical_and,
-        graph_type=PolymerTopologyGraph,
+    topology_graph = embed_primitive_topology(
+        topology=chemical_graph_from_rdkit( 
+            rdmol,
+            atom_condition=not_linker,   # only include bonds between two "real" atoms in the topology graph
+            binary_operator=logical_and,
+            graph_type=PolymerTopologyGraph,
+        ),
+        mapping=atomic_primitive_map,
     )
-    topology_graph = nx.relabel_nodes(topology_graph, atomic_primitive_map, copy=True)
     
     ## determine label from canonical SMILES, if none is given
     if label is None:
