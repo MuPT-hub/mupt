@@ -49,6 +49,10 @@ class Port:
 
 
     # comparison methods
+    def canonical_form(self) -> BondType:
+        '''Return a canonical form used to distinguish equivalent Ports'''
+        return self.bondtype # TODO: make this more descriptive; good enough for now
+    
     def __hash__(self) -> int:
         raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
     

@@ -16,9 +16,14 @@ from scipy.spatial.transform import RigidTransform
 from rdkit.Chem.rdchem import Atom, BondType
 from rdkit.Chem.rdmolfiles import AtomFromSmiles, AtomFromSmarts
 
+from .canonicalize import (
+    Canonicalizable,
+    canonical_graph_property,
+    lex_order_multiset,
+    lex_order_multiset_str,
+)
 from .ports import Port
 from .topology import PolymerTopologyGraph
-from .canonicalize import canonical_graph_property
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
 
@@ -49,13 +54,13 @@ class Primitive(ABC):
             metadata : Optional[dict[Hashable, Any]]=None,
         ) -> None:
             # essential structural information
-            self.structure = structure  # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
-            self.ports = ports or []    # a collection of sites representing bonds to other Primitives
-            self.shape = shape          # a rigid shape which approximates and abstracts the behavoir of the primitive in space
+            self.structure = structure     # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
+            self.ports = ports or []       # a collection of sites representing bonds to other Primitives
+            self.shape = shape             # a rigid shape which approximates and abstracts the behavoir of the primitive in space
 
             # additional descriptors
-            self.label = label                    # a handle for users to identify and distinguish Primitives by
-            self.metadata = metadata or {}        # literally any other information the user may want to bind to this Primitive  
+            self.label = label             # a handle for users to identify and distinguish Primitives by
+            self.metadata = metadata or {} # literally any other information the user may want to bind to this Primitive  
     
     # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
        
@@ -127,24 +132,21 @@ class Primitive(ABC):
         return len(self.ports)
     
     @property
-    def bondtype_inventory(self) -> Counter[BondType]:
-        '''A Counter tracking the number of Ports of each BondType associated to this Primitive'''
-        return Counter(port.bondtype for port in self.ports)
-    
-    @property
-    def bondtype_index(self) -> tuple[tuple[int, int], ...]:
+    def bondtype_index(self) -> tuple[tuple[BondType, int], ...]:
         '''
         Canonical identifier of all unique BondTypes by count among the Ports associated to this Primitive
         Consists of all (integer bondtype, count) pairs, sorted lexicographically
         '''
-        return tuple(sorted(
-            (int(bondtype), count)
-                for (bondtype, count) in self.bondtype_inventory.items()
-        ))
+        return lex_order_multiset(port.canonical_form() for port in self.ports)
     
     def canonical_form_ports(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's ports'''
-        return joiner.join(f'{BondType.values[bondtype_idx]}{separator}{count}' for (bondtype_idx, count) in self.bondtype_index)
+        return lex_order_multiset_str(
+            (port.canonical_form() for port in self.ports),
+            element_repr=str, #lambda bt : BondType.values[int(bt)]
+            separator=separator,
+            joiner=joiner,
+        )
     
     # identification and comparison methods
     def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
