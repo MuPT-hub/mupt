@@ -183,6 +183,13 @@ class Primitive(ABC):
 
         return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
     
+    def equivalent_to(self, other : 'Primitive') -> bool:
+        '''Check whether two Primitives are equivalent (i.e. interchangeable, but not necessarily identical)'''
+        raise NotImplementedError
+    
+    def coincident_with(self, other : 'Primitive') -> bool:
+        '''Check whether two Primitives are coincident (i.e. occupy the same space)'''
+        raise NotImplementedError
         
     # geometric methods
     def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on shape, ports, and structure?
