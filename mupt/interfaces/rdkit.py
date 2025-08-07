@@ -111,9 +111,8 @@ def ports_from_rdkit(
         port_bond   : Bond = rdmol.GetBondBetweenAtoms(bh_idx, linker_idx)
 
         port = Port(
-            # linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
-            linker=linker_labeller(linker_atom),
             bridgehead=bridgehead_labeller(bh_atom),
+            linker=linker_labeller(linker_atom),
             bondtype=port_bond.GetBondType(),
             query_smarts=MolFragmentToSmarts(
                 rdmol,
@@ -134,8 +133,12 @@ def ports_from_rdkit(
                     
         yield port
             
-def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label : Optional[Hashable]=None) -> StructuralPrimitive:
-    """ 
+def primitive_from_rdkit(
+        rdmol : Mol,
+        conformer_id : int=Optional[None],
+        label : Optional[Hashable]=None,
+    ) -> StructuralPrimitive:
+    ''' 
     Create a Primitive with chemically-accuracy ports and internal structure from an RDKit Mol
     
     Parameters
@@ -152,7 +155,7 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
     -------
     Primitive
         The created Primitive object.
-    """
+    '''
     # TODO : separate RDKit Mol into distinct connected components (for handling topologies with multiple chains)
     
     # Extract information from the RDKit Mol
@@ -175,7 +178,6 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
     atom_mol_fragments : tuple[Mol, ...] = GetMolFrags(fragmented_mol, asMols=True, sanitizeFrags=False)
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         atom_idx = atom.GetIdx()
-        atom_shape : Optional[PointCloud] = PointCloud(np.array(conformer.GetAtomPosition(atom_idx))) if conformer else None
 
         ## Collate Port information
         atom_ports : list[Port] = []
@@ -183,12 +185,17 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
                 atom_mol,
                 conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
                 linker_labeller=lambda a : a.GetIsotope(),  # read linker label off of dummy atom
-                bridgehead_labeller=lambda _ : atom.GetIdx(), # by definition, this atom is the bridgehead of all Ports attached to the atom
+                bridgehead_labeller=lambda _ : atom_idx, # by definition, this atom is the bridgehead of all Ports attached to the atom
             ): 
             atom_ports.append(port)
             if port.linker in external_linker_idxs: # TODO: correct linker and bridgehead indices in fragments
                 external_ports.append(port) # bonds to linkers constitute Ports which persist at the fragment level
         
+        ## Determine atom shape (if conform is assigned)
+        atom_shape : Optional[PointCloud] = None
+        if conformer:
+            atom_shape = PointCloud(np.array(conformer.GetAtomPosition(atom_idx)))
+
         ## assemble atomic-resolution Primitive
         atomic_primitive_map[atom_idx] = AtomicPrimitive(
             structure=atom,
