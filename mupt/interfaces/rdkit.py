@@ -33,12 +33,12 @@ from rdkit.Chem.rdmolfiles import (
 )
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
+from ..geometry.shapes import PointCloud
 from ..mupr.ports import Port
-from ..mupr.primitives import StructuralPrimitive, AtomicPrimitive
+from ..mupr.primitives import Primitive
+from ..mupr.atomic import AtomicStructure
 from ..mupr.topology import PolymerTopologyGraph
 from ..mupr.embedding import embed_primitive_topology
-
-from ..geometry.shapes import PointCloud
 
 from ..chemistry.linkers import (
     not_linker,
@@ -150,7 +150,7 @@ def primitive_from_rdkit(
         rdmol : Mol,
         conformer_id : int=Optional[None],
         label : Optional[Hashable]=None,
-    ) -> StructuralPrimitive:
+    ) -> Primitive:
     ''' 
     Create a Primitive with chemically-accuracy ports and internal structure from an RDKit Mol
     
@@ -185,11 +185,17 @@ def primitive_from_rdkit(
     # TODO: renumber linkers last? (don't want this done in-place for now)
     
     # Populate bottom-level Primitives from real atoms in RDKit Mol
-    external_ports : list[Port] = [] # this is for Ports which do not bond to atoms within the mol
-    atomic_primitive_map : dict[int, AtomicPrimitive] = {} # map atom indices to their corresponding Primitive objects for embedding
-    
-    fragmented_mol = FragmentOnBonds(rdmol, [bond.GetIdx() for bond in rdmol.GetBonds()], addDummies=True) # record linker atom index as dummy isotope
-    atom_mol_fragments : tuple[Mol, ...] = GetMolFrags(fragmented_mol, asMols=True, sanitizeFrags=False)
+    external_ports : list[Port] = [] # connections not internal to the Mol (i.e. not corresponding to any bond)
+    atomic_primitive_map : dict[int, Primitive] = {}
+    atom_mol_fragments : tuple[Mol, ...] = GetMolFrags( # TODO: move to external helper functions
+        FragmentOnBonds(
+            rdmol,
+            [bond.GetIdx() for bond in rdmol.GetBonds()],
+            addDummies=True, # record linker atom index as dummy isotope
+        ), 
+        asMols=True,
+        sanitizeFrags=False,
+    )
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         atom_idx = atom.GetIdx()
 
@@ -208,8 +214,8 @@ def primitive_from_rdkit(
         if conformer:
             atom_shape = PointCloud(positions[atom_idx, :])
 
-        atomic_primitive_map[atom_idx] = AtomicPrimitive(
-            structure=atom,
+        atomic_primitive_map[atom_idx] = Primitive(
+            structure=AtomicStructure(atom),
             ports=atom_ports,
             shape=atom_shape,
             label=atom_idx,
@@ -245,7 +251,7 @@ def primitive_from_rdkit(
     if conformer is not None:
         molecule_shape = PointCloud(positions[real_atom_idxs])
 
-    return StructuralPrimitive(
+    return Primitive(
         structure=topology_graph,
         ports=external_ports,
         shape=molecule_shape,
@@ -253,7 +259,7 @@ def primitive_from_rdkit(
         metadata=None,
     )
     
-def primitive_to_rdkit(primitive : Union[AtomicPrimitive, StructuralPrimitive]) -> Mol:
+def primitive_to_rdkit(primitive : Primitive) -> Mol:
     '''Convert a StructuralPrimitive to an RDKit Mol'''
     if not primitive.is_all_atom:
         raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
@@ -272,7 +278,7 @@ def primitive_from_smiles(
         embed_positions : bool=False,
         sanitize_ops : SanitizeFlags=SANITIZE_ALL,
         label : Optional[Hashable]=None,
-    ) -> StructuralPrimitive:
+    ) -> Primitive:
     '''Create a Primitive from a SMILES string, optionally embedding positions if selected'''
     rdmol = MolFromSmiles(smiles, sanitize=False)
     if ensure_explicit_Hs:
