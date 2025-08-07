@@ -7,7 +7,7 @@ from typing import Generator
 import networkx as nx
 
 from .structure import Structure
-# from .primitives import Primitive # this import should no longer be circular
+from .primitives import Primitive
 
 
 class PolymerTopologyGraph(nx.Graph, Structure):
@@ -25,7 +25,7 @@ class PolymerTopologyGraph(nx.Graph, Structure):
     def is_composite(self) -> bool:
         return True
     
-    def _get_components(self) -> Generator: # TODO: figure out how to typehints that outputs are Primitive without circular import
+    def _get_components(self) -> Generator[Primitive, None, None]:
         for node in self.nodes:
             yield node
     
