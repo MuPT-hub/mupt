@@ -12,10 +12,10 @@ Label = TypeVar('Label', bound=Hashable)
 import networkx as nx
 
 from .primitives import Primitive
-from .topology import PolymerTopologyGraph
+from .topology import TopologicalStructure
 
 
-def embed_primitive_topology(topology : nx.Graph, mapping : Mapping[Label, Primitive]) -> PolymerTopologyGraph:
+def embed_primitive_topology(topology : nx.Graph, mapping : Mapping[Label, Primitive]) -> TopologicalStructure:
     '''Embed a labelled lexicon of Primitives into a correspondingly-labelled connectivity graph'''
     if not isinstance(topology, nx.Graph):
         raise TypeError(f'Topology must be a Graph instance, not one of type {type(topology)}')
@@ -26,7 +26,7 @@ def embed_primitive_topology(topology : nx.Graph, mapping : Mapping[Label, Primi
     # TODO: verify uniqueness of Primitives according to their canonical forms
 
     # DEVNOTE: copy=False raises errors when attempting to compare Pritive to other types
-    embedded_topology = PolymerTopologyGraph(nx.relabel_nodes(topology, mapping=mapping, copy=True))
+    embedded_topology = TopologicalStructure(nx.relabel_nodes(topology, mapping=mapping, copy=True))
     for primitive in embedded_topology.nodes:
         # NOTE: valid primitives can however have functionality greater than the node degree IFF external ports are part of the Primitive
         if (degree := embedded_topology.degree(primitive)) > primitive.functionality: 

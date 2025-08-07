@@ -37,7 +37,7 @@ from ..geometry.shapes import PointCloud
 from ..mupr.ports import Port
 from ..mupr.primitives import Primitive
 from ..mupr.atomic import AtomicStructure
-from ..mupr.topology import PolymerTopologyGraph
+from ..mupr.topology import TopologicalStructure
 from ..mupr.embedding import embed_primitive_topology
 
 from ..chemistry.linkers import (
@@ -232,7 +232,7 @@ def primitive_from_rdkit(
             rdmol,
             atom_condition=not_linker,   
             binary_operator=logical_and, # only include bonds where BOTH atoms are "real"
-            graph_type=PolymerTopologyGraph,
+            graph_type=TopologicalStructure,
         ),
         mapping=atomic_primitive_map,
     )

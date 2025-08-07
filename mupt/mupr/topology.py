@@ -10,12 +10,14 @@ from .structure import Structure
 from .primitives import Primitive
 
 
-class PolymerTopologyGraph(nx.Graph, Structure):
-    '''A graph representation of the connectivity of primitives in a polymer topology'''
-    # embedding
-    ...
-
-    # node properties       
+# DEVNOTE: opting not to call this just "Topology" for now to avoid confusion, 
+# ...since many molecular packages also have a class by that name
+class TopologicalStructure(nx.Graph, Structure): 
+    '''
+    An incidence topology induces on a set of Primitives,
+    Represented as a Graph whose edge pairs generate the topology
+    '''
+    # Structure properties       
     @property
     def num_atoms(self) -> int:
         '''Number of atoms collectively held within the topology'''
@@ -28,6 +30,14 @@ class PolymerTopologyGraph(nx.Graph, Structure):
     def _get_components(self) -> Generator[Primitive, None, None]:
         for node in self.nodes:
             yield node
+            
+    def canonical_form(self) -> str:
+        '''
+        Return a canonical form based on the graph structure and coloring iduced by the canonical forms of internal Primitives
+        Tantamount to solving the graph isomorphism problem 
+        '''
+        # raise NotImplementedError('Graph canonicalization is not implemented yet')
+        return nx.weisfeiler_lehman_graph_hash(self) # stand-in for more specific implementation to follow
     
     # network properties
     @property
@@ -51,23 +61,14 @@ class PolymerTopologyGraph(nx.Graph, Structure):
     
     @property
     def num_chains(self) -> int:
-        '''The number of disconnected chains represented by the MonoGraph'''
+        '''The number of disconnected chains represented within the topology'''
         return nx.number_connected_components(self)
 
     @property
-    def chains(self) -> Generator['PolymerTopologyGraph', None, None]:
+    def chains(self) -> Generator['TopologicalStructure', None, None]:
         '''Generates all disconnected polymers chains in the graph sequentially'''
         for cc_nodes in nx.connected_components(self):
-            yield self.subgraph(cc_nodes)
+            yield TopologicalStructure(self.subgraph(cc_nodes))
             
-    # canonicalization
-    def canonical_form(self) -> str:
-        '''
-        Return a canonical form based on the graph structure and coloring iduced by the canonical forms of internal Primitives
-        Tantamount to solving the graph isomorphism problem 
-        '''
-        return nx.weisfeiler_lehman_graph_hash(self) # stand-in for more specific implementation to follow
-        # raise NotImplementedError('Graph canonicalization is not implemented yet')
-        
-
-MonomerInterconnectivityAndDegreeGraph = MIDGraph = PolymerTopologyGraph # aliases for convenience
+    # embedding
+    ...
