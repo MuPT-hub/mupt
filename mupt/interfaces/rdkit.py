@@ -4,7 +4,7 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 
-from typing import Callable, Generator, Hashable, Optional, Type, TypeVar
+from typing import Callable, Generator, Hashable, Optional, Type, TypeVar, Union
 
 import numpy as np
 import networkx as nx
@@ -18,11 +18,20 @@ from rdkit.Chem.rdchem import (
     StereoInfo
 )
 from rdkit.Chem.rdmolops import (
+    AddHs,
     FragmentOnBonds,
-    GetMolFrags,
     FindPotentialStereo,
+    GetMolFrags,
+    SanitizeMol,
+    SanitizeFlags,
+    SANITIZE_ALL,
 )
-from rdkit.Chem.rdmolfiles import MolToSmiles, MolFragmentToSmarts
+from rdkit.Chem.rdmolfiles import (
+    MolFromSmiles,
+    MolToSmiles,
+    MolFragmentToSmarts,
+)
+from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 from ..mupr.ports import Port
 from ..mupr.primitives import StructuralPrimitive, AtomicPrimitive
@@ -177,8 +186,10 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
             ports=atom_ports,
             shape=atom_shape,
             label=atom_idx,
-            stereo_info=stereo_info_map.get(atom_idx, None),
-            metadata=atom.GetPropsAsDict(includePrivate=True), # TODO: set tighter scope for what's included here
+            metadata={
+                **atom.GetPropsAsDict(includePrivate=True),
+                'stereo_info' : stereo_info_map.get(atom_idx, None)
+            }, 
         )
 
     # 2) assemble Primitive at top level  (i.e. at the resolution of the chemical fragment) Primitive
@@ -215,7 +226,39 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
         # TODO: find more robust way to make sure this PointCloud stays synchronized w/ the atom postiions
         shape=molecule_shape,
         label=label,
-        stereo_info=None,
         metadata=None,
     )
     
+def primitive_to_rdkit(primitive : Union[AtomicPrimitive, StructuralPrimitive]) -> Mol:
+    '''Convert a StructuralPrimitive to an RDKit Mol'''
+    if not primitive.is_all_atom:
+        raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
+
+    # handle identification of shape (if EVERY atom has a postiions and if those are consistent with the Primitive's shape, if PointCloud)
+
+    # case 1 : export single atom to RDKit Atom
+    
+    # case 2 : link up atoms within strucutral primitive recursively
+    ## match ports along bonds, identify external ports
+    
+# SMILES/SMARTS readers and writers
+def primitive_from_smiles(
+        smiles : str, 
+        ensure_explicit_Hs : bool=True,
+        embed_positions : bool=False,
+        sanitize_ops : SanitizeFlags=SANITIZE_ALL,
+        label : Optional[Hashable]=None,
+    ) -> StructuralPrimitive:
+    '''Create a Primitive from a SMILES string, optionally embedding positions if selected'''
+    from rdkit.Chem import MolFromSmiles
+    rdmol = MolFromSmiles(smiles, sanitize=False)
+    if ensure_explicit_Hs:
+        rdmol.UpdatePropertyCache() # allow Hs to be added without sanitizating twice
+        rdmol = AddHs(rdmol)  # add hydrogens to the molecule if requested
+    SanitizeMol(rdmol, sanitizeOps=sanitize_ops)  # sanitize the molecule with the specified operations
+    
+    conformer_id : Optional[int] = None
+    if embed_positions:
+        conformer_id = EmbedMolecule(rdmol, clearConfs=False) # NOTE: don't clobber existing conformers for safety (though new Mol shouldn't have any anyway)
+    
+    return primitive_from_rdkit(rdmol, conformer_id=conformer_id, label=label)
