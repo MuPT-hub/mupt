@@ -169,7 +169,18 @@ class Primitive(ABC):
         return self.canonical_form_peppered()
     
     def __repr__(self):
-        return f'{self.__class__.__name__}(structure_type={type(self.structure).__name__}, shape={type(self.shape).__name__}, functionality={self.functionality}, num_atoms={self.num_atoms}, label={self.label})'
+        repr_attr_strs : dict[str, str] = {
+            'shape': self.canonical_form_shape(),
+            'functionality': str(self.functionality),
+            'structure_type': type(self.structure).__name__,
+            'label': self.label
+        }
+        attr_str = ', '.join(
+            f'{attr}={value_str}'
+                for (attr, value_str) in repr_attr_strs.items()
+        )
+        
+        return f'{self.__class__.__name__}({attr_str})'
     
     def __hash__(self): 
         '''Hash used to compare Primitives for identity (NOT equivalence)'''
