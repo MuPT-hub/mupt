@@ -52,6 +52,7 @@ from ..chemistry.selection import (
     logical_and,
     all_atoms,
     atoms_by_condition,
+    atom_neighbors_by_condition,
     bonds_by_condition,
     bond_condition_by_atom_condition_factory
 )
@@ -91,8 +92,8 @@ def chemical_graph_from_rdkit(
             for (atom_begin, atom_end) in bonds_by_condition(
                 rdmol,
                 condition=bond_condition,
-                as_pairs=True,      # return bond as pair of atoms,
-                as_indices=False,   # ...each as Atom objects
+                as_pairs=True,    # return bond as pair of atoms,
+                as_indices=False, # ...each as Atom objects
                 negate=False,
             )
     )
@@ -105,8 +106,9 @@ def ports_from_rdkit(
     ) -> Generator['Port', None, None]:
     '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
     conformer : Optional[Conformer] = None
-    if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
-        conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
+    if (conformer_id is not None):
+        conformer = rdmol.GetConformer(conformer_id)
+        positions : np.ndarray = conformer.GetPositions() 
 
     rdmol.UpdatePropertyCache() # avoids implicitValence errors on substructure match
     for (anchor_idx, linker_idx) in anchor_and_linker_idxs(rdmol):
@@ -125,16 +127,23 @@ def ports_from_rdkit(
             )
         )
         
-        if conformer: # solicit coordinates, if available
-            port.linker_position     = conformer.GetAtomPosition(linker_idx)
-            port.anchor_position = conformer.GetAtomPosition(anchor_idx)
+        if conformer:
+            port.linker_position = positions[linker_idx, :]
+            port.anchor_position = positions[anchor_idx, :]
 
-            # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-            for neighbor in anchor_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
-                if not_linker(neighbor) and (neighbor.GetIdx() != linker_idx):
-                    port.set_tangent_from_coplanar_point(conformer.GetAtomPosition(neighbor.GetIdx()))
-                    break # stop iteration after first valid tangent neighbor is found
-                    
+            # define dihedral plane by neighbor atom, if a suitable one is present
+            real_neighbor_atom_idxs : Generator[int, None, None] = atom_neighbors_by_condition(
+                anchor_atom,
+                condition=lambda neighbor : (neighbor.GetIdx() == linker_idx),
+                negate=True, # ensure the tangent point is not the linker itself
+                as_indices=True,
+            )
+            try:
+                ## TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
+                port.set_tangent_from_coplanar_point(positions[next(real_neighbor_atom_idxs), :])
+            except StopIteration:
+                pass
+
         yield port
             
 def primitive_from_rdkit(
@@ -164,8 +173,9 @@ def primitive_from_rdkit(
     
     # Extract information from the RDKit Mol
     conformer : Optional[Conformer] = None
-    if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
-        conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
+    if (conformer_id is not None): # NOTE: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
+        conformer = rdmol.GetConformer(conformer_id) # DEVNOTE: will raise Exception if bad ID is provided; no need to check ourselves
+        positions : np.ndarray = conformer.GetPositions() 
     
     stereo_info_map : dict[int, StereoInfo] = {
         stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
@@ -174,7 +184,7 @@ def primitive_from_rdkit(
     real_atom_idxs, external_linker_idxs = real_and_linker_atom_idxs(rdmol)
     # TODO: renumber linkers last? (don't want this done in-place for now)
     
-    # 1) Populate bottom-level Primitives from real atoms in RDKit Mol
+    # Populate bottom-level Primitives from real atoms in RDKit Mol
     external_ports : list[Port] = [] # this is for Ports which do not bond to atoms within the mol
     atomic_primitive_map : dict[int, AtomicPrimitive] = {} # map atom indices to their corresponding Primitive objects for embedding
     
@@ -183,7 +193,6 @@ def primitive_from_rdkit(
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         atom_idx = atom.GetIdx()
 
-        ## Collate Port information
         atom_ports : list[Port] = []
         for port in ports_from_rdkit(
                 atom_mol,
@@ -195,12 +204,10 @@ def primitive_from_rdkit(
             if port.linker in external_linker_idxs:
                 external_ports.append(port)
         
-        ## Determine atom shape (if conform is assigned)
         atom_shape : Optional[PointCloud] = None
         if conformer:
-            atom_shape = PointCloud(np.array(conformer.GetAtomPosition(atom_idx)))
+            atom_shape = PointCloud(positions[atom_idx, :])
 
-        ## assemble atomic-resolution Primitive
         atomic_primitive_map[atom_idx] = AtomicPrimitive(
             structure=atom,
             ports=atom_ports,
@@ -212,38 +219,35 @@ def primitive_from_rdkit(
             }, 
         )
 
-    # 2) assemble Primitive at top level  (i.e. at the resolution of the chemical fragment) Primitive
-    ## extract topological structure and insert discovered bottom-level atomic Primitives
-    # TODO: build this up directly from bonds, rather than remapping the index graph - if not, at least reimplement as embedding
+    # Assemble Primitive at top level (i.e. at the resolution of the chemical fragment) Primitive
+    # DEVNOTE: consider building this up directly from bonds, rather than remapping the index graph
     topology_graph = embed_primitive_topology(
         topology=chemical_graph_from_rdkit( 
             rdmol,
-            atom_condition=not_linker,   # only include bonds between two "real" atoms in the topology graph
-            binary_operator=logical_and,
+            atom_condition=not_linker,   
+            binary_operator=logical_and, # only include bonds where BOTH atoms are "real"
             graph_type=PolymerTopologyGraph,
         ),
         mapping=atomic_primitive_map,
     )
     
-    ## determine label from canonical SMILES, if none is given
     if label is None:
-        label = MolToSmiles( # TODO: add some kind of index mixin to distinguish copies of a molecule or chemical fragment
+        label = MolToSmiles(
             rdmol, 
             isomericSmiles=True,
             kekuleSmiles=False,
             canonical=True, # this is the critical one!
             allHsExplicit=False,
             doRandom=False,        
-        )
+        )  # TODO: add some kind of index mixin to distinguish copies of a molecule or chemical fragment
         
     molecule_shape : Optional[PointCloud] = None
     if conformer is not None:
-        molecule_shape = PointCloud(np.array(conformer.GetPositions()[real_atom_idxs]))
-    
+        molecule_shape = PointCloud(positions[real_atom_idxs])
+
     return StructuralPrimitive(
         structure=topology_graph,
         ports=external_ports,
-        # TODO: find more robust way to make sure this PointCloud stays synchronized w/ the atom postiions
         shape=molecule_shape,
         label=label,
         metadata=None,
@@ -273,8 +277,8 @@ def primitive_from_smiles(
     rdmol = MolFromSmiles(smiles, sanitize=False)
     if ensure_explicit_Hs:
         rdmol.UpdatePropertyCache() # allow Hs to be added without sanitizating twice
-        rdmol = AddHs(rdmol)  # add hydrogens to the molecule if requested
-    SanitizeMol(rdmol, sanitizeOps=sanitize_ops)  # sanitize the molecule with the specified operations
+        rdmol = AddHs(rdmol)
+    SanitizeMol(rdmol, sanitizeOps=sanitize_ops)
     
     conformer_id : Optional[int] = None
     if embed_positions:
