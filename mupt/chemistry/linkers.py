@@ -11,8 +11,8 @@ from rdkit.Chem import Atom, Bond, Mol
 
 # DEVNOTE: unclear whether X (total connections) or D (explicit connections) is the right choice for this query...
 # ...or if there's ever a case where the two would not produce identical results; both seem to handle higher-order bonds correctly (i.e. treat double bond as "one" connection)
-LINKER_QUERY = '[#0X1]~[!#0]' # neutronium-excluding linker query; requires that the linker be attached to a non-linker atom
-# LINKER_QUERY : str = '[#0X1]~*' # atomic number 0 (wild) attached to exactly 1 of anything (including possibly another wild-type atom)
+LINKER_QUERY = '[!#0]~[#0X1]' # neutronium-excluding linker query; requires that the linker be attached to a non-linker atom
+# LINKER_QUERY : str = '*~[#0X1]' # Exactly 1 of anything (including possibly another wild-type atom) attached to atomic number 0 atom
 LINKER_QUERY_MOL : Mol = Chem.MolFromSmarts(LINKER_QUERY)
 
 def is_linker(rdatom : Atom) -> bool:
@@ -32,11 +32,11 @@ def get_num_linkers(rdmol : Mol) -> int:
             for atom in rdmol.GetAtoms()
     )
     
-def get_linker_and_bridgehead_idxs(rdmol : Mol) -> Generator[tuple[int, int], None, None]:
-    '''Get the linker and bridgehead indices of all ports found in an RDKit Mol'''
+def anchor_and_linker_idxs(rdmol : Mol) -> Generator[tuple[int, int], None, None]:
+    '''Get the anchor and linker indices of all ports found in an RDKit Mol'''
     # DON'T de-duplify (i.e. uniquify) indices of substruct matches (fails to catch both ports on a neutronium)
-    for (linker_id, bh_id) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False):
-        yield linker_id, bh_id # unpacked purely for self-documentation
+    for (anchor_idx, linker_idx) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False):
+        yield anchor_idx, linker_idx # unpacked purely for self-documentation
 
 def real_and_linker_atom_idxs(rdmol : Mol) -> tuple[list[int], list[int]]:
     '''

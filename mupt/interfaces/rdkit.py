@@ -40,7 +40,11 @@ from ..mupr.embedding import embed_primitive_topology
 
 from ..geometry.shapes import PointCloud
 
-from ..chemistry.linkers import LINKER_QUERY_MOL, not_linker, real_and_linker_atom_idxs
+from ..chemistry.linkers import (
+    not_linker,
+    anchor_and_linker_idxs,
+    real_and_linker_atom_idxs,
+)
 from ..chemistry.selection import (
     AtomCondition,
     BondCondition,
@@ -97,7 +101,7 @@ def ports_from_rdkit(
         rdmol : Mol,
         conformer_id : Optional[int]=None,
         linker_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-        bridgehead_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
+        anchor_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
     ) -> Generator['Port', None, None]:
     '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
     conformer : Optional[Conformer] = None
@@ -105,28 +109,28 @@ def ports_from_rdkit(
         conformer = rdmol.GetConformer(conformer_id) # will raise Exception if bad ID is provided; no need to check ourselves
 
     rdmol.UpdatePropertyCache() # avoids implicitValence errors on substructure match
-    for (linker_idx, bh_idx) in rdmol.GetSubstructMatches(LINKER_QUERY_MOL, uniquify=False): # DON'T de-duplify indices (fails to catch both ports on a neutronium)
+    for (anchor_idx, linker_idx) in anchor_and_linker_idxs(rdmol):
         linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
-        bh_atom     : Atom = rdmol.GetAtomWithIdx(bh_idx)
-        port_bond   : Bond = rdmol.GetBondBetweenAtoms(bh_idx, linker_idx)
+        anchor_atom : Atom = rdmol.GetAtomWithIdx(anchor_idx)
+        port_bond : Bond = rdmol.GetBondBetweenAtoms(anchor_idx, linker_idx)
 
         port = Port(
-            bridgehead=bridgehead_labeller(bh_atom),
+            anchor=anchor_labeller(anchor_atom),
             linker=linker_labeller(linker_atom),
             bondtype=port_bond.GetBondType(),
             query_smarts=MolFragmentToSmarts(
                 rdmol,
-                atomsToUse=[linker_idx, bh_idx],
+                atomsToUse=[linker_idx, anchor_idx],
                 bondsToUse=[port_bond.GetIdx()],
             )
         )
         
         if conformer: # solicit coordinates, if available
             port.linker_position     = conformer.GetAtomPosition(linker_idx)
-            port.bridgehead_position = conformer.GetAtomPosition(bh_idx)
+            port.anchor_position = conformer.GetAtomPosition(anchor_idx)
 
             # TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-            for neighbor in bh_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
+            for neighbor in anchor_atom.GetNeighbors(): # TODO: replace with atom_neighbor_by_condition search
                 if not_linker(neighbor) and (neighbor.GetIdx() != linker_idx):
                     port.set_tangent_from_coplanar_point(conformer.GetAtomPosition(neighbor.GetIdx()))
                     break # stop iteration after first valid tangent neighbor is found
@@ -184,12 +188,12 @@ def primitive_from_rdkit(
         for port in ports_from_rdkit(
                 atom_mol,
                 conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
-                linker_labeller=lambda a : a.GetIsotope(),  # read linker label off of dummy atom
-                bridgehead_labeller=lambda _ : atom_idx, # by definition, this atom is the bridgehead of all Ports attached to the atom
+                linker_labeller=lambda a : a.GetIsotope(), # read linker label off of dummy atom
+                anchor_labeller=lambda _ : atom_idx,   # by definition, this atom is the anchor of all Ports attached to the atom
             ): 
             atom_ports.append(port)
-            if port.linker in external_linker_idxs: # TODO: correct linker and bridgehead indices in fragments
-                external_ports.append(port) # bonds to linkers constitute Ports which persist at the fragment level
+            if port.linker in external_linker_idxs:
+                external_ports.append(port)
         
         ## Determine atom shape (if conform is assigned)
         atom_shape : Optional[PointCloud] = None
@@ -266,7 +270,6 @@ def primitive_from_smiles(
         label : Optional[Hashable]=None,
     ) -> StructuralPrimitive:
     '''Create a Primitive from a SMILES string, optionally embedding positions if selected'''
-    from rdkit.Chem import MolFromSmiles
     rdmol = MolFromSmiles(smiles, sanitize=False)
     if ensure_explicit_Hs:
         rdmol.UpdatePropertyCache() # allow Hs to be added without sanitizating twice

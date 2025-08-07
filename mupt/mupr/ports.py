@@ -27,20 +27,20 @@ class IncompatiblePortError(MolPortError):
 
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Port:
-    '''Class for encapsulating the components of a "port" bonding site (linker-bond-bridgehead)'''
+    '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neghbor body (linker)'''
     # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
-    bridgehead : Any
-    linker     : Any
+    anchor : Any
+    linker : Any
     bondtype : BondType = BondType.UNSPECIFIED
     
     query_smarts : str = ''
     
-    linker_position     : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    bridgehead_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    tangent_position    : Optional[np.ndarray[Shape[Literal[3]], float]] = None
+    linker_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
+    anchor_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
+    tangent_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
     
     # DEVNOTE: this will need updating if more position-type attributes are added; manually curating this is fine for now
-    _POSITION_ATTRS : ClassVar[tuple[str]] = ('linker_position', 'bridgehead_position', 'tangent_position') 
+    _POSITION_ATTRS : ClassVar[tuple[str]] = ('anchor_position', 'linker_position', 'tangent_position') 
 
     # initialization
     def copy(self) -> 'Port':
@@ -61,8 +61,8 @@ class Port:
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
         
         return (
-            (self.linker == other.bridgehead) # DEVNOTE: might opt for more general binary relation in the future
-            and (self.bridgehead == other.linker)
+            (self.linker == other.anchor) # DEVNOTE: might opt for more general binary relation in the future
+            and (self.anchor == other.linker)
             and (self.bondtype == other.bondtype)
         )
     
@@ -94,7 +94,7 @@ class Port:
     # geometric properties
     @property
     def has_positions(self) -> bool:
-        return (self.bridgehead_position is not None) and (self.linker_position is not None)
+        return (self.anchor_position is not None) and (self.linker_position is not None)
     
     @property
     def has_defined_dihedral_plane(self) -> bool:
@@ -106,7 +106,7 @@ class Port:
     def bond_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
         if not self.has_positions:
             raise ValueError
-        return self.linker_position - self.bridgehead_position
+        return self.linker_position - self.anchor_position
     
     @property
     def bond_length(self) -> float:
@@ -114,12 +114,12 @@ class Port:
     
     @property
     def unit_bond_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
-        '''Unit vector in the same direction as the bond (oriented from bridgehead to linker)'''
+        '''Unit vector in the same direction as the bond (oriented from anchor to linker)'''
         return self.bond_vector / self.bond_length
     
     def set_bond_length(self, new_bond_length : float) -> None:
-        '''Move the linker site along the bond axis to a set distance away from the bridgehead'''
-        self.linker_position = new_bond_length*self.unit_bond_vector + self.bridgehead_position
+        '''Move the linker site along the bond axis to a set distance away from the anchor'''
+        self.linker_position = new_bond_length*self.unit_bond_vector + self.anchor_position
         
     ## tangent vector (defines dihedral plane)
     @property
@@ -133,7 +133,7 @@ class Port:
         if not self.has_defined_dihedral_plane:
             raise ValueError('Port does not have a dihedral orientation set')
         
-        tangent = normalized(self.tangent_position - self.bridgehead_position) # DEVNOTE: worth providing option to not normalize?
+        tangent = normalized(self.tangent_position - self.anchor_position) # DEVNOTE: worth providing option to not normalize?
         if not np.isclose(np.dot(self.bond_vector, tangent), 0.0):
             raise ValueError('Badly set tangent position: resultant dihedral plane does not contain this Port\'s bond vector')
         
@@ -144,20 +144,20 @@ class Port:
         '''Update tangent positions given a new tangent vector'''
         # NOTE: implemented this way to get tangent to transform correctly under rigid transformations;
         # a DIFFERENCE between vectors is invariant to shifts of the origin; the same is done for the bond vector
-        self.tangent_position = vector + self.bridgehead_position
+        self.tangent_position = vector + self.anchor_position
 
     def set_tangent_from_coplanar_point(self, coplanar_point : np.ndarray[Shape[Literal[3]], float]) -> None:
         '''Set the dihedral tangent point from a third point in the dihedral plane'''
-        self.tangent_vector = rejector(self.bond_vector) @ (coplanar_point - self.bridgehead_position)
+        self.tangent_vector = rejector(self.bond_vector) @ (coplanar_point - self.anchor_position)
 
     def set_tangent_from_normal_point(self, normal_point : np.ndarray[Shape[Literal[3]], float]) -> None:
         '''Set the dihedral tangent point from a point on the span of the normal to the dihedral plane'''
-        self.tangent_vector = np.cross(self.bond_vector, normal_point - self.bridgehead_position)
+        self.tangent_vector = np.cross(self.bond_vector, normal_point - self.anchor_position)
         
     ## applying transformations
     # DEVNOTE: would like to use @optional_in_place here, but the current extend_to_methods mechanism works a little too well ("self" will NOT be passed as first arg to decorator)
     def apply_rigid_transformation(self, transform : RigidTransform, in_place : bool=False) -> Optional['Port']:
-        '''Return a Port whose linker, bridgehead, and orientation positions
+        '''Return a Port whose anchor, linker, and orientation positions
         (if provided) have been transformed by a given rigid transformation'''
         if not in_place:
             new_port = self.copy()
@@ -165,19 +165,19 @@ class Port:
             
             return new_port
             
-        for attr in ('linker_position', 'bridgehead_position', 'tangent_position'):
+        for attr in self._POSITION_ATTRS:
             if (position := getattr(self, attr)) is not None:
                 setattr(self, attr, transform.apply(position))
     
     def alignment_transform_to(self, other : 'Port', dihedral_angle_rad : float=0.0) -> RigidTransform:
         '''
         Compute an isometric (i.e. rigid) transformation which aligns a pair of Ports by making
-        the linker point of this Port coincident with the bridgehead of the other Port,
+        the linker point of this Port coincident with the anchor of the other Port,
         the Ports' bond vectors antiparallel, and the Ports' tangent vectors subtend the
         desired dihedral angle in radians (by default, 0.0 rad)
         
-        If the two Ports have the same bond length, the bridgehead of this Port will be coincident with the linker
-        of the other; otherwise, the bridgehead will merely lay on the span of the other Ports bond vector
+        If the two Ports have the same bond length, the anchor of this Port will be coincident with the linker
+        of the other; otherwise, the anchor will merely lay on the span of the other Ports bond vector
         '''
         if not (self.has_positions and other.has_positions):
             raise ValueError('Cannot compute alignment transform with undefined Port positions')
@@ -196,7 +196,7 @@ class Port:
             * RigidTransform.from_rotation(dihedral_rotation)
             * RigidTransform.from_rotation(tangent_alignment)
             * RigidTransform.from_rotation(bond_antialignment)
-            * RigidTransform.from_translation(-self.bridgehead_position)
+            * RigidTransform.from_translation(-self.anchor_position)
         )
 
     def align_to(self, other : 'Port', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> None:
