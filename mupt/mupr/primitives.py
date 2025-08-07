@@ -12,15 +12,8 @@ from abc import ABC, abstractmethod
 from collections import Counter
 
 from scipy.spatial.transform import RigidTransform
-from rdkit.Chem.rdchem import (
-    Atom,
-    BondType,
-    # DEVNOTE: not yet sure what the best way to represent stereochemistry is
-    StereoInfo,
-    StereoType,
-    StereoDescriptor,
-    ChiralType,
-)
+
+from rdkit.Chem.rdchem import Atom, BondType
 from rdkit.Chem.rdmolfiles import AtomFromSmiles, AtomFromSmarts
 
 from .ports import Port
@@ -53,7 +46,6 @@ class Primitive(ABC):
             ports : Optional[list[Port]]=None,
             shape : Optional[BoundedShape]=None,
             label : Optional[Hashable]=None,
-            stereo_info : Optional[StereoInfo]=None,
             metadata : Optional[dict[Hashable, Any]]=None,
         ) -> None:
             # essential structural information
@@ -63,7 +55,6 @@ class Primitive(ABC):
 
             # additional descriptors
             self.label = label                    # a handle for users to identify and distinguish Primitives by
-            self.stereo_info = stereo_info or {}  # additional info about stereogenic atoms or bonds, if applicable
             self.metadata = metadata or {}        # literally any other information the user may want to bind to this Primitive  
     
     # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
@@ -191,7 +182,8 @@ class Primitive(ABC):
             raise TypeError(f'Cannot compare Primitive to {type(other)}')
 
         return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
-
+    
+        
     # geometric methods
     def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on shape, ports, and structure?
         '''Apply an isometric (i.e. rigid) transformation to all parts of a Primitive which support it'''
