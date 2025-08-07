@@ -55,10 +55,16 @@ class Port:
     # def __eq__(self, other : 'Port') -> bool:
         # return hash(self) == hash(other)
 
-    @classmethod
-    def is_bondable_to(cls, port1 : 'Port', port2 : 'Port') -> bool:
-        '''Determine whether two ports are bondable to each other'''
-        raise NotImplementedError
+    def bondable_with(self, other : 'Port') -> bool:
+        '''Determine whether this Port is bondable with another Port'''
+        if not isinstance(other, Port):
+            return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
+        
+        return (
+            (self.linker == other.bridgehead) # DEVNOTE: might opt for more general binary relation in the future
+            and (self.bridgehead == other.linker)
+            and (self.bondtype == other.bondtype)
+        )
     
     @staticmethod
     def compare_optional_positions(
