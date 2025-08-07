@@ -6,17 +6,30 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import Generator
 import networkx as nx
 
+from .structure import Structure
+# from .primitives import Primitive # this import should no longer be circular
 
-class PolymerTopologyGraph(nx.Graph):
+
+class PolymerTopologyGraph(nx.Graph, Structure):
     '''A graph representation of the connectivity of primitives in a polymer topology'''
+    # embedding
+    ...
 
-    # network properties
+    # node properties       
     @property
-    def num_primitives(self) -> int:
-        '''Number of primitive units represented in the current topology'''
-        return self.number_of_nodes()
-    DOP = num_primitives
-
+    def num_atoms(self) -> int:
+        '''Number of atoms collectively held within the topology'''
+        return sum(primitive.num_atoms for primitive in self.components())
+    
+    @property
+    def is_composite(self) -> bool:
+        return True
+    
+    def _get_components(self) -> Generator: # TODO: figure out how to typehints that outputs are Primitive without circular import
+        for node in self.nodes:
+            yield node
+    
+    # network properties
     @property
     def is_unbranched(self) -> bool:
         '''Whether the topology represents contains all straight, unbranching chain(s)'''
@@ -46,5 +59,15 @@ class PolymerTopologyGraph(nx.Graph):
         '''Generates all disconnected polymers chains in the graph sequentially'''
         for cc_nodes in nx.connected_components(self):
             yield self.subgraph(cc_nodes)
+            
+    # canonicalization
+    def canonical_form(self) -> str:
+        '''
+        Return a canonical form based on the graph structure and coloring iduced by the canonical forms of internal Primitives
+        Tantamount to solving the graph isomorphism problem 
+        '''
+        return nx.weisfeiler_lehman_graph_hash(self) # stand-in for more specific implementation to follow
+        # raise NotImplementedError('Graph canonicalization is not implemented yet')
+        
 
 MonomerInterconnectivityAndDegreeGraph = MIDGraph = PolymerTopologyGraph # aliases for convenience
