@@ -93,7 +93,12 @@ def chemical_graph_from_rdkit(
             )
     )
 
-def ports_from_rdkit(rdmol : Mol, conformer_id : Optional[int]=None) -> Generator['Port', None, None]:
+def ports_from_rdkit(
+        rdmol : Mol,
+        conformer_id : Optional[int]=None,
+        linker_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
+        bridgehead_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
+    ) -> Generator['Port', None, None]:
     '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
     conformer : Optional[Conformer] = None
     if (conformer_id is not None): # note: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
@@ -106,8 +111,9 @@ def ports_from_rdkit(rdmol : Mol, conformer_id : Optional[int]=None) -> Generato
         port_bond   : Bond = rdmol.GetBondBetweenAtoms(bh_idx, linker_idx)
 
         port = Port(
-            linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
-            bridgehead=bh_idx,
+            # linker=linker_idx, # for now, assign the index to allow easy reverse-lookup of the atom
+            linker=linker_labeller(linker_atom),
+            bridgehead=bridgehead_labeller(bh_atom),
             bondtype=port_bond.GetBondType(),
             linker_flavor=linker_atom.GetIsotope(),
             query_smarts=MolFragmentToSmarts(
@@ -167,7 +173,7 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
     external_ports : list[Port] = [] # this is for Ports which do not bond to atoms within the mol
     atomic_primitive_map : dict[int, AtomicPrimitive] = {} # map atom indices to their corresponding Primitive objects for embedding
     
-    fragmented_mol = FragmentOnBonds(rdmol, [bond.GetIdx() for bond in rdmol.GetBonds()])
+    fragmented_mol = FragmentOnBonds(rdmol, [bond.GetIdx() for bond in rdmol.GetBonds()], addDummies=True) # record linker atom index as dummy isotope
     atom_mol_fragments : tuple[Mol, ...] = GetMolFrags(fragmented_mol, asMols=True, sanitizeFrags=False)
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         atom_idx = atom.GetIdx()
@@ -175,7 +181,11 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
 
         ## Collate Port information
         atom_ports : list[Port] = []
-        for port in ports_from_rdkit(atom_mol, conformer_id=conformer_id): # NOTE: fragment conformers order and positions that of mirror parent molecule
+        for port in ports_from_rdkit(
+                atom_mol, conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
+                linker_labeller=lambda a : a.GetIsotope(),  # read linker label off of dummy atom
+                bridgehead_labeller=lambda _ : atom.GetIdx(), # by definition, this atom is the bridgehead of all Ports attached to the atom
+            ): 
             atom_ports.append(port)
             if port.linker_flavor in linker_idxs: # TODO: correct linker and bridgehead indices in fragments
                 external_ports.append(port) # bonds to linkers constitute Ports which persist at the fragment level
