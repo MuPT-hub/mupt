@@ -28,11 +28,11 @@ class IncompatiblePortError(MolPortError):
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Port:
     '''Class for encapsulating the components of a "port" bonding site (linker-bond-bridgehead)'''
-    linker     : Any
+    # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
     bridgehead : Any
-    
+    linker     : Any
     bondtype : BondType = BondType.UNSPECIFIED
-    linker_flavor : int = 0
+    
     query_smarts : str = ''
     
     linker_position     : Optional[np.ndarray[Shape[Literal[3]], float]] = None

@@ -115,7 +115,6 @@ def ports_from_rdkit(
             linker=linker_labeller(linker_atom),
             bridgehead=bridgehead_labeller(bh_atom),
             bondtype=port_bond.GetBondType(),
-            linker_flavor=linker_atom.GetIsotope(),
             query_smarts=MolFragmentToSmarts(
                 rdmol,
                 atomsToUse=[linker_idx, bh_idx],
@@ -165,8 +164,7 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
         stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
             for stereo_info in FindPotentialStereo(rdmol, cleanIt=True, flagPossible=True) 
     }
-    real_atom_idxs, linker_idxs = real_and_linker_atom_idxs(rdmol)
-    print(linker_idxs)
+    real_atom_idxs, external_linker_idxs = real_and_linker_atom_idxs(rdmol)
     # TODO: renumber linkers last? (don't want this done in-place for now)
     
     # 1) Populate bottom-level Primitives from real atoms in RDKit Mol
@@ -182,12 +180,13 @@ def primitive_from_rdkit(rdmol : Mol, conformer_id : int=Optional[None], label :
         ## Collate Port information
         atom_ports : list[Port] = []
         for port in ports_from_rdkit(
-                atom_mol, conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
+                atom_mol,
+                conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
                 linker_labeller=lambda a : a.GetIsotope(),  # read linker label off of dummy atom
                 bridgehead_labeller=lambda _ : atom.GetIdx(), # by definition, this atom is the bridgehead of all Ports attached to the atom
             ): 
             atom_ports.append(port)
-            if port.linker_flavor in linker_idxs: # TODO: correct linker and bridgehead indices in fragments
+            if port.linker in external_linker_idxs: # TODO: correct linker and bridgehead indices in fragments
                 external_ports.append(port) # bonds to linkers constitute Ports which persist at the fragment level
         
         ## assemble atomic-resolution Primitive
