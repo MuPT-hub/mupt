@@ -145,6 +145,23 @@ def ports_from_rdkit(
                 pass
 
         yield port
+
+def shape_from_rdkit(
+        rdmol : Mol, 
+        conformer_id : Optional[int]=None, 
+        atom_idxs: Optional[list[int]]=None,
+    ) -> Optional[PointCloud]:
+    '''Extract a PointCloud shape from an RDKit Mol, if possible'''
+    if (conformer_id is None) or (rdmol.GetNumConformers() == 0):
+        return None
+    
+    if atom_idxs is None:
+        atom_idxs = [atom.GetIdx() for atom in rdmol.GetAtoms()]
+    
+    conformer = rdmol.GetConformer(conformer_id) # DEVNOTE: will raise Exception if bad ID is provided; no need to check ourselves
+    positions : np.ndarray = conformer.GetPositions() 
+    
+    return PointCloud(positions[atom_idxs, :])
             
 def primitive_from_rdkit(
         rdmol : Mol,
@@ -172,11 +189,6 @@ def primitive_from_rdkit(
     # TODO : separate RDKit Mol into distinct connected components (for handling topologies with multiple chains)
     
     # Extract information from the RDKit Mol
-    conformer : Optional[Conformer] = None
-    if (conformer_id is not None): # NOTE: a default conformer_id of -1 actually returns the LAST conformer, not None as we would want
-        conformer = rdmol.GetConformer(conformer_id) # DEVNOTE: will raise Exception if bad ID is provided; no need to check ourselves
-        positions : np.ndarray = conformer.GetPositions() 
-    
     stereo_info_map : dict[int, StereoInfo] = {
         stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
             for stereo_info in FindPotentialStereo(rdmol, cleanIt=True, flagPossible=True) 
@@ -198,26 +210,23 @@ def primitive_from_rdkit(
     )
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         atom_idx = atom.GetIdx()
+        atom_mol.GetAtomWithIdx(0).SetAtomMapNum(atom_idx) # mirror atom index to map number
 
         atom_ports : list[Port] = []
         for port in ports_from_rdkit(
                 atom_mol,
                 conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
-                linker_labeller=lambda a : a.GetIsotope(), # read linker label off of dummy atom
-                anchor_labeller=lambda _ : atom_idx,   # by definition, this atom is the anchor of all Ports attached to the atom
+                linker_labeller=lambda a : a.GetIsotope(),    # read linker label off of dummy atom
+                anchor_labeller=lambda a : a.GetAtomMapNum(),
             ): 
             atom_ports.append(port)
             if port.linker in external_linker_idxs:
                 external_ports.append(port)
-        
-        atom_shape : Optional[PointCloud] = None
-        if conformer:
-            atom_shape = PointCloud(positions[atom_idx, :])
 
         atomic_primitive_map[atom_idx] = Primitive(
             structure=AtomicStructure(atom),
             ports=atom_ports,
-            shape=atom_shape,
+            shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=[atom_idx]),
             label=atom_idx,
             metadata={
                 **atom.GetPropsAsDict(includePrivate=True),
@@ -247,14 +256,10 @@ def primitive_from_rdkit(
             doRandom=False,        
         )  # TODO: add some kind of index mixin to distinguish copies of a molecule or chemical fragment
         
-    molecule_shape : Optional[PointCloud] = None
-    if conformer is not None:
-        molecule_shape = PointCloud(positions[real_atom_idxs])
-
     return Primitive(
         structure=topology_graph,
         ports=external_ports,
-        shape=molecule_shape,
+        shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=real_atom_idxs),
         label=label,
         metadata=None,
     )
