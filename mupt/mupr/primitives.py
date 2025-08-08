@@ -16,7 +16,7 @@ from .canonicalize import (
     lex_order_multiset,
     lex_order_multiset_str,
 )
-from .ports import Port
+from .connection import Connector
 from .structure import Structure
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
@@ -39,9 +39,9 @@ class Primitive:
     But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
     '''
     # essential components
-    structure : Optional[Structure] = field(default=None),    # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
-    shape     : Optional[BoundedShape] = field(default=None), # a rigid shape which approximates and abstracts the behavoir of the primitive in space
-    ports     : list[Port] = field(default_factory=list),     # a collection of sites representing bonds to other Primitives
+    structure  : Optional[Structure] = field(default=None),    # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
+    shape      : Optional[BoundedShape] = field(default=None), # a rigid shape which approximates and abstracts the behavoir of the primitive in space
+    connectors : list[Connector] = field(default_factory=list),     # a collection of sites representing bonds to other Primitives
     # additional descriptors
     label    : Optional[Hashable] = field(default=None),         # a handle for users to identify and distinguish Primitives by
     metadata : dict[Hashable, Any] = field(default_factory=dict) # literally any other information the user may want to bind to this Primitive  
@@ -67,26 +67,26 @@ class Primitive:
         '''Whether the Primitive at hand is at the bottom of a structural hierarchy'''
         return not self.structure.is_composite
         
-    # Port properties
+    # Connector properties
     @property
     def functionality(self) -> int:
         '''Number of neighboring primitives which can be attached to this primitive'''
-        return len(self.ports)
+        return len(self.connectors)
     
     @property
     def bondtype_index(self) -> tuple[tuple[Any, int], ...]:
         '''
-        Canonical identifier of all unique BondTypes by count among the Ports associated to this Primitive
+        Canonical identifier of all unique BondTypes by count among the Connectors associated to this Primitive
         Consists of all (integer bondtype, count) pairs, sorted lexicographically
         '''
-        return lex_order_multiset(port.canonical_form() for port in self.ports)
-    
+        return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
+
     # comparison methods
     ## canonical forms for core components
-    def canonical_form_ports(self, separator : str=':', joiner : str='-') -> str:
-        '''A canonical string representing this Primitive's ports'''
+    def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
+        '''A canonical string representing this Primitive's Connectors'''
         return lex_order_multiset_str(
-            (port.canonical_form() for port in self.ports),
+            (connector.canonical_form() for connector in self.connectors),
             element_repr=str, #lambda bt : BondType.values[int(bt)]
             separator=separator,
             joiner=joiner,
@@ -100,8 +100,8 @@ class Primitive:
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
         I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
         '''
-        return f'{self.structure.canonical_form()}({self.canonical_form_ports()})<{self.canonical_form_shape()}>'
-    
+        return f'{self.structure.canonical_form()}({self.canonical_form_connectors()})<{self.canonical_form_shape()}>'
+
     def canonical_form_peppered(self) -> str:
         '''
         Return a canonical string representation of the Primitive with peppered metadata
@@ -154,7 +154,7 @@ class Primitive:
         return f'{self.__class__.__name__}({attr_str})'
         
     # geometric methods
-    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on shape, ports, and structure?
+    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on Shape, Connectors, and Structure?
         '''Apply an isometric (i.e. rigid) transformation to all parts of a Primitive which support it'''
         return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
     

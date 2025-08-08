@@ -34,7 +34,7 @@ from rdkit.Chem.rdmolfiles import (
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 from ..geometry.shapes import PointCloud
-from ..mupr.ports import Port
+from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive
 from ..mupr.atomic import AtomicStructure
 from ..mupr.topology import TopologicalStructure
@@ -98,13 +98,13 @@ def chemical_graph_from_rdkit(
             )
     )
 
-def ports_from_rdkit(
+def connectors_from_rdkit(
         rdmol : Mol,
         conformer_id : Optional[int]=None,
         linker_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
         anchor_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    ) -> Generator['Port', None, None]:
-    '''Determine all Ports contained in an RDKit Mol, as specified by wild-type linker atoms'''
+    ) -> Generator['Connector', None, None]:
+    '''Determine all Connectors contained in an RDKit Mol, as specified by wild-type linker atoms'''
     conformer : Optional[Conformer] = None
     if (conformer_id is not None):
         conformer = rdmol.GetConformer(conformer_id)
@@ -114,22 +114,22 @@ def ports_from_rdkit(
     for (anchor_idx, linker_idx) in anchor_and_linker_idxs(rdmol):
         linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
         anchor_atom : Atom = rdmol.GetAtomWithIdx(anchor_idx)
-        port_bond : Bond = rdmol.GetBondBetweenAtoms(anchor_idx, linker_idx)
+        bond : Bond = rdmol.GetBondBetweenAtoms(anchor_idx, linker_idx)
 
-        port = Port(
+        connector = Connector(
             anchor=anchor_labeller(anchor_atom),
             linker=linker_labeller(linker_atom),
-            bondtype=port_bond.GetBondType(),
+            bondtype=bond.GetBondType(),
             query_smarts=MolFragmentToSmarts(
                 rdmol,
                 atomsToUse=[linker_idx, anchor_idx],
-                bondsToUse=[port_bond.GetIdx()],
+                bondsToUse=[bond.GetIdx()],
             )
         )
         
         if conformer:
-            port.linker_position = positions[linker_idx, :]
-            port.anchor_position = positions[anchor_idx, :]
+            connector.linker_position = positions[linker_idx, :]
+            connector.anchor_position = positions[anchor_idx, :]
 
             # define dihedral plane by neighbor atom, if a suitable one is present
             real_neighbor_atom_idxs : Generator[int, None, None] = atom_neighbors_by_condition(
@@ -140,11 +140,11 @@ def ports_from_rdkit(
             )
             try:
                 ## TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-                port.set_tangent_from_coplanar_point(positions[next(real_neighbor_atom_idxs), :])
+                connector.set_tangent_from_coplanar_point(positions[next(real_neighbor_atom_idxs), :])
             except StopIteration:
                 pass
 
-        yield port
+        yield connector
 
 def shape_from_rdkit(
         rdmol : Mol, 
@@ -169,7 +169,7 @@ def primitive_from_rdkit(
         label : Optional[Hashable]=None,
     ) -> Primitive:
     ''' 
-    Create a Primitive with chemically-accuracy ports and internal structure from an RDKit Mol
+    Create a Primitive with chemically-accuracy connectors and internal structure from an RDKit Mol
     
     Parameters
     ----------
@@ -197,7 +197,7 @@ def primitive_from_rdkit(
     # TODO: renumber linkers last? (don't want this done in-place for now)
     
     # Populate bottom-level Primitives from real atoms in RDKit Mol
-    external_ports : list[Port] = [] # connections not internal to the Mol (i.e. not corresponding to any bond)
+    external_connectors : list[Connector] = [] # connections not internal to the Mol (i.e. not corresponding to any bond)
     atomic_primitive_map : dict[int, Primitive] = {}
     atom_mol_fragments : tuple[Mol, ...] = GetMolFrags( # TODO: move to external helper functions
         FragmentOnBonds(
@@ -212,20 +212,20 @@ def primitive_from_rdkit(
         atom_idx = atom.GetIdx()
         atom_mol.GetAtomWithIdx(0).SetAtomMapNum(atom_idx) # mirror atom index to map number
 
-        atom_ports : list[Port] = []
-        for port in ports_from_rdkit(
+        atom_connectors : list[Connector] = []
+        for connector in connectors_from_rdkit(
                 atom_mol,
                 conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
                 linker_labeller=lambda a : a.GetIsotope(),    # read linker label off of dummy atom
                 anchor_labeller=lambda a : a.GetAtomMapNum(),
             ): 
-            atom_ports.append(port)
-            if port.linker in external_linker_idxs:
-                external_ports.append(port)
+            atom_connectors.append(connector)
+            if connector.linker in external_linker_idxs:
+                external_connectors.append(connector)
 
         atomic_primitive_map[atom_idx] = Primitive(
             structure=AtomicStructure(atom),
-            ports=atom_ports,
+            connectors=atom_connectors,
             shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=[atom_idx]),
             label=atom_idx,
             metadata={
@@ -258,7 +258,7 @@ def primitive_from_rdkit(
         
     return Primitive(
         structure=topology_graph,
-        ports=external_ports,
+        connectors=external_connectors,
         shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=real_atom_idxs),
         label=label,
         metadata=None,
@@ -274,8 +274,8 @@ def primitive_to_rdkit(primitive : Primitive) -> Mol:
     # case 1 : export single atom to RDKit Atom
     
     # case 2 : link up atoms within strucutral primitive recursively
-    ## match ports along bonds, identify external ports
-    
+    ## match connectors along bonds, identify external connectors
+
 # SMILES/SMARTS readers and writers
 def primitive_from_smiles(
         smiles : str, 
