@@ -16,17 +16,17 @@ from ..geometry.transforms.linear import rejector
 from ..geometry.transforms.rigid.rotations import alignment_rotation
 
 
-class MolPortError(Exception):
-    '''Raised when port-related errors as encountered'''
+class ConnectionError(Exception):
+    '''Raised when Connector-related errors as encountered'''
     pass
 
-class IncompatiblePortError(MolPortError):
-    '''Raised when attempting to connect two Ports which are, for whatever reason, incompatible'''
+class IncompatibleConnectorError(ConnectionError):
+    '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
     pass
 
 
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
-class Port:
+class Connector:
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neghbor body (linker)'''
     # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
     anchor : Any
@@ -43,25 +43,25 @@ class Port:
     _POSITION_ATTRS : ClassVar[tuple[str]] = ('anchor_position', 'linker_position', 'tangent_position') 
 
     # initialization
-    def copy(self) -> 'Port':
-        '''Return a new Port with the same information as this one'''
-        return Port(**self.__dict__)
+    def copy(self) -> 'Connector':
+        '''Return a new Connector with the same information as this one'''
+        return Connector(**self.__dict__)
 
 
     # comparison methods
     def canonical_form(self) -> BondType:
-        '''Return a canonical form used to distinguish equivalent Ports'''
+        '''Return a canonical form used to distinguish equivalent Connectors'''
         return self.bondtype # TODO: make this more descriptive; good enough for now
     
     def __hash__(self) -> int:
         raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
     
-    # def __eq__(self, other : 'Port') -> bool:
+    # def __eq__(self, other : 'Connector') -> bool:
         # return hash(self) == hash(other)
 
-    def bondable_with(self, other : 'Port') -> bool:
-        '''Determine whether this Port is bondable with another Port'''
-        if not isinstance(other, Port):
+    def bondable_with(self, other : 'Connector') -> bool:
+        '''Determine whether this Connector is bondable with another Connector'''
+        if not isinstance(other, Connector):
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
         
         return (
@@ -87,8 +87,8 @@ class Port:
         else:
             raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
     
-    def coincides_with(self, other : 'Port') -> bool:
-        '''Determine whether this Port coincides with another Port'''
+    def coincides_with(self, other : 'Connector') -> bool:
+        '''Determine whether this Connector coincides with another Connector'''
         return all(
             self.compare_optional_positions(getattr(self, position_attr), getattr(other, position_attr))
                 for position_attr in self._POSITION_ATTRS
@@ -102,7 +102,7 @@ class Port:
     
     @property
     def has_defined_dihedral_plane(self) -> bool:
-        '''Determine whether this port has a tangent vector (i.e. dihedral plane orientation) defined'''
+        '''Determine whether this Connector has a tangent vector (i.e. dihedral plane orientation) defined'''
         return (self.tangent_position is not None)
     
     ## bond vector
@@ -132,14 +132,14 @@ class Port:
         Vector tangent to the dihedral plane and orthogonal to the bond vector
         
         The tangent and bond vectors span the dihedral plane and 
-        fix a local right-handed coordinate system for the Port
+        fix a local right-handed coordinate system for the Connector
         '''
         if not self.has_defined_dihedral_plane:
-            raise ValueError('Port does not have a dihedral orientation set')
+            raise ValueError('Connector does not have a dihedral orientation set')
         
         tangent = normalized(self.tangent_position - self.anchor_position) # DEVNOTE: worth providing option to not normalize?
         if not np.isclose(np.dot(self.bond_vector, tangent), 0.0):
-            raise ValueError('Badly set tangent position: resultant dihedral plane does not contain this Port\'s bond vector')
+            raise ValueError('Badly set tangent position: resultant dihedral plane does not contain this Connector\'s bond vector')
         
         return tangent
     
@@ -160,36 +160,36 @@ class Port:
         
     ## applying transformations
     # DEVNOTE: would like to use @optional_in_place here, but the current extend_to_methods mechanism works a little too well ("self" will NOT be passed as first arg to decorator)
-    def apply_rigid_transformation(self, transform : RigidTransform, in_place : bool=False) -> Optional['Port']:
-        '''Return a Port whose anchor, linker, and orientation positions
+    def apply_rigid_transformation(self, transform : RigidTransform, in_place : bool=False) -> Optional['Connector']:
+        '''Return a Connector whose anchor, linker, and orientation positions
         (if provided) have been transformed by a given rigid transformation'''
         if not in_place:
-            new_port = self.copy()
-            new_port.apply_rigid_transformation(transform, in_place=True) # call in-place on the copy
-            
-            return new_port
-            
+            new_connector = self.copy()
+            new_connector.apply_rigid_transformation(transform, in_place=True) # call in-place on the copy
+
+            return new_connector
+
         for attr in self._POSITION_ATTRS:
             if (position := getattr(self, attr)) is not None:
                 setattr(self, attr, transform.apply(position))
     
-    def alignment_transform_to(self, other : 'Port', dihedral_angle_rad : float=0.0) -> RigidTransform:
+    def alignment_transform_to(self, other : 'Connector', dihedral_angle_rad : float=0.0) -> RigidTransform:
         '''
-        Compute an isometric (i.e. rigid) transformation which aligns a pair of Ports by making
-        the linker point of this Port coincident with the anchor of the other Port,
-        the Ports' bond vectors antiparallel, and the Ports' tangent vectors subtend the
+        Compute an isometric (i.e. rigid) transformation which aligns a pair of Connectors by making
+        the linker point of this Connector coincident with the anchor of the other Connector,
+        the Connectors' bond vectors antiparallel, and the Connectors' tangent vectors subtend the
         desired dihedral angle in radians (by default, 0.0 rad)
         
-        If the two Ports have the same bond length, the anchor of this Port will be coincident with the linker
-        of the other; otherwise, the anchor will merely lay on the span of the other Ports bond vector
+        If the two Connectors have the same bond length, the anchor of this Connector will be coincident with the linker
+        of the other; otherwise, the anchor will merely lay on the span of the other Connectors bond vector
         '''
         if not (self.has_positions and other.has_positions):
-            raise ValueError('Cannot compute alignment transform with undefined Port positions')
+            raise ValueError('Cannot compute alignment transform with undefined Connector positions')
         
         if not (self.has_defined_dihedral_plane and other.has_defined_dihedral_plane):
-            raise ValueError('Cannot compute faithful orientation for alignment transform with undefined Port orientations')
+            raise ValueError('Cannot compute faithful orientation for alignment transform with undefined Connector orientations')
 
-        ## NOTE: the orthogonality of the tangent and bond vector of each Port allows the tangent alignment to
+        ## NOTE: the orthogonality of the tangent and bond vector of each Connector allows the tangent alignment to
         ## not disturb the preceding bond antialignment, and to fix a unique orthogonal change of basis
         bond_antialignment : Rotation = alignment_rotation(self.unit_bond_vector, -other.unit_bond_vector)
         tangent_alignment  : Rotation = alignment_rotation(bond_antialignment.apply(self.tangent_vector), other.tangent_vector)
@@ -203,19 +203,18 @@ class Port:
             * RigidTransform.from_translation(-self.anchor_position)
         )
 
-    def align_to(self, other : 'Port', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> None:
-        '''Align this Port to another Port, based on the calculated alignment transform'''
+    def align_to(self, other : 'Connector', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> None:
+        '''Align this Connector to another Connector, based on the calculated alignment transform'''
         self.apply_rigid_transformation(
             transform=self.alignment_transform_to(other, dihedral_angle_rad),
             in_place=True,
         )
         if match_bond_length: 
-            self.set_bond_length(other.bond_length) # ensure bond length matches the other port
-        
-    def aligned_to(self, other : 'Port', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> 'Port':
-        '''Return a copy of this Port aligned to Port "other"'''
-        new_port = self.copy()
-        new_port.align_to(other, dihedral_angle_rad=dihedral_angle_rad, match_bond_length=match_bond_length)
+            self.set_bond_length(other.bond_length) # ensure bond length matches the other Connector
 
-        return new_port
-        
+    def aligned_to(self, other : 'Connector', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> 'Connector':
+        '''Return a copy of this Connector aligned to Connector "other"'''
+        new_connector = self.copy()
+        new_connector.align_to(other, dihedral_angle_rad=dihedral_angle_rad, match_bond_length=match_bond_length)
+
+        return new_connector
