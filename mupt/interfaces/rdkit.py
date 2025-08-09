@@ -10,6 +10,9 @@ import numpy as np
 import networkx as nx
 GraphLike = TypeVar('GraphLike', bound=nx.Graph)
 
+# chemistry utilities
+from periodictable import elements as ELEMENTS
+
 from rdkit.Chem.rdchem import (
     Atom,
     Bond,
@@ -33,14 +36,9 @@ from rdkit.Chem.rdmolfiles import (
 )
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
-from ..geometry.shapes import PointCloud
-from ..mupr.connection import Connector
-from ..mupr.primitives import Primitive
-from ..mupr.atomic import AtomicStructure
-from ..mupr.topology import TopologicalStructure
-from ..mupr.embedding import embed_primitive_topology
-
+## Custom
 from ..chemistry.linkers import (
+    is_linker,
     not_linker,
     anchor_and_linker_idxs,
     real_and_linker_atom_idxs,
@@ -57,7 +55,15 @@ from ..chemistry.selection import (
     bond_condition_by_atom_condition_factory
 )
 
+# Representation components
+from ..geometry.shapes import PointCloud
+from ..mupr.connection import Connector
+from ..mupr.primitives import Primitive
+from ..mupr.topology import TopologicalStructure
+from ..mupr.embedding import embed_primitive_topology
 
+
+# Representation component initializers
 def chemical_graph_from_rdkit(
     rdmol : Mol,
     atom_condition : Optional[AtomCondition]=None,
@@ -163,18 +169,19 @@ def shape_from_rdkit(
     
     return PointCloud(positions[atom_idxs, :])
             
+# Imports and Exporters
 def primitive_from_rdkit(
         rdmol : Mol,
         conformer_id : int=Optional[None],
         label : Optional[Hashable]=None,
     ) -> Primitive:
     ''' 
-    Create a Primitive with chemically-accuracy connectors and internal structure from an RDKit Mol
-    
+    Create a Primitive and populate its internal structure from an RDKit Mol
+
     Parameters
     ----------
     rdmol : Chem.Mol
-        The RDKit Mol object to convert.
+        The RDKit Mol object to convert
     conformer_id : int, optional
         The ID of the conformer to use, by default None (uses no conformer)
     label : Hashable, optional
@@ -184,7 +191,7 @@ def primitive_from_rdkit(
     Returns
     -------
     Primitive
-        The created Primitive object.
+        The created Primitive object
     '''
     # TODO : separate RDKit Mol into distinct connected components (for handling topologies with multiple chains)
     
@@ -195,6 +202,18 @@ def primitive_from_rdkit(
     }
     real_atom_idxs, external_linker_idxs = real_and_linker_atom_idxs(rdmol)
     # TODO: renumber linkers last? (don't want this done in-place for now)
+    
+    # Initialize molecule-level resolution "parent" Primitive
+    if label is None:
+        label = MolToSmiles(
+            rdmol, 
+            isomericSmiles=True,
+            kekuleSmiles=False,
+            canonical=True, # this is the critical one!
+            allHsExplicit=False,
+            doRandom=False,        
+        )  # TODO: add some kind of index mixin to distinguish copies of a molecule or chemical fragment
+    rdmol_primitive = Primitive(label=label)
     
     # Populate bottom-level Primitives from real atoms in RDKit Mol
     external_connectors : list[Connector] = [] # connections not internal to the Mol (i.e. not corresponding to any bond)
@@ -209,9 +228,12 @@ def primitive_from_rdkit(
         sanitizeFrags=False,
     )
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
+        if is_linker(atom):
+            continue # NOTE: not explcuding these via filter to preserve pairing between atom and corresponding fragment Mols
+        
         atom_idx = atom.GetIdx()
         atom_mol.GetAtomWithIdx(0).SetAtomMapNum(atom_idx) # mirror atom index to map number
-
+        
         atom_connectors : list[Connector] = []
         for connector in connectors_from_rdkit(
                 atom_mol,
@@ -222,47 +244,36 @@ def primitive_from_rdkit(
             atom_connectors.append(connector)
             if connector.linker in external_linker_idxs:
                 external_connectors.append(connector)
-
-        atomic_primitive_map[atom_idx] = Primitive(
-            structure=AtomicStructure(atom),
-            connectors=atom_connectors,
+            
+        atom_primitive = Primitive(
+            topology=None, # atoms have no child components to link up
             shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=[atom_idx]),
+            element=ELEMENTS[atom.GetAtomicNum()], # NOTE: this is part of what necessitates excluding atomic number 0 linkers 
+            connectors=atom_connectors,
             label=atom_idx,
             metadata={
                 **atom.GetPropsAsDict(includePrivate=True),
                 'stereo_info' : stereo_info_map.get(atom_idx, None)
             }, 
         )
-
-    # Assemble Primitive at top level (i.e. at the resolution of the chemical fragment) Primitive
-    # DEVNOTE: consider building this up directly from bonds, rather than remapping the index graph
-    topology_graph = embed_primitive_topology(
-        topology=chemical_graph_from_rdkit( 
-            rdmol,
-            atom_condition=not_linker,   
-            binary_operator=logical_and, # only include bonds where BOTH atoms are "real"
-            graph_type=TopologicalStructure,
-        ),
-        mapping=atomic_primitive_map,
-    )
-    
-    if label is None:
-        label = MolToSmiles(
-            rdmol, 
-            isomericSmiles=True,
-            kekuleSmiles=False,
-            canonical=True, # this is the critical one!
-            allHsExplicit=False,
-            doRandom=False,        
-        )  # TODO: add some kind of index mixin to distinguish copies of a molecule or chemical fragment
+        atom_primitive.parent = rdmol_primitive # 
+        atomic_primitive_map[atom_idx] = atom_primitive
         
-    return Primitive(
-        structure=topology_graph,
-        connectors=external_connectors,
-        shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=real_atom_idxs),
-        label=label,
-        metadata=None,
+    # Inject information into molecule-level Primitive now that atoms have been sorted out
+    rdmol_primitive.connectors = external_connectors # NOTE: HAS to be done before topology set for edge balance to pass - DEV: move to "embedding" eventually
+    rdmol_primitive.topology=chemical_graph_from_rdkit( # NOTE: internally this invokes the topology validator before setting anything
+        rdmol,
+        atom_condition=not_linker,   
+        binary_operator=logical_and, # only include bonds where BOTH atoms are "real"
+        graph_type=TopologicalStructure,
     )
+    rdmol_primitive.shape=shape_from_rdkit(
+        rdmol,
+        conformer_id=conformer_id,
+        atom_idxs=real_atom_idxs,
+    )
+        
+    return rdmol_primitive
     
 def primitive_to_rdkit(primitive : Primitive) -> Mol:
     '''Convert a StructuralPrimitive to an RDKit Mol'''
