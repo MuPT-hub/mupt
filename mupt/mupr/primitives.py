@@ -7,10 +7,10 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 from typing import Any, Generator, Hashable, Optional
-from dataclasses import dataclass, field
 
-from scipy.spatial.transform import RigidTransform
+from anytree.node import NodeMixin
 from periodictable.core import Element
+from scipy.spatial.transform import RigidTransform
 
 from .canonicalize import (
     Canonicalizable,
@@ -18,17 +18,12 @@ from .canonicalize import (
     lex_order_multiset_str,
 )
 from .connection import Connector
-from .structure import Structure
+from .topology import TopologicalStructure
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
 
 
-class BadPrimitiveStructure(TypeError):
-    '''Exception raised when a Primitive is initialized with an invalid structure'''
-    ...
-
-@dataclass
-class Primitive:
+class Primitive(NodeMixin):
     '''Represents a fundamental (but not necessarily irreducible) building block of a polymer system in the abstract 
     Note that, by default ALL fields are optional; this is to reflect the fact that use-cases and levels of info provided may vary
     
@@ -39,14 +34,52 @@ class Primitive:
     As another example, a 0-functionality primitive is also totally legal (ex. as a complete small molecule in an admixture)
     But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
     '''
-    # essential components
-    structure  : Optional[Structure] = field(default=None),      # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
-    shape      : Optional[BoundedShape] = field(default=None),   # a rigid shape which approximates and abstracts the behavior of the primitive in space
-    connectors : list[Connector] = field(default_factory=list),  # a collection of sites representing bonds to other Primitives
-    element    : Optional[Element] = field(default=None),        # the chemical element associated with this Primitive, IFF the Primitive represents an atom
-    # additional descriptors
-    label    : Optional[Hashable] = field(default=None),         # a handle for users to identify and distinguish Primitives by
-    metadata : dict[Hashable, Any] = field(default_factory=dict) # literally any other information the user may want to bind to this Primitive  
+    def __init__(
+        self,
+        topology  : Optional[TopologicalStructure]=None,
+        shape      : Optional[BoundedShape]=None,
+        element    : Optional[Element]=None,
+        connectors : list[Connector]=None,
+        label      : Optional[Hashable]=None,
+        metadata   : dict[Hashable, Any]=None,
+    ) -> None:
+        # essential components
+        self.topology = topology # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes topology.setter descriptor
+        self.shape = shape         # a rigid shape which approximates and abstracts the behavior of the primitive in space
+        self.element = element     # the chemical element associated with this Primitive, IFF the Primitive represents an atom
+        self.connectors = connectors or list()  # a collection of sites representing bonds to other Primitives
+        # additional descriptors
+        self.label = label                  # a handle for users to identify and distinguish Primitives by
+        self.metadata = metadata or dict()  # literally any other information the user may want to bind to this Primitive  
+
+    # descriptors for core attributes
+    @property
+    def element(self) -> Optional[Element]:
+        '''The chemical element associated with this Primitive, if it represents an atom'''
+        return self._element
+    
+    @element.setter
+    def element(self, new_element: Optional[Element]) -> None:
+        if new_element is not None and not isinstance(new_element, Element):
+            raise TypeError(f'Invalid element type {type(new_element)}')
+        self._element = new_element
+        
+    @property
+    def topology(self) -> Optional[TopologicalStructure]:
+        '''The connectivity of the immediate children of this Primitive, if one is defined'''
+        return self._topology
+
+    @topology.setter
+    def topology(self, new_topology: Optional[TopologicalStructure]) -> None:
+        # TODO: initialize discrete topology with number of nodes equal to number of children
+        if new_topology is not None and not isinstance(new_topology, TopologicalStructure):
+            raise TypeError(f'Invalid topology type {type(new_topology)}')
+        
+        if not self.children:
+            raise ValueError('Cannot induce topology onto empty set of coexistent Primitives')
+        
+        self._topology = new_topology
+        
 
     # initializers
     # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
@@ -57,23 +90,15 @@ class Primitive:
     # connection properties
     @property
     def num_atoms(self) -> int:
-        '''Number of atoms the Primitive and its internal structure collectively represent'''
-        return self.structure.num_atoms
-    
-    def components(self, dfs : bool=True) -> Generator['Primitive', None, None]:
-        '''Generate all sub-Primitives contained within this Primitive'''
-        yield from self.structure.components()
-        
-    @property
-    def is_leaf(self) -> bool:
-        '''Whether the Primitive at hand is at the bottom of a structural hierarchy'''
-        return not self.structure.is_composite
+        '''Number of atoms the Primitive and its internal topology collectively represent'''
+        # TODO: reimplement
+        return self.topology.num_atoms
     
     @property
     def is_atom(self) -> bool:
         '''Whether the Primitive at hand represents a single atom'''
         return self.element is not None
-
+    
     @property
     def functionality(self) -> int:
         '''Number of neighboring primitives which can be attached to this primitive'''
@@ -106,7 +131,7 @@ class Primitive:
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
         I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
         '''
-        return f'{self.structure.canonical_form()}({self.canonical_form_connectors()})<{self.canonical_form_shape()}>'
+        return f'{self.topology.canonical_form()}({self.canonical_form_connectors()})<{self.canonical_form_shape()}>'
 
     def canonical_form_peppered(self) -> str:
         '''
@@ -149,7 +174,7 @@ class Primitive:
         repr_attr_strs : dict[str, str] = {
             'shape': self.canonical_form_shape(),
             'functionality': str(self.functionality),
-            'structure_type': type(self.structure).__name__,
+            'topology_type': repr(self.topology),
             'label': self.label
         }
         attr_str = ', '.join(
@@ -160,7 +185,8 @@ class Primitive:
         return f'{self.__class__.__name__}({attr_str})'
         
     # geometric methods
-    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': # TODO: make this specifically act on Shape, Connectors, and Structure?
+    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': 
         '''Apply an isometric (i.e. rigid) transformation to all parts of a Primitive which support it'''
+        # TODO: make this act specifically on internal components, rather than generic recursive application
         return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
     
