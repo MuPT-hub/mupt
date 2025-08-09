@@ -9,6 +9,8 @@ LOGGER = logging.getLogger(__name__)
 from typing import Any, Generator, Hashable, Optional
 
 from anytree.node import NodeMixin
+from anytree.search import findall_by_attr
+
 from periodictable.core import Element
 from scipy.spatial.transform import RigidTransform
 
@@ -33,25 +35,47 @@ class Primitive(NodeMixin):
     
     As another example, a 0-functionality primitive is also totally legal (ex. as a complete small molecule in an admixture)
     But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
+    
+    Parameters
+    ----------
+    topology : TopologicalStructure
+        connection of internal parts (or lack thereof); used to find children in multiscale hierarchy
+    shape : Optional[BoundedShape]
+        A rigid shape which approximates and abstracts the behavior of the primitive in space
+    element : Optional[Element]
+        The chemical element associated with this Primitive, IFF the Primitive represents an atom
+    connectors : list[Connector]
+        A collection of sites representing bonds to other Primitives
+
+    label : Optional[Hashable]
+        A handle for users to identify and distinguish Primitives by
+    metadata : dict[Hashable, Any]
+        Literally any other information the user may want to bind to this Primitive
     '''
+    # initializers
     def __init__(
         self,
-        topology  : Optional[TopologicalStructure]=None,
-        shape      : Optional[BoundedShape]=None,
-        element    : Optional[Element]=None,
+        topology : TopologicalStructure=None,
+        shape : Optional[BoundedShape]=None,
+        element : Optional[Element]=None,
         connectors : list[Connector]=None,
-        label      : Optional[Hashable]=None,
-        metadata   : dict[Hashable, Any]=None,
+        label : Optional[Hashable]=None,
+        metadata : dict[Hashable, Any]=None,
     ) -> None:
         # essential components
-        self.topology = topology # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes topology.setter descriptor
-        self.shape = shape         # a rigid shape which approximates and abstracts the behavior of the primitive in space
-        self.element = element     # the chemical element associated with this Primitive, IFF the Primitive represents an atom
-        self.connectors = connectors or list()  # a collection of sites representing bonds to other Primitives
+        self.topology = topology or TopologicalStructure() # NOTE: the empty-set topology is valid EVEN if there are no children
+        self.shape = shape
+        self.element = element # DEVNOTE: implicitly invokes topology.setter descriptor
+        self.connectors = connectors or list()
         # additional descriptors
-        self.label = label                  # a handle for users to identify and distinguish Primitives by
-        self.metadata = metadata or dict()  # literally any other information the user may want to bind to this Primitive  
-
+        self.label = label
+        self.metadata = metadata or dict()
+        
+    # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
+    def copy(self) -> 'Primitive':
+        '''Return a new Primitive with the same information as this one'''
+        return Primitive(**self.__dict__) # TODO: deepcopy attributes dict?
+    
     # descriptors for core attributes
     @property
     def element(self) -> Optional[Element]:
@@ -63,6 +87,25 @@ class Primitive(NodeMixin):
         if new_element is not None and not isinstance(new_element, Element):
             raise TypeError(f'Invalid element type {type(new_element)}')
         self._element = new_element
+      
+    ## validating chosen topology
+    def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
+        '''Verify the topology induced on this Primitive's children is valid'''
+        # check bijection between nodes and children
+        if topology.number_of_nodes() != self.n_children: 
+            LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
+            return False
+        
+        # check balance over incident pair and Ports (external AND internal)
+        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
+        if num_connectors_internal != 2*topology.number_of_edges():
+            LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
+            return False
+        
+        # TODO: more complex check to see that chlidren can be mapped 1:1 onto Nodes
+        # TODO: more complex check to see that Ports can be paired up 1:1 along edges
+
+        return True
         
     @property
     def topology(self) -> Optional[TopologicalStructure]:
@@ -72,36 +115,40 @@ class Primitive(NodeMixin):
     @topology.setter
     def topology(self, new_topology: Optional[TopologicalStructure]) -> None:
         # TODO: initialize discrete topology with number of nodes equal to number of children
-        if new_topology is not None and not isinstance(new_topology, TopologicalStructure):
+        if not isinstance(new_topology, TopologicalStructure):
             raise TypeError(f'Invalid topology type {type(new_topology)}')
         
-        if not self.children:
-            raise ValueError('Cannot induce topology onto empty set of coexistent Primitives')
-        
-        self._topology = new_topology
-        
+        if not self.topology_is_valid(new_topology):
+            raise ValueError('Provided topology is incompatible with the set of child Primitives')
 
-    # initializers
-    # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
-    def copy(self) -> 'Primitive':
-        '''Return a new Primitive with the same information as this one'''
-        return Primitive(**self.__dict__) # TODO: deepcopy attributes dict?
+        self._topology = new_topology
     
     # connection properties
-    @property
-    def num_atoms(self) -> int:
-        '''Number of atoms the Primitive and its internal topology collectively represent'''
-        # TODO: reimplement
-        return self.topology.num_atoms
-    
     @property
     def is_atom(self) -> bool:
         '''Whether the Primitive at hand represents a single atom'''
         return self.element is not None
+
+    @property
+    def num_atoms(self) -> int:
+        '''Number of atoms the Primitive and its internal topology collectively represent'''
+        return len(findall_by_attr(self, value=True, name='is_atom'))
+
+    @property
+    def is_atomizable(self) -> bool:
+        '''Whether the Primitive represents an all-atom system'''
+        return (self.is_atom and not self.children) or all(subprim.is_atomizable for subprim in self.children)
     
+    @property
+    def n_children(self) -> int:
+        '''Number of sub-Primitives this Primitive contains'''
+        return len(self.children)
+
     @property
     def functionality(self) -> int:
         '''Number of neighboring primitives which can be attached to this primitive'''
+        if not hasattr(self, 'connectors'):
+            self.connectors = list() # needed, for example, when checking functionality during init
         return len(self.connectors)
     
     @property
@@ -111,6 +158,11 @@ class Primitive(NodeMixin):
         Consists of all (integer bondtype, count) pairs, sorted lexicographically
         '''
         return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
+
+    # embedding and consistency checks
+    def embed_topology(self) -> None:
+        '''Map sub-Primitives onto nodes in internal topology'''
+        raise NotImplementedError
 
     # comparison methods
     ## canonical forms for core components
