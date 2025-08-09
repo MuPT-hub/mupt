@@ -47,7 +47,6 @@ class Connector:
         '''Return a new Connector with the same information as this one'''
         return Connector(**self.__dict__)
 
-
     # comparison methods
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
@@ -94,8 +93,7 @@ class Connector:
                 for position_attr in self._POSITION_ATTRS
         )
 
-    
-    # geometric properties
+    # geometry properties
     @property
     def has_positions(self) -> bool:
         return (self.anchor_position is not None) and (self.linker_position is not None)
