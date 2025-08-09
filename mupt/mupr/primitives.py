@@ -10,6 +10,7 @@ from typing import Any, Generator, Hashable, Optional
 from dataclasses import dataclass, field
 
 from scipy.spatial.transform import RigidTransform
+from periodictable.core import Element
 
 from .canonicalize import (
     Canonicalizable,
@@ -39,9 +40,10 @@ class Primitive:
     But comes with the obvious caveat that, in a network, it cannot be incorporated into a larger component
     '''
     # essential components
-    structure  : Optional[Structure] = field(default=None),    # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
-    shape      : Optional[BoundedShape] = field(default=None), # a rigid shape which approximates and abstracts the behavoir of the primitive in space
-    connectors : list[Connector] = field(default_factory=list),     # a collection of sites representing bonds to other Primitives
+    structure  : Optional[Structure] = field(default=None),      # connection of internal parts (or lack thereof); used to find children in multiscale hierarchy - DEVNOTE: implicitly invokes structure.setter descriptor
+    shape      : Optional[BoundedShape] = field(default=None),   # a rigid shape which approximates and abstracts the behavior of the primitive in space
+    connectors : list[Connector] = field(default_factory=list),  # a collection of sites representing bonds to other Primitives
+    element    : Optional[Element] = field(default=None),        # the chemical element associated with this Primitive, IFF the Primitive represents an atom
     # additional descriptors
     label    : Optional[Hashable] = field(default=None),         # a handle for users to identify and distinguish Primitives by
     metadata : dict[Hashable, Any] = field(default_factory=dict) # literally any other information the user may want to bind to this Primitive  
@@ -66,8 +68,12 @@ class Primitive:
     def is_leaf(self) -> bool:
         '''Whether the Primitive at hand is at the bottom of a structural hierarchy'''
         return not self.structure.is_composite
-        
-    # Connector properties
+    
+    @property
+    def is_atom(self) -> bool:
+        '''Whether the Primitive at hand represents a single atom'''
+        return self.element is not None
+
     @property
     def functionality(self) -> int:
         '''Number of neighboring primitives which can be attached to this primitive'''
