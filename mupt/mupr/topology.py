@@ -63,6 +63,4 @@ class TopologicalStructure(nx.Graph):
         #TODO: make this more descriptive
         # return super().__repr__()
         return f'{self.__class__.__name__}(discrete={self.is_discrete})'
-            
-    # embedding
-    ...
+        
