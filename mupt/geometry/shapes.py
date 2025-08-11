@@ -145,6 +145,11 @@ class BoundedShape(ABC, Generic[Numeric]): # template for numeric type (some ite
         '''Apply a rigid transformation to the body'''
         ...
      
+    # @abstractmethod # TODO: implement this
+    # def copy(self) -> 'BoundedShape':
+        # '''Make a deep copy of this BoundedShape instance'''
+        # ...
+
     # @abstractmethod
     # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
