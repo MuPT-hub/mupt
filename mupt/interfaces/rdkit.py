@@ -241,6 +241,8 @@ def primitive_from_rdkit(
                 linker_labeller=lambda a : a.GetIsotope(),    # read linker label off of dummy atom
                 anchor_labeller=lambda a : a.GetAtomMapNum(),
             ): 
+            connector.linkables.add(connector.linker) # register linker singleton to enable bondability check downstream
+            
             atom_connectors.append(connector)
             if connector.linker in external_linker_idxs:
                 external_connectors.append(connector)

@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, ClassVar, Literal, Optional
+from typing import Any, ClassVar, Hashable, Literal, Optional
 Shape = tuple # alias for typehinting array shapes
 from dataclasses import dataclass, field
 
@@ -27,12 +27,13 @@ class IncompatibleConnectorError(ConnectionError):
 
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Connector:
-    '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neghbor body (linker)'''
+    '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
-    anchor : Any
-    linker : Any
-    bondtype : BondType = BondType.UNSPECIFIED
+    anchor : Hashable
+    linker : Hashable
+    linkables : set[Hashable] = field(default_factory=set)
     
+    bondtype : BondType = BondType.UNSPECIFIED
     query_smarts : str = ''
     
     linker_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
@@ -64,8 +65,8 @@ class Connector:
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
         
         return (
-            (self.linker == other.anchor) # DEVNOTE: might opt for more general binary relation in the future
-            and (self.anchor == other.linker)
+            (self.anchor in other.linkables)
+            and (other.anchor in self.linkables)
             and (self.bondtype == other.bondtype)
         )
     
