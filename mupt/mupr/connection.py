@@ -30,7 +30,7 @@ class Connector:
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
     anchor : Hashable
-    linker : Hashable
+    linker : Optional[Hashable] = None
     linkables : set[Hashable] = field(default_factory=set)
     
     bondtype : BondType = BondType.UNSPECIFIED
