@@ -59,7 +59,7 @@ class Connector:
     # def __eq__(self, other : 'Connector') -> bool:
         # return hash(self) == hash(other)
 
-    def _bondable_with_single(self, other : 'Connector') -> bool:
+    def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
@@ -70,15 +70,15 @@ class Connector:
             and (self.bondtype == other.bondtype)
         )
         
-    def bondable_with(self, *others : list['Connector']) -> Generator[bool, None, None]:
+    def bondable_with_iter(self, *others : Iterable['Connector']) -> Generator[bool, None, None]:
         '''Whether this Connector can be connected to each of a sequence of other Connectors, in the order passed'''
         for other in others:
             if isinstance(other, Connector):
-                yield self._bondable_with_single(other)
+                yield self.bondable_with(other)
             elif isinstance(other, Iterable):
                 # DEVNOTE: deliberately NOT using "yield from" to preserve parity with input
                 # (output element corresponding to iterable is now just a Generator instance, rather than a bool)
-                yield self.bondable_with(*other)
+                yield self.bondable_with_iter(*other)
             else:
                 raise TypeError(f'Connector can only be bonded to other Connectors or collection of Connectors, not with object of type {type(other)}')
 
