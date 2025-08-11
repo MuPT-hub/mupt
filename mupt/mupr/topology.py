@@ -16,9 +16,10 @@ class TopologicalStructure(nx.Graph):
     '''
     # network properties
     @property
-    def is_discrete(self) -> bool:
-        '''Whether the current topology represents a discrete topology (i.e. one without connections)'''
+    def is_indiscrete(self) -> bool:
+        '''Whether the current topology represents an indiscrete topology (i.e. a "trivial topology", one without connections)'''
         return self.number_of_edges() == 0
+    is_trivial = is_indiscrete
 
     @property
     def is_unbranched(self) -> bool:
@@ -62,5 +63,5 @@ class TopologicalStructure(nx.Graph):
     def __repr__(self) -> str:
         #TODO: make this more descriptive
         # return super().__repr__()
-        return f'{self.__class__.__name__}(discrete={self.is_discrete})'
+        return f'{self.__class__.__name__}(indiscrete={self.is_indiscrete})'
         
