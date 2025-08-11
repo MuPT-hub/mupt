@@ -74,7 +74,14 @@ class Primitive(NodeMixin):
     # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
     def copy(self) -> 'Primitive':
         '''Return a new Primitive with the same information as this one'''
-        return Primitive(**self.__dict__) # TODO: deepcopy attributes dict?
+        return self.__class__(
+            topology=TopologicalStructure(self.topology),
+            shape=self.shape, # TODO: deepcopy this
+            element=self.element,
+            connectors=[conn.copy() for conn in self.connectors],
+            label=self.label,
+            metadata={key : value for key, value in self.metadata.items()},
+        ) # TODO: deepcopy attributes dict?
     
     # descriptors for core attributes
     @property
@@ -88,25 +95,7 @@ class Primitive(NodeMixin):
             raise TypeError(f'Invalid element type {type(new_element)}')
         self._element = new_element
       
-    ## validating chosen topology
-    def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
-        '''Verify the topology induced on this Primitive's children is valid'''
-        # check bijection between nodes and children
-        if topology.number_of_nodes() != self.n_children: 
-            LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
-            return False
-        
-        # check balance over incident pair and Ports (external AND internal)
-        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
-        if num_connectors_internal != 2*topology.number_of_edges():
-            LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
-            return False
-        
-        # TODO: more complex check to see that chlidren can be mapped 1:1 onto Nodes
-        # TODO: more complex check to see that Ports can be paired up 1:1 along edges
-
-        return True
-        
+    ## validating chosen topology     
     @property
     def topology(self) -> Optional[TopologicalStructure]:
         '''The connectivity of the immediate children of this Primitive, if one is defined'''
@@ -159,7 +148,29 @@ class Primitive(NodeMixin):
         '''
         return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
 
-    # embedding and consistency checks
+    # embedding and topology consistency checks
+    def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
+        '''Verify the topology induced on this Primitive's children is valid''' # DEVNOTE: make this staticmethod/classmethod?
+        # check bijection between nodes and children
+        if topology.number_of_nodes() != self.n_children: 
+            LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
+            return False
+        
+        # check balance over incident pair and Ports (external AND internal)
+        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
+        if num_connectors_internal != 2*topology.number_of_edges():
+            LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
+            return False
+        
+        # TODO: more complex check to see that chlidren can be mapped 1:1 onto Nodes
+        # TODO: more complex check to see that Ports can be paired up 1:1 along edges
+
+        return True
+    
+    def validate_topology(self) -> bool:
+        '''Check that the currently-set topology is compatible with the currently-defined children of this Primitive'''
+        return self.topology_is_valid(self.topology)
+    
     def embed_topology(self) -> None:
         '''Map sub-Primitives onto nodes in internal topology'''
         raise NotImplementedError
