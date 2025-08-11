@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, ClassVar, Hashable, Literal, Optional
+from typing import Any, ClassVar, Generator, Hashable, Iterable, Literal, Optional
 Shape = tuple # alias for typehinting array shapes
 from dataclasses import dataclass, field
 
@@ -59,8 +59,8 @@ class Connector:
     # def __eq__(self, other : 'Connector') -> bool:
         # return hash(self) == hash(other)
 
-    def bondable_with(self, other : 'Connector') -> bool:
-        '''Determine whether this Connector is bondable with another Connector'''
+    def _bondable_with_single(self, other : 'Connector') -> bool:
+        '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
         
@@ -69,7 +69,19 @@ class Connector:
             and (other.anchor in self.linkables)
             and (self.bondtype == other.bondtype)
         )
-    
+        
+    def bondable_with(self, *others : list['Connector']) -> Generator[bool, None, None]:
+        '''Whether this Connector can be connected to each of a sequence of other Connectors, in the order passed'''
+        for other in others:
+            if isinstance(other, Connector):
+                yield self._bondable_with_single(other)
+            elif isinstance(other, Iterable):
+                # DEVNOTE: deliberately NOT using "yield from" to preserve parity with input
+                # (output element corresponding to iterable is now just a Generator instance, rather than a bool)
+                yield self.bondable_with(*other)
+            else:
+                raise TypeError(f'Connector can only be bonded to other Connectors or collection of Connectors, not with object of type {type(other)}')
+
     @staticmethod
     def compare_optional_positions(
         position_1 : Optional[np.ndarray[Shape[Any], float]],
