@@ -183,7 +183,8 @@ class Primitive(NodeMixin):
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
         I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
         '''
-        return f'{self.topology.canonical_form()}({self.canonical_form_connectors()})<{self.canonical_form_shape()}>'
+        elem_form : str = self.element.symbol if self.element is not None else str(None) # TODO: move this to external function, eventually
+        return f'{elem_form}({self.canonical_form_connectors()})[{self.canonical_form_shape()}]<{self.topology.canonical_form()}>'
 
     def canonical_form_peppered(self) -> str:
         '''
