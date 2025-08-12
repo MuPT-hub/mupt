@@ -252,7 +252,7 @@ class Primitive(NodeMixin):
 
         return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
     
-    def congruent(self, other : 'Primitive') -> bool:
+    def congruent_to(self, other : 'Primitive') -> bool:
         '''Check whether two Primitives are congruent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
         raise NotImplementedError
     

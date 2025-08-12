@@ -99,12 +99,16 @@ class Connector:
         else:
             raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
     
-    def coincides_with(self, other : 'Connector') -> bool:
-        '''Determine whether this Connector coincides with another Connector'''
+    def coincident_with(self, other : 'Connector') -> bool:
+        '''Determine whether this Connector overlaps spatially with another Connector'''
         return all(
             self.compare_optional_positions(getattr(self, position_attr), getattr(other, position_attr))
                 for position_attr in self._POSITION_ATTRS
         )
+
+    def congruent_to(self, other: 'Connector') -> bool:
+        '''Determine whether this Connector has interchangeable components relative to another Connector'''
+        raise NotImplementedError
 
     # geometry properties
     @property
