@@ -7,6 +7,7 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 from typing import Any, Generator, Hashable, Optional
+from collections import defaultdict
 
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
@@ -149,20 +150,49 @@ class Primitive(NodeMixin):
         return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
 
     # embedding and topology consistency checks
+    def children_uniquely_labelled(self) -> bool:
+        '''Check if that no pair of child Primitives are assigned the same label'''
+        if not self.children:
+            return True
+        labels = [child.label for child in self.children]
+        
+        return len(labels) == len(set(labels))
+    
+    def child_label_classes(self) -> dict[Hashable, tuple['Primitive']]:
+        '''Return equivalence classes of child Primitives by their assigned labels''' # DEVNOTE: transition to canonical forms, eventually?
+        _child_map = defaultdict(list)
+        for subprim in self.children:
+            _child_map[subprim.label].append(subprim)
+            
+        return {
+            label : tuple(subprims)
+                for label, subprims in _child_map.items()
+        }
+        
+    @property
+    def children_by_label(self) -> dict[Hashable, 'Primitive']:
+        '''Get child Primitive by its (presumed-unique) label'''
+        if not self.children_uniquely_labelled():
+            raise ValueError(f'Injective mapping of labels onto child Primitives impossible, since labels amongst chilren are not unique')
+        
+        return {label : subprims[0] for label, subprims in self.child_label_classes().items()}
+
     def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
         '''Verify the topology induced on this Primitive's children is valid''' # DEVNOTE: make this staticmethod/classmethod?
-        # check bijection between nodes and children
+        # Perform simpler checks first, to fail fast in case an embedding obviously can't exist
+        ## check bijection between nodes and children
         if topology.number_of_nodes() != self.n_children: 
             LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
             return False
         
-        # check balance over incident pair and Ports (external AND internal)
+        ## check balance over incident pair and Ports (external AND internal)
         num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
         if num_connectors_internal != 2*topology.number_of_edges():
             LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
             return False
         
-        # TODO: more complex check to see that chlidren can be mapped 1:1 onto Nodes
+        # perform more detailed checks on the connectivity of the topology
+        # TODO: more complex check to see that children can be mapped 1:1 onto Nodes
         # TODO: more complex check to see that Ports can be paired up 1:1 along edges
 
         return True
@@ -222,12 +252,12 @@ class Primitive(NodeMixin):
 
         return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
     
-    def equivalent_to(self, other : 'Primitive') -> bool:
-        '''Check whether two Primitives are equivalent (i.e. interchangeable, but not necessarily identical)'''
+    def congruent(self, other : 'Primitive') -> bool:
+        '''Check whether two Primitives are congruent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
         raise NotImplementedError
     
     def coincident_with(self, other : 'Primitive') -> bool:
-        '''Check whether two Primitives are coincident (i.e. occupy the same space)'''
+        '''Check whether two Primitives are coincident (i.e. all spatial parts are either equally unassigned or occupy the same space)'''
         raise NotImplementedError
 
     # display methods
