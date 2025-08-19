@@ -172,7 +172,7 @@ def shape_from_rdkit(
 # Imports and Exporters
 def primitive_from_rdkit(
         rdmol : Mol,
-        conformer_id : int=Optional[None],
+        conformer_id : Optional[int]=None,
         label : Optional[Hashable]=None,
     ) -> Primitive:
     ''' 
