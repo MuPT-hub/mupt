@@ -177,6 +177,7 @@ class PointCloud(BoundedShape[Numeric]):
         '''Delauney triangulation into simplicial facets whose vertiecs are the positions within'''
         return Delaunay(self.positions)
     
+    # fulfilling BoundedShape contracts
     @property
     def centroid(self) -> np.ndarray[Shape[3], Numeric]:
         return self.positions.mean(axis=0)
@@ -191,7 +192,6 @@ class PointCloud(BoundedShape[Numeric]):
     def apply_rigid_transformation(self, transform : RigidTransform) -> 'PointCloud':
         return PointCloud(positions=transform.apply(self.positions))
     
-@dataclass
 class Ellipsoid(BoundedShape[Numeric]):
     '''
     A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
@@ -199,17 +199,25 @@ class Ellipsoid(BoundedShape[Numeric]):
     Represented by a (not necessarily isotropic) scaling of the basis vectors and a rigid transformation,
     which, together, map the points on a unit sphere at the origin to the surface of the ellipsoid
     '''
-    radii  : np.ndarray[Shape[3], Numeric] = field(default_factory=lambda: np.ones(3, dtype=float))  # by default, make a unit sphere
-    center : np.ndarray[Shape[3], Numeric] = field(default_factory=lambda: np.zeros(3, dtype=float)) # by default, center at origin
-    orientation : Rotation = field(default_factory=Rotation.identity) # by default, no rotation
-    
-    # TODO: check shapes of radii and center post-init
-    
-    def __eq__(self, other : 'Ellipsoid') -> bool:
-        return np.allclose(self.radii, other.radii) \
-            and np.allclose(self.center, other.center) \
-            and np.allclose(self.orientation.as_matrix(), other.orientation.as_matrix())
+    def __init__(
+        self, 
+        radii  : np.ndarray[Shape[3], Numeric]=None,
+        center : np.ndarray[Shape[3], Numeric]=None,
+        orientation : Rotation=None,
+    ) -> None:
+        if radii is None:
+            radii = np.ones(3, dtype=float) # by default, make a unit sphere
+        if center is None:
+            center = np.zeros(3, dtype=float) # by default, center at origin
+        if orientation is None:
+            orientation = Rotation.identity() # by default, no rotation
+            
+        self.radii = radii
+        self.center = center
+        self.orientation = orientation
 
+        # TODO: check shapes of radii and center post-init
+    
     # initialization
     @classmethod
     def from_components(
@@ -300,6 +308,11 @@ class Ellipsoid(BoundedShape[Numeric]):
         '''
         return np.linalg.inv(self.matrix) # precompute inverse for later use
     inv = inverse
+    
+    def coincident_with(self, other : 'Ellipsoid') -> bool:
+        return np.allclose(self.radii, other.radii) \
+            and np.allclose(self.center, other.center) \
+            and np.allclose(self.orientation.as_matrix(), other.orientation.as_matrix())
         
     # fulfilling BoundedShape contracts
     @property
