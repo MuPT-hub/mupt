@@ -5,19 +5,23 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from inspect import Parameter, Signature
 
-POSITIONAL_PARAMETER_TYPES = [
+POSITIONAL_PARAMETER_TYPES = (
     Parameter.POSITIONAL_ONLY,
     Parameter.POSITIONAL_OR_KEYWORD,
     Parameter.VAR_POSITIONAL
-]
+)
+KEYWORD_PARAMETER_TYPES = (
+    Parameter.KEYWORD_ONLY,
+    Parameter.VAR_KEYWORD
+)
 
 def get_index_after_positionals(sig : Signature) -> int:
     '''Get the first Parameter index which follows all positional Parameters'''
     for i, param in enumerate(sig.parameters.values()):
-        if param.kind not in POSITIONAL_PARAMETER_TYPES:
-            return i + 1 # return index immediately after first non-positional argument
-        else:
-            return len(sig.parameters)
+        if param.kind in KEYWORD_PARAMETER_TYPES:
+            return i
+    else:
+        return len(sig.parameters)
 
 def insert_parameter_at_index(sig : Signature, new_param : Parameter, index : int) -> Signature:
     '''Insert a new Parameter into a Signature at a given position'''
