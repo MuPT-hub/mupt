@@ -23,7 +23,7 @@ from .canonicalize import (
 from .connection import Connector
 from .topology import TopologicalStructure
 from ..geometry.shapes import BoundedShape
-from ..geometry.transforms.rigid import apply_rigid_transformation_recursive
+from ..geometry.transforms.rigid import RigidlyTransformable
 
 
 class Primitive(NodeMixin):
@@ -252,12 +252,12 @@ class Primitive(NodeMixin):
 
         return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
     
-    def congruent_to(self, other : 'Primitive') -> bool:
-        '''Check whether two Primitives are congruent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
-        raise NotImplementedError
-    
     def coincident_with(self, other : 'Primitive') -> bool:
         '''Check whether two Primitives are coincident (i.e. all spatial parts are either equally unassigned or occupy the same space)'''
+        raise NotImplementedError
+    
+    def equivalent_to(self, other : 'Primitive') -> bool:
+        '''Check whether two Primitives are equivalent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
         raise NotImplementedError
 
     # display methods

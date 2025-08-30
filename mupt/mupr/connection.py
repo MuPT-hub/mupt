@@ -106,9 +106,14 @@ class Connector:
                 for position_attr in self._POSITION_ATTRS
         )
 
-    def congruent_to(self, other: 'Connector') -> bool:
+    def equivalent_to(self, other: 'Connector') -> bool:
         '''Determine whether this Connector has interchangeable components relative to another Connector'''
-        raise NotImplementedError
+        return (
+            self.anchor == other.anchor
+            # and self.linker == other.linker
+            and self.linkables == other.linkables
+            and self.bondtype == other.bondtype
+        )
 
     # geometry properties
     @property
