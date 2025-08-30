@@ -190,7 +190,7 @@ class Connector:
     
     def alignment_transform_to(self, other : 'Connector', dihedral_angle_rad : float=0.0) -> RigidTransform:
         '''
-        Compute an isometric (i.e. rigid) transformation which aligns a pair of Connectors by making
+        Compute a rigid transformation which aligns a pair of Connectors by making
         the linker point of this Connector coincident with the anchor of the other Connector,
         the Connectors' bond vectors antiparallel, and the Connectors' tangent vectors subtend the
         desired dihedral angle in radians (by default, 0.0 rad)

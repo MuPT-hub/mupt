@@ -280,7 +280,16 @@ class Primitive(NodeMixin):
         
     # geometric methods
     def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': 
-        '''Apply an isometric (i.e. rigid) transformation to all parts of a Primitive which support it'''
-        # TODO: make this act specifically on internal components, rather than generic recursive application
-        return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
+        '''Apply a rigid transformation to all parts of a Primitive which support it'''
+        new_prim = self.copy()
+        if isinstance(new_prim.shape, BoundedShape):
+            new_prim.shape = new_prim.shape.apply_rigid_transformation(transform)
+        for connector in new_prim.connectors:
+            connector.apply_rigid_transformation(transform)
+            
+        for child_prim in new_prim.children:
+            child_prim.apply_rigid_transformation(transform)
+
+        return new_prim
+        # return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
     
