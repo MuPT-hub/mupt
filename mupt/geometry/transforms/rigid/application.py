@@ -69,14 +69,7 @@ class RigidlyTransformable(Protocol):
     def reset_transformed(self) -> Self:
         '''Return an un-transformed copy of this object'''
         return self.rigidly_transformed(self.resetting_transformation)
-
-@runtime_checkable
-class RigidTransformable(Protocol):
-    '''Interface for objects that can undergo a rigid transformation'''
-    def apply_rigid_transformation(self, transformation: RigidTransform) -> 'RigidTransformable': 
-        # DEVNOTE: regarding typehints, returned type may be different to type of self
-        # but ought to still be transformable, since rigid transformations should, in general, be invertible
-        ...
+        
         
 def apply_rigid_transformation_recursive(
         obj : Union[object, Sequence[Any], Mapping[str, Any]],
@@ -99,8 +92,8 @@ def apply_rigid_transformation_recursive(
         the input and its members) may or many not be of the same type as the initial object
     '''
     # top-level application check
-    if isinstance(obj, RigidTransformable):
-        obj = obj.apply_rigid_transformation(transformation)
+    if isinstance(obj, RigidlyTransformable):
+        obj = obj.rigidly_transformed(transformation)
 
     # recursive iteration, as necessary
     if isinstance(obj, Sequence):  # DEVNOTE: specifically opted for Sequence over Iterable here to avoid double-covering Mappings and unpacking generators
