@@ -44,27 +44,41 @@ class RigidlyTransformable(Protocol):
         '''The transformation that resets the object to its original configuration'''
         return self.cumulative_transformation.inv()
 
-    # application of transformations
+    # in-place application of transformations
     @abstractmethod
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         raise NotImplemented # implement subclass-specific behavior here
         
     def rigidly_transform(self, transformation : RigidTransform) -> None:
+        '''Apply a rigid transformation to this object in-place'''
         self._rigidly_transform(transformation)
         self.cumulative_transformation = transformation * self.cumulative_transformation
-
-    def rigidly_transformed(self, transformation: RigidTransform) -> Self:
-        if not isinstance(self, Copyable):
-            raise NotCopyableError(f'Class "{self.__class__.__name__}" does not implement mechanism for copying objects')
-        
-        clone = self.copy()
-        clone.rigidly_transform(transformation)
-        
-        return clone
     
     def reset_transform(self) -> None:
         '''Return the object to its un-transformed configuration'''
         self.rigidly_transform(self.resetting_transformation)
+
+    # copying and out-of-place applications of transformations
+
+    ## DEV: _copy_untransformed() is deliberately NOT an abstract method, as it's not required that child classes implement it;
+    ## ...if children don't implement it, they simply won't be able to perform copying or out-of-place transformations
+    def _copy_untransformed(self) -> Self:
+        '''Defines how to make a copy of an object with the same internal parts, but  without preserving it's cumulative transformation'''
+        raise NotCopyableError(f'Class {self.__class__.__name__} does not define how instances should copy their parts')
+
+    def copy(self) -> Self:
+        '''Make a copy of this BoundedShape object, with transformation history preserved'''
+        new_obj = self._copy_untransformed()
+        new_obj.cumulative_transformation = self.cumulative_transformation # transfer net displacement 
+        
+        return new_obj
+
+    def rigidly_transformed(self, transformation: RigidTransform) -> Self:
+        '''Return a copy of this object which has been transformed according to the rigid transformation provided'''
+        clone = self.copy() # TODO: implement mechanism to transfer cumul transform during copy of child classes
+        clone.rigidly_transform(transformation)
+        
+        return clone
 
     def reset_transformed(self) -> Self:
         '''Return an un-transformed copy of this object'''
