@@ -20,7 +20,7 @@ class Points(RigidlyTransformable):
     def _rigidly_transform(self, transform: RigidTransform) -> None:
         self.positions = transform.apply(self.positions)
         
-    def copy(self) -> 'Points':
+    def _copy_untransformed(self) -> 'Points':
         return self.__class__(positions=np.array(self.positions))
     
 class PointsNonCopyable(RigidlyTransformable):
@@ -31,7 +31,7 @@ class PointsNonCopyable(RigidlyTransformable):
     def _rigidly_transform(self, transform: RigidTransform) -> None:
         self.positions = transform.apply(self.positions)
 
-    # NOTE: copy() method deliberately omitted
+    # NOTE: _copy_untransformed() method deliberately omitted
     
 # Fixtures
 @pytest.fixture(scope='function')

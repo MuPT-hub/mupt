@@ -142,19 +142,6 @@ class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some
         '''Whether a given coordinate lies within the boundary of the body'''
         ... 
 
-    # DEV: also implicitly needs to implement copy() for out-of-place transformations
-    @abstractmethod
-    def copy_untransformed(self) -> 'BoundedShape':
-        '''How to copy the current BoundedShape without preserving it's cumulative transformation'''
-        ...
-
-    def copy(self):
-        '''Make a copy of this BoundedShape object, with transformation history preserved'''
-        new_shape = self.copy_untransformed()
-        new_shape.rigidly_transform(self.cumulative_transformation) # transfer net displacement in-place
-        
-        return new_shape
-
     # @abstractmethod
     # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
@@ -194,8 +181,8 @@ class PointCloud(BoundedShape):
     def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
         return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
 
-    # fulfilling implicit contracts
-    def copy_untransformed(self) -> 'PointCloud':
+    # fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'PointCloud':
         return self.__class__(positions=np.array(self.positions))
 
     def _rigidly_transform(self, transform : RigidTransform) -> None:
@@ -325,8 +312,8 @@ class Ellipsoid(BoundedShape):
             axis=1,
         ) < 1).astype(object) # need to cast from numpy bool to Python bool
 
-    # fulfilling implicit contracts
-    def copy_untransformed(self) -> 'Ellipsoid':
+    # fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'Ellipsoid':
         return self.__class__(
             radii=np.array(self.radii),
             center=np.array(self.center),
