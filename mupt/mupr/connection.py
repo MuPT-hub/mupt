@@ -14,6 +14,7 @@ from rdkit.Chem.rdchem import BondType
 from ..geometry.measure import normalized
 from ..geometry.transforms.linear import rejector
 from ..geometry.transforms.rigid.rotations import alignment_rotation
+from ..geometry.transforms.rigid.application import RigidlyTransformable
 
 
 class ConnectionError(Exception):
@@ -26,7 +27,7 @@ class IncompatibleConnectorError(ConnectionError):
 
 
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
-class Connector:
+class Connector(RigidlyTransformable):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
     anchor : Hashable
@@ -39,14 +40,12 @@ class Connector:
     linker_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
     anchor_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
     tangent_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    
+    _POSITION_ATTRS : ClassVar[tuple[str]] = (
+        'anchor_position',
+        'linker_position',
+        'tangent_position',
+    ) 
     # DEVNOTE: this will need updating if more position-type attributes are added; manually curating this is fine for now
-    _POSITION_ATTRS : ClassVar[tuple[str]] = ('anchor_position', 'linker_position', 'tangent_position') 
-
-    # initialization
-    def copy(self) -> 'Connector':
-        '''Return a new Connector with the same information as this one'''
-        return Connector(**self.__dict__)
 
     # comparison methods
     def canonical_form(self) -> BondType:
@@ -115,7 +114,7 @@ class Connector:
             and self.bondtype == other.bondtype
         )
 
-    # geometry properties
+    # geometric properties
     @property
     def has_positions(self) -> bool:
         return (self.anchor_position is not None) and (self.linker_position is not None)
@@ -178,21 +177,33 @@ class Connector:
         '''Set the dihedral tangent point from a point on the span of the normal to the dihedral plane'''
         self.tangent_vector = np.cross(self.bond_vector, normal_point - self.anchor_position)
         
-    ## applying transformations
-    # DEVNOTE: would like to use @optional_in_place here, but the current extend_to_methods mechanism works a little too well ("self" will NOT be passed as first arg to decorator)
-    def apply_rigid_transformation(self, transform : RigidTransform, in_place : bool=False) -> Optional['Connector']:
-        '''Return a Connector whose anchor, linker, and orientation positions
-        (if provided) have been transformed by a given rigid transformation'''
-        if not in_place:
-            new_connector = self.copy()
-            new_connector.apply_rigid_transformation(transform, in_place=True) # call in-place on the copy
+    # applying rigid transformations
+    ## fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'Connector':
+        # return Connector(**self.__dict__)
+        new_connector = self.__class__(
+            anchor=self.anchor, # TODO: does this need to be deepcopied?
+            linker=self.linker,
+            linkables=set(linkable for linkable in self.linkables),
+            bondtype=self.bondtype,
+            query_smarts=self.query_smarts,
+        )
 
-            return new_connector
+        # make copies of positional attribute arrays, if they aren't unset
+        for pos_attr in self._POSITION_ATTRS:
+            if (position := getattr(self, pos_attr)) is None:
+                setattr(new_connector, pos_attr, None) # DEV: opted to make this explicit for clarity, but could be made implicit if desired
+            else:
+                setattr(new_connector, pos_attr, np.array(position))
 
-        for attr in self._POSITION_ATTRS:
-            if (position := getattr(self, attr)) is not None:
-                setattr(self, attr, transform.apply(position))
+        return new_connector
+
+    def _rigidly_transform(self, transform : RigidTransform) -> None:
+        for pos_attr in self._POSITION_ATTRS:
+            if (position := getattr(self, pos_attr)) is not None:
+                setattr(self, pos_attr, transform.apply(position))
     
+    ## aligning Connectors to one another 
     def alignment_transform_to(self, other : 'Connector', dihedral_angle_rad : float=0.0) -> RigidTransform:
         '''
         Compute a rigid transformation which aligns a pair of Connectors by making
@@ -223,18 +234,29 @@ class Connector:
             * RigidTransform.from_translation(-self.anchor_position)
         )
 
-    def align_to(self, other : 'Connector', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> None:
+    def align_to(
+            self,
+            other : 'Connector',
+            dihedral_angle_rad : float=0.0,
+            match_bond_length : bool=False,
+        ) -> None:
         '''Align this Connector to another Connector, based on the calculated alignment transform'''
-        self.apply_rigid_transformation(
-            transform=self.alignment_transform_to(other, dihedral_angle_rad),
-            in_place=True,
-        )
+        self.rigidly_transform(transformation=self.alignment_transform_to(other, dihedral_angle_rad))
         if match_bond_length: 
             self.set_bond_length(other.bond_length) # ensure bond length matches the other Connector
 
-    def aligned_to(self, other : 'Connector', dihedral_angle_rad : float=0.0, match_bond_length : bool=False) -> 'Connector':
-        '''Return a copy of this Connector aligned to Connector "other"'''
-        new_connector = self.copy()
-        new_connector.align_to(other, dihedral_angle_rad=dihedral_angle_rad, match_bond_length=match_bond_length)
+    def aligned_to(
+            self,
+            other : 'Connector',
+            dihedral_angle_rad : float=0.0,
+            match_bond_length : bool=False,
+        ) -> 'Connector':
+        '''Return a copy of this Connector aligned to another Connector'''
+        new_connector = self.copy() # DEV: opted not to go for self.rigidly_transformed(self.alginment_transform(...)) to avoid duplicating logic
+        new_connector.align_to(
+            other,
+            dihedral_angle_rad=dihedral_angle_rad,
+            match_bond_length=match_bond_length,
+        )
 
         return new_connector

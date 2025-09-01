@@ -69,7 +69,7 @@ class RigidlyTransformable(Protocol):
     def copy(self) -> Self:
         '''Make a copy of this BoundedShape object, with transformation history preserved'''
         new_obj = self._copy_untransformed()
-        new_obj.cumulative_transformation = self.cumulative_transformation # transfer net displacement 
+        new_obj.cumulative_transformation = self.cumulative_transformation # transfer net displacement WITHOUT directly transforming copied parts
         
         return new_obj
 
