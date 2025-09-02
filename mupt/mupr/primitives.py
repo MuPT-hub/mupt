@@ -26,7 +26,7 @@ from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 
 
-class Primitive(NodeMixin):
+class Primitive(NodeMixin, RigidlyTransformable):
     '''Represents a fundamental (but not necessarily irreducible) building block of a polymer system in the abstract 
     Note that, by default ALL fields are optional; this is to reflect the fact that use-cases and levels of info provided may vary
     
@@ -71,20 +71,33 @@ class Primitive(NodeMixin):
         # additional descriptors
         self.label = label
         self.metadata = metadata or dict()
-        
-    # DEVNOTE: have platform-specific initializers/exporters be imported from interfaces (a la OpenFF Interchange)   
-    def copy(self) -> 'Primitive':
+
+    # fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'Primitive':
         '''Return a new Primitive with the same information as this one'''
         return self.__class__(
             topology=TopologicalStructure(self.topology),
-            shape=self.shape, # TODO: deepcopy this
+            shape=(None if self.shape is None else self.shape.copy()),
             element=self.element,
             connectors=[conn.copy() for conn in self.connectors],
             label=self.label,
             metadata={key : value for key, value in self.metadata.items()},
         ) # TODO: deepcopy attributes dict?
     
+    def _rigidly_transform(self, transform : RigidTransform) -> None: 
+        '''Apply a rigid transformation to all parts of a Primitive which support it'''
+        if isinstance(self.shape, BoundedShape):
+            self.shape.rigidly_transform(transform)
+        
+        for connector in self.connectors:
+            connector.rigidly_transform(transform)
+            
+        # propogate transformation down recursively
+        for subprimitive in self.children: 
+            subprimitive.rigidly_transform(transform)
+
     # descriptors for core attributes
+    ## element
     @property
     def element(self) -> Optional[Element]:
         '''The chemical element associated with this Primitive, if it represents an atom'''
@@ -95,6 +108,27 @@ class Primitive(NodeMixin):
         if new_element is not None and not isinstance(new_element, Element):
             raise TypeError(f'Invalid element type {type(new_element)}')
         self._element = new_element
+
+    ## shape
+    @property
+    def shape(self) -> Optional[BoundedShape]:
+        '''The external shape of this Primitive'''
+        if not hasattr(self, '_shape'):
+            return None
+        return self._shape
+    
+    @shape.setter
+    def shape(self, new_shape : Optional[BoundedShape]) -> None:
+        '''Set the external shape of this Primitive'''
+        if (new_shape is not None) and (not isinstance(new_shape, BoundedShape)):
+            raise TypeError(f'Primitive shape must be either NoneType or BoundedShape instance, not object of type {type(new_shape.__name__)}')
+
+        if not isinstance(self.shape, BoundedShape): # DEV: no typo here; deliberate call to getter to handle case when _shape (not "shape"!) is unset
+            self._shape = new_shape
+        else:
+            new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
+            new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
+            self._shape = new_shape_clone
       
     ## validating chosen topology     
     @property
@@ -112,7 +146,35 @@ class Primitive(NodeMixin):
             raise ValueError('Provided topology is incompatible with the set of child Primitives')
 
         self._topology = new_topology
+
+    def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
+        '''Verify the topology induced on this Primitive's children is valid''' # DEVNOTE: make this staticmethod/classmethod?
+        # Perform simpler checks first, to fail fast in case an embedding obviously can't exist
+        ## check bijection between nodes and children
+        if topology.number_of_nodes() != self.n_children: 
+            LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
+            return False
+        
+        ## check balance over incident pair and Ports (external AND internal)
+        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
+        if num_connectors_internal != 2*topology.number_of_edges():
+            LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
+            return False
+        
+        # perform more detailed checks on the connectivity of the topology
+        # TODO: more complex check to see that children can be mapped 1:1 onto Nodes
+        # TODO: more complex check to see that Ports can be paired up 1:1 along edges
+
+        return True
     
+    def validate_topology(self) -> bool:
+        '''Check that the currently-set topology is compatible with the currently-defined children of this Primitive'''
+        return self.topology_is_valid(self.topology)
+    
+    def embed_topology(self) -> None:
+        '''Map sub-Primitives onto nodes in internal topology'''
+        raise NotImplementedError
+
     # connection properties
     @property
     def is_atom(self) -> bool:
@@ -149,7 +211,10 @@ class Primitive(NodeMixin):
         '''
         return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
 
-    # embedding and topology consistency checks
+    # registration of sub-primitives in hierarchy
+    def register_subprimitive(self, subprimitive : 'Primitive') -> None:
+        raise NotImplementedError
+
     def children_uniquely_labelled(self) -> bool:
         '''Check if that no pair of child Primitives are assigned the same label'''
         if not self.children:
@@ -176,34 +241,6 @@ class Primitive(NodeMixin):
             raise ValueError(f'Injective mapping of labels onto child Primitives impossible, since labels amongst chilren are not unique')
         
         return {label : subprims[0] for label, subprims in self.child_label_classes().items()}
-
-    def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
-        '''Verify the topology induced on this Primitive's children is valid''' # DEVNOTE: make this staticmethod/classmethod?
-        # Perform simpler checks first, to fail fast in case an embedding obviously can't exist
-        ## check bijection between nodes and children
-        if topology.number_of_nodes() != self.n_children: 
-            LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
-            return False
-        
-        ## check balance over incident pair and Ports (external AND internal)
-        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
-        if num_connectors_internal != 2*topology.number_of_edges():
-            LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
-            return False
-        
-        # perform more detailed checks on the connectivity of the topology
-        # TODO: more complex check to see that children can be mapped 1:1 onto Nodes
-        # TODO: more complex check to see that Ports can be paired up 1:1 along edges
-
-        return True
-    
-    def validate_topology(self) -> bool:
-        '''Check that the currently-set topology is compatible with the currently-defined children of this Primitive'''
-        return self.topology_is_valid(self.topology)
-    
-    def embed_topology(self) -> None:
-        '''Map sub-Primitives onto nodes in internal topology'''
-        raise NotImplementedError
 
     # comparison methods
     ## canonical forms for core components
@@ -279,17 +316,4 @@ class Primitive(NodeMixin):
         return f'{self.__class__.__name__}({attr_str})'
         
     # geometric methods
-    def apply_rigid_transformation(self, transform : RigidTransform) -> 'Primitive': 
-        '''Apply a rigid transformation to all parts of a Primitive which support it'''
-        new_prim = self.copy()
-        if isinstance(new_prim.shape, BoundedShape):
-            new_prim.shape = new_prim.shape.apply_rigid_transformation(transform)
-        for connector in new_prim.connectors:
-            connector.apply_rigid_transformation(transform)
-            
-        for child_prim in new_prim.children:
-            child_prim.apply_rigid_transformation(transform)
-
-        return new_prim
-        # return Primitive(**apply_rigid_transformation_recursive(self.__dict__, transform))
     
