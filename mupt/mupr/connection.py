@@ -51,12 +51,6 @@ class Connector(RigidlyTransformable):
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
         return self.bondtype # TODO: make this more descriptive; good enough for now
-    
-    def __hash__(self) -> int:
-        raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
-    
-    # def __eq__(self, other : 'Connector') -> bool:
-        # return hash(self) == hash(other)
 
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
@@ -98,15 +92,18 @@ class Connector(RigidlyTransformable):
         else:
             raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
     
-    def coincident_with(self, other : 'Connector') -> bool:
-        '''Determine whether this Connector overlaps spatially with another Connector'''
+    def coincides_with(self, other : 'Connector') -> bool:
+        '''Whether this Connector overlaps spatially with another Connector'''
         return all(
-            self.compare_optional_positions(getattr(self, position_attr), getattr(other, position_attr))
+            self.compare_optional_positions(
+                getattr(self, position_attr),
+                getattr(other, position_attr),
+            )
                 for position_attr in self._POSITION_ATTRS
         )
 
-    def equivalent_to(self, other: 'Connector') -> bool:
-        '''Determine whether this Connector has interchangeable components relative to another Connector'''
+    def resembles(self, other: 'Connector') -> bool:
+        '''Whether this Connector has interchangeable components relative to another Connector'''
         return (
             self.anchor == other.anchor
             # and self.linker == other.linker
@@ -114,7 +111,33 @@ class Connector(RigidlyTransformable):
             and self.bondtype == other.bondtype
         )
 
+    def fungible_with(self, other : 'Connector') -> bool:
+        '''Whether this connector can replace other without any change to programs which involve it'''
+        return self.coincides_with(other) and self.resembles(other)
+
+    def __hash__(self) -> int:
+        return hash((
+            # id(self),
+            self.anchor,
+            # self.linker,
+            frozenset(self.linkables), # TODO: make linkables frozen at __init__ level to avoid post-init mutation?
+            *self.is_position_assigned.keys(),
+        ))
+        # raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
+    
+    def __eq__(self, other : 'Connector') -> bool:
+        # return hash(self) == hash(other)
+        return self.fungible_with(other)
+
     # geometric properties
+    @property
+    def is_position_assigned(self) -> dict[str, bool]:
+        '''Index of whether each positional attribute is unset, keeyd by attribute name'''
+        return {
+            pos_attr : getattr(self, pos_attr) is not None
+                for pos_attr in self._POSITION_ATTRS
+        }
+
     @property
     def has_positions(self) -> bool:
         return (self.anchor_position is not None) and (self.linker_position is not None)
