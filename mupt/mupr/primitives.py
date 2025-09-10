@@ -83,6 +83,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             label=self.label,
             metadata={key : value for key, value in self.metadata.items()},
         ) # TODO: deepcopy attributes dict?
+    # TODO: copy hierarchy of children
     
     def _rigidly_transform(self, transform : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
@@ -101,12 +102,20 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def element(self) -> Optional[Element]:
         '''The chemical element associated with this Primitive, if it represents an atom'''
+        if not hasattr(self, '_element'):
+            return None
         return self._element
     
     @element.setter
     def element(self, new_element: Optional[Element]) -> None:
-        if new_element is not None and not isinstance(new_element, Element):
+        if new_element is None: # DEV: short-circuit to denest logic
+            self._element = None
+
+        if self.children:
+            raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. have "element" be assigned)')
+        if not isinstance(new_element, Element):
             raise TypeError(f'Invalid element type {type(new_element)}')
+ 
         self._element = new_element
 
     ## shape
@@ -130,7 +139,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
             self._shape = new_shape_clone
       
-    ## validating chosen topology     
+    ## topology     
     @property
     def topology(self) -> Optional[TopologicalStructure]:
         '''The connectivity of the immediate children of this Primitive, if one is defined'''
