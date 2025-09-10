@@ -108,14 +108,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     @element.setter
     def element(self, new_element: Optional[Element]) -> None:
-        if new_element is None: # DEV: short-circuit to denest logic
-            self._element = None
-
-        if self.children:
-            raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. have "element" be assigned)')
-        if not isinstance(new_element, Element):
-            raise TypeError(f'Invalid element type {type(new_element)}')
- 
+        if new_element is not None:
+            if self.children:
+                raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. have "element" be assigned)')
+            if not isinstance(new_element, Element):
+                raise TypeError(f'Invalid element type {type(new_element)}')
         self._element = new_element
 
     ## shape
