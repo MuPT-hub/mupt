@@ -66,13 +66,19 @@ class Primitive(NodeMixin, RigidlyTransformable):
         metadata : dict[Hashable, Any]=None,
     ) -> None:
         # essential components
-        self.topology = topology or TopologicalStructure() # NOTE: the empty-set topology is valid EVEN if there are no children
         self.shape = shape
-        self.element = element # DEVNOTE: implicitly invokes topology.setter descriptor
+        self.element = element
         self.connectors = connectors or list()
+        ## NOTE: setting of topology deliberately placed at end so validation is preformed based on values of other core attrs
+        self.topology = topology or TopologicalStructure() # NOTE: the empty-set topology is valid EVEN if there are no children 
+        
         # additional descriptors
         self.label = label
         self.metadata = metadata or dict()
+        
+        # non-init attrs - placed here for bookkeeping
+        paired_connectors: dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = dict()
+        external_connectors: dict[Hashable, tuple[Connector]] = dict()
 
     # fulfilling RigidlyTransformable contracts
     def _copy_untransformed(self) -> 'Primitive':
@@ -142,6 +148,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def topology(self) -> Optional[TopologicalStructure]:
         '''The connectivity of the immediate children of this Primitive, if one is defined'''
+        if not hasattr(self, '_topology'):
+            return None
         return self._topology
 
     @topology.setter
@@ -150,34 +158,42 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if not isinstance(new_topology, TopologicalStructure):
             raise TypeError(f'Invalid topology type {type(new_topology)}')
         
-        if not self.topology_is_valid(new_topology):
-            raise ValueError('Provided topology is incompatible with the set of child Primitives')
+        if not self.topology_is_compatible(new_topology):
+            raise ValueError('Provided topology is incompatible with the sub-Primitives associated to this Primitive')
 
         self._topology = new_topology
 
-    def topology_is_valid(self, topology : TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
+    def topology_is_compatible(self, topology: TopologicalStructure) -> bool: # TODO: add a version of this with descriptive errors
         '''Verify the topology induced on this Primitive's children is valid''' # DEVNOTE: make this staticmethod/classmethod?
         # Perform simpler checks first, to fail fast in case an embedding obviously can't exist
         ## check bijection between nodes and children
-        if topology.number_of_nodes() != self.n_children: 
+        if topology.number_of_nodes() != self.n_children: # DEV: consider loosening this to an inequality if default to singletons for unmapped nodes is deemed acceptable
             LOGGER.error(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
             return False
         
-        ## check balance over incident pair and Ports (external AND internal)
-        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children) - self.functionality # subtract off contribution from external connectors
-        if num_connectors_internal != 2*topology.number_of_edges():
-            LOGGER.error(f'Mismatch between {num_connectors_internal} internal connectors and 2*{topology.number_of_edges()} connectors required by topology')
+        ## check balance over incident pair and Connectors (external AND internal)
+        num_connectors_internal : int = sum(subprim.functionality for subprim in self.children)
+        if num_connectors_internal < 2*topology.number_of_edges(): # NOTE: inequality here is to reflect that some child connections might be external
+            LOGGER.error(f'{num_connectors_internal} internal connectors insufficient to satisfy 2*{topology.number_of_edges()} connectors implied by topology')
             return False
         
         # perform more detailed checks on the connectivity of the topology
-        # TODO: more complex check to see that children can be mapped 1:1 onto Nodes
-        # TODO: more complex check to see that Ports can be paired up 1:1 along edges
+        ## TODO: more complex check to see that children can be mapped 1:1 onto Nodes - done via assumed labelling for now
+        ...
+        
+        ## check to see that Connectors can be paired up 1:1 along edges
+        paired_connectors, external_connectors = register_topology( # will raise exception is registration is not possible
+            labelled_connectors={
+                subprim.label : subprim.connectors
+                    for subprim in self.children
+            },
+            topology=topology
+        )
+        self.paired_connectors = paired_connectors
+        ## TODO: check that identified external connectors match with set external connectors at this level - have to rethink how this'd work for leaves
+        self.external_connectors = external_connectors
 
         return True
-    
-    def validate_topology(self) -> bool:
-        '''Check that the currently-set topology is compatible with the currently-defined children of this Primitive'''
-        return self.topology_is_valid(self.topology)
     
     def embed_topology(self) -> None:
         '''Map sub-Primitives onto nodes in internal topology'''
