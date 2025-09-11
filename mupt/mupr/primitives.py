@@ -6,7 +6,8 @@ __email__ = 'timotej.bernat@colorado.edu'
 import logging
 LOGGER = logging.getLogger(__name__)
 
-from typing import Any, Generator, Hashable, Optional
+from typing import Any, Generator, Hashable, Optional, TypeVar
+PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 from collections import defaultdict
 
 from anytree.node import NodeMixin
@@ -60,7 +61,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         shape : Optional[BoundedShape]=None,
         element : Optional[Element]=None,
         connectors : list[Connector]=None,
-        label : Optional[Hashable]=None,
+        label : Optional[PrimitiveLabel]=None,
         metadata : dict[Hashable, Any]=None,
     ) -> None:
         # essential components
@@ -218,18 +219,18 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
 
     # registration of sub-primitives in hierarchy
-    def register_subprimitive(self, subprimitive : 'Primitive') -> None:
+    def add_subprimitive(self, subprimitive : 'Primitive') -> None:
         raise NotImplementedError
 
-    def children_uniquely_labelled(self) -> bool:
+    def children_are_uniquely_labelled(self) -> bool:
         '''Check if that no pair of child Primitives are assigned the same label'''
         if not self.children:
             return True
         labels = [child.label for child in self.children]
         
         return len(labels) == len(set(labels))
-    
-    def child_label_classes(self) -> dict[Hashable, tuple['Primitive']]:
+
+    def child_label_classes(self) -> dict[PrimitiveLabel, tuple['Primitive']]:
         '''Return equivalence classes of child Primitives by their assigned labels''' # DEVNOTE: transition to canonical forms, eventually?
         _child_map = defaultdict(list)
         for subprim in self.children:
@@ -241,9 +242,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         }
         
     @property
-    def children_by_label(self) -> dict[Hashable, 'Primitive']:
+    def children_by_label(self) -> dict[PrimitiveLabel, 'Primitive']:
         '''Get child Primitive by its (presumed-unique) label'''
-        if not self.children_uniquely_labelled():
+        if not self.children_are_uniquely_labelled():
             raise ValueError(f'Injective mapping of labels onto child Primitives impossible, since labels amongst chilren are not unique')
         
         return {label : subprims[0] for label, subprims in self.child_label_classes().items()}
