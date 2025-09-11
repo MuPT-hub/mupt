@@ -182,6 +182,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ...
         
         ## check to see that Connectors can be paired up 1:1 along edges
+        # TODO: propagate error message and return False
         paired_connectors, external_connectors = register_topology( # will raise exception is registration is not possible
             labelled_connectors={
                 subprim.label : subprim.connectors

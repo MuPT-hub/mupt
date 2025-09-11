@@ -9,7 +9,14 @@ __email__ = 'timotej.bernat@colorado.edu'
 import logging
 LOGGER = logging.getLogger(__name__)
 
-from typing import Callable, Hashable, Iterable, Mapping, TypeVar
+from typing import (
+    Callable,
+    Hashable,
+    Iterable,
+    Mapping,
+    Optional,
+    TypeVar,
+)
 T = TypeVar('T')
 
 from itertools import (
@@ -24,11 +31,33 @@ from .connection import Connector
 from .topology import TopologicalStructure
 
 
-def equivalence_classes(objects : Iterable[T], relation : Callable[[T, T], bool]) -> Iterable[list[T]]:
+
+class GraphEmbeddingError(ValueError):
+    '''Raised when an invalid mapping to a graph is encountered'''
+    ...
+
+class NodeEmbeddingError(GraphEmbeddingError):
+    '''Raised when an invalid mapping between an object and a graph node is encountered'''
+    ...
+
+class EdgeEmbeddingError(GraphEmbeddingError):
+    '''Raised when an invalid mapping between a pair of objects and a graph edge is encountered'''
+    ...
+
+
+def mapped_equivalence_classes(
+        objects : Iterable[T],
+        relation : Callable[[T, T], bool],
+    ) -> dict[Hashable, list[T]]:
     """
     Partition a collection of objects into equivalence classes by
     an equivalence relation defined on pairs of those objects
+    
+    Return dict whose values are the equivalence classes and 
+    whose keys are unique labels for each class
     """
+    # DEV: more-or-less reimplements networkx's equivalence_classes but w/o the frozenset collapsing at the end - find way to incorporate going forward
+    # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.minors.equivalence_classes.html
     equiv_classes : list[list[T]] = []
     for obj in objects:
         for equiv_class in equiv_classes:
@@ -38,7 +67,10 @@ def equivalence_classes(objects : Iterable[T], relation : Callable[[T, T], bool]
         else:
             equiv_classes.append([obj])
     
-    return equiv_classes
+    return {
+        i : equiv_class # DEV: opting for index as default unique label for now; eventually want labels to be semantically-related to each class
+            for i, equiv_class in enumerate(equiv_classes)
+    }
 
 def register_topology(
     labelled_connectors : Mapping[Hashable, Iterable[Connector]],
@@ -63,7 +95,7 @@ def register_topology(
     if not set(topology.nodes).issubset(set(labelled_connectors.keys())): 
         # weaker requirement of containing (rathe than being equal) to vertex set suffices
         # DEV: replace labels w/ handle, eventually; presumes a mapping of Primitives onto the nodes exists
-        raise ValueError('Connector collection labels do not match topology node labels')
+        raise NodeEmbeddingError('Connector collection labels do not match topology node labels')
 
     # Initialized containers for tracking pairing progress
     paired_connectors : dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = {
@@ -71,10 +103,7 @@ def register_topology(
             for edge in topology.edges
     }
     connector_equiv_classes : dict[Hashable, dict[int, list[Connector]]] = {
-        label : {
-            i : equiv_class # DEV: opt for index as label for now; eventually want label to be related to Connectors within equivalence class
-                for i, equiv_class in enumerate(equivalence_classes(connectors, Connector.fungible_with))
-        }
+        label : mapped_equivalence_classes(connectors, Connector.fungible_with)
             for label, connectors in labelled_connectors.items()
     }
 
@@ -82,46 +111,61 @@ def register_topology(
     n_iter : int = 0
     while n_iter < n_iter_max:
         n_paired_new : int = 0
-        for edge_label in topology.edges:
-            if paired_connectors[edge_label]:
-                LOGGER.debug(f'Skipping already-paired edge designated "{edge_label}"')
-                continue # skip check for edges already assigned a pair of Connectors
+        for edge_labels in topology.edges:
+            ## skip check for edges already assigned a pair of Connectors
+            if paired_connectors[edge_labels]:
+                LOGGER.debug(f'Skipping already-paired edge designated "{edge_labels}"')
+                continue 
             
-            connector_equiv_classes1 = connector_equiv_classes[edge_label[0]]
-            connector_equiv_classes2 = connector_equiv_classes[edge_label[1]]
-
-            compatible_conns : set[tuple[Connector, Connector]] = set()
-            for (class_label1, eq_class1), (class_label2, eq_class2) in cartesian(connector_equiv_classes1.items(), connector_equiv_classes2.items()):
-                if arbitrary_element(eq_class1).bondable_with(arbitrary_element(eq_class2)):
-                    compatible_conns.add( (class_label1, class_label2) )
-            
-            if len(compatible_conns) == 0: # declare failure for unbonded edges with no compatible connections
-                raise ValueError(f'No compatible connector pairs found for edge {edge_label}')
-            elif len(compatible_conns) > 1:
-                LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_label}, skipping')
-                continue # TODO: move this into cartesian loop to save on checks
-            else:
-                chosen_representatives : list[Connector] = []
-                class_labels = arbitrary_element(compatible_conns) # extract indices of lone compatible pair from set
-                for (class_label, node_label) in zip(class_labels, edge_label):
-                    equiv_class = connector_equiv_classes[node_label][class_label]
-                    chosen_representatives.append(equiv_class.pop(0)) # DEV: index here shouldn't matter, but will standardized to match arbitrary element selection
-                    if len(equiv_class) == 0: # remove bin for equivalence class if empty after drawing
-                        _ = connector_equiv_classes[node_label].pop(class_label)
-
-                paired_connectors[edge_label] = tuple(chosen_representatives)
-                n_paired_new += 1
+            ## attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
+            pair_choice_ambiguous : bool = False
+            compatible_class_labels : Optional[tuple[Connector, Connector]] = None
+            for (class_label1, eq_class1), (class_label2, eq_class2) in cartesian(
+                    connector_equiv_classes[edge_labels[0]].items(),
+                    connector_equiv_classes[edge_labels[1]].items(),
+                ):
+                if not Connector.bondable_with( # DEV: opted for this callstyle to highlight symmetry of compariso
+                        arbitrary_element(eq_class1),
+                        arbitrary_element(eq_class2),
+                    ): 
+                    continue # skip over incompatible Connector classes
                 
+                if compatible_class_labels is None:
+                    compatible_class_labels = (class_label1, class_label2)
+                else:
+                    pair_choice_ambiguous = True
+                    break # further search can't disambiguate choice, stop early to save computation
+                
+            if pair_choice_ambiguous:
+                LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
+                continue
+            elif (compatible_class_labels is None):
+                raise EdgeEmbeddingError(f'No compatible Connector pairs found for edge {edge_labels}')
+
+            ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
+            chosen_representatives : list[Connector] = []
+            for (class_label, node_label) in zip(compatible_class_labels, edge_labels):
+                equiv_class = connector_equiv_classes[node_label][class_label]
+                chosen_representatives.append(equiv_class.pop(0)) # DEV: index here shouldn't matter, but will standardized to match arbitrary element selection
+                
+                ### remove bin from equivalence class if empty after drawing
+                if len(equiv_class) == 0: 
+                    _ = connector_equiv_classes[node_label].pop(class_label)
+            paired_connectors[edge_labels] = tuple(chosen_representatives)
+            n_paired_new += 1
+        
+        ## tee up next iteration; halt if no further connections can be made
         n_iter += 1
         LOGGER.info(f'Paired up {n_paired_new} new edges after {n_iter} iteration(s)')
         if n_paired_new == 0:
             LOGGER.info(f'No new edges paired, halting registration loop')
-            break # halt after no further connections can be made
+            break 
         # TODO: log exceedance of max number of loops?
         
     if not all(paired_connectors.values()):
-        raise ValueError(f'No complete pairing of Connectors found; try running registration procedure for >{n_iter_max} iterations, or check topology/connectors')
+        raise EdgeEmbeddingError(f'No complete pairing of Connectors found; try running registration procedure for >{n_iter_max} iterations, or check topology/connectors')
         
+    # collate remaining unpaired Connectors as external
     external_connectors : dict[Hashable, tuple[Connector]] = {
         label : tuple(chain.from_iterable(eq_classes.values()))
             for label, eq_classes in connector_equiv_classes.items()
