@@ -61,6 +61,7 @@ class Connector(RigidlyTransformable):
             (self.anchor in other.linkables)
             and (other.anchor in self.linkables)
             and (self.bondtype == other.bondtype)
+            # TODO: also compare positions, if set?
         )
         
     def bondable_with_iter(self, *others : Iterable['Connector']) -> Generator[bool, None, None]:
@@ -115,19 +116,19 @@ class Connector(RigidlyTransformable):
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
-    def __hash__(self) -> int:
-        return hash((
-            # id(self),
-            self.anchor,
-            # self.linker,
-            frozenset(self.linkables), # TODO: make linkables frozen at __init__ level to avoid post-init mutation?
-            *self.is_position_assigned.keys(),
-        ))
-        # raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
+    # def __hash__(self) -> int:
+    #     return hash((
+    #         # id(self),
+    #         self.anchor,
+    #         # self.linker,
+    #         frozenset(self.linkables), # TODO: make linkables frozen at __init__ level to avoid post-init mutation?
+    #         *self.is_position_assigned.keys(),
+    #     ))
+    #     # raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
     
-    def __eq__(self, other : 'Connector') -> bool:
-        # return hash(self) == hash(other)
-        return self.fungible_with(other)
+    # def __eq__(self, other : 'Connector') -> bool:
+    #     # return hash(self) == hash(other)
+    #     return self.fungible_with(other)
 
     # geometric properties
     @property
