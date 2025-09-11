@@ -60,7 +60,6 @@ from ..geometry.shapes import PointCloud
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive
 from ..mupr.topology import TopologicalStructure
-from ..mupr.embedding import embed_primitive_topology
 
 
 # Representation component initializers

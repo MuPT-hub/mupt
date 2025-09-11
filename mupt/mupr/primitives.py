@@ -23,6 +23,7 @@ from .canonicalize import (
 )
 from .connection import Connector
 from .topology import TopologicalStructure
+from .embedding import register_topology
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 

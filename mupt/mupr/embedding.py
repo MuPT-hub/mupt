@@ -1,4 +1,4 @@
-'''Utilities for inserting Primitives into pre-built graphs to create polymer topology graphs'''
+'''Utilities for verifying (and producing) relationships between Topologies and other MuPT core components'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
@@ -19,7 +19,7 @@ from itertools import (
 from networkx import Graph
 from networkx.utils import arbitrary_element
 
-from .primitives import Primitive, PrimitiveLabel
+# DEV: this module CANNOT import Primitive if circular imports are to be avoided
 from .connection import Connector
 from .topology import TopologicalStructure
 
@@ -41,41 +41,41 @@ def equivalence_classes(objects : Iterable[T], relation : Callable[[T, T], bool]
     return equiv_classes
 
 def register_topology(
-    labelled_primitives : Mapping[PrimitiveLabel, Primitive],
+    labelled_connectors : Mapping[Hashable, Iterable[Connector]],
     topology : TopologicalStructure,
     n_iter_max : int=3,
 ) -> tuple[
-        dict[tuple[PrimitiveLabel, PrimitiveLabel], tuple[Connector, Connector]],
-        dict[PrimitiveLabel, tuple[Connector]]
+        dict[tuple[Hashable, Hashable], tuple[Connector, Connector]],
+        dict[Hashable, tuple[Connector]]
     ]:
     """
-    Deduce if the Connectors within each of a collection of Primitives can be identified with
-    the edges in a topology on those Primitives, such that each pair of Connectors is bondable
+    Deduce if a collection of Connectors associated to each node in a topology
+    can be identified with the edges in that topology, such that each pair of Connectors is bondable
     
-    Returns mapping of pairs of Primitives (along edges) to their associated pairs of Connectors,
-    and a mapping of Primitives to remaining external Connectors, if any remain unpaired
+    Returns mapping of pairs of node labels (one for each edge) to their associated pairs of Connectors,
+    and a mapping of node labels to remaining external Connectors, if any remain unpaired
     
     If pairing is impossible, will raise Exception instead
     """
     if not isinstance(topology, Graph):
         raise TypeError(f'Topology must be a Graph instance, not one of type {type(topology)}')
     
-    if not set(topology.nodes).issubset(set(labelled_primitives.keys())): 
-        # set of Primitives is allowed to be strictly larger than the topology on it, mapped labels implicitly enforces uniqueness of Primitive labels 
+    if not set(topology.nodes).issubset(set(labelled_connectors.keys())): 
+        # weaker requirement of containing (rathe than being equal) to vertex set suffices
         # DEV: replace labels w/ handle, eventually; presumes a mapping of Primitives onto the nodes exists
-        raise ValueError('Primitive labels do not match topology node labels')
+        raise ValueError('Connector collection labels do not match topology node labels')
 
     # Initialized containers for tracking pairing progress
-    paired_connectors : dict[tuple[PrimitiveLabel, PrimitiveLabel], tuple[Connector, Connector]] = {
+    paired_connectors : dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = {
         edge : tuple()
             for edge in topology.edges
     }
-    connector_equiv_classes : dict[PrimitiveLabel, dict[int, list[Connector]]] = {
+    connector_equiv_classes : dict[Hashable, dict[int, list[Connector]]] = {
         label : {
             i : equiv_class # DEV: opt for index as label for now; eventually want label to be related to Connectors within equivalence class
-                for i, equiv_class in enumerate(equivalence_classes(primitive.connectors, Connector.fungible_with))
+                for i, equiv_class in enumerate(equivalence_classes(connectors, Connector.fungible_with))
         }
-            for label, primitive in labelled_primitives.items()
+            for label, connectors in labelled_connectors.items()
     }
 
     # iteratively pair connectors along edges
@@ -122,7 +122,7 @@ def register_topology(
     if not all(paired_connectors.values()):
         raise ValueError(f'No complete pairing of Connectors found; try running registration procedure for >{n_iter_max} iterations, or check topology/connectors')
         
-    external_connectors : dict[PrimitiveLabel, tuple[Connector]] = {
+    external_connectors : dict[Hashable, tuple[Connector]] = {
         label : tuple(chain.from_iterable(eq_classes.values()))
             for label, eq_classes in connector_equiv_classes.items()
                 if eq_classes # skip over nodes whose equivalence classes have been exhausted
