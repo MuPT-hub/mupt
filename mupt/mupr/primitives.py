@@ -55,7 +55,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     metadata : dict[Hashable, Any]
         Literally any other information the user may want to bind to this Primitive
     '''
-    # initializers
+    # Initializers
     def __init__(
         self,
         topology : TopologicalStructure=None,
@@ -80,7 +80,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         paired_connectors: dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = dict()
         external_connectors: dict[Hashable, tuple[Connector]] = dict()
 
-    # fulfilling RigidlyTransformable contracts
+
+    # Fulfilling inheritance contracts
     def _copy_untransformed(self) -> 'Primitive':
         '''Return a new Primitive with the same information as this one'''
         return self.__class__(
@@ -105,8 +106,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         for subprimitive in self.children: 
             subprimitive.rigidly_transform(transform)
 
-    # descriptors for core attributes
-    ## element
+    
+    # Chemical atom and bond properties
     @property
     def element(self) -> Optional[Element]:
         '''The chemical element associated with this Primitive, if it represents an atom'''
@@ -116,35 +117,83 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     @element.setter
     def element(self, new_element: Optional[Element]) -> None:
-        if new_element is not None:
+        if (new_element is not None):
             if self.children:
-                raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. have "element" be assigned)')
+                raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. cannot have "element" assigned)')
             if not isinstance(new_element, Element):
                 raise TypeError(f'Invalid element type {type(new_element)}')
         self._element = new_element
-
-    ## shape
-    @property
-    def shape(self) -> Optional[BoundedShape]:
-        '''The external shape of this Primitive'''
-        if not hasattr(self, '_shape'):
-            return None
-        return self._shape
     
-    @shape.setter
-    def shape(self, new_shape : Optional[BoundedShape]) -> None:
-        '''Set the external shape of this Primitive'''
-        if (new_shape is not None) and (not isinstance(new_shape, BoundedShape)):
-            raise TypeError(f'Primitive shape must be either NoneType or BoundedShape instance, not object of type {type(new_shape.__name__)}')
+    @property
+    def is_atom(self) -> bool:
+        '''Whether the Primitive at hand represents a single atom'''
+        return self.element is not None
 
-        if not isinstance(self.shape, BoundedShape): # DEV: no typo here; deliberate call to getter to handle case when _shape (not "shape"!) is unset
-            self._shape = new_shape
-        else:
-            new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
-            new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
-            self._shape = new_shape_clone
-      
-    ## topology     
+    @property
+    def num_atoms(self) -> int:
+        '''Number of atoms the Primitive and its internal topology collectively represent'''
+        return len(findall_by_attr(self, value=True, name='is_atom'))
+
+    @property
+    def is_atomizable(self) -> bool:
+        '''Whether the Primitive represents an all-atom system'''
+        return (self.is_atom and not self.children) or all(subprim.is_atomizable for subprim in self.children)
+    
+    @property
+    def bondtype_index(self) -> tuple[tuple[Any, int], ...]:
+        '''
+        Canonical identifier of all unique BondTypes by count among the Connectors associated to this Primitive
+        Consists of all (integer bondtype, count) pairs, sorted lexicographically
+        '''
+        return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
+    
+    
+    # Networking
+    ## Child Primitives
+    @property
+    def n_children(self) -> int:
+        '''Number of sub-Primitives this Primitive contains'''
+        return len(self.children)
+   
+    def add_subprimitive(self, subprimitive : 'Primitive') -> None:
+        raise NotImplementedError
+
+    def children_are_uniquely_labelled(self) -> bool:
+        '''Check if that no pair of child Primitives are assigned the same label'''
+        if not self.children:
+            return True
+        labels = [child.label for child in self.children]
+        
+        return len(labels) == len(set(labels))
+
+    def child_label_classes(self) -> dict[PrimitiveLabel, tuple['Primitive']]:
+        '''Return equivalence classes of child Primitives by their assigned labels''' # DEVNOTE: transition to canonical forms, eventually?
+        _child_map = defaultdict(list)
+        for subprim in self.children:
+            _child_map[subprim.label].append(subprim)
+            
+        return {
+            label : tuple(subprims)
+                for label, subprims in _child_map.items()
+        }
+        
+    @property
+    def children_by_label(self) -> dict[PrimitiveLabel, 'Primitive']:
+        '''Get child Primitive by its (presumed-unique) label'''
+        if not self.children_are_uniquely_labelled():
+            raise ValueError(f'Injective mapping of labels onto child Primitives impossible, since labels amongst chilren are not unique')
+        
+        return {label : subprims[0] for label, subprims in self.child_label_classes().items()}
+    
+    ## Connections
+    @property
+    def functionality(self) -> int:
+        '''Number of neighboring primitives which can be attached to this primitive'''
+        if not hasattr(self, 'connectors'):
+            self.connectors = list() # needed, for example, when checking functionality during init
+        return len(self.connectors)
+    
+    ## Topology
     @property
     def topology(self) -> Optional[TopologicalStructure]:
         '''The connectivity of the immediate children of this Primitive, if one is defined'''
@@ -196,78 +245,29 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return True
     
-    def embed_topology(self) -> None:
-        '''Map sub-Primitives onto nodes in internal topology'''
-        raise NotImplementedError
-
-    # connection properties
-    @property
-    def is_atom(self) -> bool:
-        '''Whether the Primitive at hand represents a single atom'''
-        return self.element is not None
-
-    @property
-    def num_atoms(self) -> int:
-        '''Number of atoms the Primitive and its internal topology collectively represent'''
-        return len(findall_by_attr(self, value=True, name='is_atom'))
-
-    @property
-    def is_atomizable(self) -> bool:
-        '''Whether the Primitive represents an all-atom system'''
-        return (self.is_atom and not self.children) or all(subprim.is_atomizable for subprim in self.children)
     
+    # Geometry (info about Shape and transformations)
     @property
-    def n_children(self) -> int:
-        '''Number of sub-Primitives this Primitive contains'''
-        return len(self.children)
-
-    @property
-    def functionality(self) -> int:
-        '''Number of neighboring primitives which can be attached to this primitive'''
-        if not hasattr(self, 'connectors'):
-            self.connectors = list() # needed, for example, when checking functionality during init
-        return len(self.connectors)
+    def shape(self) -> Optional[BoundedShape]:
+        '''The external shape of this Primitive'''
+        if not hasattr(self, '_shape'):
+            return None
+        return self._shape
     
-    @property
-    def bondtype_index(self) -> tuple[tuple[Any, int], ...]:
-        '''
-        Canonical identifier of all unique BondTypes by count among the Connectors associated to this Primitive
-        Consists of all (integer bondtype, count) pairs, sorted lexicographically
-        '''
-        return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
+    @shape.setter
+    def shape(self, new_shape : Optional[BoundedShape]) -> None:
+        '''Set the external shape of this Primitive'''
+        if (new_shape is not None) and (not isinstance(new_shape, BoundedShape)):
+            raise TypeError(f'Primitive shape must be either NoneType or BoundedShape instance, not object of type {type(new_shape.__name__)}')
 
-    # registration of sub-primitives in hierarchy
-    def add_subprimitive(self, subprimitive : 'Primitive') -> None:
-        raise NotImplementedError
-
-    def children_are_uniquely_labelled(self) -> bool:
-        '''Check if that no pair of child Primitives are assigned the same label'''
-        if not self.children:
-            return True
-        labels = [child.label for child in self.children]
-        
-        return len(labels) == len(set(labels))
-
-    def child_label_classes(self) -> dict[PrimitiveLabel, tuple['Primitive']]:
-        '''Return equivalence classes of child Primitives by their assigned labels''' # DEVNOTE: transition to canonical forms, eventually?
-        _child_map = defaultdict(list)
-        for subprim in self.children:
-            _child_map[subprim.label].append(subprim)
+        if not isinstance(self.shape, BoundedShape): # DEV: no typo here; deliberate call to getter to handle case when _shape (not "shape"!) is unset
+            self._shape = new_shape
+        else:
+            new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
+            new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
+            self._shape = new_shape_clone
             
-        return {
-            label : tuple(subprims)
-                for label, subprims in _child_map.items()
-        }
-        
-    @property
-    def children_by_label(self) -> dict[PrimitiveLabel, 'Primitive']:
-        '''Get child Primitive by its (presumed-unique) label'''
-        if not self.children_are_uniquely_labelled():
-            raise ValueError(f'Injective mapping of labels onto child Primitives impossible, since labels amongst chilren are not unique')
-        
-        return {label : subprims[0] for label, subprims in self.child_label_classes().items()}
-
-    # comparison methods
+    # Representation methods
     ## canonical forms for core components
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's Connectors'''
@@ -322,7 +322,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''Check whether two Primitives are equivalent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
         raise NotImplementedError
 
-    # display methods
+    ## display methods
     def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
         return self.canonical_form_peppered()
     
@@ -339,6 +339,3 @@ class Primitive(NodeMixin, RigidlyTransformable):
         )
         
         return f'{self.__class__.__name__}({attr_str})'
-        
-    # geometric methods
-    
