@@ -70,7 +70,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self.element = element
         self.connectors = connectors or list()
         ## NOTE: setting of topology deliberately placed at end so validation is preformed based on values of other core attrs
-        self.topology = topology or TopologicalStructure() # NOTE: the empty-set topology is valid EVEN if there are no children 
+        self.topology = topology or TopologicalStructure()
         
         # additional descriptors
         self.label = label
@@ -79,32 +79,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # non-init attrs - placed here for bookkeeping
         paired_connectors: dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = dict()
         external_connectors: dict[Hashable, tuple[Connector]] = dict()
-
-
-    # Fulfilling inheritance contracts
-    def _copy_untransformed(self) -> 'Primitive':
-        '''Return a new Primitive with the same information as this one'''
-        return self.__class__(
-            topology=TopologicalStructure(self.topology),
-            shape=(None if self.shape is None else self.shape.copy()),
-            element=self.element,
-            connectors=[conn.copy() for conn in self.connectors],
-            label=self.label,
-            metadata={key : value for key, value in self.metadata.items()},
-        ) # TODO: deepcopy attributes dict?
-    # TODO: copy hierarchy of children
-    
-    def _rigidly_transform(self, transform : RigidTransform) -> None: 
-        '''Apply a rigid transformation to all parts of a Primitive which support it'''
-        if isinstance(self.shape, BoundedShape):
-            self.shape.rigidly_transform(transform)
-        
-        for connector in self.connectors:
-            connector.rigidly_transform(transform)
-            
-        # propogate transformation down recursively
-        for subprimitive in self.children: 
-            subprimitive.rigidly_transform(transform)
 
     
     # Chemical atom and bond properties
@@ -206,10 +180,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ) -> None:
         '''Add another Primitive as a child of this one, updating topology in accordance'''
         subprimitive.parent = self
-        if neighbor_labels is None:
-            neighbor_labels = []
             
-        LOGGER.debug(f'Inserting new node "{self.label}" into parent topology')
+        LOGGER.debug(f'Inserting new node "{subprimitive.label}" into parent topology')
+        self.topology.add_node(subprimitive.label)
+
+        if neighbor_labels is None:
+            return 
         for nb_label in neighbor_labels:
             nb_edge = (subprimitive.label, nb_label)
             LOGGER.debug(f'Inserting edge {nb_edge} into parent topology')
@@ -389,6 +365,38 @@ class Primitive(NodeMixin, RigidlyTransformable):
             new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
             new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
             self._shape = new_shape_clone
+            
+    ## applying rigid transformations (fulfilling RigidlyTransformable contracts)
+    def _copy_untransformed(self) -> 'Primitive':
+        '''Return a new Primitive with the same information as this one'''
+        clone_primitive = self.__class__(
+            topology=None, # by default, no children are copied over, so need to reflect that at first
+            shape=(None if self.shape is None else self.shape.copy()),
+            element=self.element,
+            connectors=[conn.copy() for conn in self.connectors],
+            label=self.label,
+            metadata={key : value for key, value in self.metadata.items()},
+        )
+        
+        # recursively copy children
+        for subprimitive in self.children: 
+            clone_primitive.attach_child(subprimitive._copy_untransformed())
+        clone_primitive.topology = TopologicalStructure(self.topology) # validate post-binding
+    
+        return clone_primitive
+    
+    def _rigidly_transform(self, transform : RigidTransform) -> None: 
+        '''Apply a rigid transformation to all parts of a Primitive which support it'''
+        if isinstance(self.shape, BoundedShape):
+            self.shape.rigidly_transform(transform)
+        
+        for connector in self.connectors:
+            connector.rigidly_transform(transform)
+            
+        # propogate transformation down recursively
+        for subprimitive in self.children: 
+            subprimitive.rigidly_transform(transform)
+            
             
     # Representation methods
     ## canonical forms for core components
