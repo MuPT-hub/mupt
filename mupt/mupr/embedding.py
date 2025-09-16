@@ -156,9 +156,9 @@ def register_topology(
         
         ## tee up next iteration; halt if no further connections can be made
         n_iter += 1
-        LOGGER.info(f'Paired up {n_paired_new} new edges after {n_iter} iteration(s)')
+        LOGGER.debug(f'Paired up {n_paired_new} new edges after {n_iter} iteration(s)')
         if n_paired_new == 0:
-            LOGGER.info(f'No new edges paired, halting registration loop')
+            LOGGER.debug(f'No new edges paired, halting registration loop')
             break 
         # TODO: log exceedance of max number of loops?
         
