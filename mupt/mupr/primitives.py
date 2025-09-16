@@ -185,25 +185,58 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 for label, subprims in self.child_label_classes().items()
         }
         
+    ## creator and destructor methods for hierarchical ("vertical") Primitive relationships
+    ### attachment
+    def _pre_attach(self, parent : 'Primitive') -> None:
+        '''Preconditions prior to attempting attachment of this Primitive to a parent'''
+        if (self.label in parent.children_by_label):
+            raise KeyError(f'Cannot register child Primitive with duplicate label "{self.label}" without sacrificing well-definedness of label-to-Primitive mapping')
+
+        if (self.label in parent.topology):
+            raise KeyError(f'Primitive labelled "{self.label}" already present in neighbor topology')
+
+    def _post_attach(self, parent : 'Primitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        LOGGER.debug(f'Bound Primitive "{str(self)}" to parent Primitive "{str(parent)}"')
+
     def attach_child(
             self,
             subprimitive : 'Primitive',
             neighbor_labels : Optional[Iterable[PrimitiveLabel]]=None,
         ) -> None:
         '''Add another Primitive as a child of this one, updating topology in accordance'''
-        # G.add_edges_from
+        subprimitive.parent = self
+        if neighbor_labels is None:
+            neighbor_labels = []
+            
+        LOGGER.debug(f'Inserting new node "{self.label}" into parent topology')
+        for nb_label in neighbor_labels:
+            nb_edge = (subprimitive.label, nb_label)
+            LOGGER.debug(f'Inserting edge {nb_edge} into parent topology')
+            self.topology.add_edge(*nb_edge)
+            ## TODO: deduce compatible Connectors with provided neighbors?
 
-        ## TODO: deduce compatible Connectors for neighbors provided?
-        raise NotImplementedError
+    ### Detachment (fulfilling NodeMixin contract)
+    def _pre_detach(self, parent : 'Primitive') -> None:
+        '''Preconditions prior to attempting detachment of this Primitive from a parent'''
+        if (self.label not in parent.children_by_label):
+            raise KeyError(f'Cannot detach unregistered child Primitive with label "{self.label}"')
+
+        if (self.label not in parent.topology):
+            raise KeyError(f'Cannot detach child Primitive with label "{self.label}" which is not present in the parent topology')
 
     def detach_child(
             self,
-            subprimitive : Union['Primitive', PrimitiveLabel],
+            target_label : PrimitiveLabel,
         ) -> None:
         '''Remove a child Primitive from this one, updating topology and Connectors'''
-        # G.remove_node()
-        raise NotImplementedError
+        self.children_by_label[target_label].parent = None
+        self.topology.remove_node(target_label)
     
+    def _post_detach(self, parent : 'Primitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        LOGGER.debug(f'Unbound Primitive "{str(self)}" from parent Primitive "{str(parent)}"')
+
     # DEV: also include attach_/detach_parent?
 
     ## Connections
@@ -219,7 +252,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def topology(self) -> Optional[TopologicalStructure]:
         '''The connectivity of the immediate children of this Primitive, if one is defined'''
         if not hasattr(self, '_topology'):
-            return None
+            new_top = TopologicalStructure()
+            new_top.add_nodes_from(self.children_by_label.keys())
+            # NOTE: no edges; in absence of other info, will generate indiscrete topology which can accomodate all children
+
+            # self._topology = new_top
+            self.topology = new_top # DEV: will try calling validated setter for now and see if this leads to trouble down the line
         return self._topology
 
     @topology.setter
@@ -296,6 +334,39 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ## TODO: identify WHICH Connectors at this level match to which external connectors found among children
 
         return True
+    
+    
+    # Resolution shift methods
+    ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
+    def contract(
+            self,
+            target_labels : Iterable[PrimitiveLabel],
+            master_label: PrimitiveLabel,
+            new_shape : Optional[BoundedShape]=None,
+        ) -> None:
+        '''
+        Insert a new level into the hierarchy and group the selected
+        child Primitives into a single intermediate at the new level
+        
+        Inverse to expansion
+        '''
+        raise NotImplementedError
+
+    def expand(
+        self,
+        target_label : PrimitiveLabel,
+    ) -> None:
+        '''
+        Insert a new level into the hierarchy and replace the selected
+        child Primitive with the topology of its children at that level
+        
+        Inverse to contraction
+        '''
+        raise NotImplementedError
+
+    def flatten(self) -> None:
+        '''Flatten hierarchy under this Primitive, so that the entire tree has depth 1'''
+        raise NotImplementedError
     
     
     # Geometry (info about Shape and transformations)
