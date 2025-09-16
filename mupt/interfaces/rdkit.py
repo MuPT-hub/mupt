@@ -17,8 +17,9 @@ from rdkit.Chem.rdchem import (
     Atom,
     Bond,
     Mol,
+    RWMol,
     Conformer,
-    StereoInfo
+    StereoInfo,
 )
 from rdkit.Chem.rdmolops import (
     AddHs,
@@ -170,12 +171,52 @@ def shape_from_rdkit(
             
 # Imports and Exporters
 def primitive_from_rdkit(
+    rdmol : Mol,
+    conformer_id : Optional[int]=None,
+    label : Optional[Hashable]=None,
+    sanitize_frags : bool=True,
+    denest : bool=True,
+) -> Primitive:
+    '''
+    Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules
+    '''
+    chains = GetMolFrags(
+        rdmol,
+        asMols=True, 
+        sanitizeFrags=sanitize_frags,
+        # DEV: leaving these None for now, but higlighting that we can spigot more info out of this eventually
+        frags=None,
+        fragsMolAtomMapping=None,
+    )
+    
+    # if only 1 chain is present, fall back to single-chain importer
+    if (len(chains) == 1) and denest:
+        return primitive_from_rdkit_chain(
+            chains[0],
+            conformer_id=conformer_id,
+            label=label,
+        )
+    # otherwise, bind Primitives for each chain to "universal" root Primitive
+    else:
+        universe_primitive = Primitive(label=label)
+        for chain in chains:
+            universe_primitive.attach_child(
+                primitive_from_rdkit_chain(
+                    chain,
+                    # TODO: provide mapping to customize labels and conformer IDs per chain (maybe require DISCERNMENT to check validity)
+                    conformer_id=conformer_id,
+                    label=None,
+                )
+            )
+        return universe_primitive
+
+def primitive_from_rdkit_chain(
         rdmol : Mol,
         conformer_id : Optional[int]=None,
         label : Optional[Hashable]=None,
     ) -> Primitive:
     ''' 
-    Create a Primitive and populate its internal structure from an RDKit Mol
+    Initialize a Primitive hierarchy from an RDKit Mol representing a single molecule
 
     Parameters
     ----------
@@ -192,8 +233,6 @@ def primitive_from_rdkit(
     Primitive
         The created Primitive object
     '''
-    # TODO : separate RDKit Mol into distinct connected components (for handling topologies with multiple chains)
-    
     # Extract information from the RDKit Mol
     stereo_info_map : dict[int, StereoInfo] = {
         stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
@@ -257,7 +296,8 @@ def primitive_from_rdkit(
                 'stereo_info' : stereo_info_map.get(atom_idx, None)
             }, 
         )
-        atom_primitive.parent = rdmol_primitive # 
+        # DEV: consider replacing below with new "Primitive.attach_child()" on parent, with edges included at each step
+        atom_primitive.parent = rdmol_primitive 
         atomic_primitive_map[atom_idx] = atom_primitive
         
     # Inject information into molecule-level Primitive now that atoms have been sorted out
@@ -277,9 +317,21 @@ def primitive_from_rdkit(
     return rdmol_primitive
     
 def primitive_to_rdkit(primitive : Primitive) -> Mol:
-    '''Convert a StructuralPrimitive to an RDKit Mol'''
-    if not primitive.is_all_atom:
+    '''
+    Convert a StructuralPrimitive to an RDKit Mol
+    Will return as single Mol instance, even is underlying Primitive represents a collection of multiple disconnected molecules
+    '''
+    if not primitive.is_atomizable:
         raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
+    
+    rwmol = RWMol()
+    primitive.flatten()
+    for atom_prim in primitive.children:
+        rdatom = Atom(atom_prim.element.symbol)
+        ...
+
+    # DEV: model assembly off of OpenFF RDKit TK wrapper
+    # https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
 
     # handle identification of shape (if EVERY atom has a postiions and if those are consistent with the Primitive's shape, if PointCloud)
 
