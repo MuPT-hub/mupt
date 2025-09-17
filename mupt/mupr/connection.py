@@ -3,8 +3,19 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, ClassVar, Generator, Hashable, Iterable, Literal, Optional
+from typing import (
+    Any,
+    ClassVar,
+    Generator,
+    Hashable,
+    Iterable,
+    Literal,
+    Optional,
+    TypeVar,
+)
 Shape = tuple # alias for typehinting array shapes
+ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
+
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -48,10 +59,6 @@ class Connector(RigidlyTransformable):
     # DEVNOTE: this will need updating if more position-type attributes are added; manually curating this is fine for now
 
     # comparison methods
-    def canonical_form(self) -> BondType:
-        '''Return a canonical form used to distinguish equivalent Connectors'''
-        return self.bondtype # TODO: make this more descriptive; good enough for now
-
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
@@ -115,6 +122,16 @@ class Connector(RigidlyTransformable):
     def fungible_with(self, other : 'Connector') -> bool:
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
+
+    # labelling and representation methods
+    @property
+    def label(self) -> Hashable:
+        '''Unique identifying label for this Connector'''
+        return id(self)
+    
+    def canonical_form(self) -> BondType:
+        '''Return a canonical form used to distinguish equivalent Connectors'''
+        return self.bondtype # TODO: make this more descriptive; good enough for now
 
     # def __hash__(self) -> int:
     #     return hash((
