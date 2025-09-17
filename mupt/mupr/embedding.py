@@ -72,7 +72,7 @@ def mapped_equivalence_classes(
             for i, equiv_class in enumerate(equiv_classes)
     }
 
-def register_topology(
+def register_connectors_to_topology(
     labelled_connectors : Mapping[Hashable, Iterable[Connector]],
     topology : TopologicalStructure,
     n_iter_max : int=3,
