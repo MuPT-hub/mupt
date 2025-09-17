@@ -8,6 +8,7 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import Any, Generator, Hashable, Iterable, Optional, TypeVar, Union
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
+ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
 from collections import defaultdict
 
 from anytree.node import NodeMixin
@@ -23,7 +24,7 @@ from .canonicalize import (
 )
 from .connection import Connector
 from .topology import TopologicalStructure
-from .embedding import register_topology
+from .embedding import register_connectors_to_topology
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 
@@ -77,8 +78,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self.metadata = metadata or dict()
         
         # non-init attrs - placed here for bookkeeping
-        paired_connectors: dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = dict()
-        external_connectors: dict[Hashable, tuple[Connector]] = dict()
+        self._external_connectors_map : dict[ConnectorLabel, tuple[Connector, ConnectorLabel]] = dict()
+        # paired_connectors: dict[tuple[Hashable, Hashable], tuple[Connector, Connector]] = dict()
 
     
     # Chemical atom and bond properties
@@ -86,7 +87,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def element(self) -> Optional[Element]:
         '''The chemical element associated with this Primitive, if it represents an atom'''
         if not hasattr(self, '_element'):
-            return None
+            self._element = None
         return self._element
     
     @element.setter
@@ -122,8 +123,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return lex_order_multiset(connector.canonical_form() for connector in self.connectors)
     
     
-    # Networking
-    ## Child Primitives
+    # Child Primitives
     @property
     def n_children(self) -> int:
         '''Number of sub-Primitives this Primitive contains'''
@@ -159,8 +159,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 for label, subprims in self.child_label_classes().items()
         }
         
-    ## creator and destructor methods for hierarchical ("vertical") Primitive relationships
-    ### attachment
+    ## Attachment (fulfilling NodeMixin contract)
     def _pre_attach(self, parent : 'Primitive') -> None:
         '''Preconditions prior to attempting attachment of this Primitive to a parent'''
         if (self.label in parent.children_by_label):
@@ -177,6 +176,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             self,
             subprimitive : 'Primitive',
             neighbor_labels : Optional[Iterable[PrimitiveLabel]]=None,
+            external_connector_ids : Optional[Iterable[ConnectorLabel]]=None,
         ) -> None:
         '''Add another Primitive as a child of this one, updating topology in accordance'''
         subprimitive.parent = self
@@ -184,15 +184,24 @@ class Primitive(NodeMixin, RigidlyTransformable):
         LOGGER.debug(f'Inserting new node "{subprimitive.label}" into parent topology')
         self.topology.add_node(subprimitive.label)
 
-        if neighbor_labels is None:
-            return 
-        for nb_label in neighbor_labels:
-            nb_edge = (subprimitive.label, nb_label)
-            LOGGER.debug(f'Inserting edge {nb_edge} into parent topology')
-            self.topology.add_edge(*nb_edge)
-            ## TODO: deduce compatible Connectors with provided neighbors?
+        if neighbor_labels is not None:
+            for nb_label in neighbor_labels:
+                nb_edge = (subprimitive.label, nb_label)
+                LOGGER.debug(f'Inserting edge {nb_edge} into parent topology')
+                self.topology.add_edge(*nb_edge)
+                ## DEV: don't want to decide which connectors are paired to neighbor here (needs to be evaluated globally)
+                ## ... UNLESS the user is sure here which pair go together
+            
+        if external_connector_ids is not None:
+            for ext_conn_id in external_connector_ids:
+                if ext_conn_id not in subprimitive.connectors_by_id:
+                    raise KeyError(f'Attempted to register non-existent external Connector with index "{ext_conn_id}" from child Primitive')
+                if ext_conn_id in self.external_connectors_map:
+                    raise KeyError(f'External Connector with index "{ext_conn_id}" is already registered on parent Primitive')
 
-    ### Detachment (fulfilling NodeMixin contract)
+                self.external_connectors_map[ext_conn_id] = (subprimitive.label, ext_conn_id)
+
+    ## Detachment (fulfilling NodeMixin contract)
     def _pre_detach(self, parent : 'Primitive') -> None:
         '''Preconditions prior to attempting detachment of this Primitive from a parent'''
         if (self.label not in parent.children_by_label):
@@ -206,67 +215,105 @@ class Primitive(NodeMixin, RigidlyTransformable):
             target_label : PrimitiveLabel,
         ) -> None:
         '''Remove a child Primitive from this one, updating topology and Connectors'''
-        self.children_by_label[target_label].parent = None
+        target_child = self.children_by_label[target_label]
+        target_child.parent = None
         self.topology.remove_node(target_label)
+        
+        new_external_conn_ids : dict[ConnectorLabel, tuple[PrimitiveLabel, ConnectorLabel]] = dict()
+        for own_conn_id, (child_label, child_conn_id) in self.external_connectors_map.items():
+            # DEV: opted to re-make dict with rejections, rather than checking for names and deleting
+            # matching entries subsequently, to make logic more readable and save on double-loop
+            if child_label != target_label:
+                new_external_conn_ids[own_conn_id] = (child_label, child_conn_id)
+                continue
+            # NOTE: implicitly unbind by not transferring child entries over to copied dict
+            LOGGER.warning(f'Unbound counterpart of external connection "{own_conn_id}" from detached child Primitive "{child_label}"; this must be rebound to restore consistency!')
+        self._external_connectors_map = new_external_conn_ids
     
     def _post_detach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         LOGGER.debug(f'Unbound Primitive "{str(self)}" from parent Primitive "{str(parent)}"')
 
-    # DEV: also include attach_/detach_parent?
+    # DEV: also include attach/detach_parent() methods?
 
-    ## Connections
+
+    # Connections
     @property
     def functionality(self) -> int:
         '''Number of neighboring primitives which can be attached to this primitive'''
         if not hasattr(self, 'connectors'):
-            self.connectors = list() # needed, for example, when checking functionality during init
+            self.connectors = list()
         return len(self.connectors)
     
-    ## Topology
     @property
-    def topology(self) -> Optional[TopologicalStructure]:
+    def connectors_by_id(self) -> dict[ConnectorLabel, Connector]:
+        '''Indexed mapping of connector IDs to Connector instances for ease of reference'''
+        return {
+            id(conn) : conn # DEV: replace this with some other hash that communicates info about the Connector
+                for conn in self.connectors
+        }
+        
+    @property
+    def external_connectors_map(self) -> dict[ConnectorLabel, tuple[PrimitiveLabel, ConnectorLabel]]:
+        '''
+        Mapping between the connectors found on self and their analogues on child Primitives
+        1:1 mapping between these MUST exist for resolution shift operations to be well-defined
+        '''
+        if not hasattr(self, '_external_connectors_map'):
+            self._external_connectors_map = dict()
+        return self._external_connectors_map
+    # DEV: no setter provided for external connections map, since only interactions should be protected and only accessed via other methods to maintain consistency
+
+    def external_connectors_fully_mapped(self) -> bool:
+        '''
+        Check whether all external connectors are mapped to a counterpart Connectors amongst the children of this Primitive
+        '''
+
+
+    # Topology
+    @property
+    def topology(self) -> TopologicalStructure:
         '''The connectivity of the immediate children of this Primitive, if one is defined'''
         if not hasattr(self, '_topology'):
             new_top = TopologicalStructure()
-            new_top.add_nodes_from(self.children_by_label.keys())
-            # NOTE: no edges; in absence of other info, will generate indiscrete topology which can accomodate all children
+            new_top.add_nodes_from(self.children_by_label.keys()) # NOTE: no edges; in absence of other info, will generate indiscrete topology which can accomodate all children
 
             # self._topology = new_top
             self.topology = new_top # DEV: will try calling validated setter for now and see if this leads to trouble down the line
         return self._topology
 
     @topology.setter
-    def topology(self, new_topology: Optional[TopologicalStructure]) -> None:
+    def topology(self, new_topology: TopologicalStructure) -> None:
         # TODO: initialize discrete topology with number of nodes equal to number of children
         if not isinstance(new_topology, TopologicalStructure):
             raise TypeError(f'Invalid topology type {type(new_topology)}')
-        
-        if not self.topology_is_compatible(new_topology):
-            raise ValueError('Provided topology is incompatible with the sub-Primitives associated to this Primitive')
+        self.check_topology_and_children_incompatible(new_topology) # raise exception if incompatible
 
         self._topology = new_topology
-
+    
+    
+    # Necessary and sufficient conditions for self-consistency of topology, connectors, and child Primitives
     def _check_children_bijective_to_topology(self, topology: TopologicalStructure) -> None:
         '''
-        Check whether a 1:1 correspondence can exist between all child Primitives and all elements of the imposed incidence topology
-        Raises descriptive Exception is no correspondence can exist, or else returns silently
+        Check whether a 1:1 correspondence can exist between all child
+        Primitives and all elements of the imposed incidence topology
         '''
-        # NOTE: logic here handles leaf and non-leaf cases uniformly - no extra branching required
-        if topology.number_of_nodes() != self.n_children:
+        if topology.number_of_nodes() != self.n_children: # simpler counting check rules out obviously-incompatible pairs quicker
             raise ValueError(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
         
-        child_map : dict[PrimitiveLabel, tuple['Primitive']] = self.children_by_label # implicitly checks uniqueness of labels
-        child_labels : set[PrimitiveLabel] = set(child_map.keys())
-        node_labels  : set[PrimitiveLabel] = set(topology.nodes)
+        child_labels = set(self.children_by_label.keys()) # implicitly checks uniqueness of labels
+        node_labels = set(topology.nodes)
         if node_labels != child_labels:
             raise KeyError(
                 f'Underlying set of topology does not correspond to labels on child Primitives; {len(node_labels - child_labels)} elements'\
                 f' have no associated children, and {len(child_labels - node_labels)} children are unrepresented in the topology'
             )
 
-    def _check_functionalities_compatible_with_topology(self, topology: TopologicalStructure) -> bool:
-        '''Check whether the functionalities of all child Primitives are compatible with the imposed Topology'''
+    def _check_functionalities_compatible_with_topology(self, topology: TopologicalStructure, suppress_bijection_check : bool=False) -> None:
+        '''
+        Check whether the functionalities of all child Primitives are 
+        compatible with the corresponding nodes in the imposed Topology
+        '''
         if self.is_leaf:
             if self.is_atom:
                 ## TODO: include valency checks based on atomic number and formal charge
@@ -276,11 +323,47 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 ...
             return # for now, exit early w/o Exception for leaf cases
 
-        ## 1) check local connectivity doesn't preclude embedding
+        if not suppress_bijection_check: 
+            # DEV: while this is necessary for the degree check below to be well-defined, in some applications
+            # one needs to perform a child-to-node bijectivity check anyways, so this allows one to de-duplicate that check
+            self._check_children_bijective_to_topology(topology) # ensure we know which children correspond to which nodes first
+        
+        for subprimitive in self.children:
+            if subprimitive.functionality < (min_degree := topology.degree[subprimitive.label]):
+                raise ValueError(f'Cannot embed {subprimitive.functionality}-functional Primitive "{subprimitive.label}" into {min_degree}-degree node')
+
+    def check_topology_and_children_incompatible(self, topology: TopologicalStructure) -> bool:
+        '''
+        Check necessary conditions for self's child Primitive(s) and topology to be compatible 
+        
+        These conditions NOT being met means the two are definitely incompatible; the converse, however, is not in general True
+        i.e. the conditions being met does not guarantee compatibility between children and topology
+        '''
         self._check_children_bijective_to_topology(topology) # ensure we know which children correspond to which nodes first
+        self._check_functionalities_compatible_with_topology(topology, suppress_bijection_check=True)
+        
+    def is_self_consistent(self) -> bool:
+        '''
+        Check whether the Child Primitives, their Connectors, and the
+        the Topology imposed upon them contain consistent information
+        '''
+        # 0) Check necessary conditions first
+        self.check_topology_and_children_incompatible(self.topology)
+
+        # Check stronger conditions
+        ## In leaf case, compatibility checks on children don't apply
+        if not self.children:
+            return True
+        
+        ## 1) Check all Connectors of children are either explicitly internal or external
+        ...
+        
+        ## 2) Check external connections are bijectively identified
+        ...
+        
         n_external_connectors : int = 0
         for subprimitive in self.children:
-            min_degree : int = topology.degree[subprimitive.label]
+            min_degree : int = self.topology.degree[subprimitive.label]
             n_excess = subprimitive.functionality - min_degree
             if n_excess < 0:
                 raise ValueError(f'Cannot embed {subprimitive.functionality}-functional Primitive "{subprimitive.label}" into {min_degree}-degree node')
@@ -290,27 +373,19 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if n_external_connectors != self.functionality:
             raise ValueError(f'Cannot bijectively map {n_external_connectors} external connectors from children onto connections of {self.functionality}-functional Primitive')
 
-    def topology_is_compatible(self, topology: TopologicalStructure) -> bool:
-        '''Verify the topology induced on this Primitive's children is valid'''
-        # Perform simpler counting checks first, to fail fast in case an embedding obviously can't exist
-        # NOTE: node bijection checks already part of functionality check
-        self._check_functionalities_compatible_with_topology(topology)
-
-        # check to see that Connectors can be paired up 1:1 along edges
-        ## TODO: propagate error message and return False
-        paired_connectors, external_connectors = register_topology( # will raise exception is registration is not possible
+        ## 3) Check bondability of internal connections
+                # check to see that Connectors can be paired up 1:1 along edges
+        paired_connectors, external_connectors = register_connectors_to_topology( # will raise exception is registration is not possible
             labelled_connectors={
                 subprim.label : subprim.connectors
                     for subprim in self.children
             },
-            topology=topology
+            topology=self.topology
         )
-        self.paired_connectors = paired_connectors
-        self.external_connectors = external_connectors
-        ## TODO: identify WHICH Connectors at this level match to which external connectors found among children
-
-        return True
-    
+        self.paired_connectors = paired_connectors # TODO: bind this info directly to topology edges?
+        self.external_connectors = external_connectors # TODO: update external connectors mapping (how to resolve conflicts?)
+        ...
+        
     
     # Resolution shift methods
     ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
@@ -350,7 +425,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def shape(self) -> Optional[BoundedShape]:
         '''The external shape of this Primitive'''
         if not hasattr(self, '_shape'):
-            return None
+            self._shape = None
         return self._shape
     
     @shape.setter
@@ -377,7 +452,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
             label=self.label,
             metadata={key : value for key, value in self.metadata.items()},
         )
-        
         # recursively copy children
         for subprimitive in self.children: 
             clone_primitive.attach_child(subprimitive._copy_untransformed())
