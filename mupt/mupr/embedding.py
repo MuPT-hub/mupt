@@ -77,15 +77,16 @@ def register_connectors_to_topology(
     topology : TopologicalStructure,
     n_iter_max : int=3,
 ) -> tuple[
-        dict[tuple[Hashable, Hashable], tuple[Connector, Connector]],
+        dict[tuple[Hashable, Hashable], dict[Hashable, Connector]],
         dict[Hashable, tuple[Connector]]
     ]:
     """
     Deduce if a collection of Connectors associated to each node in a topology
     can be identified with the edges in that topology, such that each pair of Connectors is bondable
     
-    Returns mapping of pairs of node labels (one for each edge) to their associated pairs of Connectors,
-    and a mapping of node labels to remaining external Connectors, if any remain unpaired
+    Returns a first mapping of pairs of node labels (one pair for each edge)
+    to a mapping from node labels to the Connector associated to that edge,
+    and a second mapping of node labels to remaining external Connectors, if any remain unpaired
     
     If pairing is impossible, will raise Exception instead
     """
@@ -143,15 +144,15 @@ def register_connectors_to_topology(
                 raise EdgeEmbeddingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
             ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
-            chosen_representatives : list[Connector] = []
+            chosen_representatives : dict[Hashable, Connector] = dict()
             for (class_label, node_label) in zip(compatible_class_labels, edge_labels):
                 equiv_class = connector_equiv_classes[node_label][class_label]
-                chosen_representatives.append(equiv_class.pop(0)) # DEV: index here shouldn't matter, but will standardized to match arbitrary element selection
+                chosen_representatives[node_label] = equiv_class.pop(0) # DEV: index here shouldn't matter, but will standardized to match arbitrary element selection
                 
                 ### remove bin from equivalence class if empty after drawing
                 if len(equiv_class) == 0: 
                     _ = connector_equiv_classes[node_label].pop(class_label)
-            paired_connectors[edge_labels] = tuple(chosen_representatives)
+            paired_connectors[edge_labels] = chosen_representatives
             n_paired_new += 1
         
         ## tee up next iteration; halt if no further connections can be made
