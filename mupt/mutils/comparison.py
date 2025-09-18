@@ -5,7 +5,6 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Callable, Hashable, Iterable, Protocol, Self, TypeVar
 T = TypeVar('T')
-from collections import defaultdict
 
 
 class Comparable(Protocol):
@@ -22,9 +21,9 @@ class Comparable(Protocol):
         '''Not necessarily coincident, but capable of becoming coincident (e.g. by orthogonal Procrustes)'''
         ...
         
-    # DEV: other terms to consider: "equivalent", "similar", "analogous", "fungible", ...
-
     def fungible_with(self, other: Self) -> bool: # NOTE: opted not to use "interchangeable" to avoid confusion w/ OpenFF Interchange
         '''Whether this object can be replaced by "other" without affecting the behavior or output of programs involving this object'''
         return self.coincides_with(other) and self.resembles(other)
+
+    # DEV: other terms to consider: "equivalent", "similar", "analogous", ...
     
