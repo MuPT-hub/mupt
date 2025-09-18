@@ -48,16 +48,18 @@ class Connector(RigidlyTransformable):
     bondtype : BondType = BondType.UNSPECIFIED
     query_smarts : str = ''
     
-    linker_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    anchor_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
-    tangent_position : Optional[np.ndarray[Shape[Literal[3]], float]] = None
+    anchor_position  : Optional[np.ndarray[Shape[Literal[3]], float]] = field(default=None, init=True)
+    linker_position  : Optional[np.ndarray[Shape[Literal[3]], float]] = field(default=None, init=True)
+    tangent_position : Optional[np.ndarray[Shape[Literal[3]], float]] = field(default=None, init=True)
+
+    # Geometric properties
     _POSITION_ATTRS : ClassVar[tuple[str]] = (
         # DEV: this will need updating if more position-type attributes are added; manually curating this is fine for now
         'anchor_position',
         'linker_position',
         'tangent_position',
     ) 
-
+    
     @staticmethod
     def compare_optional_positions(
         position_1 : Optional[np.ndarray[Shape[Any], float]],
@@ -74,19 +76,8 @@ class Connector(RigidlyTransformable):
             return np.allclose(position_1, position_2, **kwargs)
         else:
             raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    
         
-    # Geometric properties
     ## Checks for defined positions - DEV: replace with monadic interface down the line ("Maybe" pattern?)
-    @property
-    def is_position_assigned(self) -> dict[str, bool]:
-        '''Index of whether each positional attribute is unset, keyed by attribute name'''
-        return {
-            pos_attr : getattr(self, pos_attr) is not None
-                for pos_attr in self._POSITION_ATTRS
-        }
-
-    # DEV: could build these properties dynamically based on _POSITION_ATTRS, but that seems like overkill with no benefit to readability or performance
     @property
     def has_anchor_position(self) -> bool:
         '''Determine whether this Connector has an anchor position (i.e. local position) defined'''
@@ -257,25 +248,26 @@ class Connector(RigidlyTransformable):
     def align_ballistically_to(
         self,
         other : 'Connector',
+        match_bond_length : bool=False,
     ) -> None:
         '''
         Match linker position of this Connector to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify the other Connector, only acts on the first Connector of the provided pair
         '''
         if not other.has_anchor_position:
-            raise AttributeError('No anchor position defined for target Connector')
+            raise AttributeError('No target anchor position defined for ballistic alignment')
         self.linker_position = other.anchor_position
         if self.has_tangent_position:
             ...
             # TODO: define how to transfer tangent along new bond vector
 
-    def aligned_ballistically_to(self, other : 'Connector') -> None:
+    def aligned_ballistically_to(self, other : 'Connector', match_bond_length : bool=False) -> None:
         '''
         Return copy of this Connector whose linker positions is aligned to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify either Connector of the passed pair; returns a modified copy of the first Connector
         '''
         new_connector = self.copy() # DEV: opted not to go for self.rigidly_transformed(self.alignment_transform(...)) to avoid duplicating logic
-        new_connector.align_ballistically_to(other)
+        new_connector.align_ballistically_to(other, match_bond_length=match_bond_length)
         
         return new_connector
     
@@ -290,12 +282,20 @@ class Connector(RigidlyTransformable):
         Returns the dihedral angle resulting between the new aligned Connectors, 
         or None if an explicit dihedral plane orientation is not defined for either
         '''
-        # Perform mutual alignment
+        # Perform mutual alignment in-place
         self.align_ballistically_to(other)
         other.align_ballistically_to(self)
         
         # Calculate resultant dihedral angle - TODO: implement calculation of this
-        dihedral_angle_rad = None 
+        if self.has_tangent_position and other.has_tangent_position:
+            dihedral_angle_rad = np.arccos(
+                np.dot(
+                    normalized(self.tangent_vector),
+                    normalized(other.tangent_vector),
+                )
+            )
+        else:
+            dihedral_angle_rad = None 
         
         return dihedral_angle_rad
 
