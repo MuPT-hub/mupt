@@ -132,7 +132,6 @@ def connectors_from_rdkit(
                 bondsToUse=[bond.GetIdx()],
             )
         )
-        
         if conformer:
             connector.anchor_position = positions[anchor_idx, :]
             connector.linker_position = positions[linker_idx, :]

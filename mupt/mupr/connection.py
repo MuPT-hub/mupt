@@ -3,6 +3,9 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
+import logging
+LOGGER = logging.getLogger(__name__)
+
 from typing import (
     Any,
     ClassVar,
@@ -69,6 +72,16 @@ def compare_optional_positions(
     else:
         raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
     
+def are_nearby(
+    position_1 : np.ndarray[Shape[N], float],
+    position_2 : np.ndarray[Shape[N], float],
+    within : float=1E-6,
+) -> bool:
+    '''Check that two vectors are within a certain absolute distance of one another'''
+    if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
+        raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
+    return np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < within
+
 
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Connector(RigidlyTransformable):
@@ -81,7 +94,7 @@ class Connector(RigidlyTransformable):
     bondtype : BondType = BondType.UNSPECIFIED
     query_smarts : str = ''
     
-    ## "Private" attributes for storing positional information
+    ## "Private" attributes for storing positional information - DEV: consider making repr=False on these?
     _anchor_position  : Optional[Vector3] = field(default=None, init=False)
     _linker_position  : Optional[Vector3] = field(default=None, init=False)
     _tangent_position : Optional[Vector3] = field(default=None, init=False)
@@ -92,7 +105,6 @@ class Connector(RigidlyTransformable):
         '_linker_position',
         '_tangent_position',
     ) 
-
 
     # Geometric properties
     ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
@@ -259,64 +271,146 @@ class Connector(RigidlyTransformable):
                 setattr(self, pos_attr, transform.apply(position))
 
     
-    # Aligning Connectors to one another
-    def are_aligned(self, other : 'Connector', within : float=1E-6) -> bool:
-        '''Whether this Connector is aligned with another Connector, within a given tolerance'''
-        ...
-    
-    ## Rigid alignment
-    def rigid_alignment_transform_to(
-            self,
-            other : 'Connector',
-            dihedral_angle_rad : float=0.0,
-        ) -> RigidTransform:
+    # Anti-aligning Connectors to one another (simulates bonding in 3D space)
+    def are_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
+        ## DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
+        ## that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
         '''
-        Compute a rigid transformation which aligns a pair of Connectors by making
-        the linker point of this Connector coincident with the anchor of the other Connector,
-        the Connectors' bond vectors antiparallel, and the Connectors' tangent vectors subtend the
-        desired dihedral angle in radians (by default, 0.0 rad)
+        Whether this Connector is anti-aligned with another Connector, i.e. whether 
+        the anchor of this Connector is within some cutoff distance of the linker
+        of the other Connector, and vice-versa (with the same tolerance for both)
+        '''
+        return (
+            are_nearby(
+                self.anchor_position,
+                other.linker_position,
+                within=within,
+            )
+            and are_nearby(
+                self.linker_position,
+                other.anchor_position,
+                within=within,
+            )
+        )
+        
+    ## Dihedral angle
+    def dihedral_assignment_to(
+        self,
+        other : 'Connector',
+        dihedral_angle_rad : float=0.0,
+        alignment_tolerance : float=1E-6,
+    ) -> None:
+        '''
+        Transformation which, when applied to this Connector, rotates it so that the dihedral planes
+        between the Connectors subtends the desired dihedral angle in radians (by default, 0.0 rad)
+        It is required (and enforced) for the pair of Connectors to be antialigned for this operation to be valid
+        '''
+        if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
+            raise ValueError('Cannot compute dihedral alignment between Connectors without explicitly-defined dihedral plane orientations')
+        
+        if not self.are_antialigned(other, within=alignment_tolerance):
+            # DEV: could technically weaken this check to when bond vectors are antiparallel (-1 dot product when normed)
+            # and difference between anchors is parallel and antiparallel with bond vectors respectively, but didn't for simplicity
+            raise ValueError('Cannot set dihedral angle with non-antialigned Connectors')
+        
+        tangent_alignment = alignment_rotation(self.tangent_vector, other.tangent_vector) # recall, these are invariant under translation
+        # dihedral_rotation = Rotation.from_rotvec(-dihedral_angle_rad * self.unit_bond_vector) # minus accounts for reversed direction; positive with other works equally well
+        dihedral_rotation = Rotation.from_rotvec(dihedral_angle_rad * other.unit_bond_vector)
+        dihedral_alignment = dihedral_rotation * tangent_alignment # first align tangents, then set dihedral (avoids explicit inter-tangent angle calculation)
+
+        return (
+            RigidTransform.from_translation(self.anchor_position)
+            * RigidTransform.from_rotation(dihedral_alignment)
+            * RigidTransform.from_translation(-self.anchor_position)
+        )
+
+    def assign_dihedral(
+        self,
+        other : 'Connector',
+        dihedral_angle_rad : float=0.0,
+        alignment_tolerance : float=1E-6,
+    ) -> None:
+        '''Set the dihedral angle between this Connector and another Connector by rigidly transforming this Connector'''
+        LOGGER.info(f'Setting dihedral angle between Connectors {self.label} and {other.label} to {dihedral_angle_rad} rad')
+        self.rigidly_transform(
+            transformation=self.dihedral_assignment_to(
+                other,
+                dihedral_angle_rad=dihedral_angle_rad,
+                alignment_tolerance=alignment_tolerance
+            )
+        )
+        
+    def assigned_dihedral(
+        self,
+        other : 'Connector',
+        dihedral_angle_rad : float=0.0,
+        alignment_tolerance : float=1E-6,
+    ) -> 'Connector':
+        '''Return a copy of this Connector with the dihedral angle set relative to another Connector'''
+        new_connector = self.copy()
+        new_connector.assign_dihedral(
+            other,
+            dihedral_angle_rad=dihedral_angle_rad,
+            alignment_tolerance=alignment_tolerance
+        )
+        
+        return new_connector
+
+    ## Rigid alignment
+    def rigid_antialignment_to(
+        self, 
+        other : 'Connector',
+        tare_dihedrals : bool=False,
+    ) -> RigidTransform:
+        '''
+        Compute a rigid transformation which antialigns a pair of Connectors by making
+        the linker point of this Connector coincident with the anchor of the other Connector
         
         If the two Connectors have the same bond length, the anchor of this Connector will be coincident with the linker
         of the other; otherwise, the anchor will merely lay on the span of the other Connectors bond vector
+        
+        If tare_dihedrals is True (default False), will also ensure that the dihedral planes of the two Connectors are coplanar
+        this may be desirable in many cases, but comes with stricter preconditions, namely both connectors having tangents define
         '''
-        if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
-            raise ValueError('Cannot compute faithful orientation for rigid alignment transform with undefined Connector orientations')
-
-        ## NOTE: the orthogonality of the tangent and bond vector of each Connector allows the tangent alignment to
-        ## not disturb the preceding bond antialignment, and to fix a unique orthogonal change of basis
         bond_antialignment : Rotation = alignment_rotation(self.unit_bond_vector, -other.unit_bond_vector)
-        tangent_alignment  : Rotation = alignment_rotation(bond_antialignment.apply(self.tangent_vector), other.tangent_vector)
-        dihedral_rotation = Rotation.from_rotvec(dihedral_angle_rad * other.unit_bond_vector)
-
+        if tare_dihedrals:
+            tangent_alignment = alignment_rotation(bond_antialignment.apply(self.tangent_vector), other.tangent_vector)
+        else:
+            tangent_alignment = Rotation.identity()
+        
         return ( # order of application of operations reads bottom-to-top (rightmost operator acts first)
             RigidTransform.from_translation(other.linker_position)
-            * RigidTransform.from_rotation(dihedral_rotation)
             * RigidTransform.from_rotation(tangent_alignment)
             * RigidTransform.from_rotation(bond_antialignment)
             * RigidTransform.from_translation(-self.anchor_position)
         )
 
-    def align_rigidly_to(
-            self,
-            other : 'Connector',
-            dihedral_angle_rad : float=0.0,
-            match_bond_length : bool=False,
-        ) -> None:
+    def antialign_rigidly_to(
+        self,
+        other : 'Connector',
+        tare_dihedrals : bool=False,
+        dihedral_angle_rad : Optional[float]=None,
+        match_bond_length : bool=False,
+    ) -> None:
         '''Align this Connector rigidly to another Connector, based on the calculated rigid alignment transform'''
-        self.rigidly_transform(transformation=self.rigid_alignment_transform_to(other, dihedral_angle_rad))
+        self.rigidly_transform(transformation=self.rigid_antialignment_to(other, tare_dihedrals=tare_dihedrals))
         if match_bond_length: 
             self.set_bond_length(other.bond_length) # ensure bond length matches the other Connector
+            if (dihedral_angle_rad is not None): # NOTE: sentinel (rather than default 0.0) weakens preconditions on tangents when no dihedral is specified
+                self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
-    def aligned_rigidly_to(
-            self,
-            other : 'Connector',
-            dihedral_angle_rad : float=0.0,
-            match_bond_length : bool=False,
-        ) -> 'Connector':
+    def antialigned_rigidly_to(
+        self,
+        other : 'Connector',
+        tare_dihedrals : bool=False,
+        dihedral_angle_rad : Optional[float]=None,
+        match_bond_length : bool=False,
+    ) -> 'Connector':
         '''Return a copy of this Connector rigidly aligned to another Connector'''
-        new_connector = self.copy() # DEV: opted not to go for self.rigidly_transformed(self.alignment_transform(...)) to avoid duplicating logic
-        new_connector.align_rigidly_to(
+        new_connector = self.copy()
+        new_connector.antialign_rigidly_to(
             other,
+            tare_dihedrals=tare_dihedrals,
             dihedral_angle_rad=dihedral_angle_rad,
             match_bond_length=match_bond_length,
         )
@@ -324,7 +418,22 @@ class Connector(RigidlyTransformable):
         return new_connector
     
     ## Ballistic alignment
-    def align_ballistically_to(
+    def ballistic_antialignment_to(self, other : 'Connector') -> RigidTransform:
+        '''
+        Compute a rigid transformation which aligns a pair of Connectors by turning
+        the bond vector of this Connector to face the linker point of other Connector
+        The anchor positions of either Connector will be unaffected
+        
+        Called "ballistic" because the action (especially when matching bond length)
+        resembles this Connector aiming and then "shooting" its linker at the other Connector
+        '''
+        return (
+            RigidTransform.from_translation(self.anchor_position)
+            * RigidTransform.from_rotation(alignment_rotation(self.bond_vector, other.anchor_position - self.anchor_position))
+            * RigidTransform.from_translation(-self.anchor_position)
+        )
+    
+    def antialign_ballistically_to(
         self,
         other : 'Connector',
         match_bond_length : bool=False,
@@ -333,55 +442,47 @@ class Connector(RigidlyTransformable):
         Match linker position of this Connector to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify the other Connector, only acts on the first Connector of the provided pair
         '''
-        target_vector = other.anchor_position - self.anchor_position
-        aiming_rotation = alignment_rotation(self.unit_bond_vector, target_vector)
+        if not self.has_linker_position:
+            self.linker_position = other.anchor_position
+        else:
+            self.rigidly_transform(transformation=self.ballistic_antialignment_to(other))
         
-        self.rigidly_transform
-        
-        if not other.has_anchor_position:
-            raise AttributeError('No target anchor position defined for ballistic alignment')
-        self.linker_position = other.anchor_position
-        if self.has__:
-            ...
-            # TODO: define how to transfer tangent along new bond vector
+        if match_bond_length:
+            self.set_bond_length(np.linalg.norm(other.anchor_position - self.anchor_position))
 
-    def aligned_ballistically_to(self, other : 'Connector', match_bond_length : bool=False) -> None:
+    def antialigned_ballistically_to(
+            self,
+            other : 'Connector',
+            match_bond_length : bool=False,
+        ) -> None:
         '''
         Return copy of this Connector whose linker positions is aligned to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify either Connector of the passed pair; returns a modified copy of the first Connector
         '''
         new_connector = self.copy() # DEV: opted not to go for self.rigidly_transformed(self.alignment_transform(...)) to avoid duplicating logic
-        new_connector.align_ballistically_to(other, match_bond_length=match_bond_length)
+        new_connector.antialign_ballistically_to(other, match_bond_length=match_bond_length)
         
         return new_connector
     
-    def mutually_align_ballistically(self, other : 'Connector') -> Optional[float]:
-        # DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
-        # that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
+    ### DEV: asymmetry relative to rigid alignment viz dihedral angles is no accident;
+    ### Rigid alignment results in antialignment after one application with bond length matching,
+    ### whereas ballistic alignment in general requires both Connecters to be mutually transformed to guarantee antialignment
+    def mutually_antialign_ballistically(
+            self,
+            other : 'Connector',
+            dihedral_angle_rad : Optional[float]=None,
+        ) -> None:
         '''
         Ballistically align this Connector to the other, and vice-versa
-        In the end, the linker of either Connector with be coincident with the anchor or the other, and the anchors sites will not have been moved
-        If dihedral (i.e. tangent)
-        
-        Returns the dihedral angle resulting between the new aligned Connectors, 
-        or None if an explicit dihedral plane orientation is not defined for either
+        In the end, the linker of either Connector with be coincident with the
+        anchor of the other, and the anchors sites will not have been moved
+
+        If a dihedral angle is provided, will also rotate this Connector along the mutual bond axis to that angle
         '''
-        # Perform mutual alignment in-place
-        self.align_ballistically_to(other)
-        other.align_ballistically_to(self)
-        
-        # Calculate resultant dihedral angle - TODO: implement calculation of this
-        if self.has__ and other.has__:
-            dihedral_angle_rad = np.arccos(
-                np.dot(
-                    normalized(self.tangent_vector),
-                    normalized(other.tangent_vector),
-                )
-            )
-        else:
-            dihedral_angle_rad = None 
-        
-        return dihedral_angle_rad
+        self.antialign_ballistically_to(other, match_bond_length=True)
+        other.antialign_ballistically_to(self, match_bond_length=True)
+        if (dihedral_angle_rad is not None): # NOTE: sentinel (rather than default 0.0) weakens preconditions on tangents when no dihedral is specified
+            self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
 
     # Comparison methods
