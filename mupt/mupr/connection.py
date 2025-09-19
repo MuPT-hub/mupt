@@ -11,9 +11,9 @@ from typing import (
     Iterable,
     Literal,
     Optional,
+    TypeAlias,
     TypeVar,
 )
-Shape = tuple # alias for typehinting array shapes
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
 
 from dataclasses import dataclass, field
@@ -22,12 +22,15 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 from rdkit.Chem.rdchem import BondType
 
+from ..geometry.arraytypes import Shape, N, DType, Numeric
 from ..geometry.measure import normalized
+from ..geometry.coordinates.basis import is_orthonormal
 from ..geometry.transforms.linear import rejector
 from ..geometry.transforms.rigid.rotations import alignment_rotation
 from ..geometry.transforms.rigid.application import RigidlyTransformable
 
 
+# Custom Exceptions
 class ConnectionError(Exception):
     '''Raised when Connector-related errors as encountered'''
     pass
@@ -36,6 +39,36 @@ class IncompatibleConnectorError(ConnectionError):
     '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
     pass
 
+
+# Helper functions - TODO: move somewhere into mupt.geometry, eventually
+Vector3 : TypeAlias = np.ndarray[Shape[Literal[3]], Numeric]
+
+def as_n_vector(vectorlike : np.ndarray[Shape[Any], DType], n : N=3) -> np.ndarray[Shape[N], DType]:
+    '''Interpret array as a 1D n-element vector''' # TODO: include support for list and tuple-like. WITHOUT including sets, str, etc
+    if not isinstance(vectorlike, np.ndarray):
+        raise TypeError(f'Vectorlike must be a numpy array, not {type(vectorlike)}')
+    if len(vectorlike) != n:
+        raise ValueError(f'Expected {n}-element vectorlike, received {len(vectorlike)}-element array instead')
+    
+    return vectorlike.reshape(n)
+
+def compare_optional_positions(
+    position_1 : Optional[np.ndarray[Shape[Any], float]],
+    position_2 : Optional[np.ndarray[Shape[Any], float]],
+    **kwargs,
+) -> bool:
+    '''Check that two positional attributes are either 1) both undefined, or 2) both defined and equal'''
+    # DEV: replace with monadic interface down the line ("Maybe" pattern?)
+    if type(position_1) != type(position_2):
+        return False
+    
+    if position_1 is None: # both are None
+        return True
+    elif isinstance(position_1, np.ndarray):
+        return np.allclose(position_1, position_2, **kwargs)
+    else:
+        raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
+    
 
 @dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Connector(RigidlyTransformable):
@@ -48,119 +81,163 @@ class Connector(RigidlyTransformable):
     bondtype : BondType = BondType.UNSPECIFIED
     query_smarts : str = ''
     
-    anchor_position  : Optional[np.ndarray[Shape[Literal[3]], float]] = field(default=None, init=True)
-    linker_position  : Optional[np.ndarray[Shape[Literal[3]], float]] = field(default=None, init=True)
-    tangent_position : Optional[np.ndarray[Shape[Literal[3]], float]] = field(default=None, init=True)
+    ## "Private" attributes for storing positional information
+    _anchor_position  : Optional[Vector3] = field(default=None, init=False)
+    _linker_position  : Optional[Vector3] = field(default=None, init=False)
+    _tangent_position : Optional[Vector3] = field(default=None, init=False)
 
-    # Geometric properties
     _POSITION_ATTRS : ClassVar[tuple[str]] = (
         # DEV: this will need updating if more position-type attributes are added; manually curating this is fine for now
-        'anchor_position',
-        'linker_position',
-        'tangent_position',
+        '_anchor_position',
+        '_linker_position',
+        '_tangent_position',
     ) 
+
+
+    # Geometric properties
+    ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
+    ## preserving relative orientations for local orthogonal basis under general rigid transformations; key observation is that 
+    ## a DIFFERENCE between positions is invariant under shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b), 
     
-    @staticmethod
-    def compare_optional_positions(
-        position_1 : Optional[np.ndarray[Shape[Any], float]],
-        position_2 : Optional[np.ndarray[Shape[Any], float]],
-        **kwargs,
-    ) -> bool:
-        '''Check that two positional attributes are either 1) both undefined, or 2) both defined and equal'''
-        if type(position_1) != type(position_2):
-            return False
-        
-        if position_1 is None: # both are None
-            return True
-        elif isinstance(position_1, np.ndarray):
-            return np.allclose(position_1, position_2, **kwargs)
-        else:
-            raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-        
-    ## Checks for defined positions - DEV: replace with monadic interface down the line ("Maybe" pattern?)
+    ## Anchor point
     @property
     def has_anchor_position(self) -> bool:
         '''Determine whether this Connector has an anchor position (i.e. local position) defined'''
-        return self.anchor_position is not None
+        return self._anchor_position is not None
     
     @property
+    def anchor_position(self) -> Vector3:
+        '''The central position that this Connector is anchored to'''
+        if self._anchor_position is None:
+            raise AttributeError('Anchor position of Connector unassigned')
+        return self._anchor_position
+    
+    @anchor_position.setter
+    def anchor_position(self, new_anchor_position : Vector3) -> None:
+        self._anchor_position = as_n_vector(new_anchor_position, 3)
+        
+    ## Linker point
     def has_linker_position(self) -> bool:
-        '''Determine whether this Connector has a linker position (i.e. off-body connection location) defined'''
-        return self.linker_position is not None
-
-    @property
-    def has_tangent_position(self) -> bool:
-        '''Determine whether this Connector has a tangent vector (i.e. dihedral plane orientation) defined'''
-        return self.tangent_position is not None
+        '''Determine whether this Connector has a linker position (i.e. off-body position) defined'''
+        return self._linker_position is not None
     
-    ## bond vector
     @property
-    def has_bond_positions(self) -> bool:
+    def linker_position(self) -> Vector3:
+        '''The position of the off-body linker point'''
+        if self._linker_position is None:
+            raise AttributeError('Linker position of Connector unassigned')
+        return self._linker_position
+
+    @linker_position.setter
+    def linker_position(self, new_linker_position : Vector3) -> None:
+        self._linker_position = as_n_vector(new_linker_position, 3)
+
+    ## Bond vector
+    @property
+    def has_bond_vector(self) -> bool:
+        '''Determine whether this Connector has a bond vector (i.e. spanning direction away from anchor) defined'''
         return self.has_anchor_position and self.has_linker_position
     
     @property
-    def bond_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
-        if not self.has_bond_positions:
-            raise ValueError
+    def bond_vector(self) -> Vector3:
+        '''A vector spanning from the anchor position to the position of the off-body linker'''
         return self.linker_position - self.anchor_position
     
+    @bond_vector.setter
+    def bond_vector(self, new_bond_vector : Vector3) -> None:
+        self.linker_position = as_n_vector(new_bond_vector, 3) + self.anchor_position
+        
     @property
     def bond_length(self) -> float:
+        '''Distance spanned by the bond vector - i.e. distance from anchor to linker positions'''
         return np.linalg.norm(self.bond_vector)
     
     @property
-    def unit_bond_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
+    def unit_bond_vector(self) -> Vector3:
         '''Unit vector in the same direction as the bond (oriented from anchor to linker)'''
         return self.bond_vector / self.bond_length
     
     def set_bond_length(self, new_bond_length : float) -> None:
-        '''Move the linker site along the bond axis to a set distance away from the anchor'''
+        '''Adjust length of bond vector by moving linker position along the bond vector's span, keeping the anchor fixed in place'''
         self.linker_position = new_bond_length*self.unit_bond_vector + self.anchor_position
-        
-    ## Tangent vector (defines dihedral plane)
-    has_defined_dihedral_plane = has_tangent_position # alias tangent position property
+
+    ## Tangent vector
+    @property
+    def has_dihedral_orientation(self) -> bool:
+        '''Determine whether this Connector has a dihedral orientation (i.e. tangent position) defined'''
+        return self.has_bond_vector and (self._tangent_position is not None)
+    has_local_orthogonal_basis = has_dihedral_orientation # alias
     
     @property
-    def tangent_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
+    def tangent_vector(self) -> Vector3:
         '''
         Vector tangent to the dihedral plane and orthogonal to the bond vector
         
         The tangent and bond vectors span the dihedral plane and 
         fix a local right-handed coordinate system for the Connector
         '''
-        if not self.has_defined_dihedral_plane:
-            raise ValueError('Connector does not have a dihedral orientation set')
+        if not (self._tangent_position is not None):
+            raise AttributeError('Tangent position of Connector unassigned')
+        return self._tangent_position - self.anchor_position
         
-        tangent = normalized(self.tangent_position - self.anchor_position) # DEVNOTE: worth providing option to not normalize?
-        if not np.isclose(np.dot(self.bond_vector, tangent), 0.0):
-            raise ValueError('Badly set tangent position: resultant dihedral plane does not contain this Connector\'s bond vector')
-        
-        return tangent
-    
     @tangent_vector.setter
-    def tangent_vector(self, vector : np.ndarray[Shape[Literal[3]], float]) -> None:
+    def tangent_vector(self, new_tangent_vector : Vector3) -> None:
         '''Update tangent positions given a new tangent vector'''
-        # NOTE: implemented this way to get tangent to transform correctly under rigid transformations;
-        # a DIFFERENCE between vectors is invariant to shifts of the origin; the same is done for the bond vector
-        self.tangent_position = vector + self.anchor_position # DEV: move validation of tangent position orthogonality into here?
+        new_tangent_vector = as_n_vector(new_tangent_vector, 3)
+        if not np.isclose(
+            np.dot( # DEV: opting not to normalize here in case either vector has small magnitude - revisit if that becomes an issue
+                self.bond_vector,
+                new_tangent_vector,
+            ),
+            0.0
+        ):
+            raise ValueError('Badly-set tangent vector is not orthogonal to the bond vector of the Connector')
+        
+        self._tangent_position = new_tangent_vector + self.anchor_position # DEV: move validation of tangent position orthogonality into here?
+        
+    @property
+    def unit_tangent_vector(self) -> Vector3:
+        '''Unit vector in the same direction as the tangent vector'''
+        return self.tangent_vector / np.linalg.norm(self.tangent_vector)
 
-    def set_tangent_from_coplanar_point(self, coplanar_point : np.ndarray[Shape[Literal[3]], float]) -> None:
+    def set_dihedral_from_coplanar_point(self, coplanar_point : Vector3) -> None:
         '''Set the dihedral tangent point from a third point in the dihedral plane'''
         self.tangent_vector = rejector(self.bond_vector) @ (coplanar_point - self.anchor_position)
 
-    def set_tangent_from_normal_point(self, normal_point : np.ndarray[Shape[Literal[3]], float]) -> None:
+    def set_dihedral_from_normal_point(self, normal_point : Vector3) -> None:
         '''Set the dihedral tangent point from a point on the span of the normal to the dihedral plane'''
         self.tangent_vector = np.cross(self.bond_vector, normal_point - self.anchor_position)
         
+    ## Normal vector
     @property
-    def normal_vector(self) -> np.ndarray[Shape[Literal[3]], float]:
-        '''A unit vector normal to the dihedral plane (if assigned)'''
-        return normalized( np.cross(self.bond_vector, self.tangent_vector) )
+    def normal_vector(self) -> Vector3:
+        '''A vector normal to the dihedral plane and orthogonal to both the bond and tangent vectors'''
+        return np.cross(self.bond_vector, self.tangent_vector)
+    
+    def unit_normal_vector(self) -> Vector3:
+        '''Unit vector in the same direction as the normal vector'''
+        return self.normal_vector / np.linalg.norm(self.normal_vector)
+    
+    def local_orthonormal_basis(self) -> np.ndarray[Shape[Literal[3, 3]], float]:
+        '''
+        Return a 3x3 array representing an orthonormal basis for this Connector's local coordinate system
+        Columns of the array are the basis vectors, which are all mutually orthogonal and of unit length
         
-    ## Applying rigid transformations
-    ### Fulfilling RigidlyTransformable contracts
+        Basis vectors are in fact the unit bond, tangent, and normal vectors associated to this Connector, respectively
+        '''
+        local_orthonormal_basis = np.vstack([
+            self.unit_bond_vector,
+            self.unit_tangent_vector,
+            self.unit_normal_vector,
+        ]).T # DEV: transpose to get basis vectors as columns
+        if not is_orthonormal(local_orthonormal_basis):
+            raise ValueError('Bond, tangent, and normal vectors of Connector are not mutually orthonormal')
+        
+        return local_orthonormal_basis
+        
+        
+    # Applying rigid transformations (fulfilling RigidlyTransformable contracts)
     def _copy_untransformed(self) -> 'Connector':
-        # return Connector(**self.__dict__)
         new_connector = self.__class__(
             anchor=self.anchor, # TODO: does this need to be deepcopied?
             linker=self.linker,
@@ -168,22 +245,26 @@ class Connector(RigidlyTransformable):
             bondtype=self.bondtype,
             query_smarts=self.query_smarts,
         )
-
-        # make copies of positional attribute arrays, if they aren't unset
         for pos_attr in self._POSITION_ATTRS:
-            if (position := getattr(self, pos_attr)) is None:
-                setattr(new_connector, pos_attr, None) # DEV: opted to make this explicit for clarity, but could be made implicit if desired
-            else:
-                setattr(new_connector, pos_attr, np.array(position))
-
+            setattr(
+                new_connector,
+                pos_attr,
+                None if ((position := getattr(self, pos_attr)) is None) else np.array(position),
+            )
         return new_connector
 
     def _rigidly_transform(self, transform : RigidTransform) -> None:
         for pos_attr in self._POSITION_ATTRS:
             if (position := getattr(self, pos_attr)) is not None:
                 setattr(self, pos_attr, transform.apply(position))
+
     
-    ### Aligning Connectors to one another 
+    # Aligning Connectors to one another
+    def are_aligned(self, other : 'Connector', within : float=1E-6) -> bool:
+        '''Whether this Connector is aligned with another Connector, within a given tolerance'''
+        ...
+    
+    ## Rigid alignment
     def rigid_alignment_transform_to(
             self,
             other : 'Connector',
@@ -198,10 +279,7 @@ class Connector(RigidlyTransformable):
         If the two Connectors have the same bond length, the anchor of this Connector will be coincident with the linker
         of the other; otherwise, the anchor will merely lay on the span of the other Connectors bond vector
         '''
-        if not (self.has_bond_positions and other.has_bond_positions):
-            raise ValueError('Cannot compute rigid alignment transform with undefined Connector positions')
-        
-        if not (self.has_defined_dihedral_plane and other.has_defined_dihedral_plane):
+        if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
             raise ValueError('Cannot compute faithful orientation for rigid alignment transform with undefined Connector orientations')
 
         ## NOTE: the orthogonality of the tangent and bond vector of each Connector allows the tangent alignment to
@@ -245,6 +323,7 @@ class Connector(RigidlyTransformable):
 
         return new_connector
     
+    ## Ballistic alignment
     def align_ballistically_to(
         self,
         other : 'Connector',
@@ -254,10 +333,15 @@ class Connector(RigidlyTransformable):
         Match linker position of this Connector to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify the other Connector, only acts on the first Connector of the provided pair
         '''
+        target_vector = other.anchor_position - self.anchor_position
+        aiming_rotation = alignment_rotation(self.unit_bond_vector, target_vector)
+        
+        self.rigidly_transform
+        
         if not other.has_anchor_position:
             raise AttributeError('No target anchor position defined for ballistic alignment')
         self.linker_position = other.anchor_position
-        if self.has_tangent_position:
+        if self.has__:
             ...
             # TODO: define how to transfer tangent along new bond vector
 
@@ -271,9 +355,9 @@ class Connector(RigidlyTransformable):
         
         return new_connector
     
-    # DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
-    # that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
     def mutually_align_ballistically(self, other : 'Connector') -> Optional[float]:
+        # DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
+        # that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
         '''
         Ballistically align this Connector to the other, and vice-versa
         In the end, the linker of either Connector with be coincident with the anchor or the other, and the anchors sites will not have been moved
@@ -287,7 +371,7 @@ class Connector(RigidlyTransformable):
         other.align_ballistically_to(self)
         
         # Calculate resultant dihedral angle - TODO: implement calculation of this
-        if self.has_tangent_position and other.has_tangent_position:
+        if self.has__ and other.has__:
             dihedral_angle_rad = np.arccos(
                 np.dot(
                     normalized(self.tangent_vector),
@@ -298,6 +382,7 @@ class Connector(RigidlyTransformable):
             dihedral_angle_rad = None 
         
         return dihedral_angle_rad
+
 
     # Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
@@ -327,7 +412,7 @@ class Connector(RigidlyTransformable):
     def coincides_with(self, other : 'Connector') -> bool:
         '''Whether this Connector overlaps spatially with another Connector'''
         return all(
-            self.compare_optional_positions(
+            compare_optional_positions(
                 getattr(self, position_attr),
                 getattr(other, position_attr),
             )

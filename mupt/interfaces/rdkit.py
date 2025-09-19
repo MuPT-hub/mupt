@@ -134,8 +134,8 @@ def connectors_from_rdkit(
         )
         
         if conformer:
-            connector.linker_position = positions[linker_idx, :]
             connector.anchor_position = positions[anchor_idx, :]
+            connector.linker_position = positions[linker_idx, :]
 
             # define dihedral plane by neighbor atom, if a suitable one is present
             real_neighbor_atom_idxs : Generator[int, None, None] = atom_neighbors_by_condition(
@@ -146,7 +146,7 @@ def connectors_from_rdkit(
             )
             try:
                 ## TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-                connector.set_tangent_from_coplanar_point(positions[next(real_neighbor_atom_idxs), :])
+                connector.set_dihedral_from_coplanar_point(positions[next(real_neighbor_atom_idxs), :])
             except StopIteration:
                 pass
 
