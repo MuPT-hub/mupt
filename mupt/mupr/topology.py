@@ -20,6 +20,16 @@ class TopologicalStructure(nx.Graph):
         '''Whether the current topology represents an indiscrete topology (i.e. a "trivial topology", one without connections)'''
         return self.number_of_edges() == 0
     is_trivial = is_indiscrete
+    
+    @property
+    def is_empty(self) -> bool:
+        '''
+        Whether the topology is empty (i.e. has no nodes)
+        
+        Represents a valid topology, since it contains the empty set
+        and itself (which just so happens to also be the empty set)
+        '''
+        return self.number_of_nodes() == 0
 
     @property
     def is_unbranched(self) -> bool:

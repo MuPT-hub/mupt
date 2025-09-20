@@ -210,7 +210,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Check whether all external connectors are mapped to a counterpart Connector amongst
         the children of this Primitive AND that no extraneous Connectors are registered
         '''
-        if self.is_leaf:
+        if self.is_simple:
             return # leaf Primitives by definition have no children, so there's no need to mapping of external connections downwards
         
         # Perform cheap counting check
@@ -497,6 +497,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
 
     # Necessary and sufficient conditions for self-consistency of topology, connectors, and child Primitives
+    @property
+    def is_simple(self) -> bool:
+        '''Whether a Primitive has no internal structure'''
+        return self.topology.is_empty and self.isleaf
+    
     def _check_children_bijective_to_topology(self, topology: TopologicalStructure) -> None:
         '''
         Check whether a 1:1 correspondence can exist between all child
@@ -518,7 +523,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Check whether the functionalities of all child Primitives are 
         incompatible with the corresponding nodes in the imposed Topology
         '''
-        if self.is_leaf:
+        if self.is_simple:
             if self.is_atom:
                 ## TODO: include valency checks based on atomic number and formal charge
                 ...
@@ -558,12 +563,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''
         # 0) Check necessary conditions first
         self.check_topology_incompatible()
-        if self.is_leaf:
+        if self.is_simple:
             return # In leaf case, compatibility checks on children don't apply
         
         # Check sufficient conditions if passed
         ## 1) Check external connections are bijectively identified
-        self.check_external_connectors_bijectively_mapped(recursive=True)
+        self.check_external_connectors_bijectively_mapped(recursive=False)
         
         ## 2) Check all Connectors of children are either explicitly internal or external
         for child_label, child_conn_map in self.external_connectors_by_child.items():
@@ -602,11 +607,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         target_label : PrimitiveLabel,
     ) -> None:
         '''
-        Insert a new level into the hierarchy and replace the selected
-        child Primitive with the topology of its children at that level
-        
-        Inverse to contraction
+        Replace a child Primitive (identified by its label) with its internal topology
+        Loosely corresponds to expanding the single node representing the target in self's topology
+        by its own underlying topology. Inverse to contraction
         '''
+        child_primitive
         raise NotImplementedError
 
     def flatten(self) -> None:
