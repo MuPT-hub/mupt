@@ -26,6 +26,7 @@ from networkx import get_edge_attributes
 
 from periodictable.core import Element
 from scipy.spatial.transform import RigidTransform
+import networkx as nx
 
 from .canonicalize import (
     Canonicalizable,
@@ -151,6 +152,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
             raise TypeError(f'Invalid connectors type {type(new_connectors)}')
 
         self._connectors = new_connectors
+        
+    def register_connector(self, new_connector : Connector) -> None:
+        '''Add a new Connector to this Primitive'''
+        if not isinstance(new_connector, Connector):
+            raise TypeError(f'Invalid connector type {type(new_connector)}')
+        self._connectors.append(new_connector)
 
     @property
     def functionality(self) -> int:
@@ -210,7 +217,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Check whether all external connectors are mapped to a counterpart Connector amongst
         the children of this Primitive AND that no extraneous Connectors are registered
         '''
-        if self.is_simple:
+        if self.is_leaf:
             return # leaf Primitives by definition have no children, so there's no need to mapping of external connections downwards
         
         # Perform cheap counting check
@@ -235,6 +242,28 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
             if recursive:
                 child.check_external_connectors_bijectively_mapped(recursive=True)
+
+    def pair_internal_connectors_horizontally(
+        self,
+        child_1_label : PrimitiveLabel,
+        child_1_connector_label : ConnectorLabel,
+        child_2_label : PrimitiveLabel,
+        child_2_connector_label : ConnectorLabel
+    ) -> None:
+        '''
+        Associate a pair of Connectors between two adjacent children to the edge joining those children
+        '''
+        # verify that all the objects referenced actually exist and are well-defined
+        child_1 = self.fetch_child(child_1_label)
+        child_2 = self.fetch_child(child_2_label)
+        ## verify both connectors actually exist on the requisite children
+        conn_1 = child_1.fetch_connector(child_1_connector_label)
+        conn_2 = child_2.fetch_connector(child_2_connector_label)
+        
+        self.topology.edges[(child_1_label, child_2_label)][self.CONNECTOR_EDGE_ATTR] = {
+            child_1_label : child_1_connector_label,
+            child_2_label : child_2_connector_label,
+        }
 
     def pair_external_connectors_vertically(
         self,
@@ -307,6 +336,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 for label, subprims in self.child_label_classes().items()
         }
 
+    @property
+    def unique_child_labels(self) -> set[PrimitiveLabel]:
+        '''Set of all unique labels assigned to child Primitives'''
+        return set(self.children_by_label.keys())
+    
     def child_exists(self, primitive_label : PrimitiveLabel) -> bool:
         '''Verify that a referenced child Primitive is actually bound to this Primitive'''
         return primitive_label in self.children_by_label
@@ -375,9 +409,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def detach_child(
             self,
             target_label : PrimitiveLabel,
-        ) -> None:
-        '''Remove a child Primitive from this one, updating topology and Connectors'''
-        target_child = self.children_by_label[target_label]
+        ) -> 'Primitive':
+        '''Remove a child Primitive from this one, update topology and Connectors, and return the excised child Primitive'''
+        target_child = self.fetch_child(target_label)
         target_child.parent = None
         self.topology.remove_node(target_label)
         
@@ -391,11 +425,36 @@ class Primitive(NodeMixin, RigidlyTransformable):
             # NOTE: implicitly unbind by not transferring child entries over to copied dict
             LOGGER.warning(f'Unbound counterpart of external connection "{own_conn_label}" from detached child Primitive "{child_label}"; this must be rebound to restore consistency!')
         self._external_connectors_map = new_ext_conn_labels
+        
+        return target_child
     
     def _post_detach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         LOGGER.debug(f'Unbound Primitive "{str(self)}" from parent Primitive "{str(parent)}"')
     # DEV: also include attach/detach_parent() methods?
+
+    def link_children(
+        self,
+        child_1_label : PrimitiveLabel,
+        child_2_label : PrimitiveLabel,
+        child_1_connector_label : Optional[ConnectorLabel]=None,
+        child_2_connector_label : Optional[ConnectorLabel]=None,
+        **edge_attrs,
+    ) -> None:
+        '''
+        Add a topology edge between two already-bound child Primitives, 
+        optionally specifying which Connectors on that pair of children should be paired with the edge between them
+        '''
+        if (child_1_connector_label is not None) and (child_2_connector_label is not None):
+            edge_attrs[self.CONNECTOR_EDGE_ATTR] = {
+                child_1_label : child_1_connector_label,
+                child_2_label : child_2_connector_label,
+            }
+            
+        # DEV: just want to raise error if child doesn't exist
+        _ = self.fetch_child(child_1_label) 
+        _ = self.fetch_child(child_2_label) 
+        self.topology.add_edge(child_1_label, child_2_label, **edge_attrs)
 
 
     # Topology
@@ -488,7 +547,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return found_external_connectors
     
     @property
-    def paired_child_connectors(self) -> dict[tuple[PrimitiveLabel, PrimitiveLabel], dict[PrimitiveLabel, Connector]]:
+    def paired_child_connectors(self) -> dict[
+            tuple[PrimitiveLabel, PrimitiveLabel], # indexes the edge connecting the pair of children
+            dict[PrimitiveLabel, Connector], # maps each child on the edge to the connector on it associated to that edge
+        ]:
         '''
         Mapping from paired edges in self's topology to the associated pair of Connectors that make up that edge
         Value for each edge is a dict mapping child Primitive labels to the corresponding Connectors, empty is no such pairing has been made
@@ -510,12 +572,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if topology.number_of_nodes() != self.n_children: # simpler counting check rules out obviously-incompatible pairs quicker
             raise ValueError(f'Cannot bijectively map {self.n_children} child Primitives onto {topology.number_of_nodes()}-element topology')
         
-        child_labels = set(self.children_by_label.keys()) # implicitly checks uniqueness of labels
         node_labels = set(topology.nodes)
-        if node_labels != child_labels:
+        if node_labels != self.unique_child_labels:
             raise KeyError(
-                f'Underlying set of topology does not correspond to labels on child Primitives; {len(node_labels - child_labels)} elements'\
-                f' have no associated children, and {len(child_labels - node_labels)} children are unrepresented in the topology'
+                f'Underlying set of topology does not correspond to labels on child Primitives; {len(node_labels - self.unique_child_labels)} elements'\
+                f' have no associated children, and {len(self.unique_child_labels - node_labels)} children are unrepresented in the topology'
             )
 
     def _check_functionalities_incompatible_with_topology(self, topology: TopologicalStructure, suppress_bijection_check : bool=False) -> None:
@@ -523,7 +584,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Check whether the functionalities of all child Primitives are 
         incompatible with the corresponding nodes in the imposed Topology
         '''
-        if self.is_simple:
+        if self.is_leaf: # self.is_simple
             if self.is_atom:
                 ## TODO: include valency checks based on atomic number and formal charge
                 ...
@@ -590,7 +651,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
     def contract(
             self,
-            target_labels : Iterable[PrimitiveLabel],
+            target_labels : set[PrimitiveLabel],
             master_label: PrimitiveLabel,
             new_shape : Optional[BoundedShape]=None,
         ) -> None:
@@ -600,7 +661,85 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Inverse to expansion
         '''
-        raise NotImplementedError
+        # ensure all members of subset are present as children
+        self.check_self_consistent()
+        if master_label in self.unique_child_labels:
+            raise ValueError(f'Cannot contract child Primitives into new intermediate with label "{master_label}" already present amongst children')
+
+        if not target_labels.issubset(self.unique_child_labels):
+            raise ValueError('Child Primitives labels chosen for contraction are not a proper subset of the children actually present')
+        
+        # generate quotient topology with all target_labels merged into single node
+        partition : dict[PrimitiveLabel, set[PrimitiveLabel]] = dict()
+        relabelling : dict[frozenset[PrimitiveLabel], PrimitiveLabel] = dict()
+        ## wrap together target nodes in quotient
+        partition['contracted'] = target_labels
+        relabelling[frozenset(target_labels)] = master_label
+
+        ## register all other nodes (still need to be preserved faithfully)
+        for untouched_label in (self.unique_child_labels - target_labels):
+            label_set = frozenset({untouched_label})
+            partition[untouched_label] = label_set
+            relabelling[label_set] = untouched_label
+
+        new_topology = nx.relabel_nodes(
+            nx.quotient_graph(
+                self.topology,
+                partition=partition,
+                relabel=False,
+                create_using=TopologicalStructure,
+            ),
+            mapping=relabelling,
+        )
+        nx.draw(new_topology, with_labels=True)
+        
+        # generate new, intermediate Primitive, whose topology contains all INTERIOR node + edges of the selected subset
+        intermediate_primitive = Primitive(
+            shape=new_shape,
+            label=master_label,
+        )
+        ## Duplicate and hierarchically register all spanning edges
+        neighbor_labels = set()
+        for spanning_edge in nx.edge_boundary(self.topology, target_labels):
+            prim_label_inner, prim_label_outer = spanning_edge
+            try:  # TODO: make reference order-agnostic to avoid this terribleness
+                assoc_conns = self.paired_child_connectors[prim_label_inner, prim_label_outer]
+            except KeyError:
+                assoc_conns = self.paired_child_connectors[prim_label_outer, prim_label_inner]
+            
+            # transfer copies of internal connection to intermediate
+            conn_inner = assoc_conns[prim_label_inner]
+            conn_inner_clone = conn_inner.copy()
+            new_conn_id = id(conn_inner_clone)
+            intermediate_primitive.connectors.append(conn_inner_clone)
+            # TODO: include new master label into linkables of cloned connectors
+            
+            # TODO: bind any external connectors within the selected subset vertically
+            conn_outer = assoc_conns[prim_label_outer]
+            neighbor_labels.add(prim_label_outer)  # TODO: DEV: pass these directly into attach_child(), once complete support for these operations is implemented
+        print(intermediate_primitive.connectors, intermediate_primitive.functionality)
+
+        ## rebind children in selection to intermediate
+        for child_label in target_labels:
+            intermediate_primitive.attach_child(
+                self.detach_child(child_label),
+            )
+        for (child_1_label, child_2_label, data) in self.topology.subgraph(target_labels).edges(data=True):
+            intermediate_primitive.link_children(
+                child_1_label,
+                child_2_label,
+                **data, # transfer pairing info and any edge metadata, if present
+            )
+
+            
+        ## update topology at this level with new intermediate
+        self.attach_child(
+            intermediate_primitive,
+            # neighbor_labels=neighbor_labels,
+            # external_connector_pairing={conn_outer.label : conn_inner.label},
+        )
+        # TODO: label quotiented component to master master label
+        self.topology = new_topology # validate post-binding
 
     def expand(
         self,
@@ -611,7 +750,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Loosely corresponds to expanding the single node representing the target in self's topology
         by its own underlying topology. Inverse to contraction
         '''
-        child_primitive
+        child_primitive = self.fetch_child(target_label)
+        if child_primitive.is_simple:
+            return # cannot expand leaf Primitives any further
+        
+        # self.check_self_consistent()
         raise NotImplementedError
 
     def flatten(self) -> None:
