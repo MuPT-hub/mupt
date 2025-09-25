@@ -124,16 +124,16 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''Whether the Primitive represents an all-atom system'''
         return self.is_atom or all(subprim.is_atomizable for subprim in self.children)
     
-    @property
-    def bondtype_index(self) -> tuple[tuple[Any, int], ...]:
-        '''
-        Canonical identifier of all unique BondTypes by count among the Connectors associated to this Primitive
-        Consists of all (integer bondtype, count) pairs, sorted lexicographically
-        '''
-        return lex_order_multiset(
-            connector.canonical_form()
-                for connector in self.connectors
-        )
+    # @property
+    # def bondtype_index(self) -> tuple[tuple[Any, int], ...]:
+    #     '''
+    #     Canonical identifier of all unique BondTypes by count among the Connectors associated to this Primitive
+    #     Consists of all (integer bondtype, count) pairs, sorted lexicographically
+    #     '''
+    #     return lex_order_multiset(
+    #         connector.canonical_form()
+    #             for connector in self.connectors
+    #     )
     
     # Connections
     @property
