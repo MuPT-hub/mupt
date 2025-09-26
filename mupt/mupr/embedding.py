@@ -104,8 +104,8 @@ def register_connectors_to_topology(
             for edge in topology.edges
     }
     connector_equiv_classes : dict[Hashable, dict[int, list[Connector]]] = {
-        label : mapped_equivalence_classes(connectors, Connector.fungible_with)
-            for label, connectors in labelled_connectors.items()
+        owner_label : mapped_equivalence_classes(connectors, Connector.fungible_with)
+            for owner_label, connectors in labelled_connectors.items()
     }
 
     # iteratively pair connectors along edges
@@ -168,8 +168,8 @@ def register_connectors_to_topology(
         
     # collate remaining unpaired Connectors as external
     external_connectors : dict[Hashable, tuple[Connector]] = {
-        label : tuple(chain.from_iterable(eq_classes.values()))
-            for label, eq_classes in connector_equiv_classes.items()
+        owner_label : tuple(chain.from_iterable(eq_classes.values()))
+            for owner_label, eq_classes in connector_equiv_classes.items()
                 if eq_classes # skip over nodes whose equivalence classes have been exhausted
     }
     
