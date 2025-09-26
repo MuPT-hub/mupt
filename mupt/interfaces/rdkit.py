@@ -118,20 +118,31 @@ def connectors_from_rdkit(
 
     rdmol.UpdatePropertyCache() # avoids implicitValence errors on substructure match
     for (anchor_idx, linker_idx) in anchor_and_linker_idxs(rdmol):
-        linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
+        ## extract RDKit objects and associated labels
         anchor_atom : Atom = rdmol.GetAtomWithIdx(anchor_idx)
+        anchor_label = anchor_labeller(anchor_atom)
+        
+        linker_atom : Atom = rdmol.GetAtomWithIdx(linker_idx)
+        linker_label = linker_labeller(linker_atom)
+        
         bond : Bond = rdmol.GetBondBetweenAtoms(anchor_idx, linker_idx)
+        bondtype = bond.GetBondType()
 
+        ## initialize Connector object
         connector = Connector(
-            anchor=anchor_labeller(anchor_atom),
-            linker=linker_labeller(linker_atom),
-            bondtype=bond.GetBondType(),
+            anchor=anchor_label,
+            linker=linker_label,
+            linkables={linker_label}, # register linker as bondable by default
+            bondtype=bondtype,
             query_smarts=MolFragmentToSmarts(
                 rdmol,
                 atomsToUse=[linker_idx, anchor_idx],
                 bondsToUse=[bond.GetIdx()],
-            )
+            ),
+            label=f'{anchor_label}|{bondtype!s}|{linker_label}',
         )
+
+        ## inject spatial info, if present
         if conformer:
             connector.anchor_position = positions[anchor_idx, :]
             connector.linker_position = positions[linker_idx, :]
@@ -253,8 +264,6 @@ def primitive_from_rdkit_chain(
     rdmol_primitive = Primitive(label=label)
     
     # Populate bottom-level Primitives from real atoms in RDKit Mol
-    external_connectors : list[Connector] = [] # connections not internal to the Mol (i.e. not corresponding to any bond)
-    atomic_primitive_map : dict[int, Primitive] = {}
     atom_mol_fragments : tuple[Mol, ...] = GetMolFrags( # TODO: move to external helper functions
         FragmentOnBonds(
             rdmol,
@@ -266,47 +275,49 @@ def primitive_from_rdkit_chain(
     )
     for atom, atom_mol in zip(rdmol.GetAtoms(), atom_mol_fragments):
         if is_linker(atom):
-            continue # NOTE: not explcuding these via filter to preserve pairing between atom and corresponding fragment Mols
-        
+            continue # NOTE: not excluding these via filter to preserve pairing between atom and corresponding fragment Mols
         atom_idx = atom.GetIdx()
         atom_mol.GetAtomWithIdx(0).SetAtomMapNum(atom_idx) # mirror atom index to map number
         
-        atom_connectors : list[Connector] = []
-        for connector in connectors_from_rdkit(
-                atom_mol,
-                conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
-                linker_labeller=lambda a : a.GetIsotope(),    # read linker label off of dummy atom
-                anchor_labeller=lambda a : a.GetAtomMapNum(),
-            ): 
-            connector.linkables.add(connector.linker) # register linker singleton to enable bondability check downstream
-            
-            atom_connectors.append(connector)
-            if connector.linker in external_linker_idxs:
-                external_connectors.append(connector)
-            
+        ## initialize Atomic Primtive based on atom info
         atom_primitive = Primitive(
             topology=None, # atoms have no child components to link up
             shape=shape_from_rdkit(rdmol, conformer_id=conformer_id, atom_idxs=[atom_idx]),
             element=ELEMENTS[atom.GetAtomicNum()], # NOTE: this is part of what necessitates excluding atomic number 0 linkers 
-            connectors=atom_connectors,
             label=atom_idx,
             metadata={
                 **atom.GetPropsAsDict(includePrivate=True),
                 'stereo_info' : stereo_info_map.get(atom_idx, None)
             }, 
         )
-        # DEV: consider replacing below with new "Primitive.attach_child()" on parent, with edges included at each step
-        atom_primitive.parent = rdmol_primitive 
-        atomic_primitive_map[atom_idx] = atom_primitive
+        
+        ## register Connectors to neighbors of Atom, binding external connections "up" a level as needed
+        external_connector_map : dict[Hashable, Hashable] = dict()
+        for connector in connectors_from_rdkit(
+            atom_mol,
+            conformer_id=conformer_id, # NOTE: fragment conformers order and positions that of mirror parent molecule
+            linker_labeller=lambda a : a.GetIsotope(),    # read linker label off of dummy atom
+            anchor_labeller=lambda a : a.GetAtomMapNum(),
+        ): 
+            atom_connector_handle = atom_primitive.register_connector(connector)
+            if connector.linker in external_linker_idxs:
+                external_connector_handle = rdmol_primitive.register_connector(connector.copy(), label='*')
+                external_connector_map[external_connector_handle] = atom_connector_handle
+
+        ## bind atom Primitive to parent, forging inter-level connector correspondence along the way
+        rdmol_primitive.attach_child(atom_primitive, external_connector_pairing=external_connector_map)
         
     # Inject information into molecule-level Primitive now that atoms have been sorted out
-    rdmol_primitive.connectors = external_connectors # NOTE: HAS to be done before topology set for edge balance to pass - DEV: move to "embedding" eventually
-    rdmol_primitive.topology=chemical_graph_from_rdkit( # NOTE: internally this invokes the topology validator before setting anything
+    top=chemical_graph_from_rdkit( # NOTE: internally this invokes the topology validator before setting anything
         rdmol,
         atom_condition=not_linker,   
         binary_operator=logical_and, # only include bonds where BOTH atoms are "real"
         graph_type=TopologicalStructure,
     )
+    print(set(top.nodes))
+    print(rdmol_primitive.unique_child_labels)
+    rdmol_primitive.topology = top
+    
     rdmol_primitive.shape=shape_from_rdkit(
         rdmol,
         conformer_id=conformer_id,
