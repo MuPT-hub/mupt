@@ -19,8 +19,6 @@ from typing import (
 )
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
 
-from dataclasses import dataclass, field
-
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 from rdkit.Chem.rdchem import BondType
@@ -83,28 +81,38 @@ def are_nearby(
     return np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < within
 
 
-@dataclass(frozen=False) # DEVNOTE need to preserve mutability for now, since coordinates of parts may change
 class Connector(RigidlyTransformable):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
-    # DEVNOTE: want to hone in on the allowable types for these (Hashable?)
-    anchor : Hashable
-    linker : Optional[Hashable] = None
-    linkables : set[Hashable] = field(default_factory=set)
-    
-    bondtype : BondType = BondType.UNSPECIFIED
-    query_smarts : str = ''
-    
-    ## "Private" attributes for storing positional information - DEV: consider making repr=False on these?
-    _anchor_position  : Optional[Vector3] = field(default=None, init=False)
-    _linker_position  : Optional[Vector3] = field(default=None, init=False)
-    _tangent_position : Optional[Vector3] = field(default=None, init=False)
-
+    DEFAULT_LABEL : ClassVar[ConnectorLabel] = 'Conn'
     _POSITION_ATTRS : ClassVar[tuple[str]] = (
         # DEV: this will need updating if more position-type attributes are added; manually curating this is fine for now
         '_anchor_position',
         '_linker_position',
         '_tangent_position',
     ) 
+    
+    def __init__(
+        self,
+        anchor : Hashable,
+        linker : Optional[Hashable]=None,
+        linkables : set[Hashable]=None,
+        bondtype : BondType=BondType.UNSPECIFIED,
+        query_smarts : str='',
+        label : Optional[ConnectorLabel]=None,
+    ):
+        # DEV: want to hone in on the allowable types for these (Hashable?)
+        self.anchor = anchor
+        self.linker = linker
+        self.linkables = linkables or set()
+        
+        self.bondtype = bondtype
+        self.query_smarts = query_smarts
+        self._label = label or type(self.DEFAULT_LABEL)
+    
+        self._anchor_position  : Optional[Vector3] = None
+        self._linker_position  : Optional[Vector3] = None
+        self._tangent_position : Optional[Vector3] = None
+
 
     # Geometric properties
     ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
@@ -188,7 +196,7 @@ class Connector(RigidlyTransformable):
         The tangent and bond vectors span the dihedral plane and 
         fix a local right-handed coordinate system for the Connector
         '''
-        if not (self._tangent_position is not None):
+        if self._tangent_position is None:
             raise AttributeError('Tangent position of Connector unassigned')
         return self._tangent_position - self.anchor_position
         
@@ -535,13 +543,40 @@ class Connector(RigidlyTransformable):
 
     # labelling and representation methods
     @property
-    def label(self) -> Hashable:
-        '''Unique identifying label for this Connector'''
-        return id(self)
+    def label(self) -> ConnectorLabel:
+        '''Identifying label for this Connector'''
+        return self._label
+    
+    @label.setter
+    def label(self, new_label : ConnectorLabel) -> None:
+        '''Set label for this Connector'''
+        if not isinstance(new_label, Hashable):
+            raise TypeError(f'Connector label must be a Hashable type, not {type(new_label)}')
+        self._label = new_label
     
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
         return self.bondtype # TODO: make this more descriptive; good enough for now
+
+    def __repr__(self) -> str:
+        repr_attr_strs : dict[str, str] = {
+            'anchor' : self.anchor,
+            # 'linker' : self.linker,
+            'linkables' : self.linkables,
+            'bondtype' : self.bondtype,
+            # 'query_smarts' : self.query_smarts,
+            'label' : self.label,
+            'anchor_position' : self._anchor_position,
+            'linker_position' : self._linker_position,
+            'bond_length' : self.bond_length if self.has_bond_vector else None,
+            'dihedral_plane_set' : self.has_dihedral_orientation,
+        }
+        attr_str = ', '.join(
+            f'{attr}={value!r}'
+                for (attr, value) in repr_attr_strs.items()
+        )
+        
+        return f'{self.__class__.__name__}({attr_str})'
 
     # def __hash__(self) -> int:
     #     return hash((
