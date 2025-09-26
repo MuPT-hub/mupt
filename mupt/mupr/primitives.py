@@ -18,7 +18,7 @@ from typing import (
     Union,
 )
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
@@ -29,13 +29,14 @@ from scipy.spatial.transform import RigidTransform
 import networkx as nx
 
 from .canonicalize import (
-    Canonicalizable,
     lex_order_multiset,
     lex_order_multiset_str,
 )
 from .connection import Connector, ConnectorLabel
 from .topology import TopologicalStructure
 from .embedding import register_connectors_to_topology
+
+from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 
@@ -67,13 +68,16 @@ class Primitive(NodeMixin, RigidlyTransformable):
     metadata : dict[Hashable, Any]
         Literally any other information the user may want to bind to this Primitive
     '''
+    CONNECTOR_EDGE_ATTR : ClassVar[str] = 'paired_connectors'
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'Prim'
+    
     # Initializers
     def __init__(
         self, # DEV: force all args to be KW-only?
-        topology : Optional[TopologicalStructure]=None,
         shape : Optional[BoundedShape]=None,
         element : Optional[Element]=None,
-        connectors : list[Connector]=None,
+        connectors : Optional[Iterable[Connector]]=None,
+        topology : Optional[TopologicalStructure]=None,
         label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
@@ -82,16 +86,21 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ## performs extra validation; don't mistake these for naive attribute assignments!
         self.shape = shape
         self.element = element
-        self.connectors = connectors
+        
+        self._children_by_label : UniqueRegistry[Primitive] = UniqueRegistry()
+        
+        self._connectors : UniqueRegistry[Connector] = UniqueRegistry()
+        self._external_connectors_map : dict[ConnectorLabel, tuple[PrimitiveLabel, ConnectorLabel]] = dict()
+        if connectors is not None:
+            self._connectors.register_from(connectors)
+        
         self.topology = topology # assignment of topology deliberately placed last so validation is preformed based on values of other core attrs
         
         # additional descriptors
-        self.label = label
+        self.label = label or type(self).DEFAULT_LABEL # allows override in subclasses
         self.metadata = metadata or dict()
         
-    CONNECTOR_EDGE_ATTR : ClassVar[str] = 'paired_connectors'
         
-    
     # Chemical atom and bond properties
     @property
     def element(self) -> Optional[Element]:
@@ -102,12 +111,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     @element.setter
     def element(self, new_element: Optional[Element]) -> None:
-        if (new_element is not None):
-            if self.children:
-                raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. cannot have "element" assigned)')
-            if not isinstance(new_element, Element):
-                raise TypeError(f'Invalid element type {type(new_element)}')
-        self._element = new_element
+        if new_element is None:
+            self._element = None
+            return
+        
+        if self.children:
+            raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. cannot have "element" assigned)')
+        if not isinstance(new_element, Element):
+            raise TypeError(f'Invalid element type {type(new_element)}')
+        self._element = new_element # TODO: also permit setting with Ion instances to keep track of formal charges
     
     @property
     def is_atom(self) -> bool:
@@ -124,69 +136,42 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''Whether the Primitive represents an all-atom system'''
         return self.is_atom or all(subprim.is_atomizable for subprim in self.children)
     
-    # @property
-    # def bondtype_index(self) -> tuple[tuple[Any, int], ...]:
-    #     '''
-    #     Canonical identifier of all unique BondTypes by count among the Connectors associated to this Primitive
-    #     Consists of all (integer bondtype, count) pairs, sorted lexicographically
-    #     '''
-    #     return lex_order_multiset(
-    #         connector.canonical_form()
-    #             for connector in self.connectors
-    #     )
     
     # Connections
     @property
-    def connectors(self) -> Container[Connector]:
+    def connectors(self) -> UniqueRegistry[Connector]:
         '''Mutable collection of all connections this Primitive is able to make, represented by Connector instances'''
-        if not hasattr(self, '_connectors'):
-            self._connectors = list()
         return self._connectors
-    
-    @connectors.setter
-    def connectors(self, new_connectors : Optional[Container[Connector]]) -> None:
-        '''Set the connectors for this Primitive'''
-        if new_connectors is None:
-            new_connectors = list()
-        if not isinstance(new_connectors, Container):
-            raise TypeError(f'Invalid connectors type {type(new_connectors)}')
 
-        self._connectors = new_connectors
-        
-    def register_connector(self, new_connector : Connector) -> None:
-        '''Add a new Connector to this Primitive'''
+    def register_connector(self, new_connector : Connector, label : Optional[ConnectorLabel]=None) -> tuple[ConnectorLabel, int]:
+        '''
+        Register a new Connector to this Primitive by the passed label, or if None is provided, the label on the Connector instance
+        Generated a unique handle and binds the Connector to that handle, then returns the handle bound
+        '''
         if not isinstance(new_connector, Connector):
-            raise TypeError(f'Invalid connector type {type(new_connector)}')
-        self._connectors.append(new_connector)
+            raise TypeError(f'Cannot interpret object of type {type(new_connector)} as Connector')
+        return self._connectors.register(new_connector, label=label)
 
-    @property
-    def functionality(self) -> int:
-        '''Number of neighboring primitives which can be attached to this primitive'''
-        if not hasattr(self, 'connectors'):
-            self.connectors = list()
-        return len(self.connectors)
-    
-    @property
-    def connectors_by_label(self) -> dict[ConnectorLabel, Connector]:
-        '''Indexed mapping of connector labels to Connector instances for ease of reference'''
-        return {
-            conn.label : conn # DEV: replace this with some other hash that communicates info about the Connector
-                for conn in self.connectors
-        }
+    def register_connectors_from(self, new_connectors : Iterable[Connector]) -> None:
+        '''Register multiple Connectors to this Primitive from an iterable'''
+        self._connectors.register_from(new_connectors)
         
-    def connector_exists(self, connector_label : Hashable) -> bool:
-        '''
-        Verify that a referenced Connector is actually bound to this Primitive
-        '''
-        return connector_label in self.connectors_by_label
+    def connector_exists(self, connector_label : ConnectorLabel) -> bool:
+        '''Verify that a referenced Connector is actually bound to this Primitive'''
+        return connector_label in self._connectors
     
     def fetch_connector(self, connector_label : ConnectorLabel) -> Connector:
         '''Fetch a Connector with a given label from bound Connectors'''
         try:
-            return self.connectors_by_label[connector_label]
+            return self._connectors[connector_label]
         except KeyError:
             raise KeyError(f'No Connector with associated label "{connector_label}" bound to Primitive "{self.label}"')
         
+    @property
+    def functionality(self) -> int:
+        '''Number of neighboring primitives which can be attached to this primitive'''
+        return len(self._connectors)
+    
     # DEV: eventually, would be nice to organize the triples in the external connector map into a more relational-database-y form
     @property
     def external_connectors_map(self) -> dict[ConnectorLabel, tuple[PrimitiveLabel, ConnectorLabel]]:
@@ -194,11 +179,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Mapping between the connectors found on self and their analogues on child Primitives
         1:1 mapping between these MUST exist for resolution shift operations to be well-defined
         '''
-        if not hasattr(self, '_external_connectors_map'):
-            self._external_connectors_map = dict()
         return self._external_connectors_map
-    # DEV: no setter provided for external connections map, since all interactions
-    # should be protected and only accessed via other methods to maintain consistency
         
     @property
     def external_connectors_by_child(self) -> dict[PrimitiveLabel, dict[ConnectorLabel, ConnectorLabel]]:
@@ -225,7 +206,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             raise ValueError(f'Cannot bijectively map {n_bound_connectors} mapped external Connectors onto {self.functionality}-functional Primitive "{self.label}"')
         
         # Check that mapped Connector labels agree
-        connector_labels = set(conn.label for conn in self.connectors)
+        connector_labels = set(self.connectors.keys())
         bound_connector_labels = set(self.external_connectors_map.keys())
         if connector_labels != bound_connector_labels:
             raise KeyError(
@@ -281,8 +262,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         child_conn = child.fetch_connector(child_connector_label)
 
         # make association between connectors
-        LOGGER.debug(f'Designating Connector "{child_conn.label}" on Primitive "{child.label}" as counterpart to external Connector "{own_conn.label}"')
-        self.external_connectors_map[own_conn.label] = (child.label, child_conn.label)
+        LOGGER.debug(f'Designating Connector "{child_connector_label}" on Primitive "{child.label}" as counterpart to external Connector "{own_connector_label}"')
+        self.external_connectors_map[own_connector_label] = (child.label, child_connector_label)
                 
     def connector_trace(self, connector_label : ConnectorLabel) -> list[Connector]: # DEV: eventually, make wrapping type set, once figured out how to hash Connectors losslessly
         '''
@@ -531,7 +512,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # attempt to pair up Connectors according to topology
         paired_connectors, found_external_connectors = register_connectors_to_topology( # will raise exception is registration is not possible
             labelled_connectors={
-                subprim.label : subprim.connectors
+                subprim.label : list(subprim.connectors.values()) # TODO: replace w/ child handle, eventually
                     for subprim in self.children
             },
             topology=topology,
@@ -547,7 +528,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return found_external_connectors
     
     @property
-    def paired_child_connectors(self) -> dict[
+    def paired_child_connectors(self) -> dict[ # TODO: make this direct attribute, rather than writing to topology edges
             tuple[PrimitiveLabel, PrimitiveLabel], # indexes the edge connecting the pair of children
             dict[PrimitiveLabel, Connector], # maps each child on the edge to the connector on it associated to that edge
         ]:
@@ -711,7 +692,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             conn_inner = assoc_conns[prim_label_inner]
             conn_inner_clone = conn_inner.copy()
             new_conn_id = id(conn_inner_clone)
-            intermediate_primitive.connectors.append(conn_inner_clone)
+            intermediate_primitive.connectors.register(conn_inner_clone) # TODO: copy handle
             # TODO: include new master label into linkables of cloned connectors
             
             # TODO: bind any external connectors within the selected subset vertically
@@ -766,22 +747,21 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def shape(self) -> Optional[BoundedShape]:
         '''The external shape of this Primitive'''
-        if not hasattr(self, '_shape'):
-            self._shape = None
         return self._shape
     
     @shape.setter
     def shape(self, new_shape : Optional[BoundedShape]) -> None:
         '''Set the external shape of this Primitive'''
-        if (new_shape is not None) and (not isinstance(new_shape, BoundedShape)):
+        if new_shape is None:
+            self._shape = None
+            return
+        
+        if not isinstance(new_shape, BoundedShape):
             raise TypeError(f'Primitive shape must be either NoneType or BoundedShape instance, not object of type {type(new_shape.__name__)}')
 
-        if not isinstance(self.shape, BoundedShape): # DEV: no typo here; deliberate call to getter to handle case when _shape (not "shape"!) is unset
-            self._shape = new_shape
-        else:
-            new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
-            new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
-            self._shape = new_shape_clone
+        new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
+        new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
+        self._shape = new_shape_clone
             
     ## applying rigid transformations (fulfilling RigidlyTransformable contracts)
     def _copy_untransformed(self) -> 'Primitive':
@@ -790,10 +770,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
             topology=None, # by default, no children are copied over, so need to reflect that at first
             shape=(None if self.shape is None else self.shape.copy()),
             element=self.element,
-            connectors=[conn.copy() for conn in self.connectors],
+            connectors=None, # NOTE: this is deliberate! use private setter below to execute transfer behind the scenes
             label=self.label,
             metadata={key : value for key, value in self.metadata.items()},
         )
+        
+        # transfer connectors and their (possibly highly-noncanonical) handles faithfully and in a read-only manner
+        for handle, conn in self.connectors.items():
+            clone_primitive._connectors._setitem(handle, conn.copy()) # use private setter to preserve 
+        
         # recursively copy children
         for subprimitive in self.children: 
             clone_primitive.attach_child(subprimitive._copy_untransformed())
@@ -806,7 +791,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if isinstance(self.shape, BoundedShape):
             self.shape.rigidly_transform(transform)
         
-        for connector in self.connectors:
+        for connector in self.connectors.values():
             connector.rigidly_transform(transform)
             
         # propogate transformation down recursively
@@ -819,7 +804,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's Connectors'''
         return lex_order_multiset_str(
-            (connector.canonical_form() for connector in self.connectors),
+            (
+                self.connectors[connector_handle].canonical_form()
+                    for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
+            ),
             element_repr=str, #lambda bt : BondType.values[int(bt)]
             separator=separator,
             joiner=joiner,
@@ -873,7 +861,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
         return self.canonical_form_peppered()
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         repr_attr_strs : dict[str, str] = {
             'shape': self.canonical_form_shape(),
             'functionality': str(self.functionality),
