@@ -82,9 +82,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
         # essential components
-        ## NOTE: each of these are calls to a descriptor which
-        ## performs extra validation; don't mistake these for naive attribute assignments!
-        self.shape = shape
+        ## DEV: some calls are to descriptor which performs extra validation;
+        ## don't mistake these for naive attribute assignments!
+        self._shape = None
+        self.shape = shape # call validated Shape setter
+        
         self.element = element
         
         self._children_by_label : UniqueRegistry[Primitive] = UniqueRegistry()
@@ -97,7 +99,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self.topology = topology # assignment of topology deliberately placed last so validation is preformed based on values of other core attrs
         
         # additional descriptors
-        self.label = label or type(self).DEFAULT_LABEL # allows override in subclasses
+        self.label = type(self).DEFAULT_LABEL if (label is None) else label
         self.metadata = metadata or dict()
         
         
@@ -556,8 +558,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         node_labels = set(topology.nodes)
         if node_labels != self.unique_child_labels:
             raise KeyError(
-                f'Underlying set of topology does not correspond to labels on child Primitives; {len(node_labels - self.unique_child_labels)} elements'\
-                f' have no associated children, and {len(self.unique_child_labels - node_labels)} children are unrepresented in the topology'
+                f'Set underlying topology does not correspond to labels on child Primitives; {len(node_labels - self.unique_child_labels)} element(s)'\
+                f' present without associated children, and {len(self.unique_child_labels - node_labels)} child Primitive(s) are unrepresented in the topology'
             )
 
     def _check_functionalities_incompatible_with_topology(self, topology: TopologicalStructure, suppress_bijection_check : bool=False) -> None:
@@ -760,7 +762,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
             raise TypeError(f'Primitive shape must be either NoneType or BoundedShape instance, not object of type {type(new_shape.__name__)}')
 
         new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
-        new_shape_clone.cumulative_transformation = self.shape.cumulative_transformation # transfer translation history BEFORE overwriting
+        if self._shape is not None:
+            new_shape_clone.cumulative_transformation = self._shape.cumulative_transformation # transfer translation history BEFORE overwriting
+        
         self._shape = new_shape_clone
             
     ## applying rigid transformations (fulfilling RigidlyTransformable contracts)

@@ -107,7 +107,7 @@ class Connector(RigidlyTransformable):
         
         self.bondtype = bondtype
         self.query_smarts = query_smarts
-        self._label = label or type(self).DEFAULT_LABEL
+        self.label = type(self).DEFAULT_LABEL if (label is None) else label
     
         self._anchor_position  : Optional[Vector3] = None
         self._linker_position  : Optional[Vector3] = None
