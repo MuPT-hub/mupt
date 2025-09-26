@@ -51,6 +51,10 @@ class UniqueRegistry(UserDict, Generic[LabelledT]):
     # Labelled object registration
     def __setitem__(self, key : Hashable, item : LabelledT) -> None:
         raise PermissionError(f"Direct key-value assignment is not allowed; call 'register({item})' method instead")
+    
+    def _setitem(self, key : Hashable, item : LabelledT) -> None:
+        '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
+        super().__setitem__(key, item)
 
     def register(self, obj: LabelledT, label : Optional[Hashable]=None) -> tuple[Hashable, int]:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
