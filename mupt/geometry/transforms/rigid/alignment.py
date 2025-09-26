@@ -16,7 +16,7 @@ def rigid_vector_coalignment(
     vector1_end : np.ndarray[Shape[3], Numeric],
     vector2_start : np.ndarray[Shape[3], Numeric],
     vector2_end : np.ndarray[Shape[3], Numeric],
-    /,
+    *,
     t1 : float=0.5,
     t2 : float=None,
 ) -> RigidTransform:
