@@ -3,8 +3,6 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional
-
 import numpy as np
 from scipy.spatial.transform import Rotation
 

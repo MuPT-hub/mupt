@@ -6,3 +6,4 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from .application import apply_rigid_transformation_recursive, RigidlyTransformable
 from .rotations import rotator, rodrigues, alignment_rotation
+from .alignment import rigid_vector_coalignment
