@@ -308,15 +308,12 @@ def primitive_from_rdkit_chain(
         rdmol_primitive.attach_child(atom_primitive, external_connector_pairing=external_connector_map)
         
     # Inject information into molecule-level Primitive now that atoms have been sorted out
-    top=chemical_graph_from_rdkit( # NOTE: internally this invokes the topology validator before setting anything
+    rdmol_primitive.topology = chemical_graph_from_rdkit( # NOTE: internally this invokes the topology validator before setting anything
         rdmol,
         atom_condition=not_linker,   
         binary_operator=logical_and, # only include bonds where BOTH atoms are "real"
         graph_type=TopologicalStructure,
     )
-    print(set(top.nodes))
-    print(rdmol_primitive.unique_child_labels)
-    rdmol_primitive.topology = top
     
     rdmol_primitive.shape=shape_from_rdkit(
         rdmol,
