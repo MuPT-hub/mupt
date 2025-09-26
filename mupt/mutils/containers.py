@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Hashable, Iterable, Mapping, Optional, Protocol
+from typing import Generic, Hashable, Iterable, Mapping, Optional, Protocol, TypeVar
 from collections import Counter, UserDict, defaultdict
 
 
@@ -12,8 +12,9 @@ class Labelled(Protocol):
     @property
     def label(self) -> Hashable: 
         ...
-        
-class UniqueRegistry(UserDict):
+LabelledT = TypeVar('LabelledT', bound=Labelled)
+
+class UniqueRegistry(UserDict, Generic[LabelledT]):
     '''
     A registry of Labelled objects which are each assigned a unique "handle",
     comprising the object's label and a unique integer index determined by its time of insertion
@@ -48,10 +49,10 @@ class UniqueRegistry(UserDict):
         self.adjust_ticker_count_for(label, 0)
 
     # Labelled object registration
-    def __setitem__(self, key : Hashable, item : Labelled) -> None:
+    def __setitem__(self, key : Hashable, item : LabelledT) -> None:
         raise PermissionError(f"Direct key-value assignment is not allowed; call 'register({item})' method instead")
 
-    def register(self, obj: Labelled, label : Optional[Hashable]=None) -> tuple[Hashable, int]:
+    def register(self, obj: LabelledT, label : Optional[Hashable]=None) -> tuple[Hashable, int]:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
         if label is None:
             label = obj.label # DEV: opted for behavioral pattern, rather than explicit runtime_checkable Protocol enforcement
@@ -60,7 +61,7 @@ class UniqueRegistry(UserDict):
 
         return handle
     
-    def register_from(self, collection : Iterable[Labelled]) -> list[tuple[Hashable, int]]:
+    def register_from(self, collection : Iterable[LabelledT]) -> list[tuple[Hashable, int]]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
         if isinstance(collection, Mapping):
             for label, obj in collection.items():
@@ -69,7 +70,7 @@ class UniqueRegistry(UserDict):
             for obj in collection:
                 self.register(obj, label=None)
 
-    def unregister(self, handle: tuple[Hashable, int]) -> Labelled:
+    def unregister(self, handle: tuple[Hashable, int]) -> LabelledT:
         '''
         Unregister the object with the given handle and free the index assigned to that object
         Returns the objects bound to that handle
