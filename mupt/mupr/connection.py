@@ -107,7 +107,7 @@ class Connector(RigidlyTransformable):
         
         self.bondtype = bondtype
         self.query_smarts = query_smarts
-        self._label = label or type(self.DEFAULT_LABEL)
+        self._label = label or type(self).DEFAULT_LABEL
     
         self._anchor_position  : Optional[Vector3] = None
         self._linker_position  : Optional[Vector3] = None
@@ -264,6 +264,7 @@ class Connector(RigidlyTransformable):
             linkables=set(linkable for linkable in self.linkables),
             bondtype=self.bondtype,
             query_smarts=self.query_smarts,
+            label=self._label,
         )
         for pos_attr in self._POSITION_ATTRS:
             setattr(
