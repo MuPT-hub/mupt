@@ -3,8 +3,18 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generic, Hashable, Iterable, Mapping, Optional, Protocol, TypeVar
+from typing import (
+    Callable,
+    Generic,
+    Hashable,
+    Iterable,
+    Mapping,
+    Optional,
+    Protocol,
+    TypeVar,
+)
 from collections import Counter, UserDict, defaultdict
+from copy import deepcopy
 
 
 class Labelled(Protocol):
@@ -90,3 +100,22 @@ class UniqueRegistry(UserDict, Generic[LabelledT]):
         handles_to_remove = [handle for handle in self.keys() if handle[0] == label]
         for handle in handles_to_remove:
             self.unregister(handle)
+            
+    def copy(self, value_copy_method : Callable[[LabelledT], LabelledT]=deepcopy) -> 'UniqueRegistry[LabelledT]':
+        '''
+        Create a deep copy of this UniqueRegistry, with the same (key, value) pairs and internal state
+        Requires a method for copying values in general, since their complete type is not explicit a priori
+        '''
+        new_registry = UniqueRegistry()
+        new_registry._ticker = Counter(self._ticker)
+        new_registry._freed = defaultdict(
+            set,
+            **{ # DEV: this looks elaborate, but is necessary to ensure copy doesn't share state with self after creation
+                label : set(free_idxs)
+                    for label, free_idxs in self._freed.items()
+            }
+        )
+        for handle, obj in self.items():
+            new_registry._setitem(handle, value_copy_method(obj))
+            
+        return new_registry

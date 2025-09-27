@@ -116,3 +116,41 @@ def test_unique_reg_purge() -> None:
         
     reg.purge('a')
     assert all(handle[0] != 'a' for handle in reg.keys()) and (len(reg) == 4)
+    
+def test_unique_reg_copy() -> None:
+    '''Test that copying a UniqueRegistry produces an identical copy'''
+    reg = UniqueRegistry()
+    a = TestObj(label='a')
+    b = TestObj(label='b')
+    
+    reg.register(a)
+    reg.register(b)
+    copy_reg = reg.copy()
+    
+    assert (
+        reg.keys() == copy_reg.keys()
+        and reg._ticker == copy_reg._ticker
+        and reg._freed == copy_reg._freed
+    )
+    
+def test_unique_reg_copy_ticker_indep() -> None:
+    '''Test that the ticker state of a copied UniqueRegistry is independent of the ticker of the original'''
+    reg = UniqueRegistry()
+    a = TestObj(label='a')
+    
+    reg.register(a)
+    copy_reg = reg.copy()
+    reg.register(a) # ought to have no effect on copy
+    
+    assert copy_reg._ticker != reg._ticker
+    
+def test_unique_reg_copy_freed_indep() -> None:
+    '''Test that the freed labels state of a copied UniqueRegistry is independent of the original'''
+    reg = UniqueRegistry()
+    a = TestObj(label='a')
+
+    reg.register(a)
+    copy_reg = reg.copy()
+    reg.unregister(('a', 0)) # ought to have no effect on copy
+
+    assert copy_reg._freed != reg._freed
