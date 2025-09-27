@@ -778,10 +778,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             label=self.label,
             metadata={key : value for key, value in self.metadata.items()},
         )
-        
-        # transfer connectors and their (possibly highly-noncanonical) handles faithfully and in a read-only manner
-        for handle, conn in self.connectors.items():
-            clone_primitive._connectors._setitem(handle, conn.copy()) # use private setter to preserve 
+        clone_primitive._connectors = self._connectors.copy(value_copy_method=Connector.copy) 
         
         # recursively copy children
         for subprimitive in self.children: 
