@@ -18,6 +18,7 @@ from typing import (
     TypeVar,
 )
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
+ConnectorHandle = tuple[ConnectorLabel, int]
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
