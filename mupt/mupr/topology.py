@@ -73,5 +73,4 @@ class TopologicalStructure(nx.Graph):
     def __repr__(self) -> str:
         #TODO: make this more descriptive
         # return super().__repr__()
-        return f'{self.__class__.__name__}(indiscrete={self.is_indiscrete})'
-        
+        return f'{self.__class__.__name__}(num_objects={self.number_of_nodes()}, indiscrete={self.is_indiscrete})'
