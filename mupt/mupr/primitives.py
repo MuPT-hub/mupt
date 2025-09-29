@@ -550,7 +550,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
             )
 
-    def _check_functionalities_incompatible_with_topology(self, topology: TopologicalStructure, suppress_bijection_check : bool=False) -> None:
+    def _check_functionalities_incompatible_with_topology(self, topology: TopologicalStructure) -> None:
         '''
         Check whether the functionalities of all child Primitives are 
         incompatible with the corresponding nodes in the imposed Topology
@@ -564,14 +564,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 ...
             return # for now, exit early w/o Exception for leaf cases
 
-        if not suppress_bijection_check: 
-            # DEV: while this is necessary for the degree check below to be well-defined, in some applications
-            # one needs to perform a child-to-node bijectivity check anyways, so this allows one to de-duplicate that check
-            self._check_children_bijective_to_topology(topology) # ensure we know which children correspond to which nodes first
-        
-        for subprimitive in self.children:
-            if subprimitive.functionality < (min_degree := topology.degree[subprimitive.label]):
-                raise ValueError(f'Cannot embed {subprimitive.functionality}-functional Primitive "{subprimitive.label}" into {min_degree}-degree node')
+        for handle, subprimitive in self.children_by_handle.items():
+            if subprimitive.functionality < (min_degree := topology.degree[handle]):
+                raise ValueError(f'Cannot embed {subprimitive.functionality}-functional Primitive "{handle}" into {min_degree}-degree node')
 
     def check_topology_incompatible(self, topology: Optional[TopologicalStructure]=None) -> None:
         '''
@@ -585,9 +580,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if topology is None:
             topology = self.topology
         
-        self._check_children_bijective_to_topology(topology) # ensure we know which children correspond to which nodes first
-        self._check_functionalities_incompatible_with_topology(topology, suppress_bijection_check=True)
-               
+        self._check_children_bijective_to_topology(topology) # NOTE: MUST be done before checking functionalities!
+        self._check_functionalities_incompatible_with_topology(topology)
+                       
     def check_self_consistent(self) -> None:
         '''
         Check sufficient conditions for whether the children of this Primitive, their
