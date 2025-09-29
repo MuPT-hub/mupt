@@ -16,7 +16,7 @@ class TestObj:
     DEFAULT_LABEL : ClassVar[str] = 'default'
     label : Hashable = field(default_factory=str)
     
-    
+# initialization tests
 @pytest.mark.xfail(
     reason="Direct assignment to UniqueRegistry items should raise PermissionError",
     raises=PermissionError,
@@ -26,11 +26,13 @@ def test_unique_reg_no_defaults() -> None:
     '''Test that key-value pairs cannot be directly intialized in UniqueRegistry'''
     reg = UniqueRegistry(this='is_illegal')
 
+# registration tests
 def test_unique_reg_register_explicit() -> None:
     '''Test that registering with explicit label works as expected'''
     obj = TestObj(label='p')
     reg = UniqueRegistry()
     reg.register(obj, label='my_label')
+    
     assert set(reg.keys()) == {('my_label', 0)}
 
 def test_unique_reg_register_implicit() -> None:
@@ -38,6 +40,7 @@ def test_unique_reg_register_implicit() -> None:
     obj = TestObj(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
+    
     assert set(reg.keys()) == {('p', 0)}
     
 def test_unique_reg_register_from_explicit() -> None:
@@ -45,7 +48,8 @@ def test_unique_reg_register_from_explicit() -> None:
     obj1 = TestObj(label='p')
     obj2 = TestObj(label='q')
     reg = UniqueRegistry()
-    reg.register_from({'first' : obj1, 'second' : obj2})
+    handles = reg.register_from({'first' : obj1, 'second' : obj2})
+    
     assert set(reg.keys()) == {('first', 0), ('second', 0)}
     
 def test_unique_reg_register_from_implicit() -> None:
@@ -53,15 +57,18 @@ def test_unique_reg_register_from_implicit() -> None:
     obj1 = TestObj(label='p')
     obj2 = TestObj(label='q')
     reg = UniqueRegistry()
-    reg.register_from([obj1, obj2])
+    handles = reg.register_from([obj1, obj2])
+    
     assert set(reg.keys()) == {('p', 0), ('q', 0)}
 
-def test_unique_reg_unregister() -> None:
-    '''Test that unregistering an item removes it from the registry and returns the object'''
+# deregistration tests
+def test_unique_reg_deregister() -> None:
+    '''Test that deregistering an item removes it from the registry and returns the object'''
     obj = TestObj(label='p')
     reg = UniqueRegistry()
     handle = reg.register(obj)
-    removed_obj = reg.unregister(handle)
+    removed_obj = reg.deregister(handle)
+    
     assert (removed_obj == obj) and (len(reg) == 0)
     
 def test_unique_reg_subscript() -> None:
@@ -69,16 +76,33 @@ def test_unique_reg_subscript() -> None:
     obj = TestObj(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
+    
     assert reg[('p', 0)] == obj
     
-def test_unique_rreg_deletion() -> None:
+def test_unique_reg_deletion() -> None:
     '''Test that unique registry items can be deleted via del operator'''
     obj = TestObj(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
     del reg[('p', 0)]
+    
     assert len(reg) == 0
+    
+def test_unique_reg_purge() -> None:
+    '''Test that purging a label removes all associated objects'''
+    reg = UniqueRegistry()
+    a = TestObj(label='a')
+    for _ in range(3):
+        reg.register(a)
+    
+    b = TestObj(label='b')
+    for _ in range(4):
+        reg.register(b)
+        
+    reg.purge('a')
+    assert all(handle[0] != 'a' for handle in reg.keys()) and (len(reg) == 4)
 
+# internal state update tests
 def test_freed_labels_reinserted() -> None:
     '''Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels'''
     obj = TestObj(label='p')
@@ -86,8 +110,8 @@ def test_freed_labels_reinserted() -> None:
     for _ in range(4):
         reg.register(obj)
         
-    _ = reg.unregister(('p', 1))
-    _ = reg.unregister(('p', 2))
+    _ = reg.deregister(('p', 1))
+    _ = reg.deregister(('p', 2))
     reg.register(obj)
     
     assert set(reg.keys()) == {('p', 0), ('p', 1), ('p', 3)}
@@ -103,20 +127,7 @@ def test_unique_reg_adjust_ticker() -> None:
     
     assert set(reg.keys()) == {('p', 0), ('p', 5)}
     
-def test_unique_reg_purge() -> None:
-    '''Test that purging a label removes all associated objects'''
-    reg = UniqueRegistry()
-    a = TestObj(label='a')
-    for _ in range(3):
-        reg.register(a)
-    
-    b = TestObj(label='b')
-    for _ in range(4):
-        reg.register(b)
-        
-    reg.purge('a')
-    assert all(handle[0] != 'a' for handle in reg.keys()) and (len(reg) == 4)
-    
+# copying tests
 def test_unique_reg_copy() -> None:
     '''Test that copying a UniqueRegistry produces an identical copy'''
     reg = UniqueRegistry()
@@ -151,6 +162,23 @@ def test_unique_reg_copy_freed_indep() -> None:
 
     reg.register(a)
     copy_reg = reg.copy()
-    reg.unregister(('a', 0)) # ought to have no effect on copy
+    reg.deregister(('a', 0)) # ought to have no effect on copy
 
     assert copy_reg._freed != reg._freed
+
+# Label access tests
+def test_nique_reg_by_labels() -> None:
+    '''Test that by_labels property returns correct mapping from labels to tuples of registered objects'''
+    reg = UniqueRegistry()
+    a = TestObj(label='a')
+    b = TestObj(label='b')
+    c = TestObj(label='c')
+    
+    reg.register(a)
+    reg.register(b)
+    reg.register(c, label='a')
+    
+    by_labels = reg.by_labels
+    assert set(by_labels.keys()) == {'a', 'b'}
+    assert by_labels['a'] == (a, c)
+    assert by_labels['b'] == (b,)

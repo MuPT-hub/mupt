@@ -18,6 +18,8 @@ from copy import deepcopy
 
 
 LabelT = TypeVar('LabelT', bound=Hashable)
+HandleT = tuple[LabelT, int] # label uniquified with an additional arbitrary index
+
 class Labelled(Protocol):
     '''Protocol for objects that have a label'''
     @property
@@ -60,6 +62,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         self.adjust_ticker_count_for(label, 0)
 
     # Labelled object registration
+    ## Object registration
     def __setitem__(self, key : LabelT, item : LabelledT) -> None:
         raise PermissionError(f"Direct key-value assignment is not allowed; call 'register({item})' method instead")
     
@@ -67,7 +70,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
         super().__setitem__(key, item)
 
-    def register(self, obj: LabelledT, label : Optional[LabelT]=None) -> tuple[LabelT, int]:
+    def register(self, obj: LabelledT, label : Optional[LabelT]=None) -> HandleT:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
         if label is None:
             label = obj.label # DEV: opted for behavioral pattern, rather than explicit runtime_checkable Protocol enforcement
@@ -76,16 +79,20 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
 
         return handle
     
-    def register_from(self, collection : Iterable[LabelledT]) -> list[tuple[LabelT, int]]:
+    def register_from(self, collection : Iterable[LabelledT]) -> list[HandleT]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
+        handles : list[HandleT] = []
         if isinstance(collection, Mapping):
             for label, obj in collection.items():
-                self.register(obj, label=label)
+                handles.append(self.register(obj, label=label))
         else:
             for obj in collection:
-                self.register(obj, label=None)
+                handles.append(self.register(obj, label=None))
 
-    def unregister(self, handle : tuple[LabelT, int]) -> LabelledT:
+        return handles
+
+    ## Object deregistration
+    def deregister(self, handle : HandleT) -> LabelledT:
         '''
         Unregister the object with the given handle and free the index assigned to that object
         Returns the objects bound to that handle
@@ -100,9 +107,27 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         '''Unregister all objects with the given label'''
         handles_to_remove = [handle for handle in self.keys() if handle[0] == label]
         for handle in handles_to_remove:
-            self.unregister(handle)
+            self.deregister(handle)
             
-    def copy(self, value_copy_method : Callable[[LabelledT], LabelledT]=deepcopy) -> 'UniqueRegistry[LabelledT]':
+    ## Object access
+    @property
+    def by_labels(self) -> dict[LabelT, tuple[LabelledT, ...]]: 
+        # DEV: eventually would like to make sets (since order is irrelevant), but that relies on assumptions about hashability of LabelledT
+        '''
+        Mapping from labels (without uniquifying handle index) to classes of objects registered to those labels
+        Can be thought of as the equivalence classes of objects under the relation "o1.handle[0] == o2.handle[0]"
+        '''
+        label_classes = defaultdict(list)
+        for (label, idx), child in self.items():
+            label_classes[label].append(child)
+            
+        return { # downconvert from defaultdict -> dict and make values collections immutable by tuple-ifying them
+            label : tuple(child_class)
+                for label, child_class in label_classes.items()
+        }
+          
+    # Copying
+    def copy(self, value_copy_method : Callable[[LabelledT], LabelledT]=deepcopy) -> 'UniqueRegistry[HandleT, LabelledT]':
         '''
         Create a deep copy of this UniqueRegistry, with the same (key, value) pairs and internal state
         Requires a method for copying values in general, since their complete type is not explicit a priori
