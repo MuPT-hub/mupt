@@ -22,8 +22,8 @@ ConnectorHandle = tuple[ConnectorLabel, int]
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
-from rdkit.Chem.rdchem import BondType
 
+from ..chemistry.core import BondType
 from ..geometry.arraytypes import Shape, N, DType, Numeric
 from ..geometry.measure import normalized
 from ..geometry.coordinates.basis import is_orthonormal

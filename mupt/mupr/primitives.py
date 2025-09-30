@@ -28,9 +28,6 @@ from scipy.spatial.transform import RigidTransform
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
 
-from periodictable.core import Element, Ion, Isotope, isatom
-ElementLike = Union[Element, Ion, Isotope]
-
 from .canonicalize import lex_order_multiset_str
 from .connection import Connector, ConnectorLabel, ConnectorHandle
 from .topology import TopologicalStructure
@@ -39,6 +36,7 @@ from .embedding import register_connectors_to_topology
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
+from ..chemistry.core import ElementLike, isatom
 
 
 class Primitive(NodeMixin, RigidlyTransformable):
@@ -112,7 +110,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
     # Chemical atom and bond properties
     @property
-    def element(self) -> Optional[Element]:
+    def element(self) -> Optional[ElementLike]:
         '''
         The chemical element, ion, or isotope associated with this Primitive
         Setting an element is an aknowledgement that this Primitive represents a single atom
