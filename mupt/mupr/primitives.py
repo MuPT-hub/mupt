@@ -208,11 +208,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ...
 
     def attach_child(
-            self,
-            subprimitive : 'Primitive',
-            neighbor_handles : Optional[Iterable[PrimitiveHandle]]=None,
-            external_connector_pairing : Optional[Mapping[ConnectorHandle, ConnectorHandle]]=None,
-        ) -> None:
+        self,
+        subprimitive : 'Primitive',
+        label : Optional[PrimitiveLabel]=None,
+        neighbor_handles : Optional[Iterable[PrimitiveHandle]]=None,
+        external_connector_pairing : Optional[Mapping[ConnectorHandle, ConnectorHandle]]=None,
+    ) -> PrimitiveHandle:
         '''Add another Primitive as a child of this one, updating related attributes in accordance'''
         # exapnd mutable defaults
         if external_connector_pairing is None:
@@ -223,7 +224,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
         # bind self to child
         subprimitive.parent = self
-        subprim_handle = self.children_by_handle.register(subprimitive, label=subprimitive.label)
+        subprim_handle = self.children_by_handle.register(subprimitive, label=label)
 
         # update topology
         ## add new node for child Primitive
@@ -244,6 +245,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # bind external Connectors (as specified) to parent's Connectors
         for own_conn_handle, child_conn_handle in external_connector_pairing.items():
             self.pair_external_connectors_vertically(own_conn_handle, subprimitive.label, child_conn_handle)
+            
+        return subprim_handle
             
     def _post_attach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
@@ -295,7 +298,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''Mutable collection of all connections this Primitive is able to make, represented by Connector instances'''
         return self._connectors
 
-    def register_connector(self, new_connector : Connector, label : Optional[ConnectorLabel]=None) -> tuple[ConnectorHandle, int]:
+    def register_connector(
+        self,
+        new_connector : Connector,
+        label : Optional[ConnectorLabel]=None,
+    ) -> tuple[ConnectorHandle, int]:
         '''
         Register a new Connector to this Primitive by the passed label, or if None is provided, the label on the Connector instance
         Generated a unique handle and binds the Connector to that handle, then returns the handle bound
