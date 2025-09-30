@@ -21,18 +21,17 @@ PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 from collections import defaultdict, Counter
 
+import networkx as nx
+from networkx import get_edge_attributes
+from scipy.spatial.transform import RigidTransform
+
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
-from networkx import get_edge_attributes
 
-from periodictable.core import Element
-from scipy.spatial.transform import RigidTransform
-import networkx as nx
+from periodictable.core import Element, Ion, Isotope, isatom
+ElementLike = Union[Element, Ion, Isotope]
 
-from .canonicalize import (
-    lex_order_multiset,
-    lex_order_multiset_str,
-)
+from .canonicalize import lex_order_multiset_str
 from .connection import Connector, ConnectorLabel, ConnectorHandle
 from .topology import TopologicalStructure
 from .embedding import register_connectors_to_topology
@@ -57,7 +56,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     ----------
     shape : Optional[BoundedShape]
         A rigid shape which approximates and abstracts the behavior of the primitive in space
-    element : Optional[Element]
+    element : Optional[Union[Element, Ion, Isotope]]
         The chemical element associated with this Primitive, IFF the Primitive represents an atom
     connectors : list[Connector]
         A collection of sites representing bonds to other Primitives
@@ -76,7 +75,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def __init__(
         self, # DEV: force all args to be KW-only?
         shape : Optional[BoundedShape]=None,
-        element : Optional[Element]=None,
+        element : Optional[ElementLike]=None,
         connectors : Optional[Iterable[Connector]]=None,
         children : Optional[Iterable['Primitive']]=None,
         label : Optional[PrimitiveLabel]=None,
@@ -85,11 +84,13 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # essential components
         ## external bounded shape
         self._shape = None
-        self.shape = shape # call validated Shape setter
+        if shape is not None:
+            self.shape = shape
         
         ## atomic chemistry (when applicable)
         self._element = None
-        self.element = element
+        if element is not None:
+            self.element = element
         
         ## child Primitives
         self._topology = TopologicalStructure()
@@ -112,20 +113,19 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Chemical atom and bond properties
     @property
     def element(self) -> Optional[Element]:
-        '''The chemical element associated with this Primitive, if it represents an atom'''
+        '''
+        The chemical element, ion, or isotope associated with this Primitive
+        Setting an element is an aknowledgement that this Primitive represents a single atom
+        '''
         return self._element
     
     @element.setter
-    def element(self, new_element: Optional[Element]) -> None:
-        if new_element is None:
-            self._element = None
-            return
-        
+    def element(self, new_element : ElementLike) -> None:
         if self.children:
             raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. cannot have "element" assigned)')
-        if not isinstance(new_element, Element):
+        if not isatom(new_element):
             raise TypeError(f'Invalid element type {type(new_element)}')
-        self._element = new_element # TODO: also permit setting with Ion instances to keep track of formal charges
+        self._element = new_element
     
     @property
     def is_atom(self) -> bool:
@@ -744,14 +744,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return self._shape
     
     @shape.setter
-    def shape(self, new_shape : Optional[BoundedShape]) -> None:
+    def shape(self, new_shape : BoundedShape) -> None:
         '''Set the external shape of this Primitive'''
-        if new_shape is None:
-            self._shape = None
-            return
-        
         if not isinstance(new_shape, BoundedShape):
-            raise TypeError(f'Primitive shape must be either NoneType or BoundedShape instance, not object of type {type(new_shape.__name__)}')
+            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
 
         new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
         if self._shape is not None:
