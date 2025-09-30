@@ -187,16 +187,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Add a topology edge between two already-bound child Primitives, 
         optionally specifying which Connectors on that pair of children should be paired with the edge between them
         '''
-        if (child_1_connector_handle is not None) and (child_2_connector_handle is not None):
-            edge_attrs[self.CONNECTOR_EDGE_ATTR] = {
-                child_1_handle : child_1_connector_handle,
-                child_2_handle : child_2_connector_handle,
-            }
-            
-        # DEV: just want to raise error if child doesn't exist
         _ = self.fetch_child(child_1_handle)
         _ = self.fetch_child(child_2_handle)
         self.topology.add_edge(child_1_handle, child_2_handle, **edge_attrs)
+        
+        if (child_1_connector_handle is not None) and (child_2_connector_handle is not None):
+            self.pair_internal_connectors_horizontally(
+                child_1_handle,
+                child_1_connector_handle,
+                child_2_handle,
+                child_2_connector_handle,
+            )
 
     def link_children_from(self, pairs : Iterable[Any]) -> None:
         raise NotImplementedError
@@ -259,13 +260,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ...
 
     def detach_child(
-            self,
-            target_handle : PrimitiveHandle,
-        ) -> 'Primitive':
+        self,
+        target_handle : PrimitiveHandle,
+    ) -> 'Primitive':
         '''Remove a child Primitive from this one, update topology and Connectors, and return the excised child Primitive'''
         target_child = self.fetch_child(target_handle)
         target_child.parent = None
-        
+        del self.children_by_handle[target_handle]
+
         # remove from topology
         if (target_handle not in self.topology):
             raise KeyError(f'Cannot detach child Primitive with handle "{target_handle}" which is not present in the parent topology')
