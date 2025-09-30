@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generator
+from typing import Generator, Optional
 import networkx as nx
 
 
@@ -74,3 +74,15 @@ class TopologicalStructure(nx.Graph):
         #TODO: make this more descriptive
         # return super().__repr__()
         return f'{self.__class__.__name__}(num_objects={self.number_of_nodes()}, indiscrete={self.is_indiscrete})'
+    
+    def visualize(self, ax : Optional['mpl.Axes']=None, **draw_kwargs) -> None:
+        '''
+        Draw the topology's graph
+        '''
+        nx.draw(
+            self,
+            ax=ax,
+            pos=nx.kamada_kawai_layout(self), # TODO: implement more general handling of 'pos' eventually
+            with_labels=True,
+            **draw_kwargs,
+        )
