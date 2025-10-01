@@ -214,7 +214,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         external_connector_pairing : Optional[Mapping[ConnectorHandle, ConnectorHandle]]=None,
     ) -> PrimitiveHandle:
         '''Add another Primitive as a child of this one, updating related attributes in accordance'''
-        # exapnd mutable defaults
+        # expand mutable defaults
         if external_connector_pairing is None:
             external_connector_pairing = dict()
             
@@ -766,9 +766,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
             metadata={key : value for key, value in self.metadata.items()},
         )
         
-        clone_primitive._connectors = self._connectors.copy(value_copy_method=Connector.copy) 
-        for subprimitive in self.children: # recursively copy children
-            clone_primitive.attach_child(subprimitive._copy_untransformed())
+        clone_primitive._connectors = self._connectors.copy(
+            value_copy_method=Connector.copy
+        ) 
+        
+        clone_primitive._children_by_handle = self.children_by_handle.copy(
+            value_copy_method=Primitive._copy_untransformed
+        )
+        for subprimitive in clone_primitive.children_by_handle.values():
+            subprimitive.parent = clone_primitive # needs to be rebound, since bypassing attach_child() to preserve handles
         
         clone_primitive._external_connectors_map = {
             conn_handle : (child_handle, child_conn_handle)
