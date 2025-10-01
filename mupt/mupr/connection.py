@@ -100,6 +100,8 @@ class Connector(RigidlyTransformable):
         bondtype : BondType=BondType.UNSPECIFIED,
         query_smarts : str='',
         label : Optional[ConnectorLabel]=None,
+        anchor_position : Optional[Vector3]=None,
+        linker_position : Optional[Vector3]=None,
     ):
         # DEV: want to hone in on the allowable types for these (Hashable?)
         self.anchor = anchor
@@ -110,9 +112,16 @@ class Connector(RigidlyTransformable):
         self.query_smarts = query_smarts
         self.label = type(self).DEFAULT_LABEL if (label is None) else label
     
-        self._anchor_position  : Optional[Vector3] = None
-        self._linker_position  : Optional[Vector3] = None
-        self._tangent_position : Optional[Vector3] = None
+        # spatial attributes
+        self._anchor_position = None
+        if anchor_position is not None:
+            self.anchor_position = anchor_position
+
+        self._linker_position = None
+        if linker_position is not None:
+            self.linker_position = linker_position
+
+        self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
 
     # Geometric properties
