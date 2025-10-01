@@ -280,7 +280,7 @@ class Connector(RigidlyTransformable):
             setattr(
                 new_connector,
                 pos_attr,
-                None if ((position := getattr(self, pos_attr)) is None) else np.array(position),
+                None if ((position := getattr(self, pos_attr)) is None) else as_n_vector(position, 3),
             )
         return new_connector
 
