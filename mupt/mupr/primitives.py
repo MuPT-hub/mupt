@@ -19,8 +19,9 @@ from typing import (
 )
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
-from dataclasses import dataclass, field
-from collections import defaultdict, Counter
+from dataclasses import dataclass
+from collections import defaultdict
+from copy import deepcopy
 
 import networkx as nx
 from networkx import get_edge_attributes
@@ -785,7 +786,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             connectors=None, 
             children=None,
             label=self.label,
-            metadata={key : value for key, value in self.metadata.items()},
+            metadata=deepcopy(self.metadata),
         )
         
         # transfer connection info
