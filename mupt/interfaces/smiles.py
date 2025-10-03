@@ -38,13 +38,13 @@ def primitive_from_smiles(
         rdmol = AddHs(rdmol)
     SanitizeMol(rdmol, sanitizeOps=sanitize_ops)
     
-    conformer_id : Optional[int] = None
+    conformer_idx : Optional[int] = None
     if embed_positions:
-        conformer_id = EmbedMolecule(rdmol, clearConfs=False) # NOTE: don't clobber existing conformers for safety (though new Mol shouldn't have any anyway)
+        conformer_idx = EmbedMolecule(rdmol, clearConfs=False) # NOTE: don't clobber existing conformers for safety (though new Mol shouldn't have any anyway)
     
     return primitive_from_rdkit(
         rdmol,
-        conformer_id=conformer_id,
+        conformer_idx=conformer_idx,
         label=label,
         smiles_writer_params=smiles_writer_params,
     )

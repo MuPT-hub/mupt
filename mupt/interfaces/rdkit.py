@@ -4,15 +4,21 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 
-from typing import Callable, Generator, Hashable, Optional, Type, TypeVar, Union
+from typing import (
+    Callable,
+    Generator,
+    Hashable,
+    Iterable,
+    Optional,
+    Type,
+    TypeVar,
+)
 
 import numpy as np
 import networkx as nx
 GraphLike = TypeVar('GraphLike', bound=nx.Graph)
 
 # chemistry utilities
-from periodictable import elements as ELEMENTS
-
 from rdkit.Chem.rdchem import (
     Atom,
     Bond,
@@ -22,15 +28,10 @@ from rdkit.Chem.rdchem import (
     StereoInfo,
 )
 from rdkit.Chem.rdmolops import (
-    AddHs,
     FindPotentialStereo,
     GetMolFrags,
-    SanitizeMol,
-    SanitizeFlags,
-    SANITIZE_ALL,
 )
 from rdkit.Chem.rdmolfiles import (
-    MolFromSmiles,
     MolToSmiles,
     MolFragmentToSmarts,
     SmilesWriteParams,
@@ -53,17 +54,14 @@ from ..chemistry.selection import (
 )
 
 # Representation components
+from . import DEFAULT_SMILES_WRITE_PARAMS
+from ..chemistry.core import ELEMENTS, ElementLike
+
 from ..geometry.shapes import PointCloud
+from ..geometry.arraytypes import Shape, N
+
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
-
-# module-scoped constants
-DEFAULT_SMILES_WRITE_PARAMS = SmilesWriteParams()
-DEFAULT_SMILES_WRITE_PARAMS.doIsomericSmiles = True
-DEFAULT_SMILES_WRITE_PARAMS.doKekule         = False
-DEFAULT_SMILES_WRITE_PARAMS.canonical        = True
-DEFAULT_SMILES_WRITE_PARAMS.allHsExplicit    = False
-DEFAULT_SMILES_WRITE_PARAMS.doRandom         = False
 
 
 # Representation component initializers
@@ -107,13 +105,32 @@ def chemical_graph_from_rdkit(
             )
     )
 
+def atom_positions_from_rdkit(
+    rdmol : Mol, 
+    conformer_idx : Optional[int]=None, 
+    atom_idxs : Optional[Iterable[int]]=None,
+) -> Optional[np.ndarray[Shape[N, 3], float]]:
+    '''Boilerplate for fetching a subset of atom positions (if conformer it set) from an RDKit Mol'''
+    if conformer_idx is None:
+        return None
+    
+    if atom_idxs is None:
+        atom_idxs = (atom.GetIdx() for atom in rdmol.GetAtoms())
+
+    conformer = rdmol.GetConformer(conformer_idx) # DEVNOTE: will raise Exception if bad ID is provided; no need to check locally
+    # return conformer.GetPositions()[[idx for idx in atom_idxs], :] # DEV: commenting out to avoid need list unpack + potential pivot to mapping as output
+    return np.vstack([
+        np.array(conformer.GetAtomPosition(atom_idx), dtype=float)
+            for atom_idx in atom_idxs
+    ])
+
 def connector_between_rdatoms(
     parent_mol : Mol,
     from_atom_idx : int,
     to_atom_idx : int,
+    conformer_idx : Optional[int]=None,
     from_atom_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
     to_atom_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    conformer_id : Optional[int]=None,
     connector_labeller : Optional[Callable[[Connector], Hashable]]=None,
 ) -> Connector:
     '''
@@ -131,7 +148,7 @@ def connector_between_rdatoms(
         A function which takes an RDKit Atom object and returns a label for the anchor atom
     to_atom_labeller : Callable[[Atom], int], default: the atom index
         A function which takes an RDKit Atom object and returns a label for the linker atom
-    conformer_id : Optional[int], optional, default None
+    conformer_idx : Optional[int], optional, default None
         The ID of the conformer from which to extract 3D positions
         If provided as None, will leave all spatial fields of the Connector unset
     connector_labeller : Callable[[Connector], Hashable], default: the Connector's DEFAULT_LABEL
@@ -146,19 +163,11 @@ def connector_between_rdatoms(
     '''
     if connector_labeller is None:
         connector_labeller = lambda conn : Connector.DEFAULT_LABEL
-    
-    # check for conformer
-    conformer : Optional[Conformer] = None
-    if conformer_id is not None:
-        conformer = parent_mol.GetConformer(conformer_id)
 
     # extract RDKit components - NOTE: will raise Exception immediately if pair of atoms are not, in fact, bonded
     bond : Bond = parent_mol.GetBondBetweenAtoms(from_atom_idx, to_atom_idx)
-    bondtype = bond.GetBondType() 
-    
     anchor_atom : Atom = parent_mol.GetAtomWithIdx(from_atom_idx)
     anchor_label = from_atom_labeller(anchor_atom)
-    
     linker_atom : Atom = parent_mol.GetAtomWithIdx(to_atom_idx)
     linker_label = to_atom_labeller(linker_atom)
 
@@ -167,43 +176,50 @@ def connector_between_rdatoms(
         anchor=anchor_label,
         linker=linker_label,
         linkables={linker_label}, # register linker as bondable by default
-        bondtype=bondtype,
+        bondtype=bond.GetBondType(),
         query_smarts=MolFragmentToSmarts(
             parent_mol,
             atomsToUse=[from_atom_idx, to_atom_idx],
             bondsToUse=[bond.GetIdx()],
         ),
+        metadata={
+            'bond_stereo' : bond.GetStereo(),
+            'bond_stereo_atoms' : tuple(bond.GetStereoAtoms()),
+            **bond.GetPropsAsDict(),
+        }
     )
     connector.label = connector_labeller(connector)
 
     ## inject spatial info, if present
-    if conformer:
-        connector.anchor_position = np.array(conformer.GetAtomPosition(from_atom_idx), dtype=float)
-        connector.linker_position = np.array(conformer.GetAtomPosition(to_atom_idx), dtype=float)
+    connector_positions = atom_positions_from_rdkit(
+        parent_mol,
+        conformer_idx=conformer_idx,
+        atom_idxs=[from_atom_idx, to_atom_idx]
+    )
+    if connector_positions is not None:
+        connector.anchor_position = connector_positions[0, :]
+        connector.linker_position = connector_positions[1, :]
 
         # define dihedral plane by neighbor atom, if a suitable one is present
-        real_neighbor_atom_idxs : Generator[int, None, None] = atom_neighbors_by_condition(
-            anchor_atom,
-            condition=lambda neighbor : (neighbor.GetIdx() == to_atom_idx),
-            negate=True, # ensure the tangent point is not the linker itself
-            as_indices=True,
-        )
-        try:
-            ## TODO: offer option to make this more selective (i.e. choose which neighbor atom lies in the dihedral plane)
-            connector.set_dihedral_from_coplanar_point(
-                np.array(conformer.GetAtomPosition(next(real_neighbor_atom_idxs)), dtype=float),
+        non_linker_nb_atom_positions = atom_positions_from_rdkit(
+            parent_mol,
+            conformer_idx=conformer_idx,
+            atom_idxs=atom_neighbors_by_condition(
+                anchor_atom,
+                condition=lambda neighbor : (neighbor.GetIdx() == to_atom_idx),
+                negate=True, # ensure the tangent point is not the linker itself
+                as_indices=True,
             )
-        except StopIteration:
-            pass
+        )
+        if non_linker_nb_atom_positions is not None:
+            connector.set_dihedral_from_coplanar_point(non_linker_nb_atom_positions[0, :])
 
     return connector
 
 def connectors_from_rdkit(
     rdmol : Mol,
-    conformer_id : Optional[int]=None,
-    linker_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    anchor_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    connector_labeller : Optional[Callable[[Connector], Hashable]]=None,
+    conformer_idx : Optional[int]=None,
+    **kwargs,
 ) -> Generator['Connector', None, None]:
     '''Determine all Connectors contained in an RDKit Mol, as specified by wild-type linker atoms'''
     rdmol.UpdatePropertyCache() # avoids implicitValence errors on substructure match
@@ -212,74 +228,55 @@ def connectors_from_rdkit(
             rdmol,
             from_atom_idx=anchor_idx,
             to_atom_idx=linker_idx,
-            from_atom_labeller=anchor_labeller,
-            to_atom_labeller=linker_labeller,
-            conformer_id=conformer_id,
-            connector_labeller=connector_labeller,
+            conformer_idx=conformer_idx,
+            **kwargs,
         )
 
-def shape_from_rdkit(
-    rdmol : Mol, 
-    conformer_id : Optional[int]=None, 
-    atom_idxs: Optional[list[int]]=None,
-) -> Optional[PointCloud]:
-    '''Extract a PointCloud shape from an RDKit Mol, if possible'''
-    if (conformer_id is None) or (rdmol.GetNumConformers() == 0):
-        return None
-    
-    if atom_idxs is None:
-        atom_idxs = [atom.GetIdx() for atom in rdmol.GetAtoms()]
-    
-    conformer = rdmol.GetConformer(conformer_id) # DEVNOTE: will raise Exception if bad ID is provided; no need to check ourselves
-    positions : np.ndarray = conformer.GetPositions() 
-    
-    return PointCloud(positions[atom_idxs, :])
             
-# Imports and Exporters
-def primitive_from_rdkit(
-    rdmol : Mol,
-    conformer_id : Optional[int]=None,
-    label : Optional[Hashable]=None,
-    smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
-    sanitize_frags : bool=True,
-    denest : bool=True,
+# RDKit parsers
+# Import from RDKit
+def primitive_from_rdkit_atom(
+    parent_mol : Mol,
+    atom_idx : int,
+    conformer_idx : Optional[int]=None,
+    attach_connectors : bool=False,
+    **kwargs
 ) -> Primitive:
-    '''
-    Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules
-    '''
-    chains = GetMolFrags(
-        rdmol,
-        asMols=True, 
-        sanitizeFrags=sanitize_frags,
-        # DEV: leaving these None for now, but higlighting that we can spigot more info out of this eventually
-        frags=None,
-        fragsMolAtomMapping=None,
-    )
+    '''Initialize an atomic Primitive from an RDKit Atom'''
+    atom : Atom = parent_mol.GetAtomWithIdx(atom_idx)
     
-    # if only 1 chain is present, fall back to single-chain importer
-    if (len(chains) == 1) and denest:
-        return primitive_from_rdkit_chain(
-            chains[0],
-            conformer_id=conformer_id,
-            label=label, # impose default SMILES-based label at chain level at all times
-        )
-    # otherwise, bind Primitives for each chain to "universal" root Primitive
-    else:
-        universe_primitive = Primitive(label=label)
-        for chain in chains:
-            universe_primitive.attach_child(
-                primitive_from_rdkit_chain(
-                    chain,
-                    conformer_id=conformer_id,
-                    label=None,
-                    smiles_writer_params=smiles_writer_params,
+    elem : ElementLike = ELEMENTS[atom.GetAtomicNum()]
+    if (mass_number := atom.GetIsotope()) != 0:
+        elem = elem[mass_number] # fetch Isotope instance
+    if (charge := atom.GetFormalCharge()) != 0:
+        elem = elem.ion[charge] # fetch Ion instance - NOTE: order here is deliberate; can't fetch Isotope of Ion, but CAN fetch Ion of Isotope
+    
+    atom_primitive = Primitive(
+        element=elem,
+        label=atom_idx,
+        metadata=atom.GetPropsAsDict(includePrivate=True),
+    )
+    atom_pos = atom_positions_from_rdkit(parent_mol, conformer_idx=conformer_idx, atom_idxs=[atom_idx])
+    if atom_pos is not None:
+        atom_pos = atom_pos[0, :] # extract single position from 2D array
+        atom_primitive.shape = PointCloud(positions=atom_pos)
+    
+    if attach_connectors:
+        for nb_atom in atom.GetNeighbors():
+            conn_handle = atom_primitive.register_connector(
+                connector_between_rdatoms(
+                    parent_mol=parent_mol,
+                    from_atom_idx=atom_idx,
+                    to_atom_idx=nb_atom.GetIdx(),
+                    conformer_idx=conformer_idx,
+                    **kwargs,
                 )
             )
-        return universe_primitive
-
+    return atom_primitive
+    
 def primitive_from_rdkit_chain(
     rdmol_chain : Mol,
-    conformer_id : Optional[int]=None,
+    conformer_idx : Optional[int]=None,
     label : Optional[Hashable]=None,
     atom_label : str='ATOM',
     external_linker_label : str='*',
@@ -292,7 +289,7 @@ def primitive_from_rdkit_chain(
     ----------
     rdmol : Chem.Mol
         The RDKit Mol object to convert
-    conformer_id : int, optional
+    conformer_idx : int, optional
         The ID of the conformer to use, by default None (uses no conformer)
     label : Hashable, optional
         A distinguishing label for the Primitive
@@ -303,120 +300,130 @@ def primitive_from_rdkit_chain(
     Primitive
         The created Primitive object
     '''
-    # Extract information from the RDKit Mol
-    ## TODO: check that rdmol_chain really has exactly 1 connected component?
-    conformer : Optional[Conformer] = None
-    if conformer_id is not None:
-        conformer = rdmol_chain.GetConformer(conformer_id)
-
-    stereo_info_map : dict[int, StereoInfo] = {
-        stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
-            for stereo_info in FindPotentialStereo(rdmol_chain, cleanIt=True, flagPossible=True) 
-    }
     if label is None:
         label = MolToSmiles(rdmol_chain, params=smiles_writer_params)
-    
-    # Initialize molecule-level resolution "parent" Primitive
     rdmol_primitive = Primitive(label=label)
-    
-    ## insert subprimitives for all atoms (real or otherwise)
+    ## DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
+    # stereo_info_map : dict[int, StereoInfo] = {
+    #     stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
+    #         for stereo_info in FindPotentialStereo(rdmol_chain, cleanIt=True, flagPossible=True) 
+    # } 
+
+    # 1) Insert child Primitives for each atom (EVEN linkers - this keeps indices in sync for final handle assignment)
     linker_idxs : set[int] = set()
-    atom_map : dict[int, PrimitiveHandle] = dict()
-    for atom in rdmol_chain.GetAtoms():
+    atom_idx_to_handle_map : dict[int, PrimitiveHandle] = dict() # DEV: as-implemented, handle idx **SHOULD** match atom idx, but it never hurts to be explicit :P
+    for atom in rdmol_chain.GetAtoms(): # DEV: opting not to get atoms implicitly from bonds to handle single, unbonded atom (e.g. noble gas) uniformly
         atom_idx = atom.GetIdx()
-        atom_primitive = Primitive(
-            element=ELEMENTS[atom.GetAtomicNum()], # NOTE: this is part of what necessitates excluding atomic number 0 linkers 
-            label=atom_idx,
-            metadata={
-                **atom.GetPropsAsDict(includePrivate=True),
-                'stereo_info' : stereo_info_map.get(atom_idx, None) # TODO: see if there's a more local way of getting at stereo_info
-            }, 
-        )
-        if conformer is not None:
-            atom_primitive.shape = PointCloud(np.array(conformer.GetAtomPosition(atom_idx)))
-            
-        atom_map[atom_idx] = rdmol_primitive.attach_child(atom_primitive, label=atom_label)
-        if is_linker(atom): # NOTE: attaching linkers as if they were Primitives first to ensure handle index matches atom index
+        if is_linker(atom):
             linker_idxs.add(atom_idx)
+        
+        atom_prim = primitive_from_rdkit_atom(
+            rdmol_chain,
+            atom_idx,
+            conformer_idx=conformer_idx,
+            attach_connectors=False, # will attach per-bond to avoid needing to match connector handles to bond idxs
+        )
+        atom_idx_to_handle_map[atom_idx] = rdmol_primitive.attach_child(atom_prim, label=atom_label)
     
-    ## forge connections between atoms, and with external connections
+    # 2) forge connections between Primitives corresponding to bonded atoms (propagating external Connectors up to mol primitive)
     for bond in rdmol_chain.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
-        end_idx   = bond.GetEndAtomIdx()
-        bonded_idxs : set[int] = {begin_idx, end_idx}
+        end_idx = bond.GetEndAtomIdx()
         
-        linker_atom_idxs : set[int] = linker_idxs.intersection(bonded_idxs)
-        if len(linker_atom_idxs) > 1:
-            raise ValueError(f'Illegal multi-linker bond between atoms {bonded_idxs}')
-        
-        ### external (i.e. off-molecule) bond
-        elif len(linker_atom_idxs) == 1: 
-            anchor_atom_idxs = bonded_idxs - linker_atom_idxs
-            anchor_atom_idx = anchor_atom_idxs.pop()
-            linker_atom_idx = linker_atom_idxs.pop()
-
-            connector_external = connector_between_rdatoms(
-                rdmol_chain,
-                from_atom_idx=anchor_atom_idx,
-                to_atom_idx=linker_atom_idx,
-                conformer_id=conformer_id,
-            )
-            connector_external_toplevel = connector_external.copy() # the version of the connector propagated up to the molecular level
-            connector_external_toplevel.linkables.add(external_linker_label) # include distinguishing label for off-molecule version of this Connector
-
-            anchor_prim_handle = atom_map[anchor_atom_idx]
-            anchor_atom_prim = rdmol_primitive.fetch_child(anchor_prim_handle)
-            rdmol_primitive.pair_external_connectors_vertically(
-                rdmol_primitive.register_connector(connector_external),
-                anchor_prim_handle,
-                anchor_atom_prim.register_connector(connector_external_toplevel),
-            )
-            
-        ### internal bond between pair of "real" atoms
-        elif len(linker_atom_idxs) == 0: 
-            atom_prim_handle_1 = atom_map[begin_idx]
-            atom_prim_1 = rdmol_primitive.fetch_child(atom_prim_handle_1)
-            connector_internal_1_handle = atom_prim_1.register_connector(
-                connector_between_rdatoms(
-                    rdmol_chain,
-                    from_atom_idx=begin_idx,
-                    to_atom_idx=end_idx,
-                    conformer_id=conformer_id,
-                )
-            )
-                
-            atom_prim_handle_2 = atom_map[end_idx]
-            atom_prim_2 = rdmol_primitive.fetch_child(atom_prim_handle_2)
-            connector_internal_2_handle = atom_prim_2.register_connector(
-                connector_between_rdatoms(
-                    rdmol_chain,
-                    from_atom_idx=end_idx,
-                    to_atom_idx=begin_idx,
-                    conformer_id=conformer_id,
-                )
-            )
-            
-            rdmol_primitive.link_children(
-                atom_prim_handle_1,
-                atom_prim_handle_2,
-                connector_internal_1_handle,
-                connector_internal_2_handle,
-            )
-
-    ## excise temporary linker Primitives no longer needed for bookkeeping
-    for linker_idx in linker_idxs:
-        rdmol_primitive.detach_child(atom_map.pop(linker_idx)) # pops both from atom_map AND molecule Primitive's children
-        
-    # Inject information into molecule-level Primitive now that atoms have been sorted out
-    if conformer is not None:
-        rdmol_primitive.shape = PointCloud(
-            positions=np.vstack(
-                [atom_prim.shape.positions for atom_prim in rdmol_primitive.children]
-            )
+        ## Primitive 1 + associated Connector
+        begin_prim_handle = atom_idx_to_handle_map[begin_idx]
+        begin_prim = rdmol_primitive.fetch_child(begin_prim_handle)
+        begin_conn = connector_between_rdatoms(
+            rdmol_chain,
+            from_atom_idx=begin_idx,
+            to_atom_idx=end_idx,
+            conformer_idx=conformer_idx,
+            # TODO: customize labelling?
         )
+        begin_conn.linkables.add(external_linker_label)
+        begin_conn_handle = begin_prim.register_connector(begin_conn)
+        rdmol_primitive.bind_external_connector(begin_prim_handle, begin_conn_handle)
+        
+        ### Primitive 2 + associated Connector
+        end_prim_handle = atom_idx_to_handle_map[end_idx]
+        end_prim = rdmol_primitive.fetch_child(end_prim_handle)
+        end_conn = connector_between_rdatoms(
+            rdmol_chain,
+            from_atom_idx=end_idx,
+            to_atom_idx=begin_idx,
+            conformer_idx=conformer_idx,
+            # TODO: customize labelling?
+        )
+        end_conn.linkables.add(external_linker_label)
+        end_conn_handle = end_prim.register_connector(end_conn)
+        rdmol_primitive.bind_external_connector(end_prim_handle, end_conn_handle)
+        
+        ### joining of the pair of Connectors
+        rdmol_primitive.connect_children(
+            begin_prim_handle,
+            end_prim_handle,
+            begin_conn_handle,
+            end_conn_handle,
+        )
+
+    # 3) excise temporary linker Primitives no longer needed as doorstops
+    for linker_idx in linker_idxs:
+        rdmol_primitive.detach_child(atom_idx_to_handle_map[linker_idx])
+
+    # 4) Inject conformer info - DEV: there are many avenues to do this (e.g. collate shape from children, if not None on all), but opted for the simplest for now
+    non_linker_conformer = atom_positions_from_rdkit(
+        rdmol_chain,
+        conformer_idx=conformer_idx,
+        atom_idxs=sorted(atom_idx_to_handle_map.keys() - linker_idxs), # preserve atom order
+    )
+    rdmol_primitive.shape = non_linker_conformer or PointCloud(positions=non_linker_conformer) # exploit default NoneType value
+    rdmol_primitive.check_self_consistent()
         
     return rdmol_primitive
     
+def primitive_from_rdkit(
+    rdmol : Mol,
+    conformer_idx : Optional[int]=None,
+    label : Optional[Hashable]=None,
+    smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
+    sanitize_frags : bool=True,
+    denest : bool=True,
+) -> Primitive:
+    '''
+    Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules
+    '''
+    chains = GetMolFrags(
+        rdmol,
+        asMols=True, 
+        sanitizeFrags=sanitize_frags,
+        # DEV: leaving these None for now, but highlighting that we can spigot more info out of this eventually
+        frags=None,
+        fragsMolAtomMapping=None,
+    )
+    
+    # if only 1 chain is present, fall back to single-chain importer
+    if (len(chains) == 1) and denest:
+        return primitive_from_rdkit_chain(
+            chains[0],
+            conformer_idx=conformer_idx,
+            label=label,
+            smiles_writer_params=smiles_writer_params,
+        )
+    # otherwise, bind Primitives for each chain to "universal" root Primitive
+    else:
+        universe_primitive = Primitive(label=label)
+        for chain in chains:
+            universe_primitive.attach_child(
+                primitive_from_rdkit_chain(
+                    chain,
+                    conformer_idx=conformer_idx,
+                    label=None, # impose default SMILES-based label for each individual chain
+                    smiles_writer_params=smiles_writer_params,
+                )
+            )
+        return universe_primitive
+    
+## Export to RDKit
 def primitive_to_rdkit(primitive : Primitive) -> Mol:
     '''
     Convert a StructuralPrimitive to an RDKit Mol
@@ -440,24 +447,3 @@ def primitive_to_rdkit(primitive : Primitive) -> Mol:
     
     # case 2 : link up atoms within strucutral primitive recursively
     ## match connectors along bonds, identify external connectors
-
-# SMILES/SMARTS readers and writers
-def primitive_from_smiles(
-        smiles : str, 
-        ensure_explicit_Hs : bool=True,
-        embed_positions : bool=False,
-        sanitize_ops : SanitizeFlags=SANITIZE_ALL,
-        label : Optional[Hashable]=None,
-    ) -> Primitive:
-    '''Create a Primitive from a SMILES string, optionally embedding positions if selected'''
-    rdmol = MolFromSmiles(smiles, sanitize=False)
-    if ensure_explicit_Hs:
-        rdmol.UpdatePropertyCache() # allow Hs to be added without sanitizating twice
-        rdmol = AddHs(rdmol)
-    SanitizeMol(rdmol, sanitizeOps=sanitize_ops)
-    
-    conformer_id : Optional[int] = None
-    if embed_positions:
-        conformer_id = EmbedMolecule(rdmol, clearConfs=False) # NOTE: don't clobber existing conformers for safety (though new Mol shouldn't have any anyway)
-    
-    return primitive_from_rdkit(rdmol, conformer_id=conformer_id, label=label)
