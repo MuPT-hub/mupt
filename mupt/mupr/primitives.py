@@ -168,6 +168,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''
         if not isinstance(new_connector, Connector):
             raise TypeError(f'Cannot interpret object of type {type(new_connector)} as Connector')
+        # TODO: bind new connectors externally to parent (propagate recursively up tree?)
         return self._connectors.register(new_connector, label=label)
 
     def register_connectors_from(self, new_connectors : Iterable[Connector]) -> None:
@@ -183,7 +184,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         try:
             return self._connectors[connector_handle]
         except KeyError:
-            raise KeyError(f'No Connector with handle "{connector_handle}" bound to Primitive "{self.label}"')
+            raise KeyError(f'No Connector with handle "{connector_handle}" bound to {self._repr_brief()}')
         
     def fetch_connector_on_child(self, primitive_handle : PrimitiveHandle, connector_handle : ConnectorHandle) -> Connector:
         '''
@@ -335,15 +336,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Remove an external connector from self, leaving the corresponding Connector on the child Primitive intact
         Returns the now-unbound connector instance
         '''
-        try:
-            own_conn = self.connectors.deregister(connector_handle)
-        except KeyError:
-            raise KeyError(f'No Connector with handle "{connector_handle}" bound to Primitive "{self.label}"')
+        _ = self.fetch_connector(connector_handle) # verify existence
+        own_conn = self._connectors.deregister(connector_handle)
         
-        try:
-            del self._external_connectors[connector_handle]
-        except KeyError:
-            raise KeyError(f'Connector "{connector_handle}" bound to Primitive "{self.label}" exists, but is not bound the Connector of any child Primitive')
+        if connector_handle not in self._external_connectors:
+            raise KeyError(f'Connector "{connector_handle}" bound to {self._repr_brief()} exists, but is not bound the Connector of any child Primitive')
+        del self._external_connectors[connector_handle]
 
         return own_conn
     
@@ -370,13 +368,13 @@ class Primitive(NodeMixin, RigidlyTransformable):
             return # these checks only make sense for Primitives with children
         
         if self.functionality != len(self.external_connectors):
-            raise ValueError(f'{self.functionality}-functional Primitive "{self.label}" only has {len(self.external_connectors)} registered external Connectors')
+            raise ValueError(f'{self.functionality}-functional {self._repr_brief()} only has {len(self.external_connectors)} registered external Connectors')
         
         own_conn_handles = set(self.connectors.keys())
         mapped_conn_handles = set(self.external_connectors.keys())
         if own_conn_handles != mapped_conn_handles:
             raise KeyError(
-                f'Connector mapping on Primitive "{self.label}" is inconsistent; {len(own_conn_handles - mapped_conn_handles)} Connector(s) have no '\
+                f'Connector mapping on {self._repr_brief()} is inconsistent; {len(own_conn_handles - mapped_conn_handles)} Connector(s) have no '\
                 f'associated Connectors among children, and {len(mapped_conn_handles - own_conn_handles)} mapped Connector(s) are not registered to the Primitive'
             )
 
@@ -387,7 +385,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''
         num_total_child_connectors = sum(child.functionality for child in self.children)
         if num_total_child_connectors != (self.num_internal_connectors + len(self.external_connectors)):
-            raise ValueError(f'Primitive "{self.label}" has Connectors unaccounted for; {num_total_child_connectors} total vs {self.num_internal_connectors} internal + {len(self.external_connectors)} external Connectors')
+            raise ValueError(f'{self._repr_brief()} has Connectors unaccounted for; {num_total_child_connectors} total vs {self.num_internal_connectors} internal + {len(self.external_connectors)} external Connectors')
 
         # TODO: check that handles match between two sets
 
@@ -421,7 +419,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         try:
             return self.children_by_handle[primitive_handle]
         except KeyError:
-            raise KeyError(f'No child Primitive with handle "{primitive_handle}" bound to Primitive "{self.label}"')
+            raise KeyError(f'No child Primitive with handle "{primitive_handle}" bound to {self._repr_brief()}')
     fetch_subprimitive = fetch_child
 
     ## Attachment (fulfilling NodeMixin contract)
@@ -467,7 +465,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             self.bind_external_connector(subprim_handle, conn_handle)
             
         for subprim_conn_handle, (nb_handle, nb_conn_handle) in neighbor_connections.items():
-            self.connect_children(subprim_handle, nb_handle, subprim_conn_handle, nb_conn_handle)
+            self.connect_children(subprim_handle, subprim_conn_handle, nb_handle, nb_conn_handle)
 
         return subprim_handle
             
@@ -517,8 +515,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def connect_children(
         self, # DEV: reorder args here to match ConnectorReference/other method signatures?
         child_1_handle : PrimitiveHandle,
-        child_2_handle : PrimitiveHandle,
         child_1_connector_handle : ConnectorHandle,
+        child_2_handle : PrimitiveHandle,
         child_2_connector_handle : ConnectorHandle,
         **edge_attrs,
     ) -> None:
@@ -903,3 +901,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         )
         
         return f'{self.__class__.__name__}({attr_str})'
+
+    def _repr_brief(self) -> str:
+        '''A brief representation of this Primitive, suitable for logging'''
+        return f'{self.__class__.__name__} "{self.label}"'
