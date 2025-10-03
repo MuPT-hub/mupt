@@ -110,7 +110,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             self._connectors.register_from(connectors)
             
         self._internal_connections : set[frozenset[ConnectorReference]] = set()
-        self._external_connections : dict[ConnectorHandle, ConnectorReference] = dict()
+        self._external_connectors : dict[ConnectorHandle, ConnectorReference] = dict()
         
         # additional descriptors
         self.label = type(self).DEFAULT_LABEL if (label is None) else label
@@ -217,6 +217,18 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 for connected_pair in self._internal_connections
         }
         
+    @property
+    def num_internal_connections(self) -> int:
+        '''Number of internal connections (i.e. bonded pairs of Connectors) between child Primitives'''
+        return len(self._internal_connections)
+    
+    @property
+    def num_internal_connectors(self) -> int: # DEV: this is potentially confusing/easily mixed up w/ "num_internal_connections" - revisit naming
+        '''
+        Number of Connectors bound up in internal connections - equal to twice the number of internal connections
+        '''
+        return 2*self.num_internal_connections
+        
     def internal_connections_on_child(self, child_handle : PrimitiveHandle) -> dict[ConnectorHandle, ConnectorReference]:
         '''
         Fetch all referenced siblings which are registered as internally-connected to the given child Primitive
@@ -266,38 +278,36 @@ class Primitive(NodeMixin, RigidlyTransformable):
             ConnectorReference(child_2_handle, child_2_connector_handle),
         )
         for conn_ref in conn_refs:
-            own_conn_handle = self.external_connections_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
-            del self._external_connections[own_conn_handle]
-
+            own_conn_handle = self.external_connectors_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
+            del self._external_connectors[own_conn_handle]
         self._internal_connections.add(frozenset(conn_refs))
         
     ## External "off-body" connections
     @property
-    def external_connections(self) -> dict[ConnectorHandle, ConnectorReference]:
-        '''Mapping between the connectors handles found on self and their analogues on child Primitives'''
-        return self._external_connections
+    def external_connectors(self) -> dict[ConnectorHandle, ConnectorReference]:
+        '''Mapping between the Connector handles found on self and their analogues on child Primitives'''
+        return self._external_connectors
         
     @property # TODO: find way to cache this (requires some guarantee of immutability of children)
-    def external_connections_by_children(self) -> dict[PrimitiveHandle, dict[ConnectorHandle, ConnectorHandle]]:
+    def external_connectors_by_children(self) -> dict[PrimitiveHandle, dict[ConnectorHandle, ConnectorHandle]]:
         '''
-        Mapping from all contained child Primitive handles to a mapping of 
-        (child Connector -> own Connector) pairs defined by the external Connector map
+        Mapping from child Primitive handles to (child Connector, own Connector) handle pairs defined by the external Connector map
         '''
         ext_conn_by_child = defaultdict(dict)
-        for own_conn_handle, child_conn_ref in self.external_connections.items():
+        for own_conn_handle, child_conn_ref in self.external_connectors.items():
             ext_conn_by_child[child_conn_ref.primitive_handle][child_conn_ref.connector_handle] = own_conn_handle
 
         return dict(ext_conn_by_child)
     
-    def external_connections_on_child(self, child_handle : PrimitiveHandle) -> dict[ConnectorHandle, ConnectorHandle]:
+    def external_connectors_on_child(self, child_handle : PrimitiveHandle) -> dict[ConnectorHandle, ConnectorHandle]:
         '''
-        Mapping between Connector ahndles on a given child and the corresponding Connector on self, if that connection is external
+        Mapping between Connector handles on a given child and the corresponding Connector handles on self, if that connection is external
         '''
-        return self.external_connections_by_children.get(child_handle, dict())
+        return self.external_connectors_by_children.get(child_handle, dict())
     
-    def num_external_connections_on_child(self, child_handle : PrimitiveHandle) -> int:
+    def num_external_connectors_on_child(self, child_handle : PrimitiveHandle) -> int:
         '''Number of external connections a given child Primitive has mirrored by its parent (self)'''
-        return len(self.external_connections_on_child(child_handle))
+        return len(self.external_connectors_on_child(child_handle))
     
     def propagate_external_connector(
         self,
@@ -310,60 +320,57 @@ class Primitive(NodeMixin, RigidlyTransformable):
         conn = self.fetch_connector_on_child(child_handle, child_connector_handle)
         conn_counterpart = conn.copy()
         own_conn_handle = self.register_connector(conn_counterpart)
-        self._external_connections[own_conn_handle] = ConnectorReference(
+        self._external_connectors[own_conn_handle] = ConnectorReference(
             primitive_handle=child_handle,
             connector_handle=child_connector_handle,
         )
         LOGGER.debug(f'Added Connector "{own_conn_handle}" as counterpart to Connector "{child_connector_handle}" on child Primitive tagged "{child_handle}"')
         
         return own_conn_handle
-
-    # def check_external_connections_bijectively_mapped(self, recursive : bool=False) -> None:
-    #     '''
-    #     Check whether all external connectors are mapped to a counterpart Connector amongst
-    #     the children of this Primitive AND that no extraneous Connectors are registered
-    #     '''
-    #     if self.is_leaf:
-    #         return # leaf Primitives by definition have no children, so there's no need to mapping of external connections downwards
-        
-    #     # Perform cheap counting check
-    #     if (n_bound_connectors := len(self.external_connections)) != self.functionality:
-    #         raise ValueError(f'Cannot bijectively map {n_bound_connectors} mapped external Connectors onto {self.functionality}-functional Primitive labelled "{self.label}"')
-        
-    #     # Check that mapped Connector handles agree
-    #     connector_handles = set(self.connectors.keys())
-    #     bound_connector_handles = set(self.external_connections.keys())
-    #     if connector_handles != bound_connector_handles:
-    #         raise KeyError(
-    #             f'Association between external Connections on this Primitive and its children is inconsistent; {len(connector_handles - bound_connector_handles)}'
-    #             f'Connectors as unbound, and {len(bound_connector_handles - connector_handles)} extraneous binding are present'
-    #         )
-        
-    #     # Check that all mapped Connectors and their child counterparts actually exist
-    #     for own_connector_handle, child_conn_ref in self.external_connections.items():
-    #         # DEV: getting attributes here to draw out any errors encountered during fetch, not to actually use connectors anywhere
-    #         _own_conn = self.fetch_connector(own_connector_handle)
-    #         child = self.fetch_child(child_conn_ref.primitive_handle)
-    #         _child_conn = child.fetch_connector(child_conn_ref.connector_handle)
-
-    #         if recursive:
-    #             child.check_external_connections_bijectively_mapped(recursive=True)
-
+    
     def connector_trace(self, connector_handle : ConnectorHandle) -> list[Connector]: # DEV: eventually, make wrapping type set, once figured out how to hash Connectors losslessly
         '''
         Returns a sequence of Connectors, beginning with the referenced Connector on this Primitives,
         whose n-th term is the Connector corresponding to the referenced Connector n-layers deep into the Primitive hierarchy
         '''
-        # self.check_external_connections_bijectively_mapped(recursive=False) # trace operation is ill-defined without this condition
         ext_conn_traces = [self.fetch_connector(connector_handle)]
         if not self.is_leaf:
             # recursively trace downwards - this is the reason for not validating the precondition recursively (duplicates effort done here)
-            child_conn_ref : ConnectorReference = self.external_connections[connector_handle]
+            child_conn_ref : ConnectorReference = self.external_connectors[connector_handle]
             child = self.fetch_child(child_conn_ref.primitive_handle)
             ext_conn_traces.extend(child.connector_trace(child_conn_ref.connector_handle))
 
         return ext_conn_traces
+    
+    ## Consistency checks on Connections
+    def check_external_connectors_accurate(self) -> None:
+        '''
+        Check that the mapped Connectors on self are each represented in the mapping to the associated external Connectors on children
+        '''
+        if self.is_leaf:
+            return # these checks only make sense for Primitives with children
+        
+        if self.functionality != len(self.external_connectors):
+            raise ValueError(f'{self.functionality}-functional Primitive "{self.label}" only has {len(self.external_connectors)} registered external Connectors')
+        
+        own_conn_handles = set(self.connectors.keys())
+        mapped_conn_handles = set(self.external_connectors.keys())
+        if own_conn_handles != mapped_conn_handles:
+            raise KeyError(
+                f'Connector mapping on Primitive "{self.label}" is inconsistent; {len(own_conn_handles - mapped_conn_handles)} Connector(s) have no '\
+                f'associated Connectors among children, and {len(mapped_conn_handles - own_conn_handles)} mapped Connector(s) are not registered to the Primitive'
+            )
 
+    def check_connector_balance(self) -> None:
+        '''
+        Check whether total number of Connectors on children matches the number of
+        Connectors bound in internal OR external Connectors on the parent (self)
+        '''
+        num_total_child_connectors = sum(child.functionality for child in self.children)
+        if num_total_child_connectors != (self.num_internal_connectors + len(self.external_connectors)):
+            raise ValueError(f'Primitive "{self.label}" has Connectors unaccounted for; {num_total_child_connectors} total vs {self.num_internal_connectors} internal + {len(self.external_connectors)} external Connectors')
+
+        # TODO: check that handles match between two sets
 
     # Child Primitives
     ## DEV: override __children_or_empty with values of self._children_by_handle?
@@ -469,14 +476,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         assert self.num_internal_connections_on_child(target_handle) == 0, f'Failed to disconnect all internal connections on child Primitive "{target_handle}"'
 
         ## remove external connections on self (corresponding 1:1 with those on target after internal disconnection)
-        assert self.num_external_connections_on_child(target_handle) == target_child.functionality, f'Failed to track all external connections to child Primitive "{target_handle}"'
-        for target_conn_handle, own_conn_handle in self.external_connections_on_child(target_handle).items():
-            del self._external_connections[own_conn_handle]
+        assert self.num_external_connectors_on_child(target_handle) == target_child.functionality, f'Failed to track all external connections to child Primitive "{target_handle}"'
+        for target_conn_handle, own_conn_handle in self.external_connectors_on_child(target_handle).items():
+            del self._external_connectors[own_conn_handle]
         
         # discard from topology (raises Exception if not present in topology)
         self.topology.remove_node(target_handle)
         
-        # unregister child from self
+        # deregister child from self
         target_child.parent = None
         del self.children_by_handle[target_handle]
         
@@ -574,7 +581,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def register_connections_to_topology(
         self,
         connector_registration_max_iter: int=3,
-        allow_overwrite_external_connections : bool=False,
+        allow_overwrite_external_connectors : bool=False,
     ) -> dict[PrimitiveHandle, tuple[Connector]]:
         '''
         Attempt to pair up bondable Connectors of child Primitives along edges in the prescribed topology
@@ -589,7 +596,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self.check_topology_incompatible(topology)
 
         # attempt to pair up Connectors according to topology
-        paired_connectors, found_external_connections = register_connectors_to_topology( # will raise exception is registration is not possible
+        paired_connectors, found_external_connectors = register_connectors_to_topology( # will raise exception is registration is not possible
             labelled_connectors={
                 handle : list(subprimitive.connectors.values())
                     for handle, subprimitive in self.children_by_handle.items()
@@ -601,23 +608,23 @@ class Primitive(NodeMixin, RigidlyTransformable):
         for edge_label, connector_mapping in paired_connectors.items():
             self.topology.edges[edge_label][self.CONNECTOR_EDGE_ATTR] = connector_mapping
 
-        # if allow_overwrite_external_connections:
+        # if allow_overwrite_external_connectors:
             # TODO - implement routine for inferring correct pairing in general
 
-        return found_external_connections
+        return found_external_connectors
 
-    # Necessary and sufficient conditions for self-consistency of topology, connectors, and child Primitives
+    ## Consistency checks between topology and other internal attributes
     @property
     def is_simple(self) -> bool:
         '''Whether a Primitive has no internal structure'''
         return self.topology.is_empty and self.isleaf
     
-    def _check_children_bijective_to_topology(self, topology: TopologicalStructure) -> None:
+    def check_children_bijective_to_topology_nodes(self, topology : TopologicalStructure) -> None:
         '''
-        Check whether a 1:1 correspondence can exist between all child
-        Primitives and all elements of the imposed incidence topology
+        Verify that a 1:1 correspondence exists between the handles of the child
+        Primitives registered to this Primitive and the nodes present in the incidence topology
         '''
-        if topology.number_of_nodes() != self.num_children: # simpler counting check rules out obviously-incompatible pairs quicker
+        if topology.number_of_nodes() != self.num_children:
             raise ValueError(f'Cannot bijectively map {self.num_children} child Primitives onto {topology.number_of_nodes()}-element topology')
         
         node_labels = set(topology.nodes)
@@ -627,40 +634,38 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 f'Set underlying topology does not correspond to handles on child Primitives; {len(node_labels - child_handles)} element(s)'\
                 f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
             )
-
-    def _check_functionalities_incompatible_with_topology(self, topology: TopologicalStructure) -> None:
+    
+    def check_internal_connections_bijective_to_topology_edges(self, topology : TopologicalStructure) -> None:
         '''
-        Check whether the functionalities of all child Primitives are 
-        incompatible with the corresponding nodes in the imposed Topology
+        Verify that a 1:1 correspondence exists between the internal connections
+        (Connectors paired between sibling child Primitives) and the edges present in the incidence topology
         '''
-        if self.is_leaf: # self.is_simple
-            if self.is_atom:
-                ## TODO: include valency checks based on atomic number and formal charge
-                ...
-            else:
-                ## for non-atom leaves, not really clear as of yet whether there even exist universally-required conditions for functionality
-                ...
-            return # for now, exit early w/o Exception for leaf cases
-
-        for handle, subprimitive in self.children_by_handle.items():
-            if subprimitive.functionality < (min_degree := topology.degree[handle]):
-                raise ValueError(f'Cannot embed {subprimitive.functionality}-functional Primitive "{handle}" into {min_degree}-degree node')
-
-    def check_topology_incompatible(self, topology: Optional[TopologicalStructure]=None) -> None:
-        '''
-        Check necessary conditions for a topology to be compatible with self's children and Connectors
-        Unlike many other validation checks found here, these conditions must hold EVEN for leaf Primitives
+        if topology.number_of_edges() != self.num_internal_connections:
+            raise ValueError(f'Cannot bijectively map {self.num_internal_connections} internal connections onto {topology.number_of_edges()}-edge topology')
         
-        These conditions NOT being met means the topology is definitely incompatible;
-        the converse, however, is not true in general i.e. these conditions being
-        met does not guarantee compatibility between children and topology
+        edge_labels = set(frozenset(edge) for edge in topology.edges) # cast to frozenset to remove order-dependence
+        internal_conn_pairs = set(self.internal_connections_by_pairs.keys())
+        if edge_labels != internal_conn_pairs:
+            raise KeyError(
+                f'Incident pairs in associated topology do not correspond to internally-connected pairs of child Primitives;'\
+                f'{len(edge_labels - internal_conn_pairs)} edge(s) have no corresponding connection, '\
+                f'and {len(internal_conn_pairs - edge_labels)} internal connection(s) are unrepresented in the topology'
+            )
+    
+    def check_topology_compatible(self, topology: Optional[TopologicalStructure]=None) -> None:
+        '''
+        Check sufficient conditions for a topology (if None is passed, assumed to be the one set on this Primitive)
+        to be compatible with self's children and Connectors. These conditions hold true EVEN for leaf Primitives
         '''
         if topology is None:
             topology = self.topology
-        
-        self._check_children_bijective_to_topology(topology) # NOTE: MUST be done before checking functionalities!
-        self._check_functionalities_incompatible_with_topology(topology)
-                       
+            
+        self.check_children_bijective_to_topology_nodes(topology)
+        self.check_internal_connections_bijective_to_topology_edges(topology)
+
+    
+    # Resolution shift methods
+    ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
     def check_self_consistent(self) -> None:
         '''
         Check sufficient conditions for whether the children of this Primitive, their
@@ -673,10 +678,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         # Check sufficient conditions if passed
         ## 1) Check external connections are bijectively identified
-        self.check_external_connections_bijectively_mapped(recursive=False)
+        # self.check_external_connectors_bijectively_mapped(recursive=False)
         
         ## 2) Check all Connectors of children are either explicitly internal or external
-        for child_handle, child_conn_map in self.external_connections_by_children.items():
+        for child_handle, child_conn_map in self.external_connectors_by_children.items():
             num_connectors_external = len(child_conn_map)
             num_connectors_internal = self.topology.degree[child_handle]
             num_connectors_total_expected = num_connectors_internal + num_connectors_external
@@ -689,10 +694,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         for edge_labels, child_conn_map in self.internal_connections_by_pairs.items():
             if not child_conn_map:
                 raise AttributeError(f'No associated pairing of Connectors assigned for adjacent pair of child Primitives {edge_labels}')
-        
-    
-    # Resolution shift methods
-    ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
+            
     def contract(
         self,
         target_labels : set[PrimitiveHandle],
@@ -773,12 +775,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
             value_copy_method=Connector.copy
         )
         clone_primitive._internal_connections = set(self._internal_connections) # frozensets are immutable, so no need to copy deeper
-        clone_primitive._external_connections = {
+        clone_primitive._external_connectors = {
             conn_handle : ConnectorReference(
                 primitive_handle=conn_ref.primitive_handle,
                 connector_handle=conn_ref.connector_handle,
             )
-                for conn_handle, conn_ref in self.external_connections.items()
+                for conn_handle, conn_ref in self.external_connectors.items()
         }
         
         # transfer children
