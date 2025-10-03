@@ -189,7 +189,7 @@ def connector_between_rdatoms(
         metadata={
             'bond_stereo' : bond.GetStereo(),
             'bond_stereo_atoms' : tuple(bond.GetStereoAtoms()),
-            **bond.GetPropsAsDict(),
+            **bond.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors
         }
     )
     connector.label = connector_labeller(connector)
@@ -257,7 +257,7 @@ def primitive_from_rdkit_atom(
     atom_primitive = Primitive(
         element=elem,
         label=atom_idx,
-        metadata=atom.GetPropsAsDict(includePrivate=True),
+        metadata=atom.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors 
     )
     atom_pos = atom_positions_from_rdkit(parent_mol, conformer_idx=conformer_idx, atom_idxs=[atom_idx])
     if atom_pos is not None:
