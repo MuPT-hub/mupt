@@ -118,11 +118,15 @@ def atom_positions_from_rdkit(
         atom_idxs = (atom.GetIdx() for atom in rdmol.GetAtoms())
 
     conformer = rdmol.GetConformer(conformer_idx) # DEVNOTE: will raise Exception if bad ID is provided; no need to check locally
-    # return conformer.GetPositions()[[idx for idx in atom_idxs], :] # DEV: commenting out to avoid need list unpack + potential pivot to mapping as output
-    return np.vstack([
+    # return conformer.GetPositions()[[idx for idx in atom_idxs], :] 
+
+    atom_positions = tuple(
         np.array(conformer.GetAtomPosition(atom_idx), dtype=float)
             for atom_idx in atom_idxs
-    ])
+    )
+    if atom_positions:
+        return np.vstack(atom_positions)
+    return None # making explicit just to clarify that None return can still happen at this stage
 
 def connector_between_rdatoms(
     parent_mol : Mol,
@@ -232,7 +236,6 @@ def connectors_from_rdkit(
             **kwargs,
         )
 
-            
 # RDKit parsers
 # Import from RDKit
 def primitive_from_rdkit_atom(
@@ -361,8 +364,8 @@ def primitive_from_rdkit_chain(
         ### joining of the pair of Connectors
         rdmol_primitive.connect_children(
             begin_prim_handle,
-            end_prim_handle,
             begin_conn_handle,
+            end_prim_handle,
             end_conn_handle,
         )
 
@@ -376,7 +379,8 @@ def primitive_from_rdkit_chain(
         conformer_idx=conformer_idx,
         atom_idxs=sorted(atom_idx_to_handle_map.keys() - linker_idxs), # preserve atom order
     )
-    rdmol_primitive.shape = non_linker_conformer or PointCloud(positions=non_linker_conformer) # exploit default NoneType value
+    if non_linker_conformer is not None: # can't just check if Falsy in case this is an array (would need all() then)
+        rdmol_primitive.shape = PointCloud(positions=non_linker_conformer) # exploit default NoneType value
     rdmol_primitive.check_self_consistent()
         
     return rdmol_primitive
