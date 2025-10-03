@@ -19,6 +19,7 @@ from typing import (
 )
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
 ConnectorHandle = tuple[ConnectorLabel, int]
+from copy import deepcopy
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
@@ -100,6 +101,7 @@ class Connector(RigidlyTransformable):
         bondtype : BondType=BondType.UNSPECIFIED,
         query_smarts : str='',
         label : Optional[ConnectorLabel]=None,
+        metadata : Optional[dict[Hashable, Any]]=None,
         anchor_position : Optional[Vector3]=None,
         linker_position : Optional[Vector3]=None,
     ):
@@ -111,6 +113,7 @@ class Connector(RigidlyTransformable):
         self.bondtype = bondtype
         self.query_smarts = query_smarts
         self.label = type(self).DEFAULT_LABEL if (label is None) else label
+        self.metadata = metadata or dict()
     
         # spatial attributes
         self._anchor_position = None
@@ -275,6 +278,7 @@ class Connector(RigidlyTransformable):
             bondtype=self.bondtype,
             query_smarts=self.query_smarts,
             label=self._label,
+            metadata=deepcopy(self.metadata),
         )
         for pos_attr in self._POSITION_ATTRS:
             setattr(
