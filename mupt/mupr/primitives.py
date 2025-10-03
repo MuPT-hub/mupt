@@ -278,8 +278,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
             ConnectorReference(child_2_handle, child_2_connector_handle),
         )
         for conn_ref in conn_refs:
-            own_conn_handle = self.external_connectors_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
-            del self._external_connectors[own_conn_handle]
+            own_conn = self.unbind_external_connector(
+                connector_handle=self.external_connectors_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
+            ) # DEV: worth returning these now-unbound instances?
         self._internal_connections.add(frozenset(conn_refs))
         
     ## External "off-body" connections
@@ -309,7 +310,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''Number of external connections a given child Primitive has mirrored by its parent (self)'''
         return len(self.external_connectors_on_child(child_handle))
     
-    def propagate_external_connector(
+    def bind_external_connector(
         self,
         child_handle : PrimitiveHandle,
         child_connector_handle : ConnectorHandle,
@@ -327,6 +328,23 @@ class Primitive(NodeMixin, RigidlyTransformable):
         LOGGER.debug(f'Added Connector "{own_conn_handle}" as counterpart to Connector "{child_connector_handle}" on child Primitive tagged "{child_handle}"')
         
         return own_conn_handle
+    
+    def unbind_external_connector(self, connector_handle : ConnectorHandle) -> Connector:
+        '''
+        Remove an external connector from self, leaving the corresponding Connector on the child Primitive intact
+        Returns the now-unbound connector instance
+        '''
+        try:
+            own_conn = self.connectors.deregister(connector_handle)
+        except KeyError:
+            raise KeyError(f'No Connector with handle "{connector_handle}" bound to Primitive "{self.label}"')
+        
+        try:
+            del self._external_connectors[connector_handle]
+        except KeyError:
+            raise KeyError(f'Connector "{connector_handle}" bound to Primitive "{self.label}" exists, but is not bound the Connector of any child Primitive')
+
+        return own_conn
     
     def connector_trace(self, connector_handle : ConnectorHandle) -> list[Connector]: # DEV: eventually, make wrapping type set, once figured out how to hash Connectors losslessly
         '''
@@ -445,7 +463,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         # register connections - NOTE: order matters here! need to insert all connections, then pair up the internal ones
         for conn_handle in subprimitive.connectors: #subprimitive.connectors.keys():
-            self.propagate_external_connector(subprim_handle, conn_handle)
+            self.bind_external_connector(subprim_handle, conn_handle)
             
         for subprim_conn_handle, (nb_handle, nb_conn_handle) in neighbor_connections.items():
             self.connect_children(subprim_handle, nb_handle, subprim_conn_handle, nb_conn_handle)
@@ -536,7 +554,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         self._internal_connections.remove(internal_conn_ref)
         for conn_ref in internal_conn_ref:
-            self.propagate_external_connector(
+            self.bind_external_connector(
                 conn_ref.primitive_handle,
                 conn_ref.connector_handle,
             )
@@ -562,7 +580,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def topology(self, new_topology : TopologicalStructure) -> None:
         if not isinstance(new_topology, TopologicalStructure):
             raise TypeError(f'Invalid topology type {type(new_topology)}')
-        self.check_topology_incompatible(new_topology) # raise exception if incompatible
+        self.check_topology_compatible(new_topology) # raise exception if incompatible
 
         self._topology = new_topology
         
@@ -593,7 +611,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # Perform necessary checks to ensure this process is well-defined
         LOGGER.warning('register_connections_to_topology() is critically outdated and requires revision')
         topology = self.topology # DEV: holdover from draft where, like many other topology functions here, the topology can be external
-        self.check_topology_incompatible(topology)
+        self.check_topology_compatible(topology)
 
         # attempt to pair up Connectors according to topology
         paired_connectors, found_external_connectors = register_connectors_to_topology( # will raise exception is registration is not possible
@@ -672,7 +690,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Connectors, and the Topology imposed upon them contain consistent information
         '''
         # 0) Check necessary conditions first
-        self.check_topology_incompatible()
+        self.check_topology_compatible()
         if self.is_simple:
             return # In leaf case, compatibility checks on children don't apply
         
@@ -874,7 +892,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         repr_attr_strs : dict[str, str] = {
             'shape': self.canonical_form_shape(),
             'functionality': str(self.functionality),
-            'topology_type': repr(self.topology),
+            'topology': repr(self.topology),
+            'element' : str(self.element),
             'label': self.label
         }
         attr_str = ', '.join(
