@@ -94,9 +94,6 @@ def infer_connections_from_topology(
     
     If pairing is impossible, will raise Exception instead
     """
-    if not isinstance(topology, Graph):
-        raise TypeError(f'Topology must be a Graph instance, not one of type {type(topology)}')
-    
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
         # weaker requirement of containing (rather than being equal) to vertex set suffices
         raise NodeEmbeddingError('Connector collection labels do not match topology node labels')

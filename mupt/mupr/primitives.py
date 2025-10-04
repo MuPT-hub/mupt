@@ -552,97 +552,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
 
     # Topology
-    def compatible_indiscrete_topology(self) -> TopologicalStructure:
-        '''
-        An indiscrete (i.e. edgeless) topology over the currently-registered child Primitives 
-        Passes all necessary self-consistency checks, though not sufficient ones in general
-        '''
-        new_topology = TopologicalStructure()
-        new_topology.add_nodes_from(self.children_by_handle.keys()) # NOTE: no edges; in not filled in, will be caught downstream by stricter preconditions
-        
-        return new_topology
-
-    @property
-    def topology(self) -> TopologicalStructure:
-        '''The connectivity of the immediate children of this Primitive'''
-        return self._topology
-
-    @topology.setter
-    def topology(self, new_topology : TopologicalStructure) -> None:
-        if not isinstance(new_topology, TopologicalStructure):
-            raise TypeError(f'Invalid topology type {type(new_topology)}')
-        self.check_topology_compatible(new_topology) # raise exception if incompatible
-
-        self._topology = new_topology
-        
-    def adjoin_child_nodes(
-        self,
-        child_1_handle : PrimitiveHandle,
-        child_2_handle : PrimitiveHandle,
-        **edge_attrs,
-    ) -> None:
-        '''Add an edge between two child Primitives in the topology'''
-        # verify that children actually exist
-        _ = self.fetch_child(child_1_handle) 
-        _ = self.fetch_child(child_2_handle)
-        self.topology.add_edge(child_1_handle, child_2_handle, **edge_attrs)
-       
-    def set_connectivity_from_topology(
-        self,
-        topology : TopologicalStructure,
-    ) -> None:
-        '''
-        Set internal connections between pairs of child Primitives according to a provided incidence topology (as a graph)
-        Attempts to infer which Connectors are pairable along each edge, and will choose first available pair if multiple options exist
-        
-        Much coarser and less reliable than individually specifying connections, though more expedient for testing/demos
-        '''
-        
-    def register_connections_to_topology(
-        self,
-        connector_registration_max_iter: int=3,
-        allow_overwrite_external_connectors : bool=False,
-    ) -> dict[PrimitiveHandle, tuple[Connector]]:
-        '''
-        Attempt to pair up bondable Connectors of child Primitives along edges in the prescribed topology
-        
-        If successful, will bind the deduced pairs to the edges in self's topology and
-        return the child connectors determined to be external at this Primitives level, keyed by their labels.
-        PROVISIONALLY, the user must decide WHICH of these perceived external connections maps to which Connector on this Primitive.
-        '''
-        self.check_children_bijective_to_topology_nodes(topology)
-        # NOTE: only check that nodes (not edges) are bijectively compatible (since we're going to be setting edges here)
-        
-        
-        # Perform necessary checks to ensure this process is well-defined
-        LOGGER.warning('register_connections_to_topology() is critically outdated and requires revision')
-        topology = self.topology # DEV: holdover from draft where, like many other topology functions here, the topology can be external
-        self.check_topology_compatible(topology)
-
-        # attempt to pair up Connectors according to topology - will raise exception is registration is not possible
-        internal_connections_inferred = infer_connections_from_topology( 
-            labelled_connectors={
-                handle : list(subprimitive.connectors.values())
-                    for handle, subprimitive in self.children_by_handle.items()
-            },
-            topology=topology,
-            n_iter_max=connector_registration_max_iter,
-        )
-        # bind results of paring (if successful) to internal topology
-        # for edge_label, connector_mapping in paired_connectors.items():
-        #     self.topology.edges[edge_label][self.CONNECTOR_EDGE_ATTR] = connector_mapping
-
-        # # if allow_overwrite_external_connectors:
-        #     # TODO - implement routine for inferring correct pairing in general
-
-        # return found_external_connectors
-
-    ## Consistency checks between topology and other internal attributes
-    @property
-    def is_simple(self) -> bool:
-        '''Whether a Primitive has no internal structure'''
-        return self.topology.is_empty and self.isleaf
-    
+    ## Consistency checks between topology and other internal attributes   
     def check_children_bijective_to_topology_nodes(self, topology : TopologicalStructure) -> None:
         '''
         Verify that a 1:1 correspondence exists between the handles of the child
@@ -686,6 +596,84 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
         self.check_children_bijective_to_topology_nodes(topology)
         self.check_internal_connections_bijective_to_topology_edges(topology)
+    
+    ## Topology access and modification
+    @property
+    def is_simple(self) -> bool:
+        '''Whether a Primitive has no internal structure'''
+        return self.topology.is_empty and self.is_leaf
+    
+    @property
+    def topology(self) -> TopologicalStructure:
+        '''The connectivity of the immediate children of this Primitive'''
+        return self._topology
+
+    @topology.setter
+    def topology(self, new_topology : TopologicalStructure) -> None:
+        if not isinstance(new_topology, TopologicalStructure):
+            raise TypeError(f'Invalid topology type {type(new_topology)}')
+        self.set_connectivity_from_topology(
+            new_topology,
+            connector_registration_max_iter=25, # TODO: provide mechanism to configure this
+        ) # TODO: attempt to reconcile existing internal connections
+        self._topology = new_topology
+        self.check_self_consistent()
+
+    def compatible_indiscrete_topology(self) -> TopologicalStructure:
+        '''
+        An indiscrete (i.e. edgeless) topology over the currently-registered child Primitives 
+        Passes all necessary self-consistency checks, though not sufficient ones in general
+        '''
+        new_topology = TopologicalStructure()
+        new_topology.add_nodes_from(self.children_by_handle.keys()) # NOTE: no edges; in not filled in, will be caught downstream by stricter preconditions
+        
+        return new_topology
+        
+    def adjoin_child_nodes(
+        self,
+        child_1_handle : PrimitiveHandle,
+        child_2_handle : PrimitiveHandle,
+        **edge_attrs,
+    ) -> None:
+        '''Add an edge between two child Primitives in the topology'''
+        # verify that children actually exist
+        _ = self.fetch_child(child_1_handle) 
+        _ = self.fetch_child(child_2_handle)
+        self.topology.add_edge(child_1_handle, child_2_handle, **edge_attrs)
+       
+    def set_connectivity_from_topology(
+        self,
+        topology : TopologicalStructure,
+        connector_registration_max_iter: int=25,
+    ) -> None:
+        '''
+        Set internal connections between pairs of child Primitives according to a provided incidence topology (as a graph)
+        Attempts to infer which Connectors are pairable along each edge, and will choose first available pair if multiple options exist
+        
+        Much coarser and less reliable than individually specifying connections, though more expedient for testing/demos
+        '''
+        self.check_children_bijective_to_topology_nodes(topology)
+        LOGGER.warning('Attempting to infer internal connections automatically from given topology; user should verify the connections assigned make sense!')
+        
+        internal_connections_inferred : dict[
+            frozenset[PrimitiveHandle],
+            frozenset[ConnectorReference]
+        ] = infer_connections_from_topology( 
+            topology=topology,
+            mapped_connectors=  {
+                handle: subprim.connectors
+                    for handle, subprim in self.children_by_handle.items()
+            },
+            n_iter_max=connector_registration_max_iter,
+        )
+        for (conn_ref_1, conn_ref_2) in internal_connections_inferred.values():
+            self.pair_connectors_internally(
+                conn_ref_1.primitive_handle,
+                conn_ref_1.connector_handle,
+                conn_ref_2.primitive_handle,
+                conn_ref_2.connector_handle,
+            )
+        self.check_internal_connections_bijective_to_topology_edges(topology) # verify that all edges have been accounted for
 
     
     # Resolution shift methods
@@ -815,7 +803,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
             subprimitive.parent = clone_primitive # needs to be rebound, since bypassing attach_child() to preserve handles
         
         # transfer topology
-        clone_primitive.topology = TopologicalStructure(self._topology) # DEV: use validated or "private" attr to set?
+        clone_primitive._topology = TopologicalStructure(self._topology)
+        # DEV: include self-consistency check in here for good measure?
     
         return clone_primitive
     
