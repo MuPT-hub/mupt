@@ -19,33 +19,24 @@ from typing import (
 )
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
-from dataclasses import dataclass
+
 from collections import defaultdict
 from copy import deepcopy
 
-import networkx as nx
-from networkx import get_edge_attributes
-from scipy.spatial.transform import RigidTransform
-
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
+from scipy.spatial.transform import RigidTransform
 
 from .canonicalize import lex_order_multiset_str
 from .connection import Connector, ConnectorLabel, ConnectorHandle, IncompatibleConnectorError
 from .topology import TopologicalStructure
-from .embedding import register_connectors_to_topology
+from .embedding import infer_connections_from_topology, ConnectorReference
 
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom
 
-
-@dataclass(frozen=True) # needed for hashability
-class ConnectorReference:
-    '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
-    primitive_handle : PrimitiveHandle
-    connector_handle : ConnectorHandle    
 
 class Primitive(NodeMixin, RigidlyTransformable):
     '''Represents a fundamental (but not necessarily irreducible) building block of a polymer system in the abstract 
@@ -495,7 +486,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         ## remove external connections on self (corresponding 1:1 with those on target after internal disconnection)
         assert self.num_external_connectors_on_child(target_handle) == target_child.functionality, f'Failed to track all external connections to child Primitive "{target_handle}"'
         for target_conn_handle, own_conn_handle in self.external_connectors_on_child(target_handle).items():
-            del self._external_connectors[own_conn_handle]
+            self.unbind_external_connector(own_conn_handle)
         
         # discard from topology (raises Exception if not present in topology)
         self.topology.remove_node(target_handle)
@@ -594,6 +585,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
         _ = self.fetch_child(child_1_handle) 
         _ = self.fetch_child(child_2_handle)
         self.topology.add_edge(child_1_handle, child_2_handle, **edge_attrs)
+       
+    def set_connectivity_from_topology(
+        self,
+        topology : TopologicalStructure,
+    ) -> None:
+        '''
+        Set internal connections between pairs of child Primitives according to a provided incidence topology (as a graph)
+        Attempts to infer which Connectors are pairable along each edge, and will choose first available pair if multiple options exist
+        
+        Much coarser and less reliable than individually specifying connections, though more expedient for testing/demos
+        '''
         
     def register_connections_to_topology(
         self,
@@ -607,13 +609,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return the child connectors determined to be external at this Primitives level, keyed by their labels.
         PROVISIONALLY, the user must decide WHICH of these perceived external connections maps to which Connector on this Primitive.
         '''
+        self.check_children_bijective_to_topology_nodes(topology)
+        # NOTE: only check that nodes (not edges) are bijectively compatible (since we're going to be setting edges here)
+        
+        
         # Perform necessary checks to ensure this process is well-defined
         LOGGER.warning('register_connections_to_topology() is critically outdated and requires revision')
         topology = self.topology # DEV: holdover from draft where, like many other topology functions here, the topology can be external
         self.check_topology_compatible(topology)
 
-        # attempt to pair up Connectors according to topology
-        paired_connectors, found_external_connectors = register_connectors_to_topology( # will raise exception is registration is not possible
+        # attempt to pair up Connectors according to topology - will raise exception is registration is not possible
+        internal_connections_inferred = infer_connections_from_topology( 
             labelled_connectors={
                 handle : list(subprimitive.connectors.values())
                     for handle, subprimitive in self.children_by_handle.items()
@@ -622,13 +628,13 @@ class Primitive(NodeMixin, RigidlyTransformable):
             n_iter_max=connector_registration_max_iter,
         )
         # bind results of paring (if successful) to internal topology
-        for edge_label, connector_mapping in paired_connectors.items():
-            self.topology.edges[edge_label][self.CONNECTOR_EDGE_ATTR] = connector_mapping
+        # for edge_label, connector_mapping in paired_connectors.items():
+        #     self.topology.edges[edge_label][self.CONNECTOR_EDGE_ATTR] = connector_mapping
 
-        # if allow_overwrite_external_connectors:
-            # TODO - implement routine for inferring correct pairing in general
+        # # if allow_overwrite_external_connectors:
+        #     # TODO - implement routine for inferring correct pairing in general
 
-        return found_external_connectors
+        # return found_external_connectors
 
     ## Consistency checks between topology and other internal attributes
     @property
