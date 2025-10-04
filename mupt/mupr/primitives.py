@@ -307,13 +307,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         child_handle : PrimitiveHandle,
         child_connector_handle : ConnectorHandle,
+        label : Optional[ConnectorLabel]=None,
     ) -> ConnectorHandle:
         '''
         Mirror an external connector on one of self's children to self
         '''
         conn = self.fetch_connector_on_child(child_handle, child_connector_handle)
         conn_counterpart = conn.copy()
-        own_conn_handle = self.register_connector(conn_counterpart)
+        own_conn_handle = self.register_connector(conn_counterpart, label=label)
         self._external_connectors[own_conn_handle] = ConnectorReference(
             primitive_handle=child_handle,
             connector_handle=child_connector_handle,

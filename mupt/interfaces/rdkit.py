@@ -133,8 +133,8 @@ def connector_between_rdatoms(
     from_atom_idx : int,
     to_atom_idx : int,
     conformer_idx : Optional[int]=None,
-    from_atom_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    to_atom_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
+    anchor_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
+    linker_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
     connector_labeller : Optional[Callable[[Connector], Hashable]]=None,
 ) -> Connector:
     '''
@@ -148,9 +148,9 @@ def connector_between_rdatoms(
         The index of the "anchor" atom of the pair (on which the Connector will be centered)
     to_atom_idx : int
         The index of the "linker" atom of the pair (the neighbor atom of the anchor)
-    from_atom_labeller : Callable[[Atom], int], default: the atom index
+    anchor_labeller : Callable[[Atom], int], default: the atom index
         A function which takes an RDKit Atom object and returns a label for the anchor atom
-    to_atom_labeller : Callable[[Atom], int], default: the atom index
+    linker_labeller : Callable[[Atom], int], default: the atom index
         A function which takes an RDKit Atom object and returns a label for the linker atom
     conformer_idx : Optional[int], optional, default None
         The ID of the conformer from which to extract 3D positions
@@ -171,9 +171,9 @@ def connector_between_rdatoms(
     # extract RDKit components - NOTE: will raise Exception immediately if pair of atoms are not, in fact, bonded
     bond : Bond = parent_mol.GetBondBetweenAtoms(from_atom_idx, to_atom_idx)
     anchor_atom : Atom = parent_mol.GetAtomWithIdx(from_atom_idx)
-    anchor_label = from_atom_labeller(anchor_atom)
+    anchor_label = anchor_labeller(anchor_atom)
     linker_atom : Atom = parent_mol.GetAtomWithIdx(to_atom_idx)
-    linker_label = to_atom_labeller(linker_atom)
+    linker_label = linker_labeller(linker_atom)
 
     # initialize Connector object
     connector = Connector(
@@ -284,6 +284,7 @@ def primitive_from_rdkit_chain(
     atom_label : str='ATOM',
     external_linker_label : str='*',
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
+    **kwargs,
 ) -> Primitive:
     ''' 
     Initialize a Primitive hierarchy from an RDKit Mol representing a single molecule
@@ -341,11 +342,10 @@ def primitive_from_rdkit_chain(
             from_atom_idx=begin_idx,
             to_atom_idx=end_idx,
             conformer_idx=conformer_idx,
-            # TODO: customize labelling?
+            **kwargs,
         )
-        begin_conn.linkables.add(external_linker_label)
         begin_conn_handle = begin_prim.register_connector(begin_conn)
-        rdmol_primitive.bind_external_connector(begin_prim_handle, begin_conn_handle)
+        rdmol_primitive.bind_external_connector(begin_prim_handle, begin_conn_handle, label=external_linker_label)
         
         ### Primitive 2 + associated Connector
         end_prim_handle = atom_idx_to_handle_map[end_idx]
@@ -355,11 +355,10 @@ def primitive_from_rdkit_chain(
             from_atom_idx=end_idx,
             to_atom_idx=begin_idx,
             conformer_idx=conformer_idx,
-            # TODO: customize labelling?
+            **kwargs,
         )
-        end_conn.linkables.add(external_linker_label)
         end_conn_handle = end_prim.register_connector(end_conn)
-        rdmol_primitive.bind_external_connector(end_prim_handle, end_conn_handle)
+        rdmol_primitive.bind_external_connector(end_prim_handle, end_conn_handle, label=external_linker_label)
         
         ### joining of the pair of Connectors
         rdmol_primitive.connect_children(
@@ -392,6 +391,7 @@ def primitive_from_rdkit(
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
     sanitize_frags : bool=True,
     denest : bool=True,
+    **kwargs,
 ) -> Primitive:
     '''
     Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules
@@ -412,6 +412,7 @@ def primitive_from_rdkit(
             conformer_idx=conformer_idx,
             label=label,
             smiles_writer_params=smiles_writer_params,
+            **kwargs,
         )
     # otherwise, bind Primitives for each chain to "universal" root Primitive
     else:
@@ -423,6 +424,7 @@ def primitive_from_rdkit(
                     conformer_idx=conformer_idx,
                     label=None, # impose default SMILES-based label for each individual chain
                     smiles_writer_params=smiles_writer_params,
+                    **kwargs,
                 )
             )
         return universe_primitive
