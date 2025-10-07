@@ -21,8 +21,8 @@ from typing import (
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
-from collections import defaultdict
 from copy import deepcopy
+from collections import defaultdict
 
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
@@ -745,6 +745,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # if not target_labels.issubset(self.unique_child_labels):
         #     raise ValueError('Child Primitives labels chosen for contraction are not a proper subset of the children actually present')
 
+    @property
+    def expandable_children(self) -> set[PrimitiveHandle]:
+        '''Set of all children (referenced by handle) which are capable of being expanded, ie. replaced with the hierarchy of their children'''
+        return {
+            child_handle
+                for child_handle, child in self.children_by_handle.items()
+                    if not child.is_simple
+        }
+
     def expand(
         self,
         target_handle : PrimitiveHandle,
@@ -765,9 +774,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def flatten(self) -> None:
         '''Flatten hierarchy under this Primitive, so that the entire tree has depth 1'''
-        raise NotImplementedError
-    
-    
+        while (target_handles := self.expandable_children): # DEV: also works for simple Primitives (no casework needed!)
+            for child_handle in target_handles:
+                self.expand(child_handle)
+
     # Geometry (info about Shape and transformations)
     @property
     def shape(self) -> Optional[BoundedShape]:
@@ -788,7 +798,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
     ## applying rigid transformations (fulfilling RigidlyTransformable contracts)
     def _copy_untransformed(self) -> 'Primitive':
-        '''Return a new Primitive with the same information as this one'''
+        '''Return a new Primitive with the same information and children as this one, but which has no parent'''
         clone_primitive = self.__class__(
             shape=(None if self.shape is None else self.shape.copy()),
             element=self.element,
