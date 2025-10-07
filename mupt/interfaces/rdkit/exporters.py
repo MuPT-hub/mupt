@@ -4,10 +4,8 @@ __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
 
-from typing import (
-    Any,
-    Optional,
-)
+from typing import Optional
+
 import numpy as np
 
 from rdkit.Chem.rdchem import (
@@ -18,7 +16,8 @@ from rdkit.Chem.rdchem import (
     Conformer,
 )
 
-from ...geometry.arraytypes import Shape, N
+from .rdprops import RDPropType
+from ...geometry.arraytypes import Shape
 from ...chemistry.core import Isotope
 from ...mupr.connection import Connector
 from ...mupr.primitives import Primitive, PrimitiveHandle
@@ -95,7 +94,7 @@ def primitive_to_rdkit(
         conn2 : Connector = primitive.fetch_connector_on_child(conn_ref2)
         
         mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
-        bond_metadata : dict[str, Any]= { # TODO: move metadata from Connector pairs to BondProps, update values signature w/ RDKit-serializable types
+        bond_metadata : dict[str, RDPropType]= { # TODO: move metadata from Connector pairs to BondProps, update values signature w/ RDKit-serializable types
             **conn1.metadata,
             **conn2.metadata,
         }
