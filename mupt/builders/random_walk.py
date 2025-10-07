@@ -7,7 +7,7 @@ from typing import Any, Generator, Literal, Optional, Union
 from numbers import Number
 
 import numpy as np
-from .arraytypes import Shape, Dims
+from ..geometry.arraytypes import Shape, Dims
 
 
 def random_direction(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
