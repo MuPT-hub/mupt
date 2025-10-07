@@ -39,6 +39,12 @@ from rdkit.Chem.rdmolfiles import (
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 ## Custom
+from . import DEFAULT_SMILES_WRITE_PARAMS
+
+from ..geometry.shapes import PointCloud
+from ..geometry.arraytypes import Shape, N
+
+from ..chemistry.core import ELEMENTS, ElementLike, Isotope
 from ..chemistry.linkers import (
     is_linker,
     anchor_and_linker_idxs,
@@ -52,14 +58,6 @@ from ..chemistry.selection import (
     bonds_by_condition,
     bond_condition_by_atom_condition_factory
 )
-
-# Representation components
-from . import DEFAULT_SMILES_WRITE_PARAMS
-from ..chemistry.core import ELEMENTS, ElementLike
-
-from ..geometry.shapes import PointCloud
-from ..geometry.arraytypes import Shape, N
-
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
@@ -428,28 +426,104 @@ def primitive_from_rdkit(
                 )
             )
         return universe_primitive
+
     
 ## Export to RDKit
-def primitive_to_rdkit(primitive : Primitive) -> Mol:
+def rdkit_atom_from_atomic_primitive(atomic_primitive : Primitive) -> Atom:
+    '''Convert an atomic Primitive to an RDKit Atom'''
+    if not (atomic_primitive.is_atom and atomic_primitive.is_simple):
+        raise ValueError('Cannot export non-atomic Primitive to RDKit Atom')
+    
+    atom = Atom(atomic_primitive.element.number)
+    atom.SetFormalCharge(atomic_primitive.element.charge)
+    atom.SetNoImplicit(True) # prevent RDKit from adding on any Hs where we don't expect
+    if isinstance(atomic_primitive.element, Isotope):
+        atom.SetIsotope(atomic_primitive.element.isotope)
+        
+    # TODO: decide how (if at all) to handle aromaticity and stereo
+    # TODO: gracefully coerce types for metadata
+    
+    return atom
+
+def primitive_to_rdkit(
+    primitive : Primitive,
+    default_position : Optional[np.ndarray[Shape[3], float]]=None,
+) -> Mol:
     '''
-    Convert a StructuralPrimitive to an RDKit Mol
+    Convert a Primitive hierarchy to an RDKit Mol
     Will return as single Mol instance, even is underlying Primitive represents a collection of multiple disconnected molecules
+    
+    Will set spatial positions ("default_position" if none are set) on Conformer bound to the Mol
     '''
+    if default_position is None:
+        default_position = np.array([0.0, 0.0, 0.0], dtype=float)
+    if default_position.shape != (3,):
+        raise ValueError('Default atom position must be a 3-dimensional vector')
+    
     if not primitive.is_atomizable:
         raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
     
-    rwmol = RWMol()
-    primitive.flatten()
-    for atom_primitive in primitive.children:
-        rdatom = Atom(atom_primitive.element.symbol)
-        ...
-
-    # DEV: model assembly off of OpenFF RDKit TK wrapper
-    # https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
-
-    # handle identification of shape (if EVERY atom has a postiions and if those are consistent with the Primitive's shape, if PointCloud)
-
-    # case 1 : export single atom to RDKit Atom
+    ## DEV: modelled assembly in part by OpenFF RDKit TK wrapper
+    ## https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
     
-    # case 2 : link up atoms within strucutral primitive recursively
-    ## match connectors along bonds, identify external connectors
+    # 0) prepare Primitive source and RDKit destination
+    primitive.flatten() # collapse hierarchy - DEV: make this out-of-place?
+    mol = RWMol()
+    conf = Conformer()
+    atom_idx_map : dict[int, PrimitiveHandle] = {}
+    
+    # special case for atomic Primitives; easier to contract into hierarchy containing that single atom as child (less casework)
+    temp_prim : Optional[Primitive] = None
+    lone_atom_label : Optional[PrimitiveHandle] = None
+    if primitive.is_atom: 
+        if primitive.parent is not None:
+            raise NotImplementedError('Export for lone, atomic Primitives with parents is not yet supported')
+        temp_prim = Primitive(label='temp')
+        lone_atom_label = temp_prim.attach_child(primitive)
+            
+    # 1) insert atoms
+    for handle, child_prim in primitive.children_by_handle.items():
+        idx = mol.AddAtom(rdkit_atom_from_atomic_primitive(child_prim))
+        atom_idx_map[idx] = handle
+        conf.SetAtomPosition(
+            idx,
+            child_prim.shape.centroid if (child_prim.shape is not None) else default_position[:],
+        ) # geometric centroid is defined for all BoundedShape subtypes
+    
+    # 2) insert bonds
+    ## 2a) bonds from internal connections
+    for cref1, cref2 in primitive.internal_connections:
+        atom_idx1 = atom_idx_map[cref1.primitive_handle]
+        conn1 = primitive.fetch_connector_on_child(cref1)
+        
+        atom_idx2 = atom_idx_map[cref2.primitive_handle]    
+        conn2 = primitive.fetch_connector_on_child(cref2)
+        
+        mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
+        bond_metadata = { # TODO: move metadata from Connector pairs to BondProps
+            **conn1.metadata,
+            **conn2.metadata,
+        }
+        ...
+    
+    ## 2b) insert and bond linker atoms for each external Connector
+    for prim_handle, conn_ref in primitive.external_connectors.items(): # TODO: generalize to work for atomic (i.e. non-hierarchical) Primitives w/o external_connectors
+        linker_atom = Atom(0) 
+        linker_idx = mol.AddAtom(linker_atom)
+        conn = primitive.fetch_connector_on_child(conn_ref)
+        
+        mol.AddBond(atom_idx_map[prim_handle], linker_idx, order=conn.bondtype)
+        conf.SetAtomPosition(
+            linker_idx,
+            conn.linker_position if (conn.linker_position is not None) else default_position[:]
+        )
+
+    ## 3) transfer Primitive-level metadata (atom metadata should already be transferred)
+    ... 
+    
+    # 4) cleanup
+    if not ((temp_prim is None) or (lone_atom_label is None)):
+        primitive.detach_child(lone_atom_label)
+    
+    return Mol(mol) # freeze writable Mol before returning
+    
