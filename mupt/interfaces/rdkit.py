@@ -5,6 +5,7 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 
 from typing import (
+    Any,
     Callable,
     Generator,
     Hashable,
@@ -460,31 +461,31 @@ def primitive_to_rdkit(
     if default_position.shape != (3,):
         raise ValueError('Default atom position must be a 3-dimensional vector')
     
-    if not primitive.is_atomizable:
+    if not primitive.is_atomizable: # TODO: include provision (when no flattening is performed) to preserve atom order with Primitive handle indices
         raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
+    primitive.flatten() # collapse hierarchy - DEV: make this out-of-place?
     
     ## DEV: modelled assembly in part by OpenFF RDKit TK wrapper
     ## https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
     
     # 0) prepare Primitive source and RDKit destination
-    primitive.flatten() # collapse hierarchy - DEV: make this out-of-place?
     mol = RWMol()
-    conf = Conformer()
+    conf = Conformer(primitive.num_children + primitive.functionality) # preallocate space for all atoms (including linkers)
     atom_idx_map : dict[int, PrimitiveHandle] = {}
     
-    # special case for atomic Primitives; easier to contract into hierarchy containing that single atom as child (less casework)
+    ## special case for atomic Primitives; easier to contract into hierarchy containing that single atom as child (less casework)
     temp_prim : Optional[Primitive] = None
     lone_atom_label : Optional[PrimitiveHandle] = None
     if primitive.is_atom: 
         if primitive.parent is not None:
-            raise NotImplementedError('Export for lone, atomic Primitives with parents is not yet supported')
+            raise NotImplementedError('Export for unisolated atomic Primitives (i.e. with pre-existing parents) is not supported')
         temp_prim = Primitive(label='temp')
-        lone_atom_label = temp_prim.attach_child(primitive)
+        lone_atom_label : PrimitiveHandle = temp_prim.attach_child(primitive)
             
     # 1) insert atoms
     for handle, child_prim in primitive.children_by_handle.items():
-        idx = mol.AddAtom(rdkit_atom_from_atomic_primitive(child_prim))
-        atom_idx_map[idx] = handle
+        idx : int = mol.AddAtom(rdkit_atom_from_atomic_primitive(child_prim))
+        atom_idx_map[handle] = idx
         conf.SetAtomPosition(
             idx,
             child_prim.shape.centroid if (child_prim.shape is not None) else default_position[:],
@@ -492,38 +493,40 @@ def primitive_to_rdkit(
     
     # 2) insert bonds
     ## 2a) bonds from internal connections
-    for cref1, cref2 in primitive.internal_connections:
-        atom_idx1 = atom_idx_map[cref1.primitive_handle]
-        conn1 = primitive.fetch_connector_on_child(cref1)
+    for (conn_ref1, conn_ref2) in primitive.internal_connections:
+        atom_idx1 : int = atom_idx_map[conn_ref1.primitive_handle]
+        conn1 : Connector = primitive.fetch_connector_on_child(conn_ref1)
         
-        atom_idx2 = atom_idx_map[cref2.primitive_handle]    
-        conn2 = primitive.fetch_connector_on_child(cref2)
+        atom_idx2 : int = atom_idx_map[conn_ref2.primitive_handle]    
+        conn2 : Connector = primitive.fetch_connector_on_child(conn_ref2)
         
         mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
-        bond_metadata = { # TODO: move metadata from Connector pairs to BondProps
+        bond_metadata : dict[str, Any]= { # TODO: move metadata from Connector pairs to BondProps, update values signature w/ RDKit-serializable types
             **conn1.metadata,
             **conn2.metadata,
         }
         ...
     
     ## 2b) insert and bond linker atoms for each external Connector
-    for prim_handle, conn_ref in primitive.external_connectors.items(): # TODO: generalize to work for atomic (i.e. non-hierarchical) Primitives w/o external_connectors
+    for conn_ref in primitive.external_connectors.values(): # TODO: generalize to work for atomic (i.e. non-hierarchical) Primitives w/o external_connectors
         linker_atom = Atom(0) 
-        linker_idx = mol.AddAtom(linker_atom)
-        conn = primitive.fetch_connector_on_child(conn_ref)
+        linker_idx : int = mol.AddAtom(linker_atom)
+        conn : Connector = primitive.fetch_connector_on_child(conn_ref)
         
-        mol.AddBond(atom_idx_map[prim_handle], linker_idx, order=conn.bondtype)
-        conf.SetAtomPosition(
-            linker_idx,
-            conn.linker_position if (conn.linker_position is not None) else default_position[:]
-        )
-
+        mol.AddBond(atom_idx_map[conn_ref.primitive_handle], linker_idx, order=conn.bondtype)
+        print(conn.has_linker_position)
+        if conn.has_linker_position: # NOTE: this "if" check not done in-line, as conn.linker_position raises AttributeError is unset
+            print(conn._linker_position)
+            conf.SetAtomPosition(linker_idx, conn.linker_position)
+        else:
+            conf.SetAtomPosition(linker_idx, default_position[:])
     ## 3) transfer Primitive-level metadata (atom metadata should already be transferred)
     ... 
     
     # 4) cleanup
     if not ((temp_prim is None) or (lone_atom_label is None)):
         primitive.detach_child(lone_atom_label)
+    conformer_idx : int = mol.AddConformer(conf, assignId=True) # DEV: return this index?
     
     return Mol(mol) # freeze writable Mol before returning
     
