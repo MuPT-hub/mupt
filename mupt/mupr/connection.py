@@ -141,7 +141,7 @@ class Connector(RigidlyTransformable):
     @property
     def anchor_position(self) -> Vector3:
         '''The central position that this Connector is anchored to'''
-        if self._anchor_position is None:
+        if not self.has_anchor_position:
             raise AttributeError('Anchor position of Connector unassigned')
         return self._anchor_position
     
@@ -150,6 +150,7 @@ class Connector(RigidlyTransformable):
         self._anchor_position = as_n_vector(new_anchor_position, 3)
         
     ## Linker point
+    @property
     def has_linker_position(self) -> bool:
         '''Determine whether this Connector has a linker position (i.e. off-body position) defined'''
         return self._linker_position is not None
@@ -157,7 +158,7 @@ class Connector(RigidlyTransformable):
     @property
     def linker_position(self) -> Vector3:
         '''The position of the off-body linker point'''
-        if self._linker_position is None:
+        if not self.has_linker_position:
             raise AttributeError('Linker position of Connector unassigned')
         return self._linker_position
 
@@ -196,9 +197,14 @@ class Connector(RigidlyTransformable):
 
     ## Tangent vector
     @property
+    def has_tangent_position(self) -> bool:
+        '''Determine whether this Connector has a tangent position (i.e. point defining dihedral orientation) defined'''
+        return self._tangent_position is not None
+    
+    @property
     def has_dihedral_orientation(self) -> bool:
         '''Determine whether this Connector has a dihedral orientation (i.e. tangent position) defined'''
-        return self.has_bond_vector and (self._tangent_position is not None)
+        return self.has_bond_vector and self.has_tangent_position
     has_local_orthogonal_basis = has_dihedral_orientation # alias
     
     @property
