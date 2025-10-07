@@ -1,4 +1,4 @@
-'''Information classes for sets of polymer unit primitives'''
+'''Fundamental data structures for multiscale molecular representation'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'

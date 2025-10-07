@@ -1,4 +1,4 @@
-'''Perception and manipulation of wild-type "linker" atoms and their in an RDKit molecule'''
+'''Perception and manipulation of wild-type "linker" atoms in an RDKit molecule'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
@@ -25,7 +25,7 @@ def not_linker(rdatom : Atom) -> bool:
     return not is_linker(rdatom)
 is_real_atom = not_linker
 
-def get_num_linkers(rdmol : Mol) -> int:
+def num_linkers(rdmol : Mol) -> int:
     '''Count how many wild-type inter-molecule linker atoms are in a Mol'''
     return sum(
         is_linker(atom)

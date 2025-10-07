@@ -1,4 +1,4 @@
-'''Utilities for conditional selection of chemical objects, such as atoms and bonds, from RDKit molecules'''
+'''Utilities for conditional selection of chemical objects such as atoms and bonds from RDKit molecules'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
