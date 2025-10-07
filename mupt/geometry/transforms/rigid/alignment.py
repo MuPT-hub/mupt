@@ -41,9 +41,11 @@ def rigid_vector_coalignment(
     
     return (
         RigidTransform.from_translation(overlaid_point_2)
-        * RigidTransform.from_rotation(alignment_rotation(
-            normalized(vector1),
-            normalized(vector2),
-        ))
+        * RigidTransform.from_rotation(
+            alignment_rotation(
+                normalized(vector1),
+                normalized(vector2),
+            )
+        )
         * RigidTransform.from_translation(-overlaid_point_1)
     )

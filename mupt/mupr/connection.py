@@ -256,8 +256,8 @@ class Connector(RigidlyTransformable):
             if (position := getattr(self, pos_attr)) is not None:
                 setattr(self, pos_attr, transform.apply(position))
 
-    
     # Anti-aligning Connectors to one another (simulates bonding in 3D space)
+    ## DEV: eventually try to move as much of the implementation of these transforms to geometry.transforms.rigid as possible
     def are_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
         ## DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
         ## that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
