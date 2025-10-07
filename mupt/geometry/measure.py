@@ -32,3 +32,13 @@ def normalized(
     normalize(new_vector, order=order)
 
     return new_vector
+
+def are_nearby(
+    position_1 : np.ndarray[Shape[N], float],
+    position_2 : np.ndarray[Shape[N], float],
+    within : float=1E-6,
+) -> bool:
+    '''Check that two vectors are within a certain absolute distance of one another'''
+    if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
+        raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
+    return np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < within

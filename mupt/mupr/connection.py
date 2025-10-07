@@ -14,7 +14,6 @@ from typing import (
     Iterable,
     Literal,
     Optional,
-    TypeAlias,
     TypeVar,
 )
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
@@ -25,15 +24,14 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, N, DType, Numeric
-from ..geometry.measure import normalized
+from ..geometry.arraytypes import Shape, Vector3, as_n_vector, compare_optional_positions
+from ..geometry.measure import are_nearby
 from ..geometry.coordinates.basis import is_orthonormal
 from ..geometry.transforms.linear import rejector
 from ..geometry.transforms.rigid.rotations import alignment_rotation
 from ..geometry.transforms.rigid.application import RigidlyTransformable
 
 
-# Custom Exceptions
 class ConnectionError(Exception):
     '''Raised when Connector-related errors as encountered'''
     pass
@@ -41,46 +39,6 @@ class ConnectionError(Exception):
 class IncompatibleConnectorError(ConnectionError):
     '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
     pass
-
-
-# Helper functions - TODO: move somewhere into mupt.geometry, eventually
-Vector3 : TypeAlias = np.ndarray[Shape[Literal[3]], Numeric]
-
-def as_n_vector(vectorlike : np.ndarray[Shape[Any], DType], n : N=3) -> np.ndarray[Shape[N], DType]:
-    '''Interpret array as a 1D n-element vector''' # TODO: include support for list and tuple-like. WITHOUT including sets, str, etc
-    if not isinstance(vectorlike, np.ndarray):
-        raise TypeError(f'Vectorlike must be a numpy array, not {type(vectorlike)}')
-    if len(vectorlike) != n:
-        raise ValueError(f'Expected {n}-element vectorlike, received {len(vectorlike)}-element array instead')
-    
-    return vectorlike.reshape(n)
-
-def compare_optional_positions(
-    position_1 : Optional[np.ndarray[Shape[Any], float]],
-    position_2 : Optional[np.ndarray[Shape[Any], float]],
-    **kwargs,
-) -> bool:
-    '''Check that two positional attributes are either 1) both undefined, or 2) both defined and equal'''
-    # DEV: replace with monadic interface down the line ("Maybe" pattern?)
-    if type(position_1) != type(position_2):
-        return False
-    
-    if position_1 is None: # both are None
-        return True
-    elif isinstance(position_1, np.ndarray):
-        return np.allclose(position_1, position_2, **kwargs)
-    else:
-        raise TypeError(f'Expected position attributes to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    
-def are_nearby(
-    position_1 : np.ndarray[Shape[N], float],
-    position_2 : np.ndarray[Shape[N], float],
-    within : float=1E-6,
-) -> bool:
-    '''Check that two vectors are within a certain absolute distance of one another'''
-    if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
-        raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    return np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < within
 
 
 class Connector(RigidlyTransformable):
@@ -125,7 +83,6 @@ class Connector(RigidlyTransformable):
             self.linker_position = linker_position
 
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
-
 
     # Geometric properties
     ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
