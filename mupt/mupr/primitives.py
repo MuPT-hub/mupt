@@ -16,6 +16,7 @@ from typing import (
     Optional,
     TypeVar,
     Union,
+    overload,
 )
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
@@ -177,12 +178,28 @@ class Primitive(NodeMixin, RigidlyTransformable):
         except KeyError:
             raise KeyError(f'No Connector with handle "{connector_handle}" bound to {self._repr_brief()}')
         
+    @overload
+    def fetch_connector_on_child(self, primitive_handle : ConnectorReference) -> Connector:
+        ...
+
+    @overload
     def fetch_connector_on_child(self, primitive_handle : PrimitiveHandle, connector_handle : ConnectorHandle) -> Connector:
+        ...
+
+    def fetch_connector_on_child(
+        self,
+        primitive_handle : Union[ConnectorReference, PrimitiveHandle],
+        connector_handle : Optional[ConnectorHandle]=None,
+    ) -> Connector:
         '''
         Fetch a Connector with a given handle from a given child Primitive, in the
         process verifying that both the referenced child Primitive and Connector exist
         '''
-        # TODO: add override for ConnectorReference argument pass
+        if isinstance(primitive_handle, ConnectorReference):
+            if connector_handle is not None:
+                raise ValueError('If passing a ConnectorReference as the first argument, the second argument must be omitted')
+            connector_handle = primitive_handle.connector_handle
+            primitive_handle = primitive_handle.primitive_handle
         return self.fetch_child(primitive_handle).fetch_connector(connector_handle)
         
     @property
