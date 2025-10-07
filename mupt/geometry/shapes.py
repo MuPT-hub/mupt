@@ -154,8 +154,8 @@ class PointCloud(BoundedShape):
     def __init__(self, positions : np.ndarray[Shape[N, 3], Numeric]=None) -> None:
         if positions is None:
             positions = np.empty((0, 3), dtype=float)
-        self.positions = positions
-        
+        self.positions = np.atleast_2d(positions)
+
     def __repr__(self):
         return f'{self.__class__.__name__}(shape={self.positions.shape})'
 
@@ -364,7 +364,6 @@ class Ellipsoid(BoundedShape):
         return self.cumulative_transformation.apply(
             positions.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array to allow RigidTransform.apply() to digest it
         ).reshape(n_theta, n_phi, 3) # ...then repackage into mesh for convenient plotting
-    
     
 class Sphere(Ellipsoid): 
     # TODO: reimplement as separate from Ellipsoid to address Circle-Ellipse problem 
