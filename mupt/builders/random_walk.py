@@ -3,22 +3,18 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Generator, Literal, Optional, Union
+from typing import Generator, Optional, Union
 from numbers import Number
 
 import numpy as np
 from ..geometry.arraytypes import Shape, Dims
+from ..mutils.iteration import ad_infinitum
 
 
 def random_direction(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
     '''Generate a random N-dimensional unit vector'''
     direction = 2*np.random.rand(dimension) - 1 # generate random 3-vector in [-1, 1]
     return direction / np.linalg.norm(direction) # normalize to unit length
-
-def ad_infinitum(value : Any) -> Generator[Any, None, None]:
-    '''Wrap a single value in an inexhaustible generator which always returns that value'''
-    while True:
-        yield value
 
 def random_walk_jointed_chain(
     n_steps_max: int,

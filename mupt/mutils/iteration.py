@@ -3,10 +3,15 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
+from typing import Any, Generator, Sequence
 from itertools import count
-from typing import Generator, Sequence
 
 
+def ad_infinitum(value : Any) -> Generator[Any, None, None]:
+    '''Wrap a single value in an inexhaustible generator which always returns that value'''
+    while True:
+        yield value
+        
 def int_complement(integers : Sequence[int], bounded : bool=False) -> Generator[int, None, None]:
     '''
     Given a sequence of integers, generates the complement of that sequence within the natural numbers,
