@@ -31,6 +31,7 @@ from ..geometry.coordinates.reference import origin
 from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 
 from ..mupr.topology import TopologicalStructure
+from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
@@ -174,7 +175,9 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 
                 conn_incoming = primitive.fetch_connector_on_child(prim_handle_incoming, conn_handle_incoming)
                 connection_points[prim_handle_outgoing].append(conn_incoming.anchor_position) # will raise Exception is anchor position is unset
-            # NOTE: order is critical here; only placing tail poin AFTER its incoming connection point is inserted
+                
+                Connector.mutually_antialign_ballistically(conn_outgoing, conn_incoming) # align linkers w/ other's anchor while leaving anchors themselves undisturbed
+            # NOTE: order is critical here; only placing tail point AFTER its incoming connection point is inserted
             connection_points[tail_handle].append(primitive.children_by_handles[tail_handle].shape.centroid)
             
             # generate random walk steps and corresponding placements

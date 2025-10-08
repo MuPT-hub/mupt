@@ -437,10 +437,10 @@ class Connector(RigidlyTransformable):
             self.set_bond_length(np.linalg.norm(other.anchor_position - self.anchor_position))
 
     def antialigned_ballistically_to(
-            self,
-            other : 'Connector',
-            match_bond_length : bool=False,
-        ) -> None:
+        self,
+        other : 'Connector',
+        match_bond_length : bool=False,
+    ) -> None:
         '''
         Return copy of this Connector whose linker positions is aligned to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify either Connector of the passed pair; returns a modified copy of the first Connector
@@ -454,10 +454,10 @@ class Connector(RigidlyTransformable):
     ### Rigid alignment results in antialignment after one application with bond length matching,
     ### whereas ballistic alignment in general requires both Connecters to be mutually transformed to guarantee antialignment
     def mutually_antialign_ballistically(
-            self,
-            other : 'Connector',
-            dihedral_angle_rad : Optional[float]=None,
-        ) -> None:
+        self,
+        other : 'Connector',
+        dihedral_angle_rad : Optional[float]=None,
+    ) -> None:
         '''
         Ballistically align this Connector to the other, and vice-versa
         In the end, the linker of either Connector with be coincident with the
