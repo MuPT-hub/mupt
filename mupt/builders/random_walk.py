@@ -3,12 +3,16 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generator, Optional, Union
+from typing import Generator, Optional, Union, TypeVar, Iterable, Iterator
 from numbers import Number
 
 import numpy as np
+
+from .base import PlacementGenerator
+
 from ..geometry.arraytypes import Shape, Dims
-from ..mutils.iteration import ad_infinitum
+from ..geometry.shapes import Ellipsoid, Sphere
+from ..mutils.iteration import ad_infinitum, flexible_iterator
 
 
 def random_direction(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
@@ -16,9 +20,10 @@ def random_direction(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
     direction = 2*np.random.rand(dimension) - 1 # generate random 3-vector in [-1, 1]
     return direction / np.linalg.norm(direction) # normalize to unit length
 
+
 def random_walk_jointed_chain(
     n_steps_max: int,
-    step_size : Union[Number, Generator[float, None, None]],
+    step_size : Union[Number, Iterable[Number], Generator[Number, None, None]],
     clip_angle : float=np.pi/4,
     dimension : Dims=3,
     starting_point : Optional[np.ndarray[Shape[Dims], float]]= None,
@@ -56,12 +61,7 @@ def random_walk_jointed_chain(
         starting_point = np.zeros(dimension, dtype=float) # by default, sstart at the origin
     assert starting_point.shape == (dimension,), "Starting point must be a 3D vector"
     
-    if isinstance(step_size, Number):
-        step_sizes = ad_infinitum(step_size)
-    elif isinstance(step_size, Generator):
-        step_sizes = step_size
-    else: raise TypeError('step_size must be a float or a generator')
-        
+    step_sizes = flexible_iterator(step_size, allowed_types=(Number,))
     steps = np.zeros((n_steps_max, dimension), dtype=float)
     step_direction_prev = None
     for i in range(n_steps_max):
@@ -81,3 +81,39 @@ def random_walk_jointed_chain(
             break
 
     return np.vstack([starting_point, starting_point + np.cumsum(steps, axis=0)]) # accumulate net travel for points
+
+
+class RandomWalkDemoBuilder(CoordinateBuilder):
+    '''
+    Simple demonstration builder which places children of a Primitive
+    in a non-self-avoiding, constrained-angle random walk
+    '''
+    def __init__(self, angle : float) -> None:
+        ...
+    
+    def check_preconditions(self, primitive):
+        if primitive.topology.is_branched:
+            raise ValueError('Random walk chain builder behavior undefined for branched topologies')
+        
+        if not all(isinstance(subprim.shape, (Sphere, Ellipsoid)) for subprim in primitive.children):
+            raise TypeError('Random walk chain builder requires ellipsoidal of spherical beads to determine step sizes')
+    
+    def _generate_coordinates(self, primitive):
+        for chain in primitive.topology.chains:
+            termini = tuple(chain.termini)
+            if len(termini) == 1: # DEV: opted for more readable impl here; iter-based maybe more efficient, but really doesn't save much
+                head_grp, tail_grp = termini[0], termini[0]
+            elif len(termini) == 2:
+                head_grp, tail_grp = termini
+            else:
+                raise ValueError('Unbranched topology must have either 1 or 2 terminal nodes')
+            
+            
+        
+        ## locate start of each chain
+        
+        # for all chains (connected componenets):
+        ## determine traversal order 
+        ## determine step size per bead
+        
+        ## sppol off orients from RW

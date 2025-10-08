@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation, RigidTransform
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
-class CoordinateGenerator(ABC):
+class PlacementGenerator(ABC):
     '''
     Abstract base class for all MuPT system builders
     
