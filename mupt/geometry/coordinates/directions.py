@@ -12,11 +12,11 @@ from ..transforms.linear import rejector
 
 
 def random_vector(
-        dimension : Dims=3,
-        low : float=-1.0,
-        high : float=1.0,
-        normalized : bool=False,
-    ) -> np.ndarray[Shape[Dims], float]:
+    dimension : Dims=3,
+    low : float=-1.0,
+    high : float=1.0,
+    normalized : bool=False,
+) -> np.ndarray[Shape[Dims], float]:
     '''Generate a random N-dimensional vector of floats, optionally normalized'''
     vector = np.random.uniform(low=low, high=high, size=dimension)
     if normalized:
@@ -24,10 +24,14 @@ def random_vector(
         
     return vector
 
+def random_unit_vector(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
+    '''Generate a randomly-oriented unit vector in N-dimensional space'''
+    return random_vector(dimension=dimension, low=-1.0, high=1.0, normalized=True)
+
 def random_orthogonal_vector(
-        vector : np.ndarray[Shape[Dims], Numeric],
-        normalized : bool=True,
-    ) -> np.ndarray[Shape[Dims], Numeric]:
+    vector : np.ndarray[Shape[Dims], Numeric],
+    normalized : bool=True,
+) -> np.ndarray[Shape[Dims], Numeric]:
     '''Return a random vector orthogonal to the input vector'''
     (ndim,) = vector.shape
     if np.allclose(vector, 0.0):

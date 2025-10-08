@@ -9,16 +9,11 @@ from numbers import Number
 import numpy as np
 
 from .base import PlacementGenerator
+from ..mutils.iteration import flexible_iterator
 
 from ..geometry.arraytypes import Shape, Dims
 from ..geometry.shapes import Ellipsoid, Sphere
-from ..mutils.iteration import ad_infinitum, flexible_iterator
-
-
-def random_direction(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
-    '''Generate a random N-dimensional unit vector'''
-    direction = 2*np.random.rand(dimension) - 1 # generate random 3-vector in [-1, 1]
-    return direction / np.linalg.norm(direction) # normalize to unit length
+from ..geometry.coordinates.directions import random_unit_vector
 
 
 def random_walk_jointed_chain(
@@ -65,13 +60,13 @@ def random_walk_jointed_chain(
     steps = np.zeros((n_steps_max, dimension), dtype=float)
     step_direction_prev = None
     for i in range(n_steps_max):
-        step_direction = random_direction(dimension=dimension)
+        step_direction = random_unit_vector(dimension=dimension)
         if step_direction_prev is None:
             step_direction_prev = step_direction
             
         # over [0, pi], cosine is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
         while np.dot(step_direction, step_direction_prev) < c_max: 
-            step_direction = random_direction(dimension=dimension) # draw new step within cone of movement by rejection sampling
+            step_direction = random_unit_vector(dimension=dimension) # draw new step within cone of movement by rejection sampling
         
         try:
             steps[i] = next(step_sizes)*step_direction
