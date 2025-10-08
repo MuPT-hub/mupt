@@ -36,13 +36,13 @@ class TopologicalStructure(nx.Graph):
 
     @property
     def is_unbranched(self) -> bool:
-        '''Whether the topology represents contains all straight, unbranching chain(s)'''
+        '''Whether the topology contains only unbranching chain(s) or isolated nodes'''
         return all(node_deg <= 2 for node_id, node_deg in self.degree)
     is_linear = is_unbranched
 
     @property
-    def is_unbranched(self) -> bool:
-        '''Whether the topology represents straight chain(s) without branching'''
+    def is_branched(self) -> bool:
+        '''Whether the topology contains any branching nodes'''
         return not self.is_unbranched
     
     @property
