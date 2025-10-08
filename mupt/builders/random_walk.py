@@ -3,7 +3,10 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generator, Optional, Union, TypeVar, Iterable, Iterator
+import logging
+LOGGER = logging.getLogger(__name__)
+
+from typing import Generator, Iterable, Optional, Sized, Union
 from numbers import Number
 
 import numpy as np
@@ -13,77 +16,94 @@ from ..mutils.iteration import flexible_iterator
 
 from ..geometry.arraytypes import Shape, Dims
 from ..geometry.shapes import Ellipsoid, Sphere
+from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
+from ..geometry.coordinates.reference import CoordAxis, origin
 
 
 def random_walk_jointed_chain(
-    n_steps_max: int,
     step_size : Union[Number, Iterable[Number], Generator[Number, None, None]],
+    n_steps_max : Optional[int]=None,
+    initial_point : Optional[np.ndarray[Shape[Dims], float]]=None,
+    initial_direction : Optional[np.ndarray[Shape[Dims], float]]=None,
     clip_angle : float=np.pi/4,
     dimension : Dims=3,
-    starting_point : Optional[np.ndarray[Shape[Dims], float]]= None,
-) -> np.ndarray[Shape[int, Dims], float]:
-    '''Generate a random walk in N-dimensional real space representing a freely-jointed chain 
-    whose consecutive step directions are constrained to be within a cone of a given angle and
-    whose step sizes are either uniform or given by a generator
-    
+) -> Generator[np.ndarray[Shape[Dims], float], None, None]:
+    '''
+    Generate consecutive points from a non-self-avoiding random walk in continuous N-dimensional space
+    with arbitrary step sizes that are constrained within a prescribed angle between consecutive steps
+
     Parameters
     ----------
-    n_steps_max : int
-        Maximum number of steps in the random walk.
     step_size : float or Generator[float, None, None]
         Step size for each step, either as a float for uniform step size 
         or as a generator the size of each subsequent step
+    initial_point : np.ndarray[Shape[dimension], float] = None
+        Starting point of the random walk. If None, the walk starts at the origin.
+    initial_direction : np.ndarray[Shape[dimension], float] = None
+        Initial direction of the first step. If None, a random direction is chosen.
+    n_steps_max : int
+        Maximum number of steps in the random walk.
     clip_angle : float = pi/4
         Maximum angle allowed between directions of subsequent steps
         Smaller values will result in walks more along the "same" direction
         Angle should be passed in radians, as a value from [-pi, pi]
-    starting_point : np.ndarray[Shape[dimension], float] = None
-        Starting point of the random walk. If None, the walk starts at the origin.
+    dimension : int, default 3
+        Dimension of the space in which the random walk is performed
+        If no start point is provided, the inferred origin used as the start will have this many dimensions
         
     Returns
     -------
-    np.ndarray[Shape[N + 1, dimension]], float]
-        Array of N + 1 points visited by the walk, where N is the number of steps
-        N is equal to n_steps_max or the number of step sizes,
-        if the step size is given as a generator which is exhausted in fewer steps
+    Generator[np.ndarray[Shape[dimension], float], None, None]
+        A generator yielding conseuctive positions along the walk, starting with initial_position
     '''
-    if not -np.pi <= clip_angle <= np.pi:
+    # validate preconditions
+    if not -np.pi <= clip_angle <= np.pi:  # negative angles are allowed since cosine is even
         raise ValueError("Clip_angle must be in the range [-pi, pi]")
-    c_max = np.cos(clip_angle) # negative angles are allowed since cosine is even
+    c_max = np.cos(clip_angle)
     
-    if starting_point is None:
-        starting_point = np.zeros(dimension, dtype=float) # by default, sstart at the origin
-    assert starting_point.shape == (dimension,), "Starting point must be a 3D vector"
+    if initial_point is None:
+        initial_point = origin(dimension=dimension)
+    if initial_point.shape != (dimension,): # NOTE: check user-provided start shape or (redundantly-but-safely) the shape of the auto-assigned start)
+        raise ValueError(f"Random walk starting point must be a {dimension}-dimensional vector")
     
-    step_sizes = flexible_iterator(step_size, allowed_types=(Number,))
-    steps = np.zeros((n_steps_max, dimension), dtype=float)
-    step_direction_prev = None
-    for i in range(n_steps_max):
+    if initial_direction is None:
+        initial_direction = random_unit_vector(dimension=dimension)
+    assert initial_direction.shape == (dimension,) # NOTE: check user-provided start direction shape
+
+    if (n_steps_max is None):
+        if not isinstance(step_size, Iterable):
+            LOGGER.warning('No upper bound supplied for number of random walk steps; singly-valued step size will produce steps indefinitely!')
+        elif not isinstance(step_size, Sized):
+            LOGGER.warning('No upper bound supplied for number of random walk steps; unbounded step size iterator *MAY* produce steps indefinitely!')
+    
+    # generate walk points
+    n_steps_taken : int = 0
+    net_position = initial_point
+    prev_direction = normalized(initial_direction)
+    
+    yield initial_point # doesn't count as a step yet
+    for step_size in flexible_iterator(step_size, allowed_types=(Number,)):
+        # draw new step within cone of movement by rejection sampling (simple and quick)
         step_direction = random_unit_vector(dimension=dimension)
-        if step_direction_prev is None:
-            step_direction_prev = step_direction
-            
-        # over [0, pi], cosine is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
-        while np.dot(step_direction, step_direction_prev) < c_max: 
-            step_direction = random_unit_vector(dimension=dimension) # draw new step within cone of movement by rejection sampling
+        while np.dot(step_direction, prev_direction) < c_max: # over [0, pi], cosine is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
+            step_direction = random_unit_vector(dimension=dimension)
+        net_position += (step_size * step_direction)
         
-        try:
-            steps[i] = next(step_sizes)*step_direction
-            step_direction_prev = step_direction # update previous step for next iteration
-        except StopIteration:
-            steps = steps[:i] # truncate steps before halting
+        yield net_position
+
+        prev_direction = step_direction
+        n_steps_taken += 1 # only increment AFTER we've actually yielded
+        if (n_steps_max is not None) and (n_steps_taken >= n_steps_max):
             break
 
-    return np.vstack([starting_point, starting_point + np.cumsum(steps, axis=0)]) # accumulate net travel for points
 
-
-class RandomWalkDemoBuilder(CoordinateBuilder):
+class AngleConstrainedRandomWalk(PlacementGenerator):
     '''
     Simple demonstration builder which places children of a Primitive
     in a non-self-avoiding, constrained-angle random walk
     '''
-    def __init__(self, angle : float) -> None:
+    def __init__(self, angle : float=np.pi/4) -> None:
         ...
     
     def check_preconditions(self, primitive):
