@@ -253,6 +253,23 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return paired_connectors
     
+    def internal_connection_between(
+        self,
+        from_child_handle : PrimitiveHandle,
+        to_child_handle : PrimitiveHandle,
+    ) -> tuple[ConnectorHandle, ConnectorHandle]:
+        '''
+        Fetch the ORDERED pair of Connectors making up an internal connection between two given child Primitives
+        i.e. reversing the order of input Primitive labels correspondingly reversed the order of output Connectors handles
+        
+        Returns a tuple of the form (from_child's connector handle, to_child's connector handle)
+        '''
+        for from_child_conn_handle, conn_ref in self.internal_connections_on_child(from_child_handle).items():
+            if conn_ref.primitive_handle == to_child_handle:
+                return (from_child_conn_handle, conn_ref.connector_handle)
+        else:
+            return tuple
+    
     def num_internal_connections_on_child(self, child_handle : PrimitiveHandle) -> int:
         '''Number of internal connections the given child Primitive has made with its siblings'''
         return len(self.internal_connections_on_child(child_handle))
