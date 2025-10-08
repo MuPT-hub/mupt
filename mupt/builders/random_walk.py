@@ -118,11 +118,11 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
-        angle_max : float=np.pi/4,
+        angle_max_rad : float=np.pi/4,
         initial_point : Optional[np.ndarray[Shape[3], float]]=None,
         initial_direction : Optional[np.ndarray[Shape[3], float]]=None,
     ) -> None:
-        self.angle_max = angle_max
+        self.angle_max_rad = angle_max_rad
         self.initial_point = initial_point
         self.initial_direction = initial_direction
 
@@ -183,7 +183,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 n_steps=len(path), # not strictly necessary, but suppresses "indeterminate num steps" warnings
                 initial_point=self.initial_point,
                 initial_direction=self.initial_direction,
-                clip_angle=self.angle_max,
+                clip_angle=self.angle_max_rad,
                 dimension=3,
             )
             for handle, (step_start, step_end) in zip(path, sliding_window(rw_steps, 2)):
