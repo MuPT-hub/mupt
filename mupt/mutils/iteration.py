@@ -3,7 +3,17 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Generator, Sequence
+from typing import (
+    Any,
+    Generator,
+    Iterable,
+    Iterator,
+    Sequence,
+    TypeVar,
+    Union,
+)
+T = TypeVar('T')
+
 from itertools import count
 
 
@@ -11,6 +21,28 @@ def ad_infinitum(value : Any) -> Generator[Any, None, None]:
     '''Wrap a single value in an inexhaustible generator which always returns that value'''
     while True:
         yield value
+        
+def flexible_iterator(
+    values : Union[T, Iterable[T], Generator[T, None, None]],
+    allowed_types : Union[tuple[type, ...], Union[type]],
+) -> Iterator[T]:
+    '''
+    Create an iterator from a variety of input types
+    Simplifies input to callables which expect iterators
+    
+    Behavior depends on the type of "values", namely:
+    * Generator: returned as-is
+    * Iterable: return as iterator
+    * Single value: an infinite stream of that value if it is one of the allowed types, or Exception otherwise
+    '''
+    if isinstance(values, Generator):
+        return values
+    elif isinstance(values, Iterable):
+        return iter(values)
+    elif isinstance(values, allowed_types):
+        return ad_infinitum(values)
+    else:
+        raise TypeError(f'Singleton values converted to iterator must be an instance of {allowed_types}, not {type(values)}')
         
 def int_complement(integers : Sequence[int], bounded : bool=False) -> Generator[int, None, None]:
     '''
