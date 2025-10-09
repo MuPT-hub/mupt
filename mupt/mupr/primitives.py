@@ -586,7 +586,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     ## Internal linkage
     def connect_children(
-        self,
+        self, # TODO: include call signature overload with pair of ConnectorReferences
         child_1_handle : PrimitiveHandle,
         child_1_connector_handle : ConnectorHandle,
         child_2_handle : PrimitiveHandle,
@@ -862,10 +862,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
                     unaltered_nb_conn_ref,
                 ))
             )
+        
         # 4) re-establish promised connections, following appropriate relabelling
         for (conn_ref1, conn_ref2) in promised_connections:
-            self.pair_connectors_internally(conn_ref1, conn_ref2)
-        
+            self.connect_children(
+                conn_ref1.primitive_handle,
+                conn_ref1.connector_handle,
+                conn_ref2.primitive_handle,
+                conn_ref2.connector_handle,
+            )
         self.check_self_consistent() # verify that all parts are consistent once the dust settles
 
     def flatten(self) -> None:
