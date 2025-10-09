@@ -13,7 +13,10 @@ from ...measure import normalized
 from ...coordinates.basis import is_orthogonal
 
 
-def rotator(rotation_axis : np.ndarray[Shape[3], Numeric], angle_rad : float=0.0) -> Rotation:
+def rotator(
+    rotation_axis : np.ndarray[Shape[3], Numeric],
+    angle_rad : float=0.0,
+) -> Rotation:
     ''' 
     NOTE: ADVISE USING Rotation.from_rotvec(normalized(rotation_axis) * angle_rad) INSTEAD
     
@@ -33,9 +36,9 @@ def rotator(rotation_axis : np.ndarray[Shape[3], Numeric], angle_rad : float=0.0
 rodrigues = rotator
 
 def alignment_rotation(
-        moved_vector : np.ndarray[Shape[3], Numeric],
-        onto_vector : np.ndarray[Shape[3], Numeric],
-    ) -> Rotation:
+    moved_vector : np.ndarray[Shape[3], Numeric],
+    onto_vector : np.ndarray[Shape[3], Numeric],
+) -> Rotation:
     '''
     Compute a rotation which takes moved_vector parallel to the span of onto_vector
     Implemented as a composition of 2 Householder reflections to avoid any explicit angle calculations
@@ -46,6 +49,9 @@ def alignment_rotation(
     ## bisector <=> vector which bisects the angle between the pair of vectors;
     ## proportional to the mean of any pair of equal length vectors on the two vectors' respective spans,
     ## e.g. the sum of normal vectors on the two spans will do the trick
+    if np.allclose(moved_vector, onto_vector): # special case to avoid numerical errors
+        return Rotation.identity() # no rotation needed
+    
     bisector = normalized(onto_vector) + normalized(moved_vector) 
     rotation_matrix = reflector(onto_vector) @ reflector(bisector) # onto_vector doesn't need to be normalized
     assert is_orthogonal(rotation_matrix), 'Calculated alignment is not a proper rotation'
