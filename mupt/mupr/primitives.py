@@ -35,6 +35,7 @@ from .connection import (
     ConnectorHandle,
     ConnectorSelector,
     select_first,
+    make_second_resemble_first,
     IncompatibleConnectorError,
 )
 from .topology import TopologicalStructure
@@ -802,7 +803,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def expand(
         self,
         target_handle : PrimitiveHandle,
-        connector_selector : ConnectorSelector=select_first,
+        connector_selector : ConnectorSelector=make_second_resemble_first,
     ) -> None:
         '''
         Replace a child Primitive (identified by its label) with its internal topology
@@ -825,9 +826,25 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         # 2) detach target from self, attaching its children ("grandchildren" of self) in its place
         handle_remap : dict[PrimitiveHandle, PrimitiveHandle] = {}
-        for old_handle, grandchild in self.detach_child(target_handle).children_by_handle.items():
+        child_primitive_detached = self.detach_child(target_handle) # detach target from self
+        
+        ## 2a) compatibilize Connectors by collapsing correspondent pairs from external Connectors into single, representative Connector on each grandchild
+        for child_conn_handle, grandchild_conn_ref in child_primitive_detached.external_connectors.items():
+            child_conn = child_primitive_detached.fetch_connector(child_conn_handle)
+            grandchild = child_primitive_detached.fetch_child(grandchild_conn_ref.primitive_handle)
+            grandchild_conn_ref_label, grandchild_conn_ref_index = grandchild_conn_ref.connector_handle
+            grandchild_conn = grandchild.connectors.deregister(grandchild_conn_ref.connector_handle) 
+            
+            ### register modified connector to (what ought to be) the same handle
+            new_grandchild_conn_handle = grandchild.register_connector( 
+                connector_selector(child_conn, grandchild_conn),
+                label=grandchild_conn_ref_label, # use identical label to immediately recover handle from "freed" buffer in internal registry
+            ) 
+            assert new_grandchild_conn_handle == grandchild_conn_ref.connector_handle, 'Connector handle changed unexpectedly during merging'
+            
+        ## 2b) reassign grandchildren as direct children of self and discard twitching corpse of target child (we have no further use for it from here on)
+        for old_handle, grandchild in child_primitive_detached.children_by_handle.items():
             handle_remap[old_handle] = self.attach_child(grandchild, label=grandchild.label) # attach and map handle - # DEV: worth explicitly detaching grandchildren from target?
-        # DEV: twitching corpse of target is discarded here; we have no further use for it from now on
             
         # 3) re-map previously-established connections to updated handles
         promised_connections : set[frozenset[ConnectorReference]] = set()
@@ -845,13 +862,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
                     unaltered_nb_conn_ref,
                 ))
             )
-        
         # 4) re-establish promised connections, following appropriate relabelling
         for (conn_ref1, conn_ref2) in promised_connections:
             self.pair_connectors_internally(conn_ref1, conn_ref2)
-        
-        # TODO: external connections will still be external when directly registering grandchildren to self
-        # - just need to reconcile external connections (choose between pair w/ call to connector selector)
         
         self.check_self_consistent() # verify that all parts are consistent once the dust settles
 

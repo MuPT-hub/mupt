@@ -583,10 +583,11 @@ def select_second(connector1 : Connector, connector2 : Connector) -> Connector:
     '''Select the second of a pair of Connectors'''
     return connector2
 
-def merge_linkables(connector1 : Connector, connector2 : Connector) -> Connector:
+def make_second_resemble_first(connector1 : Connector, connector2 : Connector) -> Connector:
     '''Select the first of a pair of Connectors, but merge their linkables'''
-    new_connector = connector1.copy()
-    new_connector.linkables.update(connector2.linkables)
+    new_connector = connector2.copy()
+    new_connector.linkables.update(connector1.linkables)
+    new_connector.anchor = connector1.anchor # DEV: arbitrary choice to take anchor of first Connector
     
     return new_connector
 
