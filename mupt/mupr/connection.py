@@ -8,12 +8,14 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
+    Callable,
     ClassVar,
     Generator,
     Hashable,
     Iterable,
     Literal,
     Optional,
+    TypeAlias,
     TypeVar,
 )
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
@@ -569,3 +571,24 @@ class Connector(RigidlyTransformable):
     # def __eq__(self, other : 'Connector') -> bool:
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
+
+## selection between pairs of Connectors (useful, for example, for resolution-shift operations)
+ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
+
+def select_first(connector1 : Connector, connector2 : Connector) -> Connector:
+    '''Select the first of a pair of Connectors'''
+    return connector1
+
+def select_second(connector1 : Connector, connector2 : Connector) -> Connector:
+    '''Select the second of a pair of Connectors'''
+    return connector2
+
+def merge_linkables(connector1 : Connector, connector2 : Connector) -> Connector:
+    '''Select the first of a pair of Connectors, but merge their linkables'''
+    new_connector = connector1.copy()
+    new_connector.linkables.update(connector2.linkables)
+    
+    return new_connector
+
+# DEV: provide implementations which make some attempt to reconcile spatial info attache to respective Connectors
+...
