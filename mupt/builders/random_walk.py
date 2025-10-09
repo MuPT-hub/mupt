@@ -94,7 +94,7 @@ def random_walk_jointed_chain(
     
     # generate walk points
     n_steps_taken : int = 0
-    net_position : np.ndarray = initial_point
+    net_position : np.ndarray = np.array(initial_point) # make mutable copy of (possibly-immutable) initial point (will be incremented as net distance is tracked)
     prev_direction : np.ndarray = normalized(initial_direction)
     
     yield initial_point # always yielded, consider as "step #0"
@@ -103,12 +103,16 @@ def random_walk_jointed_chain(
         step_direction : np.ndarray = random_unit_vector(dimension=dimension)
         while np.dot(step_direction, prev_direction) < cos_max: # NOTE: over |x| in [0, pi], cos(x) is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
             step_direction : np.ndarray = random_unit_vector(dimension=dimension)
-        net_position += (step_size * step_direction)
+        step = step_size * step_direction
         
-        yield net_position
+        # DEV: resist the urge to just yield net_position after incrementing it; that yield the same REFERENCE to the underlying array at each step
+        # I.e. any previously-yielded steps would then point to the most recent step's value (rather than retaining their at-the-time values as expected)
+        yield net_position + step 
 
+        # NOTE: only increment internal state AFTER we've actually yielded
+        n_steps_taken += 1 
+        net_position += step
         prev_direction : np.ndarray = step_direction
-        n_steps_taken += 1 # only increment AFTER we've actually yielded
         if (n_steps_max is not None) and (n_steps_taken >= n_steps_max):
             break
 
@@ -163,9 +167,9 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             
             # determine pair of anchor points per-body that alignment is based upon
             connection_points : dict[PrimitiveHandle, list[np.ndarray, np.ndarray]] = defaultdict(list)
-            connection_points[head_handle].append(primitive.children_by_handles[head_handle].shape.centroid)
+            connection_points[head_handle].append(primitive.children_by_handle[head_handle].shape.centroid)
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
-                conn_handle_outgoing, conn_handle_incoming = primitive.topology.internal_connections_between(
+                conn_handle_outgoing, conn_handle_incoming = primitive.internal_connection_between(
                     from_child_handle=prim_handle_outgoing,
                     to_child_handle=prim_handle_incoming,
                 )
@@ -174,16 +178,22 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 connection_points[prim_handle_outgoing].append(conn_outgoing.anchor_position) # will raise Exception is anchor position is unset
                 
                 conn_incoming = primitive.fetch_connector_on_child(prim_handle_incoming, conn_handle_incoming)
-                connection_points[prim_handle_outgoing].append(conn_incoming.anchor_position) # will raise Exception is anchor position is unset
+                connection_points[prim_handle_incoming].append(conn_incoming.anchor_position) # will raise Exception is anchor position is unset
                 
                 Connector.mutually_antialign_ballistically(conn_outgoing, conn_incoming) # align linkers w/ other's anchor while leaving anchors themselves undisturbed
             # NOTE: order is critical here; only placing tail point AFTER its incoming connection point is inserted
-            connection_points[tail_handle].append(primitive.children_by_handles[tail_handle].shape.centroid)
+            connection_points[tail_handle].append(primitive.children_by_handle[tail_handle].shape.centroid)
+            
+            ## extract step sizes from conntions point - NOTE: by design, makes no reference to the shape of the body
+            step_sizes : list[float] = []
+            for handle in path: # NOTE: iterating over path (rather than connection_points.items()) to guarantee traversal order
+                conn_start, conn_end = connection_points[handle]
+                step_sizes.append( np.linalg.norm(conn_end - conn_start) )
             
             # generate random walk steps and corresponding placements
             rw_steps : Generator[np.ndarray, None, None] = random_walk_jointed_chain(
-                step_size=(self.determine_step_size(primitive.children[handle].shape) for handle in path),
-                n_steps=len(path), # not strictly necessary, but suppresses "indeterminate num steps" warnings
+                step_size=step_sizes,
+                n_steps_max=len(path), # not strictly necessary, but suppresses "indeterminate num steps" warnings
                 initial_point=self.initial_point,
                 initial_direction=self.initial_direction,
                 clip_angle=self.angle_max_rad,
