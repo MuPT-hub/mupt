@@ -29,7 +29,14 @@ from anytree.search import findall_by_attr
 from scipy.spatial.transform import RigidTransform
 
 from .canonicalize import lex_order_multiset_str
-from .connection import Connector, ConnectorLabel, ConnectorHandle, IncompatibleConnectorError
+from .connection import (
+    Connector,
+    ConnectorLabel,
+    ConnectorHandle,
+    ConnectorSelector,
+    select_first,
+    IncompatibleConnectorError,
+)
 from .topology import TopologicalStructure
 from .embedding import infer_connections_from_topology, ConnectorReference, flexible_connector_reference
 
@@ -305,20 +312,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 f'Connector {conn_ref1.connector_handle} on Primitive {conn_ref1.primitive_handle} is not bondable with Connector {conn_ref2.connector_handle} on Primitive {conn_ref2.primitive_handle}'
             )
             
-    def pair_connectors_internally(
-        self, # DEV: eventually replace this signature w/ a pair of ConnectorReferences?
-        child_1_handle : PrimitiveHandle,
-        child_1_connector_handle : ConnectorHandle,
-        child_2_handle : PrimitiveHandle,
-        child_2_connector_handle : ConnectorHandle
-    ) -> None:
+    def pair_connectors_internally(self, conn_ref1 : ConnectorReference, conn_ref2 : ConnectorReference) -> None:
         '''
         Associate a pair of Connectors between two adjacent children to the edge joining those children
         '''
-        conn_refs : tuple[ConnectorReference, ConnectorReference] = (
-            ConnectorReference(child_1_handle, child_1_connector_handle),
-            ConnectorReference(child_2_handle, child_2_connector_handle),
-        )
+        conn_refs = (conn_ref1, conn_ref2)
         self.check_internally_connectable(*conn_refs)
         for conn_ref in conn_refs:
             own_conn = self.unbind_external_connector(
@@ -587,7 +585,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     ## Internal linkage
     def connect_children(
-        self, # DEV: reorder args here to match ConnectorReference/other method signatures?
+        self,
         child_1_handle : PrimitiveHandle,
         child_1_connector_handle : ConnectorHandle,
         child_2_handle : PrimitiveHandle,
@@ -599,10 +597,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         registering that connection as internal on self and inserting a new edge in the self's topology
         '''
         self.pair_connectors_internally(
-            child_1_handle,
-            child_1_connector_handle,
-            child_2_handle,
-            child_2_connector_handle,
+            conn_ref1=ConnectorReference(
+                primitive_handle=child_1_handle,
+                connector_handle=child_1_connector_handle,
+            ),
+            conn_ref2=ConnectorReference(
+                primitive_handle=child_2_handle,
+                connector_handle=child_2_connector_handle,
+            ),
         )
         self.adjoin_child_nodes(
             child_1_handle,
@@ -749,12 +751,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             n_iter_max=connector_registration_max_iter,
         )
         for (conn_ref_1, conn_ref_2) in internal_connections_inferred.values():
-            self.pair_connectors_internally(
-                conn_ref_1.primitive_handle,
-                conn_ref_1.connector_handle,
-                conn_ref_2.primitive_handle,
-                conn_ref_2.connector_handle,
-            )
+            self.pair_connectors_internally(conn_ref_1, conn_ref_2)
         self.check_internal_connections_bijective_to_topology_edges(topology) # verify that all edges have been accounted for
 
     
@@ -805,6 +802,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def expand(
         self,
         target_handle : PrimitiveHandle,
+        connector_selector : ConnectorSelector=select_first,
     ) -> None:
         '''
         Replace a child Primitive (identified by its label) with its internal topology
@@ -815,10 +813,47 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if child_primitive.is_simple:
             return # cannot expand leaf Primitives any further
         
-        child_primitive.check_self_consistent()
+        # 1) determine which connections (with prior handles) to re-establish once target is replaced with its children 
+        # MUST be done first, as re-attaching and remapping grandchildren will destroy these handles on the target
+        self.check_self_consistent() # necessary to be satisfied for reconnection operations to be well-defined
         
+        prior_internal_connections : set[frozenset[ConnectorReference]] = set(child_primitive.internal_connections) 
+        prior_neighbor_connections_map : dict[ConnectorReference, ConnectorReference] = {
+            child_primitive.external_connectors[child_conn_handle] : nb_conn_ref
+                for child_conn_handle, nb_conn_ref in self.internal_connections_on_child(target_handle).items()
+        } # NOTE: done as dict to delineate which handles DO need to be remapped (namely keys) vs those which don't (namely those of unchanged neighbors)
         
-        raise NotImplementedError
+        # 2) detach target from self, attaching its children ("grandchildren" of self) in its place
+        handle_remap : dict[PrimitiveHandle, PrimitiveHandle] = {}
+        for old_handle, grandchild in self.detach_child(target_handle).children_by_handle.items():
+            handle_remap[old_handle] = self.attach_child(grandchild, label=grandchild.label) # attach and map handle - # DEV: worth explicitly detaching grandchildren from target?
+        # DEV: twitching corpse of target is discarded here; we have no further use for it from now on
+            
+        # 3) re-map previously-established connections to updated handles
+        promised_connections : set[frozenset[ConnectorReference]] = set()
+        for prior_internal_conn_ref1, prior_internal_conn_ref2 in prior_internal_connections:
+            promised_connections.add(
+                frozenset((
+                    prior_internal_conn_ref1.with_reassigned_primitive(handle_remap[prior_internal_conn_ref1.primitive_handle]),
+                    prior_internal_conn_ref2.with_reassigned_primitive(handle_remap[prior_internal_conn_ref2.primitive_handle]),
+                ))
+            )
+        for prior_external_conn_ref, unaltered_nb_conn_ref in prior_neighbor_connections_map.items():
+            promised_connections.add(
+                frozenset((
+                    prior_external_conn_ref.with_reassigned_primitive(handle_remap[prior_external_conn_ref.primitive_handle]),
+                    unaltered_nb_conn_ref,
+                ))
+            )
+        
+        # 4) re-establish promised connections, following appropriate relabelling
+        for (conn_ref1, conn_ref2) in promised_connections:
+            self.pair_connectors_internally(conn_ref1, conn_ref2)
+        
+        # TODO: external connections will still be external when directly registering grandchildren to self
+        # - just need to reconcile external connections (choose between pair w/ call to connector selector)
+        
+        self.check_self_consistent() # verify that all parts are consistent once the dust settles
 
     def flatten(self) -> None:
         '''Flatten hierarchy under this Primitive, so that the entire tree has depth 1'''

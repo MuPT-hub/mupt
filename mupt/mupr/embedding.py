@@ -81,6 +81,13 @@ class ConnectorReference:
     primitive_handle : PrimitiveHandle
     connector_handle : ConnectorHandle  
     
+    def with_reassigned_primitive(self, new_primitive_handle : PrimitiveHandle) -> 'ConnectorReference':
+        '''Return a copy of this ConnectorReference with a different PrimitiveHandle'''
+        return ConnectorReference(
+            primitive_handle=new_primitive_handle,
+            connector_handle=self.connector_handle,
+        )
+    
 @overload
 def flexible_connector_reference(
     primitive_handle : PrimitiveHandle,
