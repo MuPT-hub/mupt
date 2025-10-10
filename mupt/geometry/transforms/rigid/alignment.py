@@ -25,14 +25,10 @@ def rigid_vector_coalignment(
     onto the span of "vector2" (defined similarly), oriented parallel and with the point some fraction "t1" of the way along vector1
     to be exactly coincident with the point t2 parts along vector2
     '''
-    if not (0.0 <=  t1 <= 1.0):
-        raise ValueError(f"Invalid t1: {t1}. It must be in [0, 1].")
+    # TODO: check compatibility of shapes within AND between vectors
     if t2 is None:
         t2 = t1
-    if not (0.0 <=  t2 <= 1.0):
-        raise ValueError(f"Invalid t2: {t2}. It must be in [0, 1].")
     
-    # TODO: check compatibility of shapes within AND between vectors
     vector1 = vector1_end - vector1_start
     overlaid_point_1 = vector1_start + t1*vector1
     
