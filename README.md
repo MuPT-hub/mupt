@@ -8,18 +8,15 @@ Multiscale Polymer Toolkit
 Drafting repository for the core functionality of the Multiscale Polymer Toolkit (MuPT)
 
 ### Installation
-Execute the following terminal commands in the desired Python executable location (e.g. in some directory with a conda environment active):
+To create a virtual fully-featured environment with the Multiscale Polymer Toolkit, run the following commands from the command line in the desired directory on a machine with a Python installation:
 ```sh
 git clone https://github.com/MuPT-hub/mupt
 cd mupt
-```
-
-For casual users, can install locally with:
-```sh
+mamba env create -f devtools/conda-envs/release-env.yml
 pip install .
 ```
 
-For developers, can install as editable mirror with:
+For developers, can perform and editable install and mirror `mupt` to the current environment (i.e. allow changes to source to take effect in active environment) by replacing the final `pip` command with:
 ```sh
 pip install -e . --config-settings editable_mode=strict
 ```
