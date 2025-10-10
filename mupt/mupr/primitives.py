@@ -324,6 +324,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 connector_handle=self.external_connectors_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
             ) # DEV: worth returning these now-unbound instances?
         self._internal_connections.add(frozenset(conn_refs))
+        LOGGER.debug(f'Pairing {conn_ref1!s} with  {conn_ref2!s}')
         
     ## External "off-body" connections
     @property
@@ -531,7 +532,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # bind child to self
         subprimitive.parent = self
         subprim_handle = self.children_by_handle.register(subprimitive, label=label)
-        self.topology.add_node(subprim_handle) # idempotent, if already present - DEV: is there ever a case where we'd NOT want it to be present?
+        
+        # node addition is idempotent, if already present - DEV: is there ever a case where we'd NOT want it to be present?
+        self.topology.add_node(subprim_handle) # TODO: move to spearate method and add debug LOGGER output
         
         # register connections - NOTE: order matters here! need to insert all connections, then pair up the internal ones
         for conn_handle in subprimitive.connectors: #subprimitive.connectors.keys():
@@ -539,12 +542,13 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
         for subprim_conn_handle, (nb_handle, nb_conn_handle) in neighbor_connections.items():
             self.connect_children(subprim_handle, subprim_conn_handle, nb_handle, nb_conn_handle)
+        LOGGER.info(f'Attached child Primitive "{subprim_handle}" to parent Primitive "{self._repr_brief()}"')
 
         return subprim_handle
             
     def _post_attach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
-        LOGGER.debug(f'Bound Primitive "{str(self)}" to parent Primitive "{str(parent)}"')
+        LOGGER.debug(f'Primitive {parent._repr_brief()} assigned as parent of Primitive {self._repr_brief()}')
 
     ## Detachment (fulfilling NodeMixin contract)
     def _pre_detach(self, parent : 'Primitive') -> None:
@@ -571,17 +575,18 @@ class Primitive(NodeMixin, RigidlyTransformable):
             self.unbind_external_connector(own_conn_handle)
         
         # discard from topology (raises Exception if not present in topology)
-        self.topology.remove_node(target_handle)
+        self.topology.remove_node(target_handle) # TODO: move to spearate method and add debug LOGGER output
         
         # deregister child from self
         target_child.parent = None
         del self.children_by_handle[target_handle]
+        LOGGER.info(f'Detached child Primitive "{target_handle}" from parent Primitive "{self._repr_brief()}"')
         
         return target_child
     
     def _post_detach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
-        LOGGER.debug(f'Unbound Primitive "{str(self)}" from parent Primitive "{str(parent)}"')
+        LOGGER.debug(f'Primitive {parent._repr_brief()} disowned former child Primitive {self._repr_brief()}')
     # DEV: also include attach/detach_parent() methods?
     
     ## Internal linkage
@@ -725,6 +730,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         _ = self.fetch_child(child_1_handle) 
         _ = self.fetch_child(child_2_handle)
         self.topology.add_edge(child_1_handle, child_2_handle, **edge_attrs)
+        LOGGER.warning(f'Added edge between child Primitives "{child_1_handle}" and "{child_2_handle}" in topology of {self._repr_brief()}')
        
     def set_connectivity_from_topology(
         self,
@@ -816,6 +822,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         # 1) determine which connections (with prior handles) to re-establish once target is replaced with its children 
         # MUST be done first, as re-attaching and remapping grandchildren will destroy these handles on the target
+        LOGGER.info(f'Expanding child Primitive "{target_handle}" of {self._repr_brief()}, replacing it with its {child_primitive.num_children} children')
         self.check_self_consistent() # necessary to be satisfied for reconnection operations to be well-defined
         
         prior_internal_connections : set[frozenset[ConnectorReference]] = set(child_primitive.internal_connections) 

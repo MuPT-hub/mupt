@@ -87,6 +87,9 @@ class ConnectorReference:
             primitive_handle=new_primitive_handle,
             connector_handle=self.connector_handle,
         )
+        
+    def __str__(self) -> str:
+        return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
     
 @overload
 def flexible_connector_reference(
