@@ -699,7 +699,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             raise TypeError(f'Invalid topology type {type(new_topology)}')
         self.set_connectivity_from_topology(
             new_topology,
-            connector_registration_max_iter=25, # TODO: provide mechanism to configure this
+            connector_registration_max_iter=100, # TODO: provide mechanism to configure this
         ) # TODO: attempt to reconcile existing internal connections
         self._topology = new_topology
         self.check_self_consistent()
