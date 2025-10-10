@@ -730,7 +730,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         _ = self.fetch_child(child_1_handle) 
         _ = self.fetch_child(child_2_handle)
         self.topology.add_edge(child_1_handle, child_2_handle, **edge_attrs)
-        LOGGER.warning(f'Added edge between child Primitives "{child_1_handle}" and "{child_2_handle}" in topology of {self._repr_brief()}')
+        LOGGER.debug(f'Added edge between child Primitives "{child_1_handle}" and "{child_2_handle}" in topology of {self._repr_brief()}')
        
     def set_connectivity_from_topology(
         self,
