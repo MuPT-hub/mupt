@@ -29,7 +29,7 @@ from .components import atom_positions_from_rdkit, connector_between_rdatoms
 
 from ...geometry.shapes import PointCloud
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS
-from ...chemistry.core import ELEMENTS, ElementLike, Isotope
+from ...chemistry.core import rdkit_atom_to_element
 from ...mupr.primitives import Primitive, PrimitiveHandle
 
 
@@ -43,15 +43,8 @@ def primitive_from_rdkit_atom(
     '''Initialize an atomic Primitive from an RDKit Atom'''
     atom : Atom = parent_mol.GetAtomWithIdx(atom_idx)
     
-    elem : ElementLike = ELEMENTS[atom.GetAtomicNum()]
-    if (mass_number := atom.GetIsotope()) != 0:
-         # bypass isotope validity check ONLY for linker atoms (not actually neutrons, like periodictable seems to think they are!)
-        elem = Isotope(elem, mass_number) if (elem.number == 0) else elem[mass_number]
-    if (charge := atom.GetFormalCharge()) != 0:
-        elem = elem.ion[charge] # fetch Ion instance - NOTE: order here is deliberate; can't fetch Isotope of Ion, but CAN fetch Ion of Isotope
-    
     atom_primitive = Primitive(
-        element=elem,
+        element=rdkit_atom_to_element(atom),
         label=atom_idx,
         metadata=atom.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors 
     )

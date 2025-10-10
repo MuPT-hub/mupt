@@ -18,7 +18,7 @@ from rdkit.Chem.rdchem import (
 
 from .rdprops import RDPropType
 from ...geometry.arraytypes import Shape
-from ...chemistry.core import Isotope
+from ...chemistry.core import element_to_rdkit_atom
 from ...mupr.connection import Connector
 from ...mupr.primitives import Primitive, PrimitiveHandle
 
@@ -28,12 +28,7 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive : Primitive) -> Atom:
     if not (atomic_primitive.is_atom and atomic_primitive.is_simple):
         raise ValueError('Cannot export non-atomic Primitive to RDKit Atom')
     
-    atom = Atom(atomic_primitive.element.number)
-    atom.SetFormalCharge(atomic_primitive.element.charge)
-    atom.SetNoImplicit(True) # prevent RDKit from adding on any Hs where we don't expect
-    if isinstance(atomic_primitive.element, Isotope):
-        atom.SetIsotope(atomic_primitive.element.isotope)
-        
+    atom = element_to_rdkit_atom(atomic_primitive.element)
     # TODO: decide how (if at all) to handle aromaticity and stereo
     # TODO: gracefully coerce types for metadata
     
