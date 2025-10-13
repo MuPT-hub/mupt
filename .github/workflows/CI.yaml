@@ -3,10 +3,12 @@ name: CI
 on:
   # GitHub has started calling new repo's first branch "main" https://github.com/github/renaming
   # The cookiecutter uses the "--initial-branch" flag when it runs git-init
-  push:
+  pull_request:
     branches:
       - "main"
-  pull_request:
+      - "dev"
+      - "stable"
+  push:
     branches:
       - "main"
   schedule:
@@ -14,6 +16,7 @@ on:
     #   Scheduled workflows run on the latest commit on the default or base branch.
     #   (from https://help.github.com/en/actions/reference/events-that-trigger-workflows#scheduled-events-schedule)
     - cron: "0 0 * * 0"
+  workflow_dispatch:
 
 defaults:
   run:
