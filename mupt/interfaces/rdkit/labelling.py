@@ -18,6 +18,7 @@ RDMOL_NAME_PROP_PRECEDENCE : tuple[str] = (
     '_label',
     '_Label',
 )
+RDMOL_NAME_PROP : str = RDMOL_NAME_PROP_PRECEDENCE[0]
 
 def name_for_rdkit_mol(
     mol : Mol,

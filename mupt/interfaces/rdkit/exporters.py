@@ -17,6 +17,7 @@ from rdkit.Chem.rdchem import (
 )
 
 from .rdprops import RDPropType
+from .labelling import RDMOL_NAME_PROP
 from ...geometry.arraytypes import Shape
 from ...chemistry.core import element_to_rdkit_atom
 from ...mupr.connection import Connector
@@ -36,17 +37,18 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive : Primitive) -> Atom:
 
 def primitive_to_rdkit(
     primitive : Primitive,
-    default_position : Optional[np.ndarray[Shape[3], float]]=None,
+    default_atom_position : Optional[np.ndarray[Shape[3], float]]=None,
 ) -> Mol:
     '''
     Convert a Primitive hierarchy to an RDKit Mol
     Will return as single Mol instance, even is underlying Primitive represents a collection of multiple disconnected molecules
     
-    Will set spatial positions ("default_position" if none are set) on Conformer bound to the Mol
+    Will set spatial positions for each atom ("default_atom_position" if not assigned per atom) to a Conformer bound to the returned Mol
     '''
-    if default_position is None:
-        default_position = np.array([0.0, 0.0, 0.0], dtype=float)
-    if default_position.shape != (3,):
+    if default_atom_position is None:
+        # DEV: opted to not make this a call to geometry.reference.origin() to decrease coupling and allow choice for differently-determined default down the line
+        default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float) 
+    if default_atom_position.shape != (3,):
         raise ValueError('Default atom position must be a 3-dimensional vector')
     
     if not primitive.is_atomizable: # TODO: include provision (when no flattening is performed) to preserve atom order with Primitive handle indices
@@ -76,7 +78,7 @@ def primitive_to_rdkit(
         atom_idx_map[handle] = idx
         conf.SetAtomPosition(
             idx,
-            child_prim.shape.centroid if (child_prim.shape is not None) else default_position[:],
+            child_prim.shape.centroid if (child_prim.shape is not None) else default_atom_position[:],
         ) # geometric centroid is defined for all BoundedShape subtypes
     
     # 2) insert bonds
@@ -107,7 +109,7 @@ def primitive_to_rdkit(
             print(conn._linker_position)
             conf.SetAtomPosition(linker_idx, conn.linker_position)
         else:
-            conf.SetAtomPosition(linker_idx, default_position[:])
+            conf.SetAtomPosition(linker_idx, default_atom_position[:])
     ## 3) transfer Primitive-level metadata (atom metadata should already be transferred)
     ... 
     
@@ -116,5 +118,9 @@ def primitive_to_rdkit(
         primitive.detach_child(lone_atom_label)
     conformer_idx : int = mol.AddConformer(conf, assignId=True) # DEV: return this index?
     
-    return Mol(mol) # freeze writable Mol before returning
+    mol = Mol(mol) # freeze writable Mol before returning
+    if primitive.label is not None:
+        mol.SetProp(RDMOL_NAME_PROP, primitive.label)
+    
+    return mol
     

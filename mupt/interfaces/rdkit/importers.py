@@ -14,21 +14,15 @@ from rdkit.Chem.rdchem import (
     Conformer,
     StereoInfo,
 )
-from rdkit.Chem.rdmolops import (
-    FindPotentialStereo,
-    GetMolFrags,
-)
-from rdkit.Chem.rdmolfiles import (
-    MolToSmiles,
-    SmilesWriteParams,
-)
+from rdkit.Chem.rdmolops import FindPotentialStereo, GetMolFrags
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 from .linkers import is_linker
 from .components import atom_positions_from_rdkit, connector_between_rdatoms
 
+from .labelling import name_for_rdkit_mol
 from ...geometry.shapes import PointCloud
-from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS
+from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.core import rdkit_atom_to_element
 from ...mupr.primitives import Primitive, PrimitiveHandle
 
@@ -94,7 +88,7 @@ def primitive_from_rdkit_chain(
         The created Primitive object
     '''
     if label is None:
-        label = MolToSmiles(rdmol_chain, params=smiles_writer_params)
+        label = name_for_rdkit_mol(rdmol_chain, smiles_writer_params=smiles_writer_params)
     rdmol_primitive = Primitive(label=label)
     ## DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
     # stereo_info_map : dict[int, StereoInfo] = {
@@ -211,7 +205,7 @@ def primitive_from_rdkit(
                 primitive_from_rdkit_chain(
                     chain,
                     conformer_idx=conformer_idx,
-                    label=None, # impose default SMILES-based label for each individual chain
+                    label=None, # impose default label for each individual chain
                     smiles_writer_params=smiles_writer_params,
                     **kwargs,
                 )
