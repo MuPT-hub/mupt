@@ -123,10 +123,12 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
+        bond_length : float=1.0,
         angle_max_rad : float=np.pi/4,
         initial_point : Optional[np.ndarray[Shape[3], float]]=None,
         initial_direction : Optional[np.ndarray[Shape[3], float]]=None,
     ) -> None:
+        self.bond_length = bond_length
         self.angle_max_rad = angle_max_rad
         self.initial_point = initial_point
         self.initial_direction = initial_direction
@@ -188,7 +190,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             step_sizes : list[float] = []
             for handle in path: # NOTE: iterating over path (rather than connection_points.items()) to guarantee traversal order
                 conn_start, conn_end = connection_points[handle]
-                step_sizes.append( np.linalg.norm(conn_end - conn_start) )
+                step_sizes.append( np.linalg.norm(conn_end - conn_start) + self.bond_length ) # step longer to account for target bond length
             
             # generate random walk steps and corresponding placements
             rw_steps : Generator[np.ndarray, None, None] = random_walk_jointed_chain(
@@ -201,7 +203,11 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             )
             for handle, (step_start, step_end) in zip(path, sliding_window(rw_steps, 2)):
                 conn_start, conn_end = connection_points[handle]
-                t_body = 0.0 if handle in termini else 0.5 # terminal Primitives have second point set to center, not middle
+                t_body = (0.0 if handle in termini else 0.5) # terminal Primitives have second point set to center, not middle
+                
+                full_step_len = np.linalg.norm(step_end - step_start)
+                step_correction = 1 / (1 + (self.bond_length / full_step_len)) # scale back to account for bond length being included in step size
+                t_step = 0.5 * step_correction # adjust step fraction to account for bond length (will always be strictly smaller than 0.5, since ratio of lengths is positive)
                 
                 placement_transform = rigid_vector_coalignment(
                     # vector 1: spans between anchors of connection point on body
@@ -212,6 +218,6 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                     step_end,
                     # interpolation parameters for which point on respective vectors will be forced exactly-coexistent
                     t1=t_body, # take midpoint (or end, if at termini) of body-anchoring vector
-                    t2=0.5, # ...to midpoint of random walk step vector
+                    t2=t_step, # ...to midpoint of random walk step vector
                 )
                 yield handle, placement_transform
