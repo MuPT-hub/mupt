@@ -532,7 +532,7 @@ class Connector(RigidlyTransformable):
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
-    # labelling and representation methods
+    ## Labelling and representation methods
     @property
     def label(self) -> ConnectorLabel:
         '''Identifying label for this Connector'''
@@ -582,8 +582,23 @@ class Connector(RigidlyTransformable):
     # def __eq__(self, other : 'Connector') -> bool:
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
+    
+    # Copying and attr transfer methods
+    def individualize(self) -> dict[tuple[Hashable, Hashable], 'Connector']:
+        '''
+        Expand a Connector into a set of Connectors with identical properties but 
+        distinct, singletons linkables, one for each linkable in the original Connector
+        '''
+        # TODO: also include anchorables, once that's implemented
+        indiv_conn_map = dict()
+        for linkable in self.linkables:
+            conn_clone = self.copy()
+            conn_clone.linker = linkable
+            conn_clone.linkables = {linkable}
+            indiv_conn_map[(self.anchor, linkable)] = conn_clone
+        return indiv_conn_map
 
-## selection between pairs of Connectors (useful, for example, for resolution-shift operations)
+## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
 ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
 
 def select_first(connector1 : Connector, connector2 : Connector) -> Connector:
