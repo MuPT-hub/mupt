@@ -281,7 +281,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             if conn_ref.primitive_handle == to_child_handle:
                 return (from_child_conn_handle, conn_ref.connector_handle)
         else:
-            return tuple
+            return tuple()
     
     def num_internal_connections_on_child(self, child_handle : PrimitiveHandle) -> int:
         '''Number of internal connections the given child Primitive has made with its siblings'''
@@ -549,6 +549,34 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def _post_attach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         LOGGER.debug(f'Primitive {parent._repr_brief()} assigned as parent of Primitive {self._repr_brief()}')
+
+    def attach_children_from(
+        self,
+        *children : Iterable[
+            Union[
+                'Primitive',
+                tuple[
+                    'Primitive',
+                    Optional[PrimitiveLabel],
+                    Optional[dict[ConnectorHandle, tuple[PrimitiveHandle, ConnectorHandle]]]
+                ]
+            ]
+        ],
+    ) -> list[PrimitiveHandle]:
+        '''
+        Attach a sequence of children to this Primitive, returning a list of the handles assigned in the order the Primitives appears
+        
+        Elements in the iterable can either be Primitive instances (in which case default label and no neighbor connections are assumed)
+        or 3-tuples of (Primitive, label, neighbor_connections) as specified in the signature for attach_child()
+        '''
+        handles = []
+        for child in children:
+            if isinstance(child, Primitive):
+                handle = self.attach_child(child)
+            else:
+                handle = self.attach_child(*child)
+            handles.append(handle)
+        return handles
 
     ## Detachment (fulfilling NodeMixin contract)
     def _pre_detach(self, parent : 'Primitive') -> None:
