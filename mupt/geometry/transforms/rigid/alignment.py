@@ -7,7 +7,6 @@ import numpy as np
 from scipy.spatial.transform import RigidTransform
 
 from .rotations import alignment_rotation
-from ...measure import normalized
 from ...arraytypes import Shape, N, Numeric
 
 
@@ -37,11 +36,6 @@ def rigid_vector_coalignment(
     
     return (
         RigidTransform.from_translation(overlaid_point_2)
-        * RigidTransform.from_rotation(
-            alignment_rotation(
-                normalized(vector1),
-                normalized(vector2),
-            )
-        )
+        * RigidTransform.from_rotation(alignment_rotation(vector1, vector2))
         * RigidTransform.from_translation(-overlaid_point_1)
     )
