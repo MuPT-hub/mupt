@@ -12,10 +12,15 @@ dependencies:
     - pytest
     - pytest-cov
     - codecov
+    - nbval
 
-    # Scientific computing
-    - numpy>=2.0
+    # Mathematics and scientific computing
+    - numpy
     - scipy>=1.16.0 # required to allow use of RigidTransform
+    - sympy
+
+    # Graphs
+    - anytree
     - networkx
 
     # Visualization
@@ -25,6 +30,15 @@ dependencies:
 
     # Molecular libraries
     - rdkit
+    - periodictable
+
+    # MD libraries
+    - openff-toolkit
+    - openff-interchange
+    - gsd
+    - hoomd
+    # - freud
+    # - fresnel
 
     # - pip:
-        # - foo>=bar
+        # - some_pypi_module_name
