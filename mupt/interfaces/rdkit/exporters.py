@@ -104,9 +104,7 @@ def primitive_to_rdkit(
         conn : Connector = primitive.fetch_connector_on_child(conn_ref)
         
         mol.AddBond(atom_idx_map[conn_ref.primitive_handle], linker_idx, order=conn.bondtype)
-        print(conn.has_linker_position)
         if conn.has_linker_position: # NOTE: this "if" check not done in-line, as conn.linker_position raises AttributeError is unset
-            print(conn._linker_position)
             conf.SetAtomPosition(linker_idx, conn.linker_position)
         else:
             conf.SetAtomPosition(linker_idx, default_atom_position[:])
