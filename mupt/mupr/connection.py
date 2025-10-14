@@ -20,6 +20,8 @@ from typing import (
 )
 ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
 ConnectorHandle = tuple[ConnectorLabel, int]
+
+from enum import Enum
 from copy import deepcopy
 
 import numpy as np
@@ -42,6 +44,15 @@ class IncompatibleConnectorError(ConnectionError):
     '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
     pass
 
+
+class ChainDirection(Enum):
+    '''
+    Uniquifying label indicating whether a connection faces "forward" or "backward" along a chain 
+    relative to an arbitrary-but-consistent absolute direction of traversal along the chain from end-to-end
+    '''
+    AMBI = 0
+    ANTERO = 1
+    RETRO = 2
 
 class Connector(RigidlyTransformable):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
