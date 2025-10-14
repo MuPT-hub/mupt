@@ -204,7 +204,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             for handle, (step_start, step_end) in zip(path, sliding_window(rw_steps, 2)):
                 LOGGER.debug(f'Random walk placing body {handle} along vector from {step_start} to {step_end}')
                 conn_start, conn_end = connection_points[handle]
-                t_body = (0.0 if handle in termini else 0.5) # terminal Primitives have second point set to center, not middle
+                t_body = 0.5 # NOTE: no need for special case at termini, since the step size matches the half-body (e.g. center-to-anchor) step size
                 
                 full_step_len = np.linalg.norm(step_end - step_start)
                 step_correction = 1 / (1 + (self.bond_length / full_step_len)) # scale back to account for bond length being included in step size
