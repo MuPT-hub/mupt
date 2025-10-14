@@ -879,7 +879,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
         ## 2b) reassign grandchildren as direct children of self and discard twitching corpse of target child (we have no further use for it from here on)
         for old_handle, grandchild in child_primitive_detached.children_by_handle.items():
-            handle_remap[old_handle] = self.attach_child(grandchild, label=grandchild.label) # attach and map handle - # DEV: worth explicitly detaching grandchildren from target?
+            old_label, old_idx = old_handle
+            handle_remap[old_handle] = self.attach_child(grandchild, label=old_label) # attach and map handle - # DEV: worth explicitly detaching grandchildren from target?
             
         # 3) re-map previously-established connections to updated handles
         promised_connections : set[frozenset[ConnectorReference]] = set()
