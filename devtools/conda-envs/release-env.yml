@@ -16,7 +16,7 @@ dependencies:
 
     # Mathematics and scientific computing
     - numpy>=2.0
-    - scipy
+    - scipy>=1.16.0 # required to allow use of RigidTransform
     - sympy
 
     # Graphs
