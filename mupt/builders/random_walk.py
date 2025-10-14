@@ -202,6 +202,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 dimension=3,
             )
             for handle, (step_start, step_end) in zip(path, sliding_window(rw_steps, 2)):
+                LOGGER.debug(f'Random walk placing body {handle} along vector from {step_start} to {step_end}')
                 conn_start, conn_end = connection_points[handle]
                 t_body = (0.0 if handle in termini else 0.5) # terminal Primitives have second point set to center, not middle
                 
