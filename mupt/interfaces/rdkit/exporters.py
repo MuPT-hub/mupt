@@ -16,8 +16,9 @@ from rdkit.Chem.rdchem import (
     Conformer,
 )
 
-from .rdprops import RDPropType
+from .rdprops import RDPropType, assign_property_to_rdobj
 from .labelling import RDMOL_NAME_PROP
+from ... import TOOLKIT_NAME
 from ...geometry.arraytypes import Shape
 from ...chemistry.core import element_to_rdkit_atom
 from ...mupr.connection import Connector
@@ -31,7 +32,8 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive : Primitive) -> Atom:
     
     atom = element_to_rdkit_atom(atomic_primitive.element)
     # TODO: decide how (if at all) to handle aromaticity and stereo
-    # TODO: gracefully coerce types for metadata
+    for key, value in atomic_primitive.metadata.items():
+        assign_property_to_rdobj(atom, key, value, preserve_type=True)
     
     return atom
 
@@ -90,17 +92,19 @@ def primitive_to_rdkit(
         atom_idx2 : int = atom_idx_map[conn_ref2.primitive_handle]    
         conn2 : Connector = primitive.fetch_connector_on_child(conn_ref2)
         
-        mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
-        bond_metadata : dict[str, RDPropType]= { # TODO: move metadata from Connector pairs to BondProps, update values signature w/ RDKit-serializable types
+        # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
+        new_num_bonds : int = mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) 
+        bond_metadata : dict[str, RDPropType] = {
             **conn1.metadata,
             **conn2.metadata,
         }
-        ...
+        for bond_key, bond_value in bond_metadata.items():
+            assign_property_to_rdobj(mol.GetBondBetweenAtoms(atom_idx1, atom_idx2), bond_key, bond_value, preserve_type=True)
     
     ## 2b) insert and bond linker atoms for each external Connector
     for conn_ref in primitive.external_connectors.values(): # TODO: generalize to work for atomic (i.e. non-hierarchical) Primitives w/o external_connectors
         linker_atom = Atom(0) 
-        linker_idx : int = mol.AddAtom(linker_atom)
+        linker_idx : int = mol.AddAtom(linker_atom) # TODO: transpose metadata from external Connector onto 0-number RDKit Atom
         conn : Connector = primitive.fetch_connector_on_child(conn_ref)
         
         mol.AddBond(atom_idx_map[conn_ref.primitive_handle], linker_idx, order=conn.bondtype)
@@ -108,8 +112,11 @@ def primitive_to_rdkit(
             conf.SetAtomPosition(linker_idx, conn.linker_position)
         else:
             conf.SetAtomPosition(linker_idx, default_atom_position[:])
+            
     ## 3) transfer Primitive-level metadata (atom metadata should already be transferred)
-    ... 
+    assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True) # mark MuPT export for provenance
+    for key, value in primitive.metadata.items():
+        assign_property_to_rdobj(mol, key, value, preserve_type=True) 
     
     # 4) cleanup
     if not ((temp_prim is None) or (lone_atom_label is None)):

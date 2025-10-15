@@ -36,7 +36,6 @@ def primitive_from_rdkit_atom(
 ) -> Primitive:
     '''Initialize an atomic Primitive from an RDKit Atom'''
     atom : Atom = parent_mol.GetAtomWithIdx(atom_idx)
-    
     atom_primitive = Primitive(
         element=rdkit_atom_to_element(atom),
         label=atom_idx,
@@ -48,7 +47,7 @@ def primitive_from_rdkit_atom(
         atom_primitive.shape = PointCloud(positions=atom_pos)
     
     if attach_connectors:
-        for nb_atom in atom.GetNeighbors():
+        for nb_atom in atom.GetNeighbors(): # TODO: decide how bond Props should be split among metadata of the two bonded atoms
             conn_handle = atom_primitive.register_connector(
                 connector_between_rdatoms(
                     parent_mol=parent_mol,
@@ -89,7 +88,10 @@ def primitive_from_rdkit_chain(
     '''
     if label is None:
         label = name_for_rdkit_mol(rdmol_chain, smiles_writer_params=smiles_writer_params)
-    rdmol_primitive = Primitive(label=label)
+    rdmol_primitive = Primitive(
+        label=label,
+        metadata=rdmol_chain.GetPropsAsDict(includePrivate=True, includeComputed=False)
+    )
     ## DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
     # stereo_info_map : dict[int, StereoInfo] = {
     #     stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
@@ -199,7 +201,10 @@ def primitive_from_rdkit(
         )
     # otherwise, bind Primitives for each chain to "universal" root Primitive
     else:
-        universe_primitive = Primitive(label=label)
+        universe_primitive = Primitive(
+            label=label
+            # DEV: deliberately excluding metadata here to avoid squashing that of individual chains
+        ) 
         for chain in chains:
             universe_primitive.attach_child(
                 primitive_from_rdkit_chain(
