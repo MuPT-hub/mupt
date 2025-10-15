@@ -12,7 +12,7 @@ from rdkit import Chem
 from mupt.interfaces.rdkit.rdprops import (
     RDObj,
     isrdobj,
-    assign_rdprop_to,
+    assign_property_to_rdobj,
     copy_rdobj_props,
     RDPROP_GETTERS,
     RDPROP_SETTERS,
@@ -45,7 +45,7 @@ TEST_PROP_VALUES : tuple[tuple[Any, str], ...] = (
 def test_rdprop_assignment(rdobj : RDObj, prop_value : Any, expected_getter_method_name : str) -> None:
     '''Test type-safe assignment of properties to RDKit objects'''
     prop_key : str = f'test_{type(prop_value).__name__}_prop'
-    assign_rdprop_to(rdobj, prop_key, prop_value, preserve_type=True)
+    assign_property_to_rdobj(rdobj, prop_key, prop_value, preserve_type=True)
     
     getter = getattr(rdobj, expected_getter_method_name)
     _ = getter(prop_key) # NOTE: no need for assert; will raise Exception if value and type targetted by getter disagree

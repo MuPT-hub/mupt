@@ -58,7 +58,7 @@ def isrdobj(obj : Any) -> bool:
     '''Check if the given object is an RDKit object'''
     return isinstance(obj, RDObj.__args__)
 
-def assign_rdprop_to(
+def assign_property_to_rdobj(
     rdobj : RDObj,
     prop_name : str,
     prop_value : Any,
