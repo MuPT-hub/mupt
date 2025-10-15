@@ -7,7 +7,41 @@ from mupt.builders.random_walk import AngleConstrainedRandomWalk
 import freud
 import gsd, gsd.hoomd 
 import hoomd 
+import numpy as np
 import time
+
+def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.0, buffer=0.1):
+    '''
+    Create a HOOMD snapshot of a cubic box with the number density given by input parameters.
+    Configure particles using a naiive random walk.
+    
+    '''    
+    N = num_pol * num_mon
+    L = np.cbrt(N / density)  # Calculate box size based on density
+    positions = np.zeros((N, 3))
+    for i in range(num_pol):
+        start = i * num_mon
+        positions[start] = np.random.uniform(low=(-L/2),high=(L/2),size=3)
+        for j in range(num_mon - 1):
+            delta = np.random.uniform(low=(-bond_length/2),high=(bond_length/2),size=3)
+            delta /= np.linalg.norm(delta)*bond_length
+            positions[start+j+1] = positions[start+j] + delta
+    positions = pbc(positions,[L,L,L])
+    bonds = []
+    for i in range(num_pol):
+        start = i * num_mon
+        for j in range(num_mon - 1):
+            bonds.append([start + j, start + j + 1])
+    bonds = np.array(bonds)
+    frame = gsd.hoomd.Frame()
+    frame.particles.types = ['A']
+    frame.particles.N = N
+    frame.particles.position = positions
+    frame.bonds.N = len(bonds)
+    frame.bonds.group = bonds
+    frame.bonds.types = ['b']
+    frame.configuration.box = [L, L, L, 0, 0, 0]
+    return frame
 
 def pbc(d,box):
     '''
@@ -43,8 +77,7 @@ def check_inter_particle_distance(snap,minimum_distance=0.95):
         return True
     else:
         return False
-
-def create_polymer_system_dpd(num_pol,num_mon,density,positions,k=20000,bond_l=1.0,r_cut=1.15,kT=1.0,A=1000,gamma=800,dt=0.001,particle_spacing=1.1):
+def create_polymer_system_dpd(num_pol,num_mon,density,k=20000,bond_l=1.0,r_cut=1.15,kT=1.0,A=1000,gamma=800,dt=0.001,particle_spacing=1.1):
     
     '''
     Initialize a polymer system in a cubic box using a random walk and a HOOMD simulation with DPD forces.
@@ -53,7 +86,7 @@ def create_polymer_system_dpd(num_pol,num_mon,density,positions,k=20000,bond_l=1
     Parameters
     ----------
     num_pol : int, required
- 	number of polymers in system
+        number of polymers in system
     num_mon : int, required
         length of polymers in system
     density : float, required
@@ -83,25 +116,13 @@ def create_polymer_system_dpd(num_pol,num_mon,density,positions,k=20000,bond_l=1
         returns list of particle positions
         
     '''
-    print(f"\nRunning DPD simulation with A={A}, gamma={gamma}, k={k}, "
+    print(num_pol*num_mon)
+    print(f"\nRunning with A={A}, gamma={gamma}, k={k}, "
           f"num_pol={num_pol}, num_mon={num_mon}")
-    N = num_pol * num_mon
-    L = np.cbrt(N / density)  # Calculate box size based on density
-    positions = pbc(positions,[L,L,L])
-    bonds = []
-    for i in range(num_+pol):
-        start = i * num_mon
-        for j in range(num_mon - 1):
-            bonds.append([start + j, start + j + 1])
-    bonds = np.array(bonds)
-    frame = gsd.hoomd.Frame()
-    frame.particles.types = ['A']
-    frame.particles.N = N
-    frame.particles.position = positions
-    frame.bonds.N = len(bonds)
-    frame.bonds.group = bonds
-    frame.bonds.types = ['b']
-    frame.configuration.box = [L, L, L, 0, 0, 0]
+    start_time = time.perf_counter()
+    frame = initialize_snapshot_rand_walk(num_mon=num_mon,num_pol=num_pol,bond_length=bond_l,density=density)
+    build_stop = time.perf_counter()
+    print("Total build time: ", build_stop-start_time)
     harmonic = hoomd.md.bond.Harmonic()
     harmonic.params["b"] = dict(r0=bond_l, k=k)
     integrator = hoomd.md.Integrator(dt=dt)
@@ -122,15 +143,15 @@ def create_polymer_system_dpd(num_pol,num_mon,density,positions,k=20000,bond_l=1
     snap=simulation.state.get_snapshot()
     N = num_pol*num_mon
     time_factor = N/9000
-    start_time = time.perf_counter()
  
     while not check_inter_particle_distance(snap,minimum_distance=0.95):
         check_time = time.perf_counter()
         if (check_time-start_time) > 60*time_factor:
-            return
+            return 0
         simulation.run(1000)
         snap=simulation.state.get_snapshot()
         
     end_time = time.perf_counter()
-    print("Total DPD simulation time:", end_time - start_time)
+    print("Total build and simulation time:", end_time - start_time)
     return snap.particles.position
+
