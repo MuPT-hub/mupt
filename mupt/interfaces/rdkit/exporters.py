@@ -17,7 +17,7 @@ from rdkit.Chem.rdchem import (
 )
 
 from .rdprops import RDPropType, assign_property_to_rdobj
-from .labelling import RDMOL_NAME_PROP
+from .labelling import RDMOL_NAME_WRITE_PROP
 from ... import TOOLKIT_NAME
 from ...geometry.arraytypes import Shape
 from ...chemistry.core import element_to_rdkit_atom
@@ -125,7 +125,7 @@ def primitive_to_rdkit(
     
     mol = Mol(mol) # freeze writable Mol before returning
     if primitive.label is not None:
-        mol.SetProp(RDMOL_NAME_PROP, primitive.label)
+        mol.SetProp(RDMOL_NAME_WRITE_PROP, primitive.label)
     
     return mol
     
