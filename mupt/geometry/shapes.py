@@ -3,10 +3,9 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Sequence, Union
+from typing import Union
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
@@ -14,111 +13,8 @@ from scipy.spatial import ConvexHull, Delaunay
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from .arraytypes import Shape, Numeric, M, N, P
-from .coordinates.basis import (
-    is_columnspace_mutually_orthogonal,
-    is_orthogonal,
-)
-from .transforms.rigid.rotations import alignment_rotation
+from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.rigid.application import RigidlyTransformable
-
-
-@dataclass
-class Plane:
-    '''
-    Represents a plane in 3-space
-    Represents the locus of points (x, y, z) satisfying a*x + b*y + c*z + d = 0
-    '''
-    a : Numeric
-    b : Numeric
-    c : Numeric
-    d : Numeric = 0.0
-    
-    @classmethod
-    def from_normal_and_point(cls,
-        normal : np.ndarray[Shape[3], Numeric],
-        point  : np.ndarray[Shape[3], Numeric],
-    ) -> 'Plane':
-        '''Initialize from a normal vector and an arbitrary point know to lie in the plane'''
-        assert isinstance(point, np.ndarray) and point.size == 3
-        a, b, c = normal
-        
-        assert isinstance(point, np.ndarray) and point.size == 3
-        d = np.dot(normal, point)
-        
-        return cls(a, b, c, -d)
-    
-    @property
-    def normal(self) -> np.ndarray[Shape[3], Numeric]:
-        return np.array([self.a, self.b, self.c])
-    
-    def contains(self, *point : Sequence[Numeric]) -> bool: # TODO: support Nx3 arrays of points
-        '''Test whether a point lies on the plane defined'''
-        if len(point) == 1 and isinstance(point[0], (Sequence, np.ndarray)):
-            point = point[0] # correct missing star-args for Sequence-like
-        point = np.array(point, dtype=float)
-        
-        *_, ndim = point.shape
-        assert ndim == 3
-        
-        return np.isclose(np.dot(point, self.normal) + self.d, 0.0).astype(object) # convert from Numpy to Python bool
-    
-    def sample(self, num_points : N=1, r_x : float=1.0, r_y : float=1.0) -> np.ndarray[Shape[N, 3], Numeric]:
-        '''Sample a random point from the plane within a given distance from the origin in the XY-plane (default 1 unit)'''
-        x = np.random.uniform(-r_x, r_x, size=num_points)
-        y = np.random.uniform(-r_y, r_y, size=num_points)
-        z = - (self.a*x + self.b*y + self.d)/(self.c) # z in constrained by first 2 choices
-        
-        return np.column_stack([x, y, z])
-    
-    def surface_mesh(self,
-            center : Optional[np.ndarray[Shape[3], float]]=None,
-            r_x : float=1.0,
-            r_y : float=1.0,
-            n_x : int=3,
-            n_y : int=3,
-        ) -> np.ndarray[Shape[M, P, 3], Numeric]:
-        '''
-        Generate a mesh of points on the surface of the plane
-        
-        Parameters
-        ----------
-        r_x : float, default 1.0
-            Radius of the plane in the x direction
-        r_y : float, default 1.0
-            Radius of the plane in the y direction
-        n_x : int, default 100
-            Number of points in the x direction
-        n_y : int, default 100
-            Number of points in the y direction
-            
-        Returns
-        -------
-        plane_mesh : Array[[M, P, 3], float]
-            A mesh of points on the surface of the plane
-            
-            M is the number of points in the x direction
-            P is the number of points in the y direction
-        '''
-        if center is None:
-            center = self.sample(num_points=1)
-        assert self.contains(center), 'Center point must lie on the plane'
-        
-        # generate mesh of point for flat plane facing in z-direction
-        x_flat, y_flat = np.mgrid[
-            -r_x:r_x:n_x*1j,
-            -r_y:r_y:n_y*1j,
-        ]
-        z_flat = np.zeros((n_x, n_y), dtype=float)
-        points = np.dstack([x_flat, y_flat, z_flat])
-        
-        # rotate and translate mesh points into place based on plane parameters
-        Z_UNIT = np.array([0, 0, 1], dtype=float) # unit vector in the z-direction
-        plane_transform = RigidTransform.from_components(
-            translation=center,
-            rotation=alignment_rotation(Z_UNIT, self.normal),
-        )
-
-        return plane_transform.apply(points.reshape(-1, 3)).reshape(n_x, n_y, 3)
 
 
 class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some iterations of float in most cases)
