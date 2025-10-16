@@ -26,7 +26,10 @@ from collections import defaultdict
 
 from anytree.node import NodeMixin
 from anytree.search import findall_by_attr
+import networkx as nx
+
 from scipy.spatial.transform import RigidTransform
+from matplotlib.axes import Axes
 
 from .canonicalize import lex_order_multiset_str
 from .connection import (
@@ -38,7 +41,7 @@ from .connection import (
     make_second_resemble_first,
     IncompatibleConnectorError,
 )
-from .topology import TopologicalStructure
+from .topology import TopologicalStructure, GraphLayout
 from .embedding import infer_connections_from_topology, ConnectorReference, flexible_connector_reference
 
 from ..mutils.containers import UniqueRegistry
@@ -1065,3 +1068,55 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def _repr_brief(self) -> str:
         '''A brief representation of this Primitive, suitable for logging'''
         return f'{self.__class__.__name__} "{self.label}"'
+    
+    ## Graph drawing
+    def visualize_topology(
+        self,
+        ax : Optional[Axes]=None,
+        layout : GraphLayout=nx.kamada_kawai_layout,
+        **draw_kwargs,
+    ) -> None:
+        '''
+        Draw the connectivity of this Primitive's children to the passed Axes
+        '''
+        self.topology.visualize(ax=ax, layout=layout, **draw_kwargs)
+        
+    def _hierarchy_tree(
+        self,
+        root_label : Hashable=None,
+        depth : int=0,
+    ) -> nx.DiGraph:
+        '''Generate directed graph representing the connectivity of this Primitive and all its descendants'''
+        if root_label is None:
+            root_label = self.label
+        root_handle = f'{depth}-{root_label}'
+        
+        hier_tree = nx.DiGraph()
+        hier_tree.add_node(root_handle)
+        for child_handle, child in self.children_by_handle.items():
+            hier_tree = nx.compose(
+                hier_tree,
+                child._hierarchy_tree(root_label=child_handle, depth=depth+1),
+                # rename=(), # TODO: add mechanism for de-duplifying handles by depth (related to planned expansion acceleration)
+            )
+            hier_tree.add_edge(root_handle, child_handle)
+            
+        return hier_tree
+
+    def visualize_hierarchy(
+        self,
+        ax : Optional[Axes]=None,
+        layout : GraphLayout=nx.shell_layout,
+        **draw_kwargs
+    ) -> None:
+        '''
+        Draw the hierarchy of this Primitive and all its descendants to the passed Axes
+        '''
+        hier_tree = self._hierarchy_tree()
+        nx.draw(
+            hier_tree,
+            ax=ax,
+            pos=layout(hier_tree),
+            with_labels=True,
+            **draw_kwargs,
+        )
