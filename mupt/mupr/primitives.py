@@ -40,6 +40,8 @@ from .connection import (
     select_first,
     make_second_resemble_first,
     IncompatibleConnectorError,
+    MissingConnectorError,
+    UnboundConnectorError,
 )
 from .topology import TopologicalStructure, GraphLayout
 from .embedding import infer_connections_from_topology, ConnectorReference, flexible_connector_reference
@@ -49,6 +51,18 @@ from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom
 
+
+class AtomicityError(AttributeError):
+    '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
+    pass
+
+class BijectionError(ValueError):
+    '''Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched'''
+    pass
+
+class MissingSubprimitiveError(KeyError):
+    '''Raised when a child Primitive expected for a call is not present'''
+    pass
 
 class Primitive(NodeMixin, RigidlyTransformable):
     '''Represents a fundamental (but not necessarily irreducible) building block of a polymer system in the abstract 
@@ -133,7 +147,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @element.setter
     def element(self, new_element : ElementLike) -> None:
         if self.children:
-            raise AttributeError('Primitive with non-trivial internal structure cannot be made atomic (i.e. cannot have "element" assigned)')
+            raise AtomicityError('Primitive with non-trivial internal structure cannot be made atomic (i.e. cannot have "element" assigned)')
         if not isatom(new_element):
             raise TypeError(f'Invalid element type {type(new_element)}')
         self._element = new_element
@@ -187,7 +201,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         try:
             return self._connectors[connector_handle]
         except KeyError:
-            raise KeyError(f'No Connector with handle "{connector_handle}" bound to {self._repr_brief()}')
+            raise MissingConnectorError(f'No Connector with handle "{connector_handle}" bound to {self._repr_brief()}')
         
     @overload
     def fetch_connector_on_child(self, primitive_handle : ConnectorReference) -> Connector:
@@ -385,7 +399,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         own_conn = self._connectors.deregister(connector_handle)
         
         if connector_handle not in self._external_connectors:
-            raise KeyError(f'Connector "{connector_handle}" bound to {self._repr_brief()} exists, but is not bound the Connector of any child Primitive')
+            raise UnboundConnectorError(f'Connector "{connector_handle}" bound to {self._repr_brief()} exists, but is not associated with the Connector of any child Primitive')
         del self._external_connectors[connector_handle]
 
         return own_conn
@@ -413,12 +427,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
             return # these checks only make sense for Primitives with children
         
         if self.functionality != len(self.external_connectors):
-            raise ValueError(f'{self.functionality}-functional {self._repr_brief()} only has {len(self.external_connectors)} registered external Connectors')
+            raise BijectionError(f'{self.functionality}-functional {self._repr_brief()} only has {len(self.external_connectors)} registered external Connectors')
         
         own_conn_handles = set(self.connectors.keys())
         mapped_conn_handles = set(self.external_connectors.keys())
         if own_conn_handles != mapped_conn_handles:
-            raise KeyError(
+            raise UnboundConnectorError(
                 f'Connector mapping on {self._repr_brief()} is inconsistent; {len(own_conn_handles - mapped_conn_handles)} Connector(s) have no '\
                 f'associated Connectors among children, and {len(mapped_conn_handles - own_conn_handles)} mapped Connector(s) are not registered to the Primitive'
             )
@@ -437,7 +451,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''
         num_total_child_connectors = sum(child.functionality for child in self.children)
         if num_total_child_connectors != (self.num_internal_connectors + len(self.external_connectors)):
-            raise ValueError(f'{self._repr_brief()} has Connectors unaccounted for; {num_total_child_connectors} total vs {self.num_internal_connectors} internal + {len(self.external_connectors)} external Connectors')
+            raise BijectionError(
+                f'{self._repr_brief()} has Connectors unaccounted for; {num_total_child_connectors} total'\
+                f'vs {self.num_internal_connectors} internal + {len(self.external_connectors)} external Connectors'
+            )
 
     def check_connectors(self) -> None:
         '''
@@ -465,14 +482,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         num_external_on_child = self.num_external_connectors_on_child(primitive_handle)
         
         if num_child_connectors != (num_external_on_child + num_internal_on_child):
-            raise ValueError(
+            raise BijectionError(
                 f'Connectors on child {child.functionality}-functional Primitive "{primitive_handle}" not fully accounted for '\
                 f'(c.f. {num_child_connectors} total vs {num_internal_on_child} internal + {num_external_on_child} external Connectors)'
             )
 
         # 2) check topology
         if (child_degree := self.topology.degree[primitive_handle]) != num_internal_on_child:
-            raise ValueError(
+            raise BijectionError(
                 f'Primitive "{primitive_handle}" has {num_internal_on_child} registered internal connections versus {child_degree} internal connections suggested by topology'
             )
 
@@ -507,7 +524,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         try:
             return self.children_by_handle[primitive_handle]
         except KeyError:
-            raise KeyError(f'No child Primitive with handle "{primitive_handle}" bound to {self._repr_brief()}')
+            raise MissingSubprimitiveError(f'No child Primitive with handle "{primitive_handle}" bound to {self._repr_brief()}')
     fetch_subprimitive = fetch_child
 
     ## Attachment (fulfilling NodeMixin contract)
@@ -680,12 +697,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Primitives registered to this Primitive and the nodes present in the incidence topology
         '''
         if topology.number_of_nodes() != self.num_children:
-            raise ValueError(f'Cannot bijectively map {self.num_children} child Primitives onto {topology.number_of_nodes()}-element topology')
+            raise BijectionError(f'Cannot bijectively map {self.num_children} child Primitives onto {topology.number_of_nodes()}-element topology')
         
         node_labels = set(topology.nodes)
         child_handles = set(self.children_by_handle.keys())
         if node_labels != child_handles:
-            raise KeyError(
+            raise BijectionError(
                 f'Set underlying topology does not correspond to handles on child Primitives; {len(node_labels - child_handles)} element(s)'\
                 f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
             )
@@ -696,12 +713,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
         (Connectors paired between sibling child Primitives) and the edges present in the incidence topology
         '''
         if topology.number_of_edges() != self.num_internal_connections:
-            raise ValueError(f'Cannot bijectively map {self.num_internal_connections} internal connections onto {topology.number_of_edges()}-edge topology')
+            raise BijectionError(f'Cannot bijectively map {self.num_internal_connections} internal connections onto {topology.number_of_edges()}-edge topology')
         
         edge_labels = set(frozenset(edge) for edge in topology.edges) # cast to frozenset to remove order-dependence
         internal_conn_pairs = set(self.internal_connections_by_pairs.keys())
         if edge_labels != internal_conn_pairs:
-            raise KeyError(
+            raise BijectionError(
                 f'Incident pairs in associated topology do not correspond to internally-connected pairs of child Primitives;'\
                 f'{len(edge_labels - internal_conn_pairs)} edge(s) have no corresponding connection, '\
                 f'and {len(internal_conn_pairs - edge_labels)} internal connection(s) are unrepresented in the topology'
