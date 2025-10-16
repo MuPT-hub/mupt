@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generator
+from typing import Iterable
 from abc import ABC, abstractmethod
 
 from scipy.spatial.transform import Rotation, RigidTransform
@@ -43,14 +43,14 @@ class PlacementGenerator(ABC):
     def _generate_placements(
         self,
         primitive : Primitive,
-    ) -> Generator[tuple[PrimitiveHandle, RigidTransform], None, None]:
+    ) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         '''Implement generation of rigid transformations to place each child of the given Primitive here'''
         ...
         
     def generate_placements(
         self,
         primitive : Primitive,
-    ) -> Generator[tuple[PrimitiveHandle, RigidTransform], None, None]:
+    ) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         '''
         Accepts a Primitive (with associated topology, connections, and hierarchy of children below it)
         and should generate placements (as RigidTransform instances) for all children below the provided Primitive,
