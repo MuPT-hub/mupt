@@ -748,13 +748,25 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     @topology.setter
     def topology(self, new_topology : TopologicalStructure) -> None:
+        raise PermissionError(f'Direct assignment to topology is prohibited; use {self.__class__.__name__}.set_topology() method instead')
+        
+    def set_topology(self, new_topology : TopologicalStructure, max_registration_iter : int=100) -> None:
+        '''
+        Assign a new topology to this Primitive, squashing any prior internal connections and attempting to
+        deduce them according to the topology provided (i.e. attempting to pair Connectors along each edge)
+        
+        Deduction of pairs may require more than the default number of iterations of the registration algorithm to finish converging;
+        If registration fails the first time, try increasing max_registration_iter
+        '''
         if not isinstance(new_topology, TopologicalStructure):
             raise TypeError(f'Invalid topology type {type(new_topology)}')
+        
         self.set_connectivity_from_topology(
             new_topology,
-            connector_registration_max_iter=100, # TODO: provide mechanism to configure this
+            connector_registration_max_iter=max_registration_iter,
         ) # TODO: attempt to reconcile existing internal connections
         self._topology = new_topology
+        
         self.check_self_consistent()
 
     def compatible_indiscrete_topology(self) -> TopologicalStructure:
