@@ -10,3 +10,9 @@ import pytest
 from mupt.interfaces.rdkit import exporters
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
+
+# TODO: test metadata transfer
+# for atom in mol.GetAtoms():
+#     atom.SetDoubleProp('mass', ptab.GetAtomicWeight(atom.GetAtomicNum()))
+# mol.SetProp('name', 'benzoic_acid')
+# mol.SetBoolProp('is_aromatic', True)
