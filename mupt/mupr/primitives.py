@@ -49,7 +49,7 @@ from .embedding import infer_connections_from_topology, ConnectorReference, flex
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..chemistry.core import ElementLike, isatom
+from ..chemistry.core import ElementLike, isatom, BOND_ORDER
 
 
 class AtomicityError(AttributeError):
@@ -173,6 +173,21 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def connectors(self) -> UniqueRegistry[ConnectorHandle, Connector]:
         '''Mutable collection of all connections this Primitive is able to make, represented by Connector instances'''
         return self._connectors
+    
+    @property
+    def functionality(self) -> int:
+        '''Number of neighboring primitives which can be attached to this primitive'''
+        return len(self._connectors)
+
+    @property
+    def valence(self) -> int:
+        '''Electronic valence of the Primitive, i.e. the total bond order of all external-facing Connectors on this Primitive'''
+        total_bond_order : float = sum(
+            BOND_ORDER.get(conn.bondtype, 0.0)
+                for conn in self._connectors.values()
+        )
+        return round(total_bond_order)
+    chemical_valence = electronic_valence = valence # aliases for convenience
 
     def register_connector(
         self,
@@ -231,11 +246,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 for child_handle, child in self.children_by_handle.items()
                     for conn_handle, conn in child.connectors.items()
         })
-        
-    @property
-    def functionality(self) -> int:
-        '''Number of neighboring primitives which can be attached to this primitive'''
-        return len(self._connectors)
     
     ## Internal "between-child" connections
     @property
