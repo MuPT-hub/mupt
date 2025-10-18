@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Union
+from typing import Optional, Union
 
 from abc import ABC, abstractmethod
 from functools import cached_property
@@ -16,6 +16,63 @@ from .arraytypes import Shape, Numeric, M, N, P
 from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.rigid.application import RigidlyTransformable
 
+
+def ellipsoidal_mesh(
+    rx : float,
+    ry : Optional[float]=None,
+    rz : Optional[float]=None,
+    n_theta : M=100,
+    n_phi : P=100,
+    transformation : Optional[RigidTransform]=None,
+) -> np.ndarray[Shape[M, P, 3], Numeric]:
+    # TODO: flesh out docstring w/ Copilot
+    ''' 
+    Generate a mesh of points defining the surface of an ellipsoid 
+    (i.e. generalized sphere with 3 independent, arbitrarily sized readii)
+    
+    Parameters
+    ----------
+    n_theta : int, default 100
+        Number of points in the azimuthal angle direction
+        Equivalent to longitudinal resolution
+        
+        Theta is taken to be the angle CC from the +x axis in the xy-plane,
+        following the mathematics (not physics!) convention
+    n_phi : int, default 100
+        Number of points in the polar angle direction
+        Equivalent to latitudinal resolution
+        
+        Phi is taken to be the angle "downwards" from the +z axis
+        following the mathematics (not physics!) convention
+        
+    Returns
+    -------
+    ellipsoid_mesh : Array[[M, P, 3], float]
+        A mesh of points on the surface of the Ellipsoid
+        M is the number of points in the azimuthal direction
+        P is the number of points in the polar direction
+    '''
+    if ry is None:
+        ry = rx
+    if rz is None:
+        rz = ry
+
+    theta, phi = np.mgrid[
+        0.0:2*np.pi:n_theta*1j,
+        0.0:np.pi:n_phi*1j,
+    ] # (magnitude of) complex step size is interpreted by numpy as a number of points
+
+    mesh_points = np.zeros((n_theta, n_phi, 3), dtype=float)
+    mesh_points[..., 0] = rx * np.sin(phi) * np.cos(theta)
+    mesh_points[..., 1] = ry * np.sin(phi) * np.sin(theta)
+    mesh_points[..., 2] = rz * np.cos(phi)
+    
+    if transformation is not None:
+        mesh_points = transformation.apply(
+            mesh_points.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array to allow RigidTransform.apply() to digest it
+        ).reshape(n_theta, n_phi, 3) # ...then repackage into mesh for convenient plotting
+
+    return mesh_points
 
 class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some iterations of float in most cases)
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
@@ -42,6 +99,11 @@ class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some
     # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
     #     ...
+
+    # @abstractmethod
+    # def surface_mesh(self, *args, **kwargs) -> np.ndarray[Shape[M, P, 3], Numeric]:
+    #     '''Generate a mesh surface representing the BoundedShape which can be easily digested and plotted by mpl.plot_surface'''
+    #     ...
         
 # Concrete BoundedShape implementations
 class PointCloud(BoundedShape):
@@ -50,9 +112,6 @@ class PointCloud(BoundedShape):
         if positions is None:
             positions = np.empty((0, 3), dtype=float)
         self.positions = np.atleast_2d(positions)
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}(shape={self.positions.shape})'
 
     @cached_property
     def convex_hull(self) -> ConvexHull:
@@ -86,6 +145,15 @@ class PointCloud(BoundedShape):
 
     def _rigidly_transform(self, transform : RigidTransform) -> None:
         self.positions = transform.apply(self.positions)
+
+    # visualization
+    def __repr__(self):
+        return f'{self.__class__.__name__}(shape={self.positions.shape})'
+
+    # def surface_mesh(self) -> np.ndarray[Shape[M, P, 3], Numeric]:
+    #     # TODO: implement calculating this from ConvexHull
+    #     ...
+
 
 class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     '''A spherical body with arbitrary radius and center'''
@@ -132,6 +200,18 @@ class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circl
     # visualization
     def __repr__(self):
         return f'{self.__class__.__name__}(radius={self.radius})'
+
+    def surface_mesh(self, n_theta : int=M, n_phi : P=100) -> np.ndarray[Shape[M, P, 3], Numeric]:
+        # TODO: fill in docstring
+        ''''''
+        return ellipsoidal_mesh(
+            rx=self.radius,
+            # ry, rz forced to match rx if not passed explicitly
+            n_theta=n_theta,
+            n_phi=n_phi,
+            transformation=self.cumulative_transformation,
+        )
+    
     
 class Ellipsoid(BoundedShape):
     '''
@@ -296,18 +376,10 @@ class Ellipsoid(BoundedShape):
             M is the number of points in the azimuthal direction
             P is the number of points in the polar direction
         '''
-        theta, phi = np.mgrid[
-            0.0:2*np.pi:n_theta*1j,
-            0.0:np.pi:n_phi*1j,
-        ] # (magnitude of) complex step size is interpreted by numpy as a number of points
-
-        rx, ry, rz = self.radii 
-        positions = np.zeros((n_theta, n_phi, 3), dtype=float)
-        positions[..., 0] = rx * np.sin(phi) * np.cos(theta)
-        positions[..., 1] = ry * np.sin(phi) * np.sin(theta)
-        positions[..., 2] = rz * np.cos(phi)
-        
-        return self.cumulative_transformation.apply(
-            positions.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array to allow RigidTransform.apply() to digest it
-        ).reshape(n_theta, n_phi, 3) # ...then repackage into mesh for convenient plotting
+        return ellipsoidal_mesh(
+            *self.radii,
+            n_theta=n_theta,
+            n_phi=n_phi,
+            transformation=self.cumulative_transformation,
+        )
     
