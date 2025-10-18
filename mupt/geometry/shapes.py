@@ -43,7 +43,6 @@ class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some
     #     '''Determines the furthest point on the surface of the body in a given direction'''
     #     ...
         
-
 # Concrete BoundedShape implementations
 class PointCloud(BoundedShape):
     '''A cluster of points in 3D space'''
@@ -60,6 +59,8 @@ class PointCloud(BoundedShape):
         '''Convex hull of the points contained within'''
         return ConvexHull(self.positions)
 
+    ## TODO: add convex hull surface mesh export
+
     @cached_property
     def triangulation(self) -> Delaunay:
         '''Delauney triangulation into simplicial facets whose vertiecs are the positions within'''
@@ -68,10 +69,12 @@ class PointCloud(BoundedShape):
     # fulfilling BoundedShape contracts
     @property
     def centroid(self) -> np.ndarray[Shape[3], Numeric]:
+        '''Geometric (i.e. unweighted) center of mass'''
         return self.positions.mean(axis=0)
     
     @property
     def volume(self) -> Numeric:
+        '''Volume of the convex hull of the positions in this PointCloud'''
         return self.convex_hull.volume
     
     def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
@@ -83,6 +86,52 @@ class PointCloud(BoundedShape):
 
     def _rigidly_transform(self, transform : RigidTransform) -> None:
         self.positions = transform.apply(self.positions)
+
+class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
+    '''A spherical body with arbitrary radius and center'''
+    def __init__(self,
+        radius : float=1.0,
+        center : np.ndarray[Shape[3], Numeric]=None,
+    ) -> 'Sphere':
+        if center is None:
+            center = np.zeros(3, dtype=float)
+        center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
+        assert center_std.shape == (3,)
+
+        self.radius = radius
+        self.center = center
+        self.cumulative_transformation *= RigidTransform.from_translation(center)
+    
+    # fulfilling BoundedShape contracts
+    @property
+    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
+        return self.center
+
+    @property
+    def volume(self) -> Numeric:
+        return 4/3 * np.pi * self.radius**3
+    
+    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+        return (
+            np.linalg.norm(
+                np.atleast_2d(points - self.center),
+                axis=1, # TODO: 
+            ) < self.radius  # TODO: decide whether containment should be boundary-inclusive
+        ).astype(object)
+
+    # fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'Sphere':
+        return self.__class__(
+            radius=self.radius,
+            center=np.array(self.center),
+        )
+
+    def _rigidly_transform(self, transform : RigidTransform) -> None:
+        self.center = transform.apply(self.center)
+
+    # visualization
+    def __repr__(self):
+        return f'{self.__class__.__name__}(radius={self.radius})'
     
 class Ellipsoid(BoundedShape):
     '''
@@ -202,11 +251,13 @@ class Ellipsoid(BoundedShape):
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determination of rotation is always 1, so we may as well skip it and the whole determinant calculation
 
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:   # TODO: decide whether containment should be boundary-inclusive
-        return (np.linalg.norm( # NOTE: not applying self.inverse to points because the Ellipsoid basis matrix is not, in general, a rigid transformation
-            (self.resetting_transformation.apply(points) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
-            axis=1,
-        ) < 1).astype(object) # need to cast from numpy bool to Python bool
+    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+        return ( 
+            np.linalg.norm( # NOTE: not applying self.inverse to points because the Ellipsoid basis matrix is not, in general, a rigid transformation
+                np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
+                axis=1,
+            ) < 1 # TODO: decide whether containment should be boundary-inclusive
+        ).astype(object) # need to cast from numpy bool to Python bool
 
     # fulfilling RigidlyTransformable contracts
     def _copy_untransformed(self) -> 'Ellipsoid':
@@ -219,7 +270,7 @@ class Ellipsoid(BoundedShape):
         self.center = transform.apply(self.center)
     
     # visualization   
-    def surface_mesh(self, n_theta : int=100, n_phi : int=100) -> np.ndarray[Shape[M, P, 3], Numeric]:
+    def surface_mesh(self, n_theta : int=M, n_phi : P=100) -> np.ndarray[Shape[M, P, 3], Numeric]:
         '''
         Generate a mesh of points on the surface of this Ellipsoid
         
@@ -245,35 +296,18 @@ class Ellipsoid(BoundedShape):
             M is the number of points in the azimuthal direction
             P is the number of points in the polar direction
         '''
-        r : float = 1.0 # NOTE: this is NOT a parameter, but is left here to make clear tht we start with a UNIT sphere
         theta, phi = np.mgrid[
             0.0:2*np.pi:n_theta*1j,
             0.0:np.pi:n_phi*1j,
         ] # (magnitude of) complex step size is interpreted by numpy as a number of points
 
-        a, b, c = self.radii 
+        rx, ry, rz = self.radii 
         positions = np.zeros((n_theta, n_phi, 3), dtype=float)
-        positions[..., 0] = a * r * np.sin(phi) * np.cos(theta)
-        positions[..., 1] = b * r * np.sin(phi) * np.sin(theta)
-        positions[..., 2] = c * r * np.cos(phi)
+        positions[..., 0] = rx * np.sin(phi) * np.cos(theta)
+        positions[..., 1] = ry * np.sin(phi) * np.sin(theta)
+        positions[..., 2] = rz * np.cos(phi)
         
         return self.cumulative_transformation.apply(
             positions.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array to allow RigidTransform.apply() to digest it
         ).reshape(n_theta, n_phi, 3) # ...then repackage into mesh for convenient plotting
     
-class Sphere(Ellipsoid): 
-    # TODO: reimplement as separate from Ellipsoid to address Circle-Ellipse problem 
-    # (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
-    '''A spherical body with arbitrary radius and center'''
-    def __init__(self,
-        radius : float=1.0,
-        center : np.ndarray[Shape[3], Numeric]=None,
-    ) -> 'Sphere':
-        super().__init__(
-            radii=np.array([radius, radius, radius]),
-            center=center,
-        )
-        self.radius = radius # propagate radus attribute to self
-        
-    def __repr__(self):
-        return f'{self.__class__.__name__}(radius={self.radius})'
