@@ -55,7 +55,7 @@ def primitive_to_rdkit(
     
     if not primitive.is_atomizable: # TODO: include provision (when no flattening is performed) to preserve atom order with Primitive handle indices
         raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
-    primitive.flatten() # collapse hierarchy - DEV: make this out-of-place?
+    primitive.flatten() # collapse hierarchy - TODO: make this out-of-place?
     
     ## DEV: modelled assembly in part by OpenFF RDKit TK wrapper
     ## https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
@@ -75,7 +75,10 @@ def primitive_to_rdkit(
         lone_atom_label : PrimitiveHandle = temp_prim.attach_child(primitive)
             
     # 1) insert atoms
-    for handle, child_prim in primitive.children_by_handle.items():
+    for handle, child_prim in primitive.children_by_handle.items(): # at this point after flattening, all children should be atomic Primitives
+        assert child_prim.is_atom
+        child_prim.check_valence()
+
         idx : int = mol.AddAtom(rdkit_atom_from_atomic_primitive(child_prim))
         atom_idx_map[handle] = idx
         conf.SetAtomPosition(

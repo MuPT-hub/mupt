@@ -49,7 +49,7 @@ from .embedding import infer_connections_from_topology, ConnectorReference, flex
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..chemistry.core import ElementLike, isatom, BOND_ORDER
+from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 
 
 class AtomicityError(AttributeError):
@@ -166,6 +166,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def is_atomizable(self) -> bool:
         '''Whether the Primitive represents an all-atom system'''
         return self.is_atom or all(subprim.is_atomizable for subprim in self.children)
+
+    def check_valence(self) -> None: # DEV: deliberately put this here (i.e. not next to "valence" def) for eventual peelaway when splitting off AtomicPrimitive
+        '''Check that element assigned to atomic Primitives and bond orders of Connectors are chemically-compatible'''
+        if not self.is_atom:
+            return
+
+        if not valence_allowed(self.element.number, self.element.charge, self.valence):
+            raise ValueError(f'Atomic {self._repr_brief(include_functionality=True)} with total valence {self.valence} incompatible with assigned element {self.element!r}')
     
 
     # Connections
@@ -437,7 +445,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             return # these checks only make sense for Primitives with children
         
         if self.functionality != len(self.external_connectors):
-            raise BijectionError(f'{self.functionality}-functional {self._repr_brief()} only has {len(self.external_connectors)} registered external Connectors')
+            raise BijectionError(f'{self._repr_brief(include_functionality=True)} only has {len(self.external_connectors)} registered external Connectors')
         
         own_conn_handles = set(self.connectors.keys())
         mapped_conn_handles = set(self.external_connectors.keys())
@@ -493,7 +501,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         if num_child_connectors != (num_external_on_child + num_internal_on_child):
             raise BijectionError(
-                f'Connectors on child {child.functionality}-functional Primitive "{primitive_handle}" not fully accounted for '\
+                f'Connectors on child {child._repr_brief(include_functionality=True, label_to_use=primitive_handle)} not fully accounted for '\
                 f'(c.f. {num_child_connectors} total vs {num_internal_on_child} internal + {num_external_on_child} external Connectors)'
             )
 
@@ -1104,9 +1112,20 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         return f'{self.__class__.__name__}({attr_str})'
 
-    def _repr_brief(self) -> str:
+    def _repr_brief(
+        self,
+        include_functionality : bool=False,
+        label_to_use : Hashable=None,
+    ) -> str:
         '''A brief representation of this Primitive, suitable for logging'''
-        return f'{self.__class__.__name__} "{self.label}"'
+        if label_to_use is None:
+            label_to_use = self.label
+
+        repr_brief : str = f'{self.__class__.__name__} "{label_to_use}"'
+        if include_functionality:
+            repr_brief = f'{self.functionality}-functional {repr_brief}'
+    
+        return repr_brief
     
     ## Graph drawing
     def visualize_topology(
