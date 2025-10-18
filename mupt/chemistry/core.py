@@ -45,6 +45,9 @@ BOND_ORDER : dict[BondType, float] = _compile_bond_order_reference()
 
 def valence_allowed(atomic_num : int, charge : int, valence : int) -> bool:
     '''Check if the given valence is allowed for the specified element'''
+    if atomic_num == 0:
+        return True # skip checks for linkers (should not be interpreted as neutrons, which they would be if passed thru the logic below)
+
     ## Calculation based on RDKit's valence prescription (https://www.rdkit.org/docs/RDKit_Book.html#valence-calculation-and-allowed-valences)
     ## ..., down to the treatment of charged atoms by their isoelectronic equivalents
     effective_atomic_num = atomic_num - charge # e.g. treat [N+] as C, [N-] as O, etc.
