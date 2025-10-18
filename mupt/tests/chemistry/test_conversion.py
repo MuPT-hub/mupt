@@ -8,6 +8,8 @@ from mupt.chemistry.core import (
     ELEMENTS,
     ElementLike,
     isatom,
+)
+from mupt.chemistry.conversion import (
     rdkit_atom_to_element,
     element_to_rdkit_atom,
     flexible_elementlike,
