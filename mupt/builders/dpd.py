@@ -71,92 +71,6 @@ def check_inter_particle_distance(snap,minimum_distance=0.95):
     else:
         return False
 
-def create_polymer_system_dpd(num_pol,num_mon,positions,bonds,density,k=20000,bond_l=1.0,r_cut=1.15,kT=1.0,A=1000,gamma=800,dt=0.001,particle_spacing=1.1):
-    
-    '''
-    Initialize a polymer system in a cubic box using a random walk and a HOOMD simulation with DPD forces.
-
-    ----------
-    Parameters
-    ----------
-    num_pol : int, required
-        number of polymers in system
-    num_mon : int, required
-        length of polymers in system
-    density : float, required
-        number density to initalize the system
-    k : int, default 20000
-        spring constant for harmonic bonds
-    bond_l : float, default 1.0
-        harmonic bond rest length
-    r_cut : float, default 1.15
-        cutoff pair distance for neighbor list
-    kT : float, default 1.0
-        temperature of thermostat
-    A : float, default 1000
-        DPD force parameter
-    gamma : float, default 800
-        DPD drag parameter (mass/time)
-    dt : float, default 0.001
-        timestep for HOOMD simulation
-    particle_spacing : float, default 1.1
-        condition for ending the soft push simulation
-
-    -------
-    Returns
-    -------
-    
-    positions : list
-        returns list of particle positions
-        
-    '''
-    print(num_pol*num_mon)
-    print(f"\nRunning with A={A}, gamma={gamma}, k={k}, "
-          f"num_pol={num_pol}, num_mon={num_mon}")
-    start_time = time.perf_counter()
-    N = num_pol * num_mon
-    L = np.cbrt(N / density)
-    frame = gsd.hoomd.Frame()
-    frame.particles.types = ['A']
-    frame.particles.N = N
-    frame.particles.position = positions
-    frame.bonds.N = len(bonds)
-    frame.bonds.group = bonds
-    frame.bonds.types = ['b']
-    frame.configuration.box = [L, L, L, 0, 0, 0]
-    build_stop = time.perf_counter()
-    print("Total build time: ", build_stop-start_time)
-    harmonic = hoomd.md.bond.Harmonic()
-    harmonic.params["b"] = dict(r0=bond_l, k=k)
-    integrator = hoomd.md.Integrator(dt=dt)
-    integrator.forces.append(harmonic)
-    simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint(65535))# TODO seed
-    simulation.operations.integrator = integrator 
-    simulation.create_state_from_snapshot(frame)
-    const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
-    integrator.methods.append(const_vol)
-    nlist = hoomd.md.nlist.Cell(buffer=0.4)
-    simulation.operations.nlist = nlist
-    DPD = hoomd.md.pair.DPD(nlist, default_r_cut=r_cut, kT=kT)
-    DPD.params[('A', 'A')] = dict(A=A, gamma=gamma)
-    integrator.forces.append(DPD)
-    
-    simulation.run(0)
-    simulation.run(1000)
-    snap=simulation.state.get_snapshot()
-    N = num_pol*num_mon
-    time_factor = N/9000
- 
-    while not check_inter_particle_distance(snap,minimum_distance=0.95):
-        check_time = time.perf_counter()
-        if (check_time-start_time) > 60*time_factor:
-            yield 0
-        simulation.run(1000)
-        snap=simulation.state.get_snapshot()
-        
-    end_time = time.perf_counter()
-    print("Total build and simulation time:", end_time - start_time)
-    return snap.particles.position
 
 class DPD_RandomWalk(PlacementGenerator):
     '''
@@ -165,7 +79,7 @@ class DPD_RandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
-        density,
+        density=0.8,
         k=20000,
         bond_l=1.0,
         r_cut=1.2,
@@ -208,13 +122,8 @@ class DPD_RandomWalk(PlacementGenerator):
         if any((subprim.shape is None) for subprim in primitive.children):
             raise TypeError('Random walk chain builder requires ellipsoidal of spherical beads to determine step sizes')
     
-def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.0, buffer=0.1): #this function is being replaced, leaving now for reference
-        positions[start] = np.random.uniform(low=(-L/2),high=(L/2),size=3)
-        for j in range(num_mon - 1):
-            delta = np.random.uniform(low=(-bond_length/2),high=(bond_length/2),size=3)
-            delta /= np.linalg.norm(delta)*bond_length
-            positions[start+j+1] = positions[start+j] + delta
-    return frame
+
+
 
     def _generate_placements(self, primitive : Primitive) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         '''
@@ -225,24 +134,53 @@ def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.
 		If we assume chains are looped over in the same way, we can map from handles to indices
         '''
 
+		#set up hoomd data structures to initialize simulation
     	frame = gsd.hoomd.Frame()
 		frame.particles.types = ['A']
 		frame.particles.N = primitive.topology.number_of_nodes() 
-		frame.particles.position = np.zeros((frame.particles.N,3))
+		frame.particles.position = np.zeros((frame.particles.N,3)) #populate with random walks
 		frame.bonds.N = primitive.topology.number_of_edges()
-		frame.bonds.group = np.zeros((frame.bonds.N,2))
+		frame.bonds.group = np.zeros((frame.bonds.N,2)) #populate with indices
 		frame.bonds.types = ['b']
 		L = np.cbrt(frame.particles.N / self.density) 
 		frame.configuration.box = [L, L, L, 0, 0, 0]
+
+		primindex = 0
+        for chain in primitive.topology.chains: 
+			for bond in range(chain.number_of_edges()):
+				frame.bonds.group[primindex,primindex+1]
+				primindex = primindex+1
+			
+		harmonic = hoomd.md.bond.Harmonic()
+		harmonic.params["b"] = dict(r0=self.bond_l, k=self.k)
+		integrator = hoomd.md.Integrator(dt=self.dt)
+		integrator.forces.append(harmonic)
+		simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint(65535))# TODO seed
+		simulation.operations.integrator = integrator 
+		simulation.create_state_from_snapshot(frame)
+		const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
+		integrator.methods.append(const_vol)
+		nlist = hoomd.md.nlist.Cell(buffer=0.4)
+		simulation.operations.nlist = nlist
+		DPD = hoomd.md.pair.DPD(nlist, default_r_cut=self.r_cut, kT=kT)
+		DPD.params[('A', 'A')] = dict(A=self.A, gamma=self.gamma)
+		integrator.forces.append(DPD)
 		
-        for chain in primitive.topology.chains: #use this to define bonds
-            head_handle, tail_handle = termini = self.get_termini_handles(chain)
-			path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
-			for handle in path: # NOTE: iterating over path (rather than connection_points.items()) to guarantee traversal order
-				conn_start, conn_end = connection_points[handle]
-				step_sizes.append( np.linalg.norm(conn_end - conn_start) + self.bond_length ) # step longer to account for target bond length
-				#DPD: ADD bonds
-				#DPD: 
+		simulation.run(0)
+		simulation.run(1000)
+		snap=simulation.state.get_snapshot()
+		N = num_pol*num_mon
+		time_factor = N/9000
+
+		while not check_inter_particle_distance(snap,minimum_distance=0.95):
+			check_time = time.perf_counter()
+			if (check_time-start_time) > 60*time_factor:
+				yield 0
+			simulation.run(1000)
+			snap=simulation.state.get_snapshot()
+			
+		return snap.particles.position
+
 
 
 
