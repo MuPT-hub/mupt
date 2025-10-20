@@ -36,39 +36,6 @@ from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
-def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.0, buffer=0.1): #this function is being replaced, leaving now for reference
-    '''
-    Create a HOOMD snapshot of a cubic box with the number density given by input parameters.
-    Configure particles using a naiive random walk.
-    
-    '''    
-    N = num_pol * num_mon
-    L = np.cbrt(N / density)  # Calculate box size based on density
-    positions = np.zeros((N, 3))
-    for i in range(num_pol):
-        start = i * num_mon
-        positions[start] = np.random.uniform(low=(-L/2),high=(L/2),size=3)
-        for j in range(num_mon - 1):
-            delta = np.random.uniform(low=(-bond_length/2),high=(bond_length/2),size=3)
-            delta /= np.linalg.norm(delta)*bond_length
-            positions[start+j+1] = positions[start+j] + delta
-    positions = pbc(positions,[L,L,L])
-    bonds = []
-    for i in range(num_pol):
-        start = i * num_mon
-        for j in range(num_mon - 1):
-            bonds.append([start + j, start + j + 1])
-    bonds = np.array(bonds)
-    frame = gsd.hoomd.Frame()
-    frame.particles.types = ['A']
-    frame.particles.N = N
-    frame.particles.position = positions
-    frame.bonds.N = len(bonds)
-    frame.bonds.group = bonds
-    frame.bonds.types = ['b']
-    frame.configuration.box = [L, L, L, 0, 0, 0]
-    return frame
-
 def pbc(d,box):
     '''
     periodic boundary conditions
@@ -103,6 +70,7 @@ def check_inter_particle_distance(snap,minimum_distance=0.95):
         return True
     else:
         return False
+
 def create_polymer_system_dpd(num_pol,num_mon,positions,bonds,density,k=20000,bond_l=1.0,r_cut=1.15,kT=1.0,A=1000,gamma=800,dt=0.001,particle_spacing=1.1):
     
     '''
@@ -197,20 +165,16 @@ class DPD_RandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
-        num_pol,
-        num_mon,
         density,
         k=20000,
         bond_l=1.0,
-        r_cut=1.15,
+        r_cut=1.2,
         kT=1.0,
-        A=1000,
+        A=5000,
         gamma=800,
         dt=0.001,
         particle_spacing=1.1
     ) -> None:
-        self.num_pol = num_pol
-        self.num_mon = num_mon
         self.density = density
         self.k = k
         self.bond_l = bond_l
@@ -244,29 +208,45 @@ class DPD_RandomWalk(PlacementGenerator):
         if any((subprim.shape is None) for subprim in primitive.children):
             raise TypeError('Random walk chain builder requires ellipsoidal of spherical beads to determine step sizes')
     
-    def _generate_placements(self, primitive : Primitive) -> Generator[tuple[PrimitiveHandle, RigidTransform], None, None]:
+def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.0, buffer=0.1): #this function is being replaced, leaving now for reference
+        positions[start] = np.random.uniform(low=(-L/2),high=(L/2),size=3)
+        for j in range(num_mon - 1):
+            delta = np.random.uniform(low=(-bond_length/2),high=(bond_length/2),size=3)
+            delta /= np.linalg.norm(delta)*bond_length
+            positions[start+j+1] = positions[start+j] + delta
+    return frame
+
+    def _generate_placements(self, primitive : Primitive) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         '''
         Reorient bodies to be coincident (along a predefined axis) with 
         the steps of an angle-constrained non-self-avoiding random walk
+		primitive passed in here should be a universe primitive that has chains to loop over 
+		paths are lists of handsles
+		If we assume chains are looped over in the same way, we can map from handles to indices
         '''
 
-        center_positions : np.ndarray = create_polymer_system_dpd( #move
-            num_pol=self.num_pol,
-            num_mon=self.num_mon,
-            density=self.density,
-            k=self.k,
-            bond_l=self.bond_l,
-            r_cut=self.r_cut,
-            kT=self.kT,
-            A=self.A,
-            gamma=self.gamma,
-            dt=self.dt,
-            particle_spacing=self.particle_spacing)
-
-        
+    	frame = gsd.hoomd.Frame()
+		frame.particles.types = ['A']
+		frame.particles.N = primitive.topology.number_of_nodes() 
+		frame.particles.position = np.zeros((frame.particles.N,3))
+		frame.bonds.N = primitive.topology.number_of_edges()
+		frame.bonds.group = np.zeros((frame.bonds.N,2))
+		frame.bonds.types = ['b']
+		L = np.cbrt(frame.particles.N / self.density) 
+		frame.configuration.box = [L, L, L, 0, 0, 0]
+		
         for chain in primitive.topology.chains: #use this to define bonds
-            #pull edges out of graph for bonds
-            #chain.edges
+            head_handle, tail_handle = termini = self.get_termini_handles(chain)
+			path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
+			for handle in path: # NOTE: iterating over path (rather than connection_points.items()) to guarantee traversal order
+				conn_start, conn_end = connection_points[handle]
+				step_sizes.append( np.linalg.norm(conn_end - conn_start) + self.bond_length ) # step longer to account for target bond length
+				#DPD: ADD bonds
+				#DPD: 
+
+
+
+        for chain in primitive.topology.chains: #use this to define bonds
             # DEV: taking extra care to ensure chain is oriented from end-to-end, because there's no requirement
             # (or indeed, reason to believe) that the order of nodes in chain.nodes is meaningful
             head_handle, tail_handle = termini = self.get_termini_handles(chain)
@@ -280,10 +260,10 @@ class DPD_RandomWalk(PlacementGenerator):
                     from_child_handle=prim_handle_outgoing,
                     to_child_handle=prim_handle_incoming,
                 )
+				#DPD: Something like bonds.append([start + j, start + j + 1])
                 # NOTE: traversal in-path-order is what guarantees these appends place everything in the correct order
                 conn_outgoing = primitive.fetch_connector_on_child(prim_handle_outgoing, conn_handle_outgoing)
                 connection_points[prim_handle_outgoing].append(conn_outgoing.anchor_position) # will raise Exception is anchor position is unset
-                
                 conn_incoming = primitive.fetch_connector_on_child(prim_handle_incoming, conn_handle_incoming)
                 connection_points[prim_handle_incoming].append(conn_incoming.anchor_position) # will raise Exception is anchor position is unset
                 
