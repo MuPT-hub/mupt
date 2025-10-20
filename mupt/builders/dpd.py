@@ -129,57 +129,57 @@ class DPD_RandomWalk(PlacementGenerator):
         '''
         Reorient bodies to be coincident (along a predefined axis) with 
         the steps of an angle-constrained non-self-avoiding random walk
-		primitive passed in here should be a universe primitive that has chains to loop over 
-		paths are lists of handsles
-		If we assume chains are looped over in the same way, we can map from handles to indices
+        primitive passed in here should be a universe primitive that has chains to loop over 
+        paths are lists of handsles
+        If we assume chains are looped over in the same way, we can map from handles to indices
         '''
 
-		#set up hoomd data structures to initialize simulation
-    	frame = gsd.hoomd.Frame()
-		frame.particles.types = ['A']
-		frame.particles.N = primitive.topology.number_of_nodes() 
-		frame.particles.position = np.zeros((frame.particles.N,3)) #populate with random walks
-		frame.bonds.N = primitive.topology.number_of_edges()
-		frame.bonds.group = np.zeros((frame.bonds.N,2)) #populate with indices
-		frame.bonds.types = ['b']
-		L = np.cbrt(frame.particles.N / self.density) 
-		frame.configuration.box = [L, L, L, 0, 0, 0]
+        #set up hoomd data structures to initialize simulation
+        frame = gsd.hoomd.Frame()
+        frame.particles.types = ['A']
+        frame.particles.N = primitive.topology.number_of_nodes() 
+        frame.particles.position = np.zeros((frame.particles.N,3)) #populate with random walks
+        frame.bonds.N = primitive.topology.number_of_edges()
+        frame.bonds.group = np.zeros((frame.bonds.N,2)) #populate with indices
+        frame.bonds.types = ['b']
+        L = np.cbrt(frame.particles.N / self.density) 
+        frame.configuration.box = [L, L, L, 0, 0, 0]
 
-		primindex = 0
+        primindex = 0
         for chain in primitive.topology.chains: 
-			for bond in range(chain.number_of_edges()):
-				frame.bonds.group[primindex,primindex+1]
-				primindex = primindex+1
-			
-		harmonic = hoomd.md.bond.Harmonic()
-		harmonic.params["b"] = dict(r0=self.bond_l, k=self.k)
-		integrator = hoomd.md.Integrator(dt=self.dt)
-		integrator.forces.append(harmonic)
-		simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint(65535))# TODO seed
-		simulation.operations.integrator = integrator 
-		simulation.create_state_from_snapshot(frame)
-		const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
-		integrator.methods.append(const_vol)
-		nlist = hoomd.md.nlist.Cell(buffer=0.4)
-		simulation.operations.nlist = nlist
-		DPD = hoomd.md.pair.DPD(nlist, default_r_cut=self.r_cut, kT=kT)
-		DPD.params[('A', 'A')] = dict(A=self.A, gamma=self.gamma)
-		integrator.forces.append(DPD)
-		
-		simulation.run(0)
-		simulation.run(1000)
-		snap=simulation.state.get_snapshot()
-		N = num_pol*num_mon
-		time_factor = N/9000
+            for bond in range(chain.number_of_edges()):
+                frame.bonds.group[primindex,primindex+1]
+                primindex = primindex+1
+            
+        harmonic = hoomd.md.bond.Harmonic()
+        harmonic.params["b"] = dict(r0=self.bond_l, k=self.k)
+        integrator = hoomd.md.Integrator(dt=self.dt)
+        integrator.forces.append(harmonic)
+        simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint(65535))# TODO seed
+        simulation.operations.integrator = integrator 
+        simulation.create_state_from_snapshot(frame)
+        const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
+        integrator.methods.append(const_vol)
+        nlist = hoomd.md.nlist.Cell(buffer=0.4)
+        simulation.operations.nlist = nlist
+        DPD = hoomd.md.pair.DPD(nlist, default_r_cut=self.r_cut, kT=kT)
+        DPD.params[('A', 'A')] = dict(A=self.A, gamma=self.gamma)
+        integrator.forces.append(DPD)
+        
+        simulation.run(0)
+        simulation.run(1000)
+        snap=simulation.state.get_snapshot()
+        N = num_pol*num_mon
+        time_factor = N/9000
 
-		while not check_inter_particle_distance(snap,minimum_distance=0.95):
-			check_time = time.perf_counter()
-			if (check_time-start_time) > 60*time_factor:
-				yield 0
-			simulation.run(1000)
-			snap=simulation.state.get_snapshot()
-			
-		return snap.particles.position
+        while not check_inter_particle_distance(snap,minimum_distance=0.95):
+            check_time = time.perf_counter()
+            if (check_time-start_time) > 60*time_factor:
+                yield 0
+            simulation.run(1000)
+            snap=simulation.state.get_snapshot()
+            
+        return snap.particles.position
 
 
 
@@ -198,7 +198,7 @@ class DPD_RandomWalk(PlacementGenerator):
                     from_child_handle=prim_handle_outgoing,
                     to_child_handle=prim_handle_incoming,
                 )
-				#DPD: Something like bonds.append([start + j, start + j + 1])
+                #DPD: Something like bonds.append([start + j, start + j + 1])
                 # NOTE: traversal in-path-order is what guarantees these appends place everything in the correct order
                 conn_outgoing = primitive.fetch_connector_on_child(prim_handle_outgoing, conn_handle_outgoing)
                 connection_points[prim_handle_outgoing].append(conn_outgoing.anchor_position) # will raise Exception is anchor position is unset
