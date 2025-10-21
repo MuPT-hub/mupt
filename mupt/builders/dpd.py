@@ -134,28 +134,33 @@ class DPD_RandomWalk(PlacementGenerator):
         #set up hoomd data structures to initialize simulation
         print("Hello!")
         frame = gsd.hoomd.Frame()
-        frame.particles.types = ['A']
+        frame.particles.types = ['H','M','T']
         frame.particles.N = primitive.topology.number_of_nodes() 
         frame.particles.position = np.zeros((frame.particles.N,3)) #populate with random walks
         frame.bonds.N = primitive.topology.number_of_edges()
         frame.bonds.group = np.zeros((frame.bonds.N,2)) #populate this with bond indices
-        frame.bonds.types = ['b']
+        frame.bonds.types = ['a']
         L = np.cbrt(frame.particles.N / self.density) 
         frame.configuration.box = [L, L, L, 0, 0, 0]
 
         primindex = 0
-        for chain in primitive.topology.chains: 
+        bondgroupindex=0
+        for i,chain in enumerate(primitive.topology.chains): 
             frame.particles.position[primindex] = np.random.uniform(low=(-L/2),high(L/2),size=3)
-            for bond in range(chain.number_of_edges()):
-                #frame.bonds.group[primindex+bond][0] = primindex+bond
-                frame.bonds.group[primindex+bond][1] = primindex+bond+1
+            frame.particles.typeid[primindex] = 0
+            frame.bonds.group[primindex] = [primindex,primindex+1]
+            for bond in range(1,chain.number_of_edges()):
+                frame.bonds.group[bondgroupindex+bond] = [primindex+bond,primindex+bond+1]
                 delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
                 delta /= np.linalg.norm(delta)*self.bond_l
-                frame.particles.position[primindex+bond] = frame.particles.position[primindex+bond] + delta
-            primindex = primindex+bond+2
+                frame.particles.position[primindex+bond+1] = frame.particles.position[primindex+bond] + delta
+                frame.particles.typeid[primindex+bond+1] = 1
+            primindex += bond+2
+            bondgroupindex = primindex-(i+1)
+            frame.particles.typeid[primindex-1] = 2
         print(frame.particles.position)
         harmonic = hoomd.md.bond.Harmonic()
-        harmonic.params["b"] = dict(r0=self.bond_l, k=self.k)
+        harmonic.params["a"] = dict(r0=self.bond_l, k=self.k)
         integrator = hoomd.md.Integrator(dt=self.dt)
         integrator.forces.append(harmonic)
         simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint())
@@ -166,7 +171,10 @@ class DPD_RandomWalk(PlacementGenerator):
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
         simulation.operations.nlist = nlist
         DPD = hoomd.md.pair.DPD(nlist, default_r_cut=self.r_cut, kT=self.kT)
-        DPD.params[('A', 'A')] = dict(A=self.A, gamma=self.gamma)
+        DPD.params[('H', 'M')] = dict(A=self.A, gamma=self.gamma)
+        DPD.params[('M', 'M')] = dict(A=self.A, gamma=self.gamma)
+        DPD.params[('M', 'T')] = dict(A=self.A, gamma=self.gamma)
+        DPD.params[('H', 'T')] = dict(A=self.A, gamma=self.gamma)
         integrator.forces.append(DPD)
         
         simulation.run(1000)
