@@ -18,9 +18,7 @@ from typing import (
     TypeAlias,
     TypeVar,
 )
-ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
-ConnectorHandle = tuple[ConnectorLabel, int]
-
+from dataclasses import dataclass, field
 from enum import Enum
 from copy import deepcopy
 
@@ -36,6 +34,12 @@ from ..geometry.transforms.rigid.rotations import alignment_rotation
 from ..geometry.transforms.rigid.application import RigidlyTransformable
 
 
+# Label typehints
+ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
+ConnectorHandle = tuple[ConnectorLabel, int]
+AttachmentLabel = TypeVar('AttachmentLabel', bound=Hashable) # TODO: narrow down this type as use cases become clearer
+
+# Custom Exceptions
 class ConnectionError(Exception):
     '''Raised when Connector-related errors as encountered'''
     pass
@@ -52,16 +56,44 @@ class UnboundConnectorError(ConnectionError):
     '''Raised when a pair of Connectors are unexpectedly not bound to one another'''
     pass
 
-
-class ChainDirection(Enum):
+# Helper classes
+class TraversalDirection(Enum):
     '''
-    Uniquifying label indicating whether a connection faces "forward" or "backward" along a chain 
-    relative to an arbitrary-but-consistent absolute direction of traversal along the chain from end-to-end
+    Uniquifying label indicating whether a connection faces "forward" or "backward" along a path graph 
+    relative to an arbitrary-but-consistent absolute direction of traversal along the path from end-to-end
     '''
     AMBI = 0
     ANTERO = 1
     RETRO = 2
 
+# DEV: would love to make this frozen, but that breaks the RigidlyTansformable mechanism under-the-hood,
+# and also prevents reassignment of the attachment label, which is important in some cases
+@dataclass(frozen=False)
+class AttachmentPoint(RigidlyTransformable):
+    '''
+    A point with an associated attachment, which must come from a predefined set (attachables) of allowable designations.
+    Forms half of a Connector; represents a spatial attachment to some other body, identified by its attachment.
+    '''
+    attachables : set[AttachmentLabel] = field(default_factory=set)
+    attachment : Optional[AttachmentLabel] = None
+    position : np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
+    
+    def __post_init__(self) -> None:
+        if (self.attachment is not None) and (self.attachment not in self.attachables):
+            raise ValueError(f'Attachment attachment {self.attachment} not in attachables of attachable {self.attachables}')
+        
+    # Implementing RigidTransformable contracts
+    def _copy_untransformed(self) -> 'AttachmentPoint':
+        return self.__class__(
+            attachables=set(att for att in self.attachables),
+            attachment=self.attachment,
+            position=np.array(self.position, copy=True)
+        )
+        
+    def _rigidly_transform(self, transform: RigidTransform) -> None:
+        self.position[:] = transform.apply(self.position)
+
+# Connector class proper
 class Connector(RigidlyTransformable):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     DEFAULT_LABEL : ClassVar[ConnectorLabel] = 'Conn'
@@ -347,7 +379,7 @@ class Connector(RigidlyTransformable):
             )
         )
         
-    def assigned_dihedral(
+    def with_assigned_dihedral(
         self,
         other : 'Connector',
         dihedral_angle_rad : float=0.0,
