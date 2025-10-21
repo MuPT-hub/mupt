@@ -19,6 +19,8 @@ from typing import (
     TypeVar,
     Union,
 )
+from warnings import warn
+
 from dataclasses import dataclass, field
 from enum import Enum
 from copy import deepcopy
@@ -132,13 +134,13 @@ class Connector(RigidlyTransformable):
     @property
     def anchor_position(self) -> Vector3:
         '''The central position that this Connector is anchored to'''
-        LOGGER.warning('Connector.anchor_position is slated for deprecation; use Connector.anchor.position instead')
+        warn('Connector.anchor_position is slated for deprecation; use Connector.anchor.position instead', category=DeprecationWarning)
         return self.anchor.position
         
     @property
     def linker_position(self) -> Vector3:
         '''The position of the off-body linker point'''
-        LOGGER.warning('Connector.linker_position is slated for deprecatation; use Connector.linker.position instead')
+        warn('Connector.linker_position is slated for deprecatation; use Connector.linker.position instead', category=DeprecationWarning)
         return self.linker.position
 
     ## Bond vector
@@ -265,7 +267,7 @@ class Connector(RigidlyTransformable):
             metadata=deepcopy(self.metadata),
         )
         if self.has_tangent_position:
-            new_connector.tangent_vector = as_n_vector(self._tangent_position, 3)
+            new_connector.tangent_vector = as_n_vector(self.tangent_vector, 3)
 
         return new_connector
 
