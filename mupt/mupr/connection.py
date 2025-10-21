@@ -75,12 +75,14 @@ class AttachmentPoint(RigidlyTransformable):
     Forms half of a Connector; represents a spatial attachment to some other body, identified by its attachment.
     '''
     attachables : set[AttachmentLabel] = field(default_factory=set)
-    attachment : Optional[AttachmentLabel] = None
+    attachment : Optional[AttachmentLabel] = field(default=None)
     position : np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
     
-    def __post_init__(self) -> None:
-        if (self.attachment is not None) and (self.attachment not in self.attachables):
-            raise ValueError(f'Attachment attachment {self.attachment} not in attachables of attachable {self.attachables}')
+    def __setattr__(self, key, value):
+        if key == 'attachment':
+            if (value is not None) and (value not in self.attachables):
+                raise ValueError(f'Attachment "{value!s}" not designated as one of attachable labels {self.attachables}')
+        return super().__setattr__(key, value)
         
     # Implementing RigidTransformable contracts
     def _copy_untransformed(self) -> 'AttachmentPoint':
