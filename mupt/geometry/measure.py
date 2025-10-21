@@ -42,4 +42,4 @@ def within_ball(
     # TODO: check vector shapes match
     if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
         raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    return np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < radius
+    return (np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < radius).astype(object) # cast to Python bool
