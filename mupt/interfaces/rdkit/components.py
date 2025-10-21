@@ -41,7 +41,7 @@ from .selection import (
     bond_condition_by_atom_condition_factory
 )
 from ...geometry.arraytypes import Shape, N
-from ...mupr.connection import Connector
+from ...mupr.connection import Connector, AttachmentLabel, AttachmentPoint
 
 
 # Representation component initializers
@@ -152,37 +152,28 @@ def connector_between_rdatoms(
     bond : Bond = parent_mol.GetBondBetweenAtoms(from_atom_idx, to_atom_idx)
     anchor_atom : Atom = parent_mol.GetAtomWithIdx(from_atom_idx)
     anchor_label = anchor_labeller(anchor_atom)
+    anchor = AttachmentPoint(
+        attachables={anchor_label}, # TODO: expand values injected here
+        attachment=anchor_label,
+    )
+    
     linker_atom : Atom = parent_mol.GetAtomWithIdx(to_atom_idx)
     linker_label = linker_labeller(linker_atom)
-
-    # initialize Connector object
-    connector = Connector(
-        anchor=anchor_label,
-        linker=linker_label,
-        linkables={linker_label}, # register linker as bondable by default
-        bondtype=bond.GetBondType(),
-        query_smarts=MolFragmentToSmarts(
-            parent_mol,
-            atomsToUse=[from_atom_idx, to_atom_idx],
-            bondsToUse=[bond.GetIdx()],
-        ),
-        metadata={
-            'bond_stereo' : bond.GetStereo(),
-            'bond_stereo_atoms' : tuple(bond.GetStereoAtoms()),
-            **bond.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors
-        }
+    linker = AttachmentPoint(
+        attachables={linker_label}, # TODO: expand values injected here
+        attachment=linker_label,
     )
-    connector.label = connector_labeller(connector)
 
     ## inject spatial info, if present
+    dihedral_neighbor : Optional[np.ndarray[Shape[3], float]] = None
     connector_positions = atom_positions_from_rdkit(
         parent_mol,
         conformer_idx=conformer_idx,
         atom_idxs=[from_atom_idx, to_atom_idx]
     )
     if connector_positions is not None:
-        connector.anchor_position = connector_positions[0, :]
-        connector.linker_position = connector_positions[1, :]
+        anchor.position = connector_positions[0, :]
+        linker.position = connector_positions[1, :]
 
         # define dihedral plane by neighbor atom, if a suitable one is present
         non_linker_nb_atom_positions = atom_positions_from_rdkit(
@@ -196,7 +187,28 @@ def connector_between_rdatoms(
             )
         )
         if non_linker_nb_atom_positions is not None:
-            connector.set_dihedral_from_coplanar_point(non_linker_nb_atom_positions[0, :])
+            dihedral_neighbor = non_linker_nb_atom_positions[0, :]
+            
+    # initialize Connector object
+    connector = Connector(
+        anchor=anchor,
+        linker=linker,
+        bondtype=bond.GetBondType(),
+        query_smarts=MolFragmentToSmarts(
+            parent_mol,
+            atomsToUse=[from_atom_idx, to_atom_idx],
+            bondsToUse=[bond.GetIdx()],
+        ),
+        # NOTE: not assigning label here just yet, since labeller in general requires the Connector to be initialized first
+        metadata={
+            'bond_stereo' : bond.GetStereo(),
+            'bond_stereo_atoms' : tuple(bond.GetStereoAtoms()),
+            **bond.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors
+        }
+    )
+    connector.label = connector_labeller(connector),
+    if dihedral_neighbor is not None:
+        connector.set_tangent_from_coplanar_point(dihedral_neighbor)
 
     return connector
 
