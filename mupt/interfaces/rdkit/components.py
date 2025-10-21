@@ -206,7 +206,7 @@ def connector_between_rdatoms(
             **bond.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors
         }
     )
-    connector.label = connector_labeller(connector),
+    connector.label = connector_labeller(connector)
     if dihedral_neighbor is not None:
         connector.set_tangent_from_coplanar_point(dihedral_neighbor)
 
