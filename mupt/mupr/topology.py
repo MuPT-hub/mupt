@@ -3,13 +3,25 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generator, Hashable, Iterable, Iterator, Optional
+from typing import (
+    Callable,
+    Generator,
+    Hashable,
+    Iterable,
+    Iterator,
+    Optional,
+    TypeAlias,
+)
 from itertools import count
 from functools import reduce
 from collections import Counter
 
+from numpy import ndarray
 import networkx as nx
+from matplotlib.axes import Axes
 
+
+GraphLayout : TypeAlias = Callable[[nx.Graph], dict[Hashable, ndarray]]
     
 class TopologicalStructure(nx.Graph): 
     # DEV: opting not to call this just "Topology" for now to avoid confusion, 
@@ -80,14 +92,19 @@ class TopologicalStructure(nx.Graph):
         # return super().__repr__()
         return f'{self.__class__.__name__}(num_objects={self.number_of_nodes()}, indiscrete={self.is_indiscrete})'
     
-    def visualize(self, ax : Optional['mpl.Axes']=None, **draw_kwargs) -> None:
+    def visualize(
+        self,
+        ax : Optional[Axes]=None,
+        layout : GraphLayout=nx.kamada_kawai_layout,
+        **draw_kwargs,
+    ) -> None:
         '''
         Draw the topology's graph
         '''
         nx.draw(
             self,
             ax=ax,
-            pos=nx.kamada_kawai_layout(self), # TODO: implement more general handling of 'pos' eventually
+            pos=layout(self),
             with_labels=True,
             **draw_kwargs,
         )

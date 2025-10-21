@@ -8,17 +8,20 @@ from rdkit.Chem.rdmolfiles import MolToSmiles, SmilesWriteParams
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS
 
 
-RDMOL_NAME_PROP_PRECEDENCE : tuple[str] = ( 
+# Static reference for RDKit mol naming
+## Following Postel's Law here; many options for valid name to read, but only one prescribed for write
+RDMOL_NAME_READ_PROP_PRECEDENCE : tuple[str] = ( 
+    '_Name',
+    '_name',
     'name',
     'Name',
+    '_Label',
+    '_label',
     'label',
     'Label',
-    '_name',
-    '_Name',
-    '_label',
-    '_Label',
 )
-RDMOL_NAME_PROP : str = RDMOL_NAME_PROP_PRECEDENCE[0]
+## "magic" property used to write molecule name to CTABs (https://www.rdkit.org/docs/RDKit_Book.html#romol-mol-in-python)
+RDMOL_NAME_WRITE_PROP : str = '_Name' 
 
 def name_for_rdkit_mol(
     mol : Mol,
@@ -30,7 +33,7 @@ def name_for_rdkit_mol(
     Will attempt to fetch from properties set on Mol or, 
     if none are found, falls back to SMILES representation of that Mol
     '''
-    for prop in RDMOL_NAME_PROP_PRECEDENCE:
+    for prop in RDMOL_NAME_READ_PROP_PRECEDENCE:
         if mol.HasProp(prop):
             return mol.GetProp(prop)
     else:

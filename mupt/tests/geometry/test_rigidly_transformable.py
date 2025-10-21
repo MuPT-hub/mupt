@@ -44,7 +44,7 @@ def transform() -> RigidTransform:
     
 @pytest.fixture(scope='function')
 def sample_positions() -> np.ndarray:
-    return np.array(list(cartesian([0, 1], repeat=3)), dtype=float)
+    return np.array(list(cartesian([0.0, 1.0], repeat=3)), dtype=float)
 
 @pytest.fixture(scope='function')
 def sample_positions_transformed(transform: RigidTransform, sample_positions: np.ndarray) -> np.ndarray:
@@ -63,7 +63,11 @@ def points_non_copyable(sample_positions : np.ndarray) -> PointsNonCopyable:
 def test_rigidly_transform(points : Points, transform : RigidTransform, sample_positions_transformed : np.ndarray):
     '''Test that rigid transformation are correctly applied in-place'''
     points.rigidly_transform(transform)
-    np.testing.assert_allclose(points.positions, sample_positions_transformed)
+    np.testing.assert_allclose(
+        points.positions,
+        sample_positions_transformed,
+        strict=True,
+    )
 
 @pytest.mark.parametrize('num_applications', range(8))
 def test_cumulative_transformation(
@@ -95,9 +99,9 @@ def test_reset_transform(points : Points, transform : RigidTransform):
 
 ## Test read-only variants of methods
 def test_rigidly_transformed(
-        points : Union[Points, PointsNonCopyable],
-        transform : RigidTransform,
-    ):
+    points : Union[Points, PointsNonCopyable],
+    transform : RigidTransform,
+):
     '''Test that rigid transformation are correctly applied in-place'''
     new_points = points.rigidly_transformed(transform)
     # NOTE: will not compare as expected when transform is within float imprecision
@@ -110,16 +114,16 @@ def test_rigidly_transformed(
     strict=True,
 )
 def test_rigidly_transformed_fails_when_non_copyable(
-        points_non_copyable : Union[Points, PointsNonCopyable],
-        transform : RigidTransform,
-    ):
+    points_non_copyable : Union[Points, PointsNonCopyable],
+    transform : RigidTransform,
+):
     '''Test that rigid transformation are correctly applied out-of-place'''
     _ = points_non_copyable.rigidly_transformed(transform) # no asserts needed, since this line should fail
 
 def test_reset_transformed(
-        points : Union[Points, PointsNonCopyable],
-        transform : RigidTransform,
-    ):
+    points : Union[Points, PointsNonCopyable],
+    transform : RigidTransform,
+):
     '''Test that resetting a rigid transformation in-place return the object to its original state'''
     new_points = points.rigidly_transformed(transform)
     resetted_points = new_points.reset_transformed()
@@ -127,6 +131,8 @@ def test_reset_transformed(
     np.testing.assert_allclose(
         points.positions,
         resetted_points.positions,
+        rtol=1E-7,
+        atol=1E-10, # DEV: need abs tolerance to be non-zero, since some array values are exactly 0 (fails comparison on MacOS CI)
         strict=True,
     )
     

@@ -12,7 +12,7 @@ from mupt.mutils.containers import UniqueRegistry
 
 
 @dataclass
-class TestObj:
+class DummyRelation:
     DEFAULT_LABEL : ClassVar[str] = 'default'
     label : Hashable = field(default_factory=str)
     
@@ -29,7 +29,7 @@ def test_unique_reg_no_defaults() -> None:
 # registration tests
 def test_unique_reg_register_explicit() -> None:
     '''Test that registering with explicit label works as expected'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     reg.register(obj, label='my_label')
     
@@ -37,7 +37,7 @@ def test_unique_reg_register_explicit() -> None:
 
 def test_unique_reg_register_implicit() -> None:
     '''Test that registering with implicit label (inferred from registered object) works as expected'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
     
@@ -45,8 +45,8 @@ def test_unique_reg_register_implicit() -> None:
     
 def test_unique_reg_register_from_explicit() -> None:
     '''Test that registering multiple objects with explicit labels works as expected'''
-    obj1 = TestObj(label='p')
-    obj2 = TestObj(label='q')
+    obj1 = DummyRelation(label='p')
+    obj2 = DummyRelation(label='q')
     reg = UniqueRegistry()
     handles = reg.register_from({'first' : obj1, 'second' : obj2})
     
@@ -54,8 +54,8 @@ def test_unique_reg_register_from_explicit() -> None:
     
 def test_unique_reg_register_from_implicit() -> None:
     '''Test that registering multiple objects with implicit labels (inferred from registered objects) works as expected'''
-    obj1 = TestObj(label='p')
-    obj2 = TestObj(label='q')
+    obj1 = DummyRelation(label='p')
+    obj2 = DummyRelation(label='q')
     reg = UniqueRegistry()
     handles = reg.register_from([obj1, obj2])
     
@@ -64,7 +64,7 @@ def test_unique_reg_register_from_implicit() -> None:
 # deregistration tests
 def test_unique_reg_deregister() -> None:
     '''Test that deregistering an item removes it from the registry and returns the object'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     handle = reg.register(obj)
     removed_obj = reg.deregister(handle)
@@ -73,7 +73,7 @@ def test_unique_reg_deregister() -> None:
     
 def test_unique_reg_subscript() -> None:
     '''Test that unique registry items can be accessed via subscript notation'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
     
@@ -81,7 +81,7 @@ def test_unique_reg_subscript() -> None:
     
 def test_unique_reg_deletion() -> None:
     '''Test that unique registry items can be deleted via del operator'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
     del reg[('p', 0)]
@@ -91,11 +91,11 @@ def test_unique_reg_deletion() -> None:
 def test_unique_reg_purge() -> None:
     '''Test that purging a label removes all associated objects'''
     reg = UniqueRegistry()
-    a = TestObj(label='a')
+    a = DummyRelation(label='a')
     for _ in range(3):
         reg.register(a)
     
-    b = TestObj(label='b')
+    b = DummyRelation(label='b')
     for _ in range(4):
         reg.register(b)
         
@@ -105,7 +105,7 @@ def test_unique_reg_purge() -> None:
 # internal state update tests
 def test_freed_labels_reinserted() -> None:
     '''Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     for _ in range(4):
         reg.register(obj)
@@ -118,7 +118,7 @@ def test_freed_labels_reinserted() -> None:
     
 def test_unique_reg_adjust_ticker() -> None:
     '''Test that the ticker count adjustments shift uniquifying index accordingly'''
-    obj = TestObj(label='p')
+    obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     
     reg.register(obj)
@@ -131,8 +131,8 @@ def test_unique_reg_adjust_ticker() -> None:
 def test_unique_reg_copy() -> None:
     '''Test that copying a UniqueRegistry produces an identical copy'''
     reg = UniqueRegistry()
-    a = TestObj(label='a')
-    b = TestObj(label='b')
+    a = DummyRelation(label='a')
+    b = DummyRelation(label='b')
     
     reg.register(a)
     reg.register(b)
@@ -147,7 +147,7 @@ def test_unique_reg_copy() -> None:
 def test_unique_reg_copy_ticker_indep() -> None:
     '''Test that the ticker state of a copied UniqueRegistry is independent of the ticker of the original'''
     reg = UniqueRegistry()
-    a = TestObj(label='a')
+    a = DummyRelation(label='a')
     
     reg.register(a)
     copy_reg = reg.copy()
@@ -158,7 +158,7 @@ def test_unique_reg_copy_ticker_indep() -> None:
 def test_unique_reg_copy_freed_indep() -> None:
     '''Test that the freed labels state of a copied UniqueRegistry is independent of the original'''
     reg = UniqueRegistry()
-    a = TestObj(label='a')
+    a = DummyRelation(label='a')
 
     reg.register(a)
     copy_reg = reg.copy()
@@ -170,9 +170,9 @@ def test_unique_reg_copy_freed_indep() -> None:
 def test_nique_reg_by_labels() -> None:
     '''Test that by_labels property returns correct mapping from labels to tuples of registered objects'''
     reg = UniqueRegistry()
-    a = TestObj(label='a')
-    b = TestObj(label='b')
-    c = TestObj(label='c')
+    a = DummyRelation(label='a')
+    b = DummyRelation(label='b')
+    c = DummyRelation(label='c')
     
     reg.register(a)
     reg.register(b)

@@ -3,8 +3,12 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
+import logging
+LOGGER = logging.getLogger(__name__)
+
 from typing import Union
 
+from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.Chem.rdchem import Atom, BondType, GetPeriodicTable
 RDKitPeriodicTable = GetPeriodicTable()
 
@@ -13,9 +17,37 @@ from periodictable.core import Element, Ion, Isotope, isatom
 ELEMENTS = elements
 ElementLike = Union[Element, Ion, Isotope]
 
+from .rdloggers import suppress_rdkit_logs
+
+
+def _compile_bond_order_reference() -> dict[BondType, float]:
+    '''
+    Generate reference table of BondType to corresponding electronic bond order 
+    (e.g. aromatic = 1.5, double = 2, etc.), consistent with RDKit's definition
+    '''
+    dummy = MolFromSmiles('*-*')
+    bond = dummy.GetBondWithIdx(0) # DEV: can't directly initialize Bond from Python, so using this hacky aprroach to setup instead
+
+    bond_orders_by_bond_type : dict[BondType, float] = dict()
+    for bondtype in BondType.names.values():
+        bond.SetBondType(bondtype)
+        with suppress_rdkit_logs('rdApp.error'):
+            try:
+                # N.B.: these values are NOT the same as the keys of BondType.values; those are arbitrary indices, 
+                # whereas the bond order here conveys info loosely about the number of electrons per bond
+                bond_orders_by_bond_type[bondtype] = bond.GetBondTypeAsDouble()
+            except RuntimeError:
+                # DEV: functions as a warning, but want this to be suppressed nominally
+                LOGGER.debug(f'RDKit BondType {bondtype!s} does not have a double-valued bond order defined')
+
+    return bond_orders_by_bond_type
+BOND_ORDER : dict[BondType, float] = _compile_bond_order_reference()
 
 def valence_allowed(atomic_num : int, charge : int, valence : int) -> bool:
     '''Check if the given valence is allowed for the specified element'''
+    if atomic_num == 0:
+        return True # skip checks for linkers (should not be interpreted as neutrons, which they would be if passed thru the logic below)
+
     ## Calculation based on RDKit's valence prescription (https://www.rdkit.org/docs/RDKit_Book.html#valence-calculation-and-allowed-valences)
     ## ..., down to the treatment of charged atoms by their isoelectronic equivalents
     effective_atomic_num = atomic_num - charge # e.g. treat [N+] as C, [N-] as O, etc.
@@ -25,45 +57,4 @@ def valence_allowed(atomic_num : int, charge : int, valence : int) -> bool:
         return True
     return valence in allowed_valences # TODO: write unit tests
 
-def element_to_rdkit_atom(element : ElementLike) -> Atom:
-    '''Convert a periodictable ElementLike instance to an RDKit Atom instance'''
-    if not isatom(element):
-        raise ValueError(f"Expected an ElementLike instance, got object of type {type(element).__name__}")
-    
-    atom = Atom(element.number)
-    atom.SetNoImplicit(True) # prevent RDKit from adding on any Hs where we don't expect
-    atom.SetFormalCharge(element.charge)
-    if hasattr(element, 'isotope'): # covers case for charged isotopes, with are Ion (not Isotope) instances
-        atom.SetIsotope(element.isotope)
-        
-    return atom
 
-def rdkit_atom_to_element(atom : Atom) -> ElementLike:
-    '''Convert an RDKit Atom instance to a periodictable ElementLike instance'''
-    if not isinstance(atom, Atom):
-        raise ValueError(f"Expected an RDKit Atom instance, got object of type {type(atom).__name__}")
-    
-    atom_is_linker : bool = (atom.GetAtomicNum() == 0) # DEV: am well-aware is_linker(atom : Atom) exists in the RDKit interface ("I wrote the damn bill"), but that import here would be circular
-    elem : ElementLike = ELEMENTS[atom.GetAtomicNum()]
-    if (mass_number := atom.GetIsotope()) != 0:
-         # bypass isotope validity check ONLY for linker atoms (not actually neutrons, like periodictable seems to think they are!)
-        elem = Isotope(elem, mass_number) if atom_is_linker else elem[mass_number]
-    
-    # fetch Ion instance - NOTE: order here is deliberate; can't fetch Isotope of Ion, but CAN fetch Ion of Isotope
-    if (charge := atom.GetFormalCharge()) != 0:
-        elem = Ion(elem, charge) if atom_is_linker else elem.ion[charge] 
-    
-    return elem
-
-def flexible_elementlike(elem : Union[int, str, Atom, ElementLike]) -> ElementLike:
-    '''Coerce inputs with a range of input types into ElementLike instance'''
-    if isatom(elem):
-        return elem
-    elif isinstance(elem, int):
-        return ELEMENTS[elem]
-    elif isinstance(elem, str):
-        return ELEMENTS.symbol(elem)
-    elif isinstance(elem, Atom):
-        return rdkit_atom_to_element(elem)
-    else:
-        raise TypeError(f'Cannot interpret object of type {type(elem).__name__} as ElementLike')

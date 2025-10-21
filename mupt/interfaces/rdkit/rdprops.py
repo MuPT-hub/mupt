@@ -3,12 +3,10 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Union
+from typing import Any, Callable, Optional, Union
 
 from rdkit.Chem.rdchem import Atom, Bond, Mol, RWMol
 RDObj = Union[Atom, Bond, Mol, RWMol]
-
-from ...mutils.decorators.functional import optional_in_place
 
 
 # REFERENCE FOR "MAGIC" MOL PROP KEYS (https://www.rdkit.org/docs/RDKit_Book.html#romol-mol-in-python)
@@ -60,6 +58,21 @@ def isrdobj(obj : Any) -> bool:
     '''Check if the given object is an RDKit object'''
     return isinstance(obj, RDObj.__args__)
 
+def assign_property_to_rdobj(
+    rdobj : RDObj,
+    prop_name : str,
+    prop_value : Any,
+    preserve_type : bool=True,
+) -> None:
+    '''Assign a Python object to a property of an RDKit object in a type-respecting manner'''
+    type_setter_name : Optional[str] = RDPROP_SETTERS.get(type(prop_value), None)
+    if (type_setter_name is None) or (not preserve_type):
+        rdobj.SetProp(prop_name, str(prop_value))
+        # TODO: handle listlike props more specifically than this
+    else:
+        type_setter : Callable[[str, Any], None] = getattr(rdobj, type_setter_name) # DEV: 2nd arg is actually same type as prop_value
+        type_setter(prop_name, prop_value)
+
 def copy_rdobj_props(from_rdobj : RDObj, to_rdobj : RDObj) -> None: # NOTE : no need to incorporate typing info, as RDKit objects can correctly interpret typed strings
     '''For copying properties between a pair of RDKit Atoms or Mols'''
     # NOTE : avoid use of GetPropsAsDict() to avoid errors from restrictive C++ typing
@@ -68,13 +81,3 @@ def copy_rdobj_props(from_rdobj : RDObj, to_rdobj : RDObj) -> None: # NOTE : no 
 
     for prop in from_rdobj.GetPropNames():
         to_rdobj.SetProp(prop, from_rdobj.GetProp(prop))
-
-@optional_in_place
-def assign_props_from_dict(prop_dict : dict[str, Any], rdobj : RDObj, preserve_type : bool=True) -> None:
-    '''Copies all attributes from a strng-keyed dictionary of properties as Props of an RDKit object'''
-    for key, value in prop_dict.items():
-        if (type(value) not in RDPROP_SETTERS) or (not preserve_type): # set as string if type is unspecified or if explicitly requested to
-            rdobj.SetProp(key, str(value))
-        else:
-            setter = getattr(rdobj, RDPROP_SETTERS[type(value)]) # use the atom's setter for the appropriate type
-            setter(key, value) # pass key and value to setter method

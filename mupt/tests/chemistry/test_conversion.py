@@ -8,13 +8,15 @@ from mupt.chemistry.core import (
     ELEMENTS,
     ElementLike,
     isatom,
+)
+from mupt.chemistry.conversion import (
     rdkit_atom_to_element,
     element_to_rdkit_atom,
     flexible_elementlike,
 )
 
 def compile_element_to_atom_params() -> dict[ElementLike, Atom]:
-    '''Compile test examples for element to atom conversion tests (since parameterized pytest fixtures still aren't a thing :\ )'''
+    '''Compile test examples for element to atom conversion tests (since parameterized pytest fixtures still aren't a thing)'''
     test_examples : dict[ElementLike, Atom] = {}
     
     # "pure" atoms
