@@ -125,7 +125,6 @@ class DPD_RandomWalk(PlacementGenerator):
 
 
     def _generate_placements(self, primitive : Primitive) :
-    #def _generate_placements(self, primitive : Primitive) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         '''
         Trying to use universe of chains to set monomer positions
         primitive passed in here should be a universe primitive that has chains to loop over 
@@ -146,7 +145,6 @@ class DPD_RandomWalk(PlacementGenerator):
             L = 3*self.r_cut
             print("Warning: Small number of particles, lowering density to {}, and L={}".format(frame.particles.N/(L**3),L))
         frame.configuration.box = [L, L, L, 0, 0, 0]
-
         i = 0
         bi = 0
         for chain in primitive.topology.chains: 
@@ -159,7 +157,6 @@ class DPD_RandomWalk(PlacementGenerator):
             i = i + chain.number_of_edges() + 1
             bi = bi + chain.number_of_edges()
         frame.particles.position = pbc(frame.particles.position,[L,L,L])
-        print(frame.particles.position)
         harmonic = hoomd.md.bond.Harmonic()
         harmonic.params["a"] = dict(r0=self.bond_l, k=self.k)
         integrator = hoomd.md.Integrator(dt=self.dt)
@@ -180,9 +177,6 @@ class DPD_RandomWalk(PlacementGenerator):
         while not check_inter_particle_distance(snap,minimum_distance=0.95): #TODO: update min_distance?
             simulation.run(1000)
         snap=simulation.state.get_snapshot()
-
-        print(snap.particles.position)
-            
         return snap.particles.position
 
 
