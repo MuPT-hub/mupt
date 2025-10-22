@@ -39,12 +39,17 @@ def primitive_from_rdkit_atom(
     atom_primitive = Primitive(
         element=rdkit_atom_to_element(atom),
         label=atom_idx,
-        metadata=atom.GetPropsAsDict(includePrivate=True, includeComputed=False), # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors 
+        metadata=atom.GetPropsAsDict(
+            includePrivate=True,
+            includeComputed=False, # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors 
+        ), 
     )
+    if (map_num := atom.GetAtomMapNum()) != 0:
+        atom_primitive.metadata['molAtomMapNumber'] = map_num
+    
     atom_pos = atom_positions_from_rdkit(parent_mol, conformer_idx=conformer_idx, atom_idxs=[atom_idx])
     if atom_pos is not None:
-        atom_pos = atom_pos[0, :] # extract single position from 2D array
-        atom_primitive.shape = PointCloud(positions=atom_pos)
+        atom_primitive.shape = PointCloud(positions=atom_pos[0, :]) # extract as vector from 2D array
     
     if attach_connectors:
         for nb_atom in atom.GetNeighbors(): # TODO: decide how bond Props should be split among metadata of the two bonded atoms
