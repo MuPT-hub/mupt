@@ -42,6 +42,10 @@ from .depiction import (
     disable_kekulized_drawing,
     clear_highlights,
 )
+from ...chemistry.rdloggers import (
+    suppress_rdkit_logs,
+    RDLoggerNames,
+)
 
 # DEFAULT DRAWING CONFIG
 set_rdkdraw_size(400, aspect=3/2)
