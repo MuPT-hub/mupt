@@ -8,11 +8,10 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
+    Callable,
     ClassVar,
-    Container,
     Hashable,
     Iterable,
-    Mapping,
     Optional,
     TypeVar,
     Union,
@@ -25,7 +24,7 @@ from copy import deepcopy
 from collections import defaultdict
 
 from anytree.node import NodeMixin
-from anytree.search import findall_by_attr
+from anytree.search import findall, findall_by_attr
 import networkx as nx
 
 from scipy.spatial.transform import RigidTransform
@@ -705,6 +704,30 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 conn_ref.primitive_handle,
                 conn_ref.connector_handle,
             )
+    
+    ## Search
+    def search_hierarchy_by(
+        self,
+        condition : Callable[['Primitive'], bool],
+        halt_when : Optional[Callable[['Primitive'], bool]]=None,
+        max_depth : Optional[int]=None,
+        min_count : Optional[int]=None,
+        max_count : Optional[int]=None,
+    ) -> tuple['Primitive']:
+        '''
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+        
+        Matching descendant Primitives are returned in traversal preorder from the root
+        '''
+        return findall(
+            self,
+            filter_=condition,
+            stop=halt_when,
+            maxlevel=max_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
 
 
     # Topology
@@ -1057,8 +1080,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
         I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
         '''
-        elem_form : str = self.element.symbol if self.element is not None else str(None) # TODO: move this to external function, eventually
-        return f'{elem_form}({self.canonical_form_connectors()})[{self.canonical_form_shape()}]<{self.topology.canonical_form()}>'
+        elem_form : str = self.element.symbol if (self.element is not None) else str(None) # TODO: move this to external function, eventually
+        return f'{elem_form}' \
+            f'({self.canonical_form_connectors()})' \
+            f'[shape={self.canonical_form_shape()}]' \
+            f'<graph_hash={self.topology.canonical_form()}>'
 
     def canonical_form_peppered(self) -> str:
         '''
