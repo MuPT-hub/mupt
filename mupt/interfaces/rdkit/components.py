@@ -90,7 +90,27 @@ def atom_positions_from_rdkit(
     conformer_idx : Optional[int]=None, 
     atom_idxs : Optional[Iterable[int]]=None,
 ) -> Optional[np.ndarray[Shape[N, 3], float]]:
-    '''Boilerplate for fetching a subset of atom positions (if conformer it set) from an RDKit Mol'''
+    '''
+    Boilerplate for fetching a subset of atom positions (if conformer it set) from an RDKit Mol
+    
+    Parameters
+    ----------
+    rdmol : Chem.Mol
+        The RDKit Mol object to extract positions from
+    conformer_idx : Optional[int], default None
+        The ID of the conformer from which to extract 3D positions
+        If provided as None, will return None
+    atom_idxs : Optional[Iterable[int]], default None
+        The indices of a subset of atoms from which to extract positions
+        Atom positions will be returned in the same order as the indices provided.
+        
+    Returns
+    -------
+    Optional[np.ndarray[Shape[N, 3], float]]
+        The extracted atom positions, returned as an (N, 3) array
+        If no conformer index is provided OR if a conformer index is
+        provided but no atom indices are provided, returns None instead
+    '''
     if conformer_idx is None:
         return None
     
@@ -99,7 +119,6 @@ def atom_positions_from_rdkit(
 
     conformer = rdmol.GetConformer(conformer_idx) # DEVNOTE: will raise Exception if bad ID is provided; no need to check locally
     # return conformer.GetPositions()[[idx for idx in atom_idxs], :] 
-
     atom_positions = tuple(
         np.array(conformer.GetAtomPosition(atom_idx), dtype=float)
             for atom_idx in atom_idxs
