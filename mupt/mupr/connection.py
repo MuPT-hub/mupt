@@ -130,15 +130,15 @@ class Connector(RigidlyTransformable):
     
     def __init__(
         self,
-        anchor : AttachmentPoint,
-        linker : AttachmentPoint,
+        anchor : Optional[AttachmentPoint]=None,
+        linker : Optional[AttachmentPoint]=None,
         bondtype : BondType=BondType.UNSPECIFIED,
         query_smarts : str='',
         label : Optional[ConnectorLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ):
-        self.anchor = anchor
-        self.linker = linker
+        self.anchor = anchor if (anchor is not None) else AttachmentPoint()
+        self.linker = linker if (linker is not None) else AttachmentPoint()
         
         self.bondtype = bondtype
         self.query_smarts = query_smarts
@@ -625,6 +625,22 @@ class Connector(RigidlyTransformable):
 
             indiv_conn_map[(anchor_label, linker_label)] = conn_clone
         return indiv_conn_map
+    
+    def counterpart(self) -> 'Connector':
+        '''
+        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
+        
+        By construction, the counterpart will always be bondable with this Connector (and vice versa),
+        assuming the attachables set of the anchor and linker point are both non-empty
+        '''
+        counterpart = self.copy()
+        counterpart.anchor, counterpart.linker = self.linker, self.anchor
+        if self.has_tangent_position:
+            # NOTE: since vector if defined by difference to tangent point, updated tangent 
+            # point can be set directly from this difference, since anchor is updated about
+            counterpart.tangent_vector = self.tangent_vector 
+        
+        return counterpart
 
 ## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
 ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
