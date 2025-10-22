@@ -41,7 +41,12 @@ from .selection import (
     bond_condition_by_atom_condition_factory
 )
 from ...geometry.arraytypes import Shape, N
-from ...mupr.connection import Connector, AttachmentLabel, AttachmentPoint
+from ...mupr.connection import (
+    Connector,
+    ConnectorLabel,
+    AttachmentPoint,
+    AttachmentLabel,
+)
 
 
 # Representation component initializers
@@ -127,14 +132,24 @@ def atom_positions_from_rdkit(
         return np.vstack(atom_positions)
     return None # making explicit just to clarify that None return can still happen at this stage
 
+def attachment_with_idx_and_symbol(atom : Atom) -> AttachmentPoint:
+    '''Create an AttachmentPoint labelling both by atom index and element symbol'''
+    atom_idx = atom.GetIdx()
+    atom_symbol = atom.GetSymbol()
+    
+    return AttachmentPoint(
+        attachables={atom_idx, atom_symbol},
+        attachment=atom_idx,
+    )
+
 def connector_between_rdatoms(
     parent_mol : Mol,
     from_atom_idx : int,
     to_atom_idx : int,
     conformer_idx : Optional[int]=None,
-    anchor_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    linker_labeller : Callable[[Atom], int]=lambda atom : atom.GetIdx(),
-    connector_labeller : Optional[Callable[[Connector], Hashable]]=None,
+    anchor_factory : Callable[[Atom], AttachmentPoint]=attachment_with_idx_and_symbol,
+    linker_factory : Callable[[Atom], AttachmentPoint]=attachment_with_idx_and_symbol,
+    connector_labeller : Callable[[Connector], ConnectorLabel]=lambda conn : conn.DEFAULT_LABEL,
 ) -> Connector:
     '''
     Create a Connector object representing a (one-way) connection between two RDKit atoms
@@ -144,74 +159,38 @@ def connector_between_rdatoms(
     parent_mol : Mol
         The RDKit Mol containing the atoms of interest
     from_atom_idx : int
-        The index of the "anchor" atom of the pair (on which the Connector will be centered)
+        The index of the "anchor" atom of the pair (on which the Connector will be anchored)
     to_atom_idx : int
         The index of the "linker" atom of the pair (the neighbor atom of the anchor)
-    anchor_labeller : Callable[[Atom], int], default: the atom index
-        A function which takes an RDKit Atom object and returns a label for the anchor atom
-    linker_labeller : Callable[[Atom], int], default: the atom index
-        A function which takes an RDKit Atom object and returns a label for the linker atom
     conformer_idx : Optional[int], optional, default None
         The ID of the conformer from which to extract 3D positions
-        If provided as None, will leave all spatial fields of the Connector unset
-    connector_labeller : Callable[[Connector], Hashable], default: the Connector's DEFAULT_LABEL
-        A function which takes a Connector object and returns a label for it
+        If None is supplied, will leave all spatial fields of the Connector unset
+    anchor_factory : Callable[[Atom], AttachmentPoint], default: attachment_with_idx_and_symbol
+        A function which takes an RDKit Atom and returns an AttachmentPoint to use as the anchor point
+    linker_factory : Callable[[Atom], AttachmentPoint], default: attachment_with_idx_and_symbol
+        A function which takes an RDKit Atom and returns an AttachmentPoint to use as the linker point
+    connector_labeller : Callable[[Connector], ConnectorLabel], default: Connector.DEFAULT_LABEL
+        A function which takes a Connector object and returns an appropriate label
         This is called after all other fields of the Connector have been set
         (i.e. can make use of those fields in determination of the label)
+        
+    anchor_factory and linker_factory should only define how the attachment and attachables of each AttachmentPoint are defined;
+    positions of each point will be set later if conformer information is available
         
     Returns
     -------
     connector : Connector
         The initialized Connector object
     '''
-    if connector_labeller is None:
-        connector_labeller = lambda conn : Connector.DEFAULT_LABEL
-
     # extract RDKit components - NOTE: will raise Exception immediately if pair of atoms are not, in fact, bonded
     bond : Bond = parent_mol.GetBondBetweenAtoms(from_atom_idx, to_atom_idx)
     anchor_atom : Atom = parent_mol.GetAtomWithIdx(from_atom_idx)
-    anchor_label = anchor_labeller(anchor_atom)
-    anchor = AttachmentPoint(
-        attachables={anchor_label}, # TODO: expand values injected here
-        attachment=anchor_label,
-    )
-    
     linker_atom : Atom = parent_mol.GetAtomWithIdx(to_atom_idx)
-    linker_label = linker_labeller(linker_atom)
-    linker = AttachmentPoint(
-        attachables={linker_label}, # TODO: expand values injected here
-        attachment=linker_label,
-    )
-
-    ## inject spatial info, if present
-    dihedral_neighbor : Optional[np.ndarray[Shape[3], float]] = None
-    connector_positions = atom_positions_from_rdkit(
-        parent_mol,
-        conformer_idx=conformer_idx,
-        atom_idxs=[from_atom_idx, to_atom_idx]
-    )
-    if connector_positions is not None:
-        anchor.position = connector_positions[0, :]
-        linker.position = connector_positions[1, :]
-
-        # define dihedral plane by neighbor atom, if a suitable one is present
-        non_linker_nb_atom_positions = atom_positions_from_rdkit(
-            parent_mol,
-            conformer_idx=conformer_idx,
-            atom_idxs=atom_neighbors_by_condition(
-                anchor_atom,
-                condition=lambda neighbor : (neighbor.GetIdx() == to_atom_idx),
-                negate=True, # ensure the tangent point is not the linker itself
-                as_indices=True,
-            )
-        )
-        if non_linker_nb_atom_positions is not None:
-            dihedral_neighbor = non_linker_nb_atom_positions[0, :]
             
     # initialize Connector object
     connector = Connector(
-        anchor=anchor,
-        linker=linker,
+        anchor=anchor_factory(anchor_atom),
+        linker=linker_factory(linker_atom),
         bondtype=bond.GetBondType(),
         query_smarts=MolFragmentToSmarts(
             parent_mol,
@@ -226,8 +205,30 @@ def connector_between_rdatoms(
         }
     )
     connector.label = connector_labeller(connector)
-    if dihedral_neighbor is not None:
-        connector.set_tangent_from_coplanar_point(dihedral_neighbor)
+    
+    ## inject spatial info, if present
+    connector_positions = atom_positions_from_rdkit(
+        parent_mol,
+        conformer_idx=conformer_idx,
+        atom_idxs=[from_atom_idx, to_atom_idx]
+    )
+    if connector_positions is not None:
+        connector.anchor.position = connector_positions[0, :]
+        connector.linker.position = connector_positions[1, :]
+
+        # define dihedral plane by neighbor atom, if a suitable one is present
+        non_linker_nb_atom_positions = atom_positions_from_rdkit(
+            parent_mol,
+            conformer_idx=conformer_idx,
+            atom_idxs=atom_neighbors_by_condition(
+                anchor_atom,
+                condition=lambda neighbor : (neighbor.GetIdx() == to_atom_idx),
+                negate=True, # ensure the tangent point is not the linker itself
+                as_indices=True,
+            )
+        )
+        if non_linker_nb_atom_positions is not None:
+            connector.set_tangent_from_coplanar_point(non_linker_nb_atom_positions[0, :])
 
     return connector
 
