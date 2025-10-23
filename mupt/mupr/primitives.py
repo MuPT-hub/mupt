@@ -25,6 +25,14 @@ from collections import defaultdict
 
 from anytree.node import NodeMixin
 from anytree.search import findall, findall_by_attr
+from anytree.render import (
+    RenderTree,
+    AbstractStyle,
+    AsciiStyle,
+    ContStyle,
+    ContRoundStyle,
+    DoubleStyle,
+)
 import networkx as nx
 
 from scipy.spatial.transform import RigidTransform
@@ -358,7 +366,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 connector_handle=self.external_connectors_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
             ) # DEV: worth returning these now-unbound instances?
         self._internal_connections.add(frozenset(conn_refs))
-        LOGGER.debug(f'Pairing {conn_ref1!s} with  {conn_ref2!s}')
+        LOGGER.debug(f'Paired {conn_ref1!s} with {conn_ref2!s}')
         
     ## External "off-body" connections
     @property
@@ -710,7 +718,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         condition : Callable[['Primitive'], bool],
         halt_when : Optional[Callable[['Primitive'], bool]]=None,
-        max_depth : Optional[int]=None,
+        to_depth : Optional[int]=None,
         min_count : Optional[int]=None,
         max_count : Optional[int]=None,
     ) -> tuple['Primitive']:
@@ -724,7 +732,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             self,
             filter_=condition,
             stop=halt_when,
-            maxlevel=max_depth,
+            maxlevel=to_depth,
             mincount=min_count,
             maxcount=max_count,
         )
@@ -1058,8 +1066,32 @@ class Primitive(NodeMixin, RigidlyTransformable):
             subprimitive.rigidly_transform(transform)
             
             
+    # Comparison methods
+    def __hash__(self): 
+        '''Hash used to compare Primitives for identity (NOT equivalence)'''
+        # return hash(self.canonical_form())
+        return hash(self.canonical_form_peppered())
+    
+    def __eq__(self, other : object) -> bool:
+        # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
+        # DEVNOTE: hashing needs to be stricter than equality, i.e. two Primitives may be distinguishable by hash, but nevertheless equivalent
+        '''Check whether two primitives are equivalent (but not necessarily identical)'''
+        if not isinstance(other, Primitive):
+            raise TypeError(f'Cannot compare Primitive to {type(other)}')
+
+        return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
+    
+    def coincident_with(self, other : 'Primitive') -> bool:
+        '''Check whether two Primitives are coincident (i.e. all spatial parts are either equally unassigned or occupy the same space)'''
+        raise NotImplementedError
+    
+    def equivalent_to(self, other : 'Primitive') -> bool:
+        '''Check whether two Primitives are equivalent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
+        raise NotImplementedError
+            
+            
     # Representation methods
-    ## canonical forms for core components
+    ## Canonical forms for core components
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's Connectors'''
         return lex_order_multiset_str(
@@ -1096,30 +1128,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''
         return f'{self.canonical_form()}-{self.label}' #{self.metadata}'
 
-    ## Comparison methods
-    def __hash__(self): 
-        '''Hash used to compare Primitives for identity (NOT equivalence)'''
-        # return hash(self.canonical_form())
-        return hash(self.canonical_form_peppered())
-    
-    def __eq__(self, other : object) -> bool:
-        # DEVNOTE: in order to use equivalent-but-not-identical Primitives as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
-        # DEVNOTE: hashing needs to be stricter than equality, i.e. two Primitives may be distinguishable by hash, but nevertheless equivalent
-        '''Check whether two primitives are equivalent (but not necessarily identical)'''
-        if not isinstance(other, Primitive):
-            raise TypeError(f'Cannot compare Primitive to {type(other)}')
-
-        return self.canonical_form() == other.canonical_form() # NOTE: ignore labels, simply check equivalency up to canonical forms
-    
-    def coincident_with(self, other : 'Primitive') -> bool:
-        '''Check whether two Primitives are coincident (i.e. all spatial parts are either equally unassigned or occupy the same space)'''
-        raise NotImplementedError
-    
-    def equivalent_to(self, other : 'Primitive') -> bool:
-        '''Check whether two Primitives are equivalent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
-        raise NotImplementedError
-
-    ## Display methods
+    ## Printing and textual representations
     def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
         return self.canonical_form_peppered()
     
@@ -1152,6 +1161,38 @@ class Primitive(NodeMixin, RigidlyTransformable):
             repr_brief = f'{self.functionality}-functional {repr_brief}'
     
         return repr_brief
+    
+    def hierarchy_summary(
+        self,
+        to_depth : Optional[int]=None,
+        render_attr : str='label',
+        style : Union[str, AbstractStyle]=ContStyle(),
+    ) -> str:
+        '''A printable representation of this Primitive and all its descendants in the hierarchy'''
+        style_aliases : dict[str, AbstractStyle] = { # TODO: move this to external util
+            'cont': ContStyle(),
+            'Cont': ContStyle(),
+            'continued': ContStyle(),
+            'ContStyle': ContStyle(),
+            'cont_round' : ContRoundStyle(),
+            'ContRound' : ContRoundStyle(),
+            'ContRoundStyle' : ContRoundStyle(),
+            'ascii' : AsciiStyle(),
+            'ASCII' : AsciiStyle(),
+            'AsciiStyle': AsciiStyle(),
+            'double': DoubleStyle(),
+            'Double': DoubleStyle(),
+            'DoubleStyle': DoubleStyle(),
+        }
+        if isinstance(style, str):
+            style = style_aliases[style]
+        
+        return RenderTree(
+            self,
+            style=style,
+            # DEV: revisit "childiter" parameter config?
+            maxlevel=to_depth,
+        ).by_attr(render_attr)
     
     ## Graph drawing
     def visualize_topology(
