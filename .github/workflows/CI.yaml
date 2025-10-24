@@ -68,7 +68,7 @@ jobs:
         run: |
           git clone https://github.com/MuPT-hub/mupt-examples
           pushd mupt-examples
-          bash notebook_tests.sh
+          bash notebook_tests_master.sh
           popd
         # DEV: rm mupt-examples once done?
 
