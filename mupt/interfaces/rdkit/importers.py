@@ -24,7 +24,9 @@ from .labelling import name_for_rdkit_mol
 from ...geometry.shapes import PointCloud
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.conversion import rdkit_atom_to_element
+
 from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.connection import TraversalDirection
 
 
 def primitive_from_rdkit_atom(
@@ -161,6 +163,16 @@ def primitive_from_rdkit_chain(
     # 3) excise temporary linker Primitives no longer needed as doorstops
     for linker_idx in linker_idxs:
         rdmol_primitive.detach_child(atom_idx_to_handle_map[linker_idx])
+
+    ## 3a) insert traversal direction info based on 1-2 map number convention
+    for ext_conn_handle, conn_ref in rdmol_primitive.external_connectors.items():
+        atom_primitive = rdmol_primitive.fetch_child(conn_ref.primitive_handle)
+        ext_conn = rdmol_primitive.fetch_connector(ext_conn_handle)
+        
+        if (mapnum := atom_primitive.metadata.get('molAtomMapNumber')) in {1,2}:
+            chain_direction = TraversalDirection(mapnum)
+            ext_conn.anchor.attachables.add(chain_direction)
+            ext_conn.linker.attachables.add(TraversalDirection.complement(chain_direction))
 
     # 4) Inject conformer info - DEV: there are many avenues to do this (e.g. collate shape from children, if not None on all), but opted for the simplest for now
     non_linker_conformer = atom_positions_from_rdkit(
