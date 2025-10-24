@@ -167,7 +167,7 @@ def test_unique_reg_copy_freed_indep() -> None:
     assert copy_reg._freed != reg._freed
 
 # Label access tests
-def test_nique_reg_by_labels() -> None:
+def test_unique_reg_by_labels() -> None:
     '''Test that by_labels property returns correct mapping from labels to tuples of registered objects'''
     reg = UniqueRegistry()
     a = DummyRelation(label='a')

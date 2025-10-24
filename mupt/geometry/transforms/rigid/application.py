@@ -47,7 +47,7 @@ class RigidlyTransformable(Protocol):
     # in-place application of transformations
     @abstractmethod
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
-        raise NotImplemented # implement subclass-specific behavior here
+        raise NotImplementedError # implement subclass-specific behavior here
         
     def rigidly_transform(self, transformation : RigidTransform) -> None:
         '''Apply a rigid transformation to this object in-place'''
