@@ -998,11 +998,32 @@ class Primitive(NodeMixin, RigidlyTransformable):
             )
         self.check_self_consistent() # verify that all parts are consistent once the dust settles
 
+    def expanded(
+        self,
+        target_handle : PrimitiveHandle,
+        connector_selector : ConnectorSelector=make_second_resemble_first,
+    ) -> 'Primitive': # DEV: eventually wrap with optional_in_place, once I've sorted how to provide custom copy method in general?
+        '''Return a copy of this Primitive with the specified child expanded'''
+        clone_primitive = self.copy()
+        clone_primitive.expand(
+            target_handle,
+            connector_selector=connector_selector,
+        )
+        
+        return clone_primitive
+
     def flatten(self) -> None:
-        '''Flatten hierarchy under this Primitive, so that the entire tree has depth 1'''
+        '''Flatten hierarchy under this Primitive, so that the entire tree has height 1'''
         while (target_handles := self.expandable_children): # DEV: also works for simple Primitives (no casework needed!)
             for child_handle in target_handles:
                 self.expand(child_handle)
+                
+    def flattened(self) -> 'Primitive': # DEV: eventually wrap with optional_in_place, once I've sorted how to provide custom copy method in general?
+        '''Return a copy of this Primitive which has been flattened'''
+        clone_primitive = self.copy()
+        clone_primitive.flatten()
+        
+        return clone_primitive
 
     # Geometry (info about Shape and transformations)
     @property
