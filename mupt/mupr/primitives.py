@@ -530,6 +530,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return self._children_by_handle
     
     @property
+    def has_children(self) -> bool:
+        '''
+        Whether this Primitive contains any sub-Primitives below it
+        See also Primitive.is_simple
+        '''
+        return bool(self.children)
+    
+    @property
     def num_children(self) -> int:
         '''Number of sub-Primitives this Primitive contains'''
         # return len(self.children)
