@@ -8,6 +8,7 @@ LOGGER = logging.getLogger(__name__)
 
 from dataclasses import dataclass, field
 
+from periodictable.fasta import AMINO_ACID_CODES
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import (
     MolFromSmiles,
@@ -19,10 +20,15 @@ from rdkit.Chem.rdmolops import (
     FragmentOnBonds,
     GetMolFrags,
     AddHs,
+    Kekulize,
+    SetAromaticity,
+    AROMATICITY_MDL,
     SanitizeMol,
     SANITIZE_ALL,
+    SANITIZE_KEKULIZE,
+    SANITIZE_SETAROMATICITY,
 )
-from periodictable.fasta import AMINO_ACID_CODES
+SANITIZE_KEEP_AROMATICITY = (SANITIZE_ALL & ~SANITIZE_KEKULIZE & ~SANITIZE_SETAROMATICITY) # TODO: eventually move to chemistry.sanitization or something
 
 from .linkers import num_linkers
 
@@ -42,26 +48,29 @@ class AminoAcidSubstructure:
     middle_smiles : str = field(repr=False)
     term_O_smiles : str = field(repr=False)
     
-    def term_N_fragment(self, removeHs : bool=False) -> Mol:
+    # TODO: add option to embed 2D/3D coordinates
+    @staticmethod
+    def sanitized_mol(smiles : str, removeHs : bool=False) -> Mol:
+        '''Return a sanitized RDKit Mol from SMILES'''
+        mol : Mol = MolFromSmiles(smiles, sanitize=removeHs)
+        mol.UpdatePropertyCache()
+        Kekulize(mol, clearAromaticFlags=True)
+        SetAromaticity(mol, AROMATICITY_MDL) # use MDL aromaticity to prevent RDKit from screwing up valence on tryptophan indole ring
+        SanitizeMol(mol, sanitizeOps=SANITIZE_KEEP_AROMATICITY)
+
+        return mol
+    
+    def fragment_term_N(self, removeHs : bool=False) -> Mol:
         '''Return amine/amide-terminated fragment as an RDKit Mol'''
-        fragmol : Mol = MolFromSmiles(self.term_N_smiles, sanitize=removeHs)
-        SanitizeMol(fragmol, sanitizeOps=SANITIZE_ALL)
+        return AminoAcidSubstructure.sanitized_mol(self.term_N_smiles, removeHs=removeHs)
 
-        return fragmol
-
-    def middle_fragment(self, removeHs : bool=False) -> Mol:
+    def fragment_middle(self, removeHs : bool=False) -> Mol:
         '''Return middle fragment as an RDKit Mol'''
-        fragmol : Mol = MolFromSmiles(self.middle_smiles, sanitize=removeHs)
-        SanitizeMol(fragmol, sanitizeOps=SANITIZE_ALL)
+        return AminoAcidSubstructure.sanitized_mol(self.middle_smiles, removeHs=removeHs)
 
-        return fragmol
-
-    def term_O_fragment(self, removeHs : bool=False) -> Mol:
+    def fragment_term_O(self, removeHs : bool=False) -> Mol:
         '''Return carboxyl-terminated fragment as an RDKit Mol'''
-        fragmol : Mol = MolFromSmiles(self.term_O_smiles, sanitize=removeHs)
-        SanitizeMol(fragmol, sanitizeOps=SANITIZE_ALL)
-
-        return fragmol
+        return AminoAcidSubstructure.sanitized_mol(self.term_O_smiles, removeHs=removeHs)
 
 def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
     '''
@@ -79,13 +88,16 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
         pdb_3_letter_code : str = tripeptide.GetAtomWithIdx(0).GetPDBResidueInfo().GetResidueName()
         
         # cleave along peptide bonds to produce head, middle, and tail AMINO_ACID fragments
+        peptide_bond_idxs : list[int] = []
+        for match in tripeptide.GetSubstructMatches(PEPTIDE_BOND_QUERY):
+            peptide_bond_idxs.append(tripeptide.GetBondBetweenAtoms(*match).GetIdx()) # implicitly enforces that we expect match to occur on pairs of atoms
+            for map_num, atom_idx in zip((1, 2), match):
+                tripeptide.GetAtomWithIdx(atom_idx).SetAtomMapNum(map_num) # label edge atoms with appropriate traversal direction map numbers
+        
         cleaved_tripeptide = FragmentOnBonds(
             tripeptide,
-            bondIndices=[
-                tripeptide.GetBondBetweenAtoms(*match).GetIdx()
-                    for match in tripeptide.GetSubstructMatches(PEPTIDE_BOND_QUERY)
-            ],
-            dummyLabels=[(0,0),(0,0)],
+            bondIndices=peptide_bond_idxs,
+            dummyLabels=[(1,2), (1,2)], # consistent with RETRO-ANTERO labels from TraversalDirection
         )
         cleaved_tripeptide.UpdatePropertyCache()
         cleaved_tripeptide = AddHs(cleaved_tripeptide)
@@ -123,8 +135,11 @@ AMINO_ACIDS_BY_NAME : dict[str, AminoAcidSubstructure] = dict()
 AMINO_ACIDS_BY_FASTA : dict[str, AminoAcidSubstructure] = dict()
 AMINO_ACIDS_BY_CCD : dict[str, AminoAcidSubstructure] = dict()
 AMINO_ACIDS_BY_PDB_CODE = AMINO_ACIDS_BY_CCD # alias for convenience
+AMINO_ACID_SUBSTRUCTS : set[AminoAcidSubstructure] = generate_amino_acid_substructures()
 
-for aa_substruct in generate_amino_acid_substructures():
+for aa_substruct in AMINO_ACID_SUBSTRUCTS:
     AMINO_ACIDS_BY_NAME[aa_substruct.name] = aa_substruct
     AMINO_ACIDS_BY_FASTA[aa_substruct.fasta] = aa_substruct
     AMINO_ACIDS_BY_CCD[aa_substruct.ccd_code] = aa_substruct
+    
+# TODO: add Primitive fragment reference
