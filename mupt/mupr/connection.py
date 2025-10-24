@@ -120,8 +120,8 @@ class AttachmentPoint(RigidlyTransformable):
             position=np.array(self.position, copy=True)
         )
         
-    def _rigidly_transform(self, transform: RigidTransform) -> None:
-        self.position[:] = transform.apply(self.position)
+    def _rigidly_transform(self, transformation: RigidTransform) -> None:
+        self.position[:] = transformation.apply(self.position)
 
 # Connector class proper
 class Connector(RigidlyTransformable):
@@ -293,11 +293,11 @@ class Connector(RigidlyTransformable):
 
         return new_connector
 
-    def _rigidly_transform(self, transform : RigidTransform) -> None:
-        self.anchor.rigidly_transform(transform)
-        self.linker.rigidly_transform(transform)
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.anchor.rigidly_transform(transformation)
+        self.linker.rigidly_transform(transformation)
         if self.has_tangent_position:
-            self._tangent_position = transform.apply(self._tangent_position)
+            self._tangent_position = transformation.apply(self._tangent_position)
 
     # Anti-aligning Connectors to one another (simulates bonding in 3D space)
     ## DEV: eventually try to move as much of the implementation of these transforms to geometry.transforms.rigid as possible

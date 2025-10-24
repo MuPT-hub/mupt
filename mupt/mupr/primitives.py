@@ -1082,17 +1082,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
         return clone_primitive
     
-    def _rigidly_transform(self, transform : RigidTransform) -> None: 
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
         if isinstance(self.shape, BoundedShape):
-            self.shape.rigidly_transform(transform)
+            self.shape.rigidly_transform(transformation)
         
         for connector in self.connectors.values():
-            connector.rigidly_transform(transform)
+            connector.rigidly_transform(transformation)
             
         # propogate transformation down recursively
         for subprimitive in self.children: 
-            subprimitive.rigidly_transform(transform)
+            subprimitive.rigidly_transform(transformation)
             
             
     # Comparison methods
