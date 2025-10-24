@@ -101,11 +101,13 @@ class TopologicalStructure(nx.Graph):
         '''
         Draw the topology's graph
         '''
+        if 'with_labels' not in draw_kwargs:
+            draw_kwargs['with_labels'] = True
+        
         nx.draw(
             self,
             ax=ax,
             pos=layout(self),
-            with_labels=True,
             **draw_kwargs,
         )
 
