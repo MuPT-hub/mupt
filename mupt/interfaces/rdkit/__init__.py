@@ -37,9 +37,17 @@ from .depiction import (
     disable_kekulized_drawing,
     clear_highlights,
 )
+
+# CORE CHEMISTRY UTILS WHICH ARE RDKIT-SPECIFIC
 from ...chemistry.rdloggers import (
     suppress_rdkit_logs,
     RDLoggerNames,
+)
+from ...chemistry.sanitization import (
+    sanitized_mol,
+    AROMATICITY_MDL,
+    SANITIZE_ALL,
+    SANITIZE_NONE,
 )
 
 # DEFAULT DRAWING CONFIG
