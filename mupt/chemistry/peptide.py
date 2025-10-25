@@ -19,18 +19,9 @@ from rdkit.Chem.rdmolfiles import (
 from rdkit.Chem.rdmolops import (
     FragmentOnBonds,
     GetMolFrags,
-    AddHs,
-    Kekulize,
-    SetAromaticity,
-    AROMATICITY_MDL,
-    SanitizeMol,
-    SANITIZE_ALL,
-    SANITIZE_KEKULIZE,
-    SANITIZE_SETAROMATICITY,
 )
-SANITIZE_KEEP_AROMATICITY = (SANITIZE_ALL & ~SANITIZE_KEKULIZE & ~SANITIZE_SETAROMATICITY) # TODO: eventually move to chemistry.sanitization or something
-
 from .linkers import num_linkers
+from .sanitization import sanitized_mol
 
 
 PEPTIDE_BOND_QUERY : Mol = MolFromSmarts('[$([CX3](=[OX1]))]-[$([NX3,NX4+](-C)(-C))]') # NOTE: final pair of carbons avoid overmatching asparagine AND under-matching proline
@@ -44,33 +35,30 @@ class AminoAcidSubstructure:
     fasta : str
     ccd_code : str
     
-    term_N_smiles : str = field(repr=False)
-    middle_smiles : str = field(repr=False)
-    term_O_smiles : str = field(repr=False)
+    smiles_term_N : str = field(repr=False)
+    smiles_middle : str = field(repr=False)
+    smiles_term_O : str = field(repr=False)
     
-    # TODO: add option to embed 2D/3D coordinates
-    @staticmethod
-    def sanitized_mol(smiles : str, removeHs : bool=False) -> Mol:
-        '''Return a sanitized RDKit Mol from SMILES'''
-        mol : Mol = MolFromSmiles(smiles, sanitize=removeHs)
-        mol.UpdatePropertyCache()
-        Kekulize(mol, clearAromaticFlags=True)
-        SetAromaticity(mol, AROMATICITY_MDL) # use MDL aromaticity to prevent RDKit from screwing up valence on tryptophan indole ring
-        SanitizeMol(mol, sanitizeOps=SANITIZE_KEEP_AROMATICITY)
-
-        return mol
-    
-    def fragment_term_N(self, removeHs : bool=False) -> Mol:
+    def fragment_term_N(self, with_Hs : bool=True) -> Mol:
         '''Return amine/amide-terminated fragment as an RDKit Mol'''
-        return AminoAcidSubstructure.sanitized_mol(self.term_N_smiles, removeHs=removeHs)
+        return sanitized_mol(
+            MolFromSmiles(self.smiles_term_N, sanitize=False),
+            add_Hs=with_Hs,
+        )
 
-    def fragment_middle(self, removeHs : bool=False) -> Mol:
+    def fragment_middle(self, with_Hs : bool=True) -> Mol:
         '''Return middle fragment as an RDKit Mol'''
-        return AminoAcidSubstructure.sanitized_mol(self.middle_smiles, removeHs=removeHs)
+        return sanitized_mol(
+            MolFromSmiles(self.smiles_middle, sanitize=False),
+            add_Hs=with_Hs,
+        )
 
-    def fragment_term_O(self, removeHs : bool=False) -> Mol:
+    def fragment_term_O(self, with_Hs : bool=True) -> Mol:
         '''Return carboxyl-terminated fragment as an RDKit Mol'''
-        return AminoAcidSubstructure.sanitized_mol(self.term_O_smiles, removeHs=removeHs)
+        return sanitized_mol(
+            MolFromSmiles(self.smiles_term_O, sanitize=False),
+            add_Hs=with_Hs,
+        )
 
 def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
     '''
@@ -100,7 +88,7 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
             dummyLabels=[(1,2), (1,2)], # consistent with RETRO-ANTERO labels from TraversalDirection
         )
         cleaved_tripeptide.UpdatePropertyCache()
-        cleaved_tripeptide = AddHs(cleaved_tripeptide)
+        # cleaved_tripeptide = AddHs(cleaved_tripeptide)
         
         # extract fragments
         residue_fragments = GetMolFrags(
@@ -123,9 +111,9 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
             name=ptabmol.name.lower(),
             fasta=letter.upper(),
             ccd_code=pdb_3_letter_code.upper(),
-            term_N_smiles=MolToSmiles(term_N_fragment),
-            middle_smiles=MolToSmiles(middle_fragment),
-            term_O_smiles=MolToSmiles(term_O_fragment),
+            smiles_term_N=MolToSmiles(term_N_fragment),
+            smiles_middle=MolToSmiles(middle_fragment),
+            smiles_term_O=MolToSmiles(term_O_fragment),
         )
         aa_substructs.add(aa_substruct)
         
