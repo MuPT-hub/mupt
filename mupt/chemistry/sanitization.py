@@ -6,11 +6,8 @@ Intended to ensure consistent rules are applied when sanitizing within MuPT
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from mupt.interfaces.rdkit import enable_kekulized_drawing, disable_kekulized_drawing
-disable_kekulized_drawing()
-
-
 from typing import Optional, Union
+
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolops import (
     AddHs,
