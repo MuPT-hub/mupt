@@ -58,3 +58,4 @@ class PlacementGenerator(ABC):
         '''
         self.check_preconditions(primitive)
         yield from self._generate_placements(primitive)
+
