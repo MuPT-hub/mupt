@@ -187,8 +187,11 @@ class DPD_RandomWalk(PlacementGenerator):
             simulation.run(1000)
         snap=simulation.state.get_snapshot()
 
-        for s in snap.particles.position:
-            yield None, s
+        for chain in self.primitive.topology.chains:
+            head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Same issue as above
+            path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
+            for handle in path:
+                yield handle, snap.particles.position[h2i[handle]]
 
 
 
