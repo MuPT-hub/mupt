@@ -163,6 +163,7 @@ class DPD_RandomWalk(PlacementGenerator):
                 delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
                 delta /= np.linalg.norm(delta)*self.bond_l
                 frame.particles.position[h2i[prim_handle_incoming]] = frame.particles.position[h2i[prim_handle_outgoing]] + delta
+        
         frame.particles.position = pbc(frame.particles.position,[L,L,L])
         frame.bonds.group = bonds
         frame.bonds.N = len(frame.bonds.group)
