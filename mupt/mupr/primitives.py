@@ -8,11 +8,10 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
+    Callable,
     ClassVar,
-    Container,
     Hashable,
     Iterable,
-    Mapping,
     Optional,
     TypeVar,
     Union,
@@ -25,7 +24,15 @@ from copy import deepcopy
 from collections import defaultdict
 
 from anytree.node import NodeMixin
-from anytree.search import findall_by_attr
+from anytree.search import findall, findall_by_attr
+from anytree.render import (
+    RenderTree,
+    AbstractStyle,
+    AsciiStyle,
+    ContStyle,
+    ContRoundStyle,
+    DoubleStyle,
+)
 import networkx as nx
 
 from scipy.spatial.transform import RigidTransform
@@ -359,7 +366,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 connector_handle=self.external_connectors_on_child(conn_ref.primitive_handle)[conn_ref.connector_handle]
             ) # DEV: worth returning these now-unbound instances?
         self._internal_connections.add(frozenset(conn_refs))
-        LOGGER.debug(f'Pairing {conn_ref1!s} with  {conn_ref2!s}')
+        LOGGER.debug(f'Paired {conn_ref1!s} with {conn_ref2!s}')
         
     ## External "off-body" connections
     @property
@@ -521,6 +528,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Mapping cannot be set directly; to do so, use protected attach_child() and detach_child() methods
         '''
         return self._children_by_handle
+    
+    @property
+    def has_children(self) -> bool:
+        '''
+        Whether this Primitive contains any sub-Primitives below it
+        See also Primitive.is_simple
+        '''
+        return bool(self.children)
     
     @property
     def num_children(self) -> int:
@@ -705,6 +720,30 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 conn_ref.primitive_handle,
                 conn_ref.connector_handle,
             )
+    
+    ## Search
+    def search_hierarchy_by(
+        self,
+        condition : Callable[['Primitive'], bool],
+        halt_when : Optional[Callable[['Primitive'], bool]]=None,
+        to_depth : Optional[int]=None,
+        min_count : Optional[int]=None,
+        max_count : Optional[int]=None,
+    ) -> tuple['Primitive']:
+        '''
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+        
+        Matching descendant Primitives are returned in traversal preorder from the root
+        '''
+        return findall(
+            self,
+            filter_=condition,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
 
 
     # Topology
@@ -959,11 +998,32 @@ class Primitive(NodeMixin, RigidlyTransformable):
             )
         self.check_self_consistent() # verify that all parts are consistent once the dust settles
 
+    def expanded(
+        self,
+        target_handle : PrimitiveHandle,
+        connector_selector : ConnectorSelector=make_second_resemble_first,
+    ) -> 'Primitive': # DEV: eventually wrap with optional_in_place, once I've sorted how to provide custom copy method in general?
+        '''Return a copy of this Primitive with the specified child expanded'''
+        clone_primitive = self.copy()
+        clone_primitive.expand(
+            target_handle,
+            connector_selector=connector_selector,
+        )
+        
+        return clone_primitive
+
     def flatten(self) -> None:
-        '''Flatten hierarchy under this Primitive, so that the entire tree has depth 1'''
+        '''Flatten hierarchy under this Primitive, so that the entire tree has height 1'''
         while (target_handles := self.expandable_children): # DEV: also works for simple Primitives (no casework needed!)
             for child_handle in target_handles:
                 self.expand(child_handle)
+                
+    def flattened(self) -> 'Primitive': # DEV: eventually wrap with optional_in_place, once I've sorted how to provide custom copy method in general?
+        '''Return a copy of this Primitive which has been flattened'''
+        clone_primitive = self.copy()
+        clone_primitive.flatten()
+        
+        return clone_primitive
 
     # Geometry (info about Shape and transformations)
     @property
@@ -1022,55 +1082,20 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
         return clone_primitive
     
-    def _rigidly_transform(self, transform : RigidTransform) -> None: 
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
         if isinstance(self.shape, BoundedShape):
-            self.shape.rigidly_transform(transform)
+            self.shape.rigidly_transform(transformation)
         
         for connector in self.connectors.values():
-            connector.rigidly_transform(transform)
+            connector.rigidly_transform(transformation)
             
         # propogate transformation down recursively
         for subprimitive in self.children: 
-            subprimitive.rigidly_transform(transform)
+            subprimitive.rigidly_transform(transformation)
             
             
-    # Representation methods
-    ## canonical forms for core components
-    def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
-        '''A canonical string representing this Primitive's Connectors'''
-        return lex_order_multiset_str(
-            (
-                self.connectors[connector_handle].canonical_form()
-                    for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
-            ),
-            element_repr=str, #lambda bt : BondType.values[int(bt)]
-            separator=separator,
-            joiner=joiner,
-        )
-    
-    def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shapefor all kinds of Primitive)
-        '''A canonical string representing this Primitive's shape'''
-        return type(self.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
-    
-    def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
-        '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
-        I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
-        '''
-        elem_form : str = self.element.symbol if self.element is not None else str(None) # TODO: move this to external function, eventually
-        return f'{elem_form}({self.canonical_form_connectors()})[{self.canonical_form_shape()}]<{self.topology.canonical_form()}>'
-
-    def canonical_form_peppered(self) -> str:
-        '''
-        Return a canonical string representation of the Primitive with peppered metadata
-        Used to distinguish two otherwise-equivalent Primitives, e.g. as needed for graph embedding
-        
-        Named for the cryptography technique of augmenting a hash by some external, stored data
-        (as described in https://en.wikipedia.org/wiki/Pepper_(cryptography))
-        '''
-        return f'{self.canonical_form()}-{self.label}' #{self.metadata}'
-
-    ## Comparison methods
+    # Comparison methods
     def __hash__(self): 
         '''Hash used to compare Primitives for identity (NOT equivalence)'''
         # return hash(self.canonical_form())
@@ -1092,8 +1117,47 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def equivalent_to(self, other : 'Primitive') -> bool:
         '''Check whether two Primitives are equivalent (i.e. have interchangeable part which are not necessarily in the same place in space)'''
         raise NotImplementedError
+            
+            
+    # Representation methods
+    ## Canonical forms for core components
+    def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
+        '''A canonical string representing this Primitive's Connectors'''
+        return lex_order_multiset_str(
+            (
+                self.connectors[connector_handle].canonical_form()
+                    for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
+            ),
+            element_repr=str, #lambda bt : BondType.values[int(bt)]
+            separator=separator,
+            joiner=joiner,
+        )
+    
+    def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shapefor all kinds of Primitive)
+        '''A canonical string representing this Primitive's shape'''
+        return type(self.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
+    
+    def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
+        '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
+        I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
+        '''
+        elem_form : str = self.element.symbol if (self.element is not None) else str(None) # TODO: move this to external function, eventually
+        return f'{elem_form}' \
+            f'({self.canonical_form_connectors()})' \
+            f'[shape={self.canonical_form_shape()}]' \
+            f'<graph_hash={self.topology.canonical_form()}>'
 
-    ## Display methods
+    def canonical_form_peppered(self) -> str:
+        '''
+        Return a canonical string representation of the Primitive with peppered metadata
+        Used to distinguish two otherwise-equivalent Primitives, e.g. as needed for graph embedding
+        
+        Named for the cryptography technique of augmenting a hash by some external, stored data
+        (as described in https://en.wikipedia.org/wiki/Pepper_(cryptography))
+        '''
+        return f'{self.canonical_form()}-{self.label}' #{self.metadata}'
+
+    ## Printing and textual representations
     def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
         return self.canonical_form_peppered()
     
@@ -1126,6 +1190,38 @@ class Primitive(NodeMixin, RigidlyTransformable):
             repr_brief = f'{self.functionality}-functional {repr_brief}'
     
         return repr_brief
+    
+    def hierarchy_summary(
+        self,
+        to_depth : Optional[int]=None,
+        render_attr : str='label',
+        style : Union[str, AbstractStyle]=ContStyle(),
+    ) -> str:
+        '''A printable representation of this Primitive and all its descendants in the hierarchy'''
+        style_aliases : dict[str, AbstractStyle] = { # TODO: move this to external util
+            'cont': ContStyle(),
+            'Cont': ContStyle(),
+            'continued': ContStyle(),
+            'ContStyle': ContStyle(),
+            'cont_round' : ContRoundStyle(),
+            'ContRound' : ContRoundStyle(),
+            'ContRoundStyle' : ContRoundStyle(),
+            'ascii' : AsciiStyle(),
+            'ASCII' : AsciiStyle(),
+            'AsciiStyle': AsciiStyle(),
+            'double': DoubleStyle(),
+            'Double': DoubleStyle(),
+            'DoubleStyle': DoubleStyle(),
+        }
+        if isinstance(style, str):
+            style = style_aliases[style]
+        
+        return RenderTree(
+            self,
+            style=style,
+            # DEV: revisit "childiter" parameter config?
+            maxlevel=to_depth,
+        ).by_attr(render_attr)
     
     ## Graph drawing
     def visualize_topology(

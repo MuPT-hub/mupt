@@ -3,12 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from .linkers import (
-    is_linker,
-    not_linker,
-    num_linkers,
-    anchor_and_linker_idxs,
-)
+
 from .selection import (
     # Atom selection
     AtomCondition,
@@ -41,6 +36,18 @@ from .depiction import (
     enable_kekulized_drawing,
     disable_kekulized_drawing,
     clear_highlights,
+)
+
+# CORE CHEMISTRY UTILS WHICH ARE RDKIT-SPECIFIC
+from ...chemistry.rdloggers import (
+    suppress_rdkit_logs,
+    RDLoggerNames,
+)
+from ...chemistry.sanitization import (
+    sanitized_mol,
+    AROMATICITY_MDL,
+    SANITIZE_ALL,
+    SANITIZE_NONE,
 )
 
 # DEFAULT DRAWING CONFIG

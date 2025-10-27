@@ -55,7 +55,7 @@ def primitive_to_rdkit(
     
     if not primitive.is_atomizable: # TODO: include provision (when no flattening is performed) to preserve atom order with Primitive handle indices
         raise ValueError('Cannot export Primitive with non-atomic parts to RDKit Mol')
-    primitive.flatten() # collapse hierarchy - TODO: make this out-of-place?
+    primitive = primitive.flattened() # collapse hierarchy out-of-place to avoid mutating original
     
     ## DEV: modelled assembly in part by OpenFF RDKit TK wrapper
     ## https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
@@ -111,10 +111,11 @@ def primitive_to_rdkit(
         conn : Connector = primitive.fetch_connector_on_child(conn_ref)
         
         mol.AddBond(atom_idx_map[conn_ref.primitive_handle], linker_idx, order=conn.bondtype)
-        if conn.has_linker_position: # NOTE: this "if" check not done in-line, as conn.linker_position raises AttributeError is unset
-            conf.SetAtomPosition(linker_idx, conn.linker_position)
-        else:
-            conf.SetAtomPosition(linker_idx, default_atom_position[:])
+        conf.SetAtomPosition(linker_idx, conn.linker.position) # TODO: decide whether unset position (e.g. as NANs) should be supported
+        # if conn.has_linker_position: # NOTE: this "if" check not done in-line, as conn.linker_position raises AttributeError is unset
+            # conf.SetAtomPosition(linker_idx, conn.linker_position)
+        # else:
+            # conf.SetAtomPosition(linker_idx, default_atom_position[:])
             
     ## 3) transfer Primitive-level metadata (atom metadata should already be transferred)
     assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True) # mark MuPT export for provenance

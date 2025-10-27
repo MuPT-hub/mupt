@@ -85,7 +85,7 @@ class TopologicalStructure(nx.Graph):
         '''
         # raise NotImplementedError('Graph canonicalization is not implemented yet')
         # return nx.weisfeiler_lehman_graph_hash(self) # stand-in for more specific implementation to follow
-        return hash(tuple(Counter(deg for node, deg in self.degree).items())) # temporary, quick-to-compute stand=in for eventual "real-deal" canonical form
+        return hash(tuple(Counter(deg for node, deg in self.degree).items())) # temporary, quick-to-compute stand-in for eventual "real-deal" canonical form
 
     def __repr__(self) -> str:
         #TODO: make this more descriptive
@@ -101,11 +101,13 @@ class TopologicalStructure(nx.Graph):
         '''
         Draw the topology's graph
         '''
+        if 'with_labels' not in draw_kwargs:
+            draw_kwargs['with_labels'] = True
+        
         nx.draw(
             self,
             ax=ax,
             pos=layout(self),
-            with_labels=True,
             **draw_kwargs,
         )
 
