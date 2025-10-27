@@ -1,76 +1,28 @@
-'''Utilities for conditional selection of chemical objects, such as atoms and bonds, from RDKit molecules'''
+'''Utilities for conditional selection of chemical objects such as atoms and bonds from RDKit molecules'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Callable, Concatenate, Generator, Container, Union
+from typing import Callable, Concatenate, Generator, Container, Optional, Union
 from operator import (
-    xor,
     xor as logical_xor, # alias for consistency
     or_  as logical_or,
     and_ as logical_and,
 )
-from rdkit import Chem
 from rdkit.Chem.rdchem import Mol, Bond, Atom
 
 
-# CHEMICAL OBJECT TYPEHINTS
+# CONDITIONAL ATOM SELECTION
 AtomCondition = Callable[Concatenate[Atom, ...], bool]
-BondCondition = Callable[Concatenate[Bond, ...], bool]
-
 AtomLike = Union[int, Atom]
-BondLike = Union[int, Bond, tuple[int, int], tuple[Atom, Atom]]
 
+all_atoms : AtomCondition = lambda atom : True
+no_atoms  : AtomCondition = lambda atom : False
 
-# CONDITIONAL SELECTION FUNCTIONS
-## ATOM NEIGHBOR SEARCH
-def atom_neighbors_by_condition(
-        atom : Atom,
-        condition : AtomCondition=lambda atom : True,
-        as_indices : bool=False,
-        negate : bool=False,
-    ) -> Generator[AtomLike, None, None]:
-    '''
-    Generate all neighboring atoms (i.e. atoms bonded to the passed atom) satisfying a condition
-    
-    Parameters
-    ----------
-    atom : Chem.Atom
-        An atom object whose neighbors are to be inspected
-    condition : Callable[[Chem.Atom], bool], default lambda atom : True
-        Condition on atoms which returns bool; 
-        Always returns True if unset
-    as_indices : bool, default False
-        Whether to return results as their indices (default) or as Atom objects
-    negate : bool, default False
-        Whether to invert the condition provided (by default False)
-    
-    Returns
-    -------
-    selected_atoms : Generator[Union[int, Chem.Atom]]
-        An iterable Generator of the atoms meeting the chosen condition
-    '''
-    for nb_atom in atom.GetNeighbors():
-        if xor(condition(nb_atom), negate):
-            yield nb_atom.GetIdx() if as_indices else nb_atom
-
-def has_atom_neighbors_by_condition(
-        atom : Atom,
-        condition : AtomCondition=lambda atom : True,
-        negate : bool=False,
-    ) -> bool:
-    '''Identify if any neighbors of an atom satisfy some condition'''
-    try: 
-        next(atom_neighbors_by_condition(atom, condition=condition, negate=negate))
-    except StopIteration:
-        return False
-    else:
-        return True
-
-## WHOLE-MOLECULE SEARCH
+## ATOM SELECTION FUNCTIONS
 def atoms_by_condition(
         mol : Mol,
-        condition : AtomCondition=lambda atom : True,
+        condition : Optional[AtomCondition]=None,
         as_indices : bool=False,
         negate : bool=False,
     ) -> Generator[AtomLike, None, None]:
@@ -81,7 +33,7 @@ def atoms_by_condition(
     ----------
     mol : Chem.Mol
         An RDKit molecule object
-    condition : Callable[[Chem.Atom], bool], default lambda atom : True
+    condition : Optional[Callable[[Chem.Atom], bool]], default None
         Condition on atoms which returns bool; 
         Always returns True if unset
     as_indices : bool, default False
@@ -94,13 +46,74 @@ def atoms_by_condition(
     selected_atoms : Generator[Union[int, Chem.Atom]]
         An iterable Generator of the atoms meeting the chosen condition
     '''
+    if condition is None:
+        condition = all_atoms
+    
     for atom in mol.GetAtoms():
-        if xor(condition(atom), negate):
+        if logical_xor(condition(atom), negate):
             yield atom.GetIdx() if as_indices else atom
+atoms = atoms_by_condition 
 
+def atom_neighbors_by_condition(
+        atom : Atom,
+        condition : Optional[AtomCondition]=None,
+        as_indices : bool=False,
+        negate : bool=False,
+    ) -> Generator[AtomLike, None, None]:
+    '''
+    Generate all neighboring atoms (i.e. atoms bonded to the passed atom) satisfying a condition
+    
+    Parameters
+    ----------
+    atom : Chem.Atom
+        An atom object whose neighbors are to be inspected
+    condition : Optional[Callable[[Chem.Atom], bool]], default None
+        Condition on atoms which returns bool; 
+        Always returns True if unset
+    as_indices : bool, default False
+        Whether to return results as their indices (default) or as Atom objects
+    negate : bool, default False
+        Whether to invert the condition provided (by default False)
+    
+    Returns
+    -------
+    selected_atoms : Generator[Union[int, Chem.Atom]]
+        An iterable Generator of the atoms meeting the chosen condition
+    '''
+    if condition is None:
+        condition = all_atoms
+
+    for nb_atom in atom.GetNeighbors():
+        if logical_xor(condition(nb_atom), negate):
+            yield nb_atom.GetIdx() if as_indices else nb_atom
+atom_neighbors = atom_neighbors_by_condition
+
+def has_atom_neighbors_by_condition(
+        atom : Atom,
+        condition : Optional[AtomCondition]=None,
+        negate : bool=False,
+    ) -> bool:
+    '''Identify if any neighbors of an atom satisfy some condition'''
+    try: 
+        next(atom_neighbors_by_condition(atom, condition=condition, negate=negate))
+    except StopIteration:
+        return False
+    else:
+        return True
+has_atom_neighbors = has_atom_neighbors_by_condition
+    
+
+# CONDITIONAL BOND SELECTION
+BondCondition = Callable[Concatenate[Bond, ...], bool]
+BondLike = Union[int, Bond, tuple[int, int], tuple[Atom, Atom]]
+
+all_bonds : BondCondition = lambda bond : True
+no_bonds  : BondCondition = lambda bond : False
+
+## BOND SELECTION FUNCTIONS
 def bonds_by_condition(
         mol : Mol,
-        condition : BondCondition=lambda bond : True,
+        condition : Optional[BondCondition]=None,
         as_indices : bool=True,
         as_pairs : bool=True,
         negate : bool=False,
@@ -112,7 +125,7 @@ def bonds_by_condition(
     ----------
     mol : Chem.Mol
         An RDKit molecule object
-    condition : Callable[[Chem.Bond], bool], default lambda bond : True
+    condition : Optional[Callable[[Chem.Bond], bool]], default None
         Condition on bonds which returns bool; 
         Always returns True if unset
     as_indices : bool, default True
@@ -133,12 +146,16 @@ def bonds_by_condition(
         * 2-tuples of Atom objects
         * 2-tuples of atom indices
     '''
+    if condition is None:
+        condition = all_bonds
+    
     for bond in mol.GetBonds():
-        if xor(condition(bond), negate):
+        if logical_xor(condition(bond), negate):
             if as_pairs:
                 yield (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()) if as_indices else (bond.GetBeginAtom(), bond.GetEndAtom())
             else:
                 yield bond.GetIdx() if as_indices else bond
+bonds = bonds_by_condition
 
 def bond_condition_by_atom_condition_factory(
         atom_condition : AtomCondition,
@@ -151,7 +168,10 @@ def bond_condition_by_atom_condition_factory(
     By default, this binary condition is OR (i.e. the bond will evaluate True if either of its atoms meets the atom condition)
     '''
     def bond_condition(bond : Bond) -> bool:
-        return binary_operator(atom_condition(bond.GetBeginAtom()), atom_condition(bond.GetEndAtom()))
+        return binary_operator(
+            atom_condition(bond.GetBeginAtom()),
+            atom_condition(bond.GetEndAtom()),
+        )
     return bond_condition
 
 
@@ -202,9 +222,3 @@ def bonds_between_mapped_atoms(mol : Mol, as_indices : bool=True, as_pairs : boo
         as_pairs=as_pairs,
         negate=False, # NOTE: negate doesn't behave exactly as one might expect here due to de Morgan's laws (i.e. ~(A^B) != (~A^~B))
     )
-    
-# ALIASES FOR CONVENIENCE
-atoms = atoms_by_condition 
-bonds = bonds_by_condition
-atom_neighbors = atom_neighbors_by_condition
-has_atom_neighbors = has_atom_neighbors_by_condition
