@@ -81,7 +81,7 @@ def check_inter_particle_distance(
         return False
 
 
-class DPD_RandomWalk(PlacementGenerator):
+class DPDRandomWalk(PlacementGenerator):
     '''
     Builder which places children of a Primitive
     in a non-self-avoiding random walk and runs a DPD simulation.
@@ -141,21 +141,21 @@ class DPD_RandomWalk(PlacementGenerator):
         paths are lists of handles
         If we assume chains are looped over in the same way, we can map from handles to indices
         '''
+        # Initialize HOOMD Frame (initial snapshot) and periodic box
         frame = gsd.hoomd.Frame()
-        frame.particles.types = ['A'] #TODO: introduce HMT's?
-        frame.particles.N = primitive.topology.number_of_nodes() 
+        
+        # Read info from chains in universe topology into HOOMD Frame
+        frame.particles.types = ['A'] # TODO: introduce HMT's?
+        frame.particles.N = primitive.topology.number_of_nodes() # TB: would be nice to set after iterating over children, but needed to size box
         frame.particles.typeid = np.zeros(frame.particles.N)
-        frame.particles.position = np.zeros((frame.particles.N,3)) #populate with random walks
+        frame.particles.position = np.zeros((frame.particles.N, 3)) # populate with random walks
+        L = np.cbrt(frame.particles.N / self.density) 
+        
         #frame.bonds.N = self.primitive.topology.number_of_edges()
         #frame.bonds.group = np.zeros((frame.bonds.N,2)) #populate this with bond indices
-        bonds = []
+        bonds : list[tuple[int, int]] = []
         frame.bonds.types = ['a']
-        L = np.cbrt(frame.particles.N / self.density) 
-        if (L<3*self.r_cut):
-            L = 3*self.r_cut
-            LOGGER.warning("Small number of particles, lowering density to {}, and L={}".format(frame.particles.N/(L**3),L))
-        frame.configuration.box = [L, L, L, 0, 0, 0]
-
+        
         h2i : dict[PrimitiveHandle, int] = dict()
         i : int = 0
         for chain in primitive.topology.chains:
@@ -168,15 +168,24 @@ class DPD_RandomWalk(PlacementGenerator):
                 LOGGER.debug("adding a bond")
                 i+=1
                 h2i[prim_handle_incoming] = i        
-                bonds.append( [h2i[prim_handle_outgoing],h2i[prim_handle_incoming]] )
+                bonds.append( [h2i[prim_handle_outgoing], h2i[prim_handle_incoming]] )
                 delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
                 delta /= np.linalg.norm(delta)*self.bond_l
                 frame.particles.position[h2i[prim_handle_incoming]] = frame.particles.position[h2i[prim_handle_outgoing]] + delta
         
-        # set up HOOMD Simulation
-        frame.particles.position = pbc(frame.particles.position,[L,L,L])
+        # set periodic box based on initial positions and target density
+        if (L < 3*self.r_cut):
+            L = 3*self.r_cut
+            LOGGER.warning(
+                f"Small number of particles, lowering density to {frame.particles.N/(L**3)}, and L={L}"
+            )
+        frame.configuration.box = [L, L, L, 0, 0, 0] # monoclinic cubic box with scale L
+        
+        frame.particles.position = pbc(frame.particles.position, [L, L, L])
         frame.bonds.group = bonds
         frame.bonds.N = len(frame.bonds.group)
+        
+        # set up HOOMD Simulation
         harmonic = hoomd.md.bond.Harmonic()
         harmonic.params["a"] = dict(r0=self.bond_l, k=self.k)
         integrator = hoomd.md.Integrator(dt=self.dt)
