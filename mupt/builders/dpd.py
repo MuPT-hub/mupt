@@ -8,8 +8,10 @@ LOGGER.setLevel(logging.DEBUG)
 
 import freud
 import gsd, gsd.hoomd 
+import time
 import hoomd 
 from hoomd.write import DCD
+from hoomd.write import GSD
 from hoomd.trigger import Periodic
 
 from typing import (
@@ -151,6 +153,7 @@ class DPDRandomWalk(PlacementGenerator):
         If we assume chains are looped over in the same way, we can map from handles to indices
         '''
         # Initialize HOOMD Frame (initial snapshot) and periodic box
+        start_time = time.perf_counter()
         frame = gsd.hoomd.Frame()
         
         ## Pre-allocate space for particles
@@ -183,7 +186,6 @@ class DPDRandomWalk(PlacementGenerator):
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
                 idx_outgoing, idx_incoming = idx_pair = h2i[prim_handle_outgoing], h2i[prim_handle_incoming]
                 LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
-                
                 bonds.append(idx_pair)
                 delta = self.bond_l * random_unit_vector()
                 # delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
@@ -225,26 +227,29 @@ class DPDRandomWalk(PlacementGenerator):
         integrator.forces.append(DPD)
         
         # Run Simulation in intervals until bond lengths converge
-        with gsd.hoomd.open(name="dpd.gsd", mode="w") as f:
+        with gsd.hoomd.open(name="dpd.gsd", mode='w') as f:
             f.append(frame)
     
-        dcd = DCD(
+        gsd1= GSD(
             trigger=hoomd.trigger.Periodic(self.report_interval),
-            filename='dpd_test.dcd',
+            filename='traj.gsd',
         )
-        simulation.operations.writers.append(dcd)
+        simulation.operations.writers.append(gsd1)
         
         LOGGER.debug('Beginning HOOMD Simulation')
         # simulation.run(1000)
+        hoomd_time = time.perf_counter()
         snap = simulation.state.get_snapshot()
         total_steps_run : int = 0
-        while (not check_inter_particle_distance(snap, minimum_distance=0.95)) and (total_steps_run < self.max_steps):
+        while (not check_inter_particle_distance(snap, minimum_distance=self.particle_spacing)) and (total_steps_run < self.max_steps):
             if (total_steps_run % self.report_interval) == 0:
                 LOGGER.debug(f'Bond lengths not converged after {total_steps_run} steps; continuing simulation')
             simulation.run(self.step_per_interval)
             total_steps_run += self.step_per_interval
         LOGGER.debug('Bond lengths converged; ending simulation')
         snap = simulation.state.get_snapshot()
+        end_time = time.perf_counter()
+        print("Done initializing after {} seconds, with {}s of hoomd".format(end_time - start_time, end_time - hoomd_time ))
 
         # yield placements from final snapshot of simulation
         for handle, idx in h2i.items():
