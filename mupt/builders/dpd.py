@@ -16,6 +16,7 @@ from typing import (
     Generator,
     Hashable,
     Iterable,
+    Iterator,
     Optional,
     Sized,
     Union,
@@ -23,6 +24,7 @@ from typing import (
 )
 from numbers import Number
 from collections import defaultdict
+from itertools import count
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
@@ -35,7 +37,7 @@ from ..geometry.arraytypes import Shape, Dims, N
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
-from mupt.geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.transforms.rigid import rigid_vector_coalignment
 
 from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
@@ -144,57 +146,71 @@ class DPDRandomWalk(PlacementGenerator):
         # Initialize HOOMD Frame (initial snapshot) and periodic box
         frame = gsd.hoomd.Frame()
         
-        # Read info from chains in universe topology into HOOMD Frame
+        ## Pre-allocate space for particles
         frame.particles.types = ['A'] # TODO: introduce HMT's?
         frame.particles.N = primitive.topology.number_of_nodes() # TB: would be nice to set after iterating over children, but needed to size box
         frame.particles.typeid = np.zeros(frame.particles.N)
         frame.particles.position = np.zeros((frame.particles.N, 3)) # populate with random walks
         L = np.cbrt(frame.particles.N / self.density) 
         
+        # Read info from chains in universe topology into HOOMD Frame
         #frame.bonds.N = self.primitive.topology.number_of_edges()
-        #frame.bonds.group = np.zeros((frame.bonds.N,2)) #populate this with bond indices
+        #frame.bonds.group = np.zeros((frame.bonds.N,2)) # populate this with bond indices
         bonds : list[tuple[int, int]] = []
         frame.bonds.types = ['a']
         
+        particle_indexer : Iterator[int] = count(0)
         h2i : dict[PrimitiveHandle, int] = dict()
-        i : int = 0
         for chain in primitive.topology.chains:
-            head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Chains missing edges?
+            head_handle, tail_handle = termini = self.get_termini_handles(chain)
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
-            h2i[head_handle] = i
-            frame.particles.position[i] = np.random.uniform(low=(-L/2),high=(L/2),size=3)
+            for bead_handle in path:
+                h2i[bead_handle] = next(particle_indexer)
+            
             LOGGER.debug("chain")
+            frame.particles.position[h2i[head_handle]] = np.random.uniform( # place head randomly within box bounds
+                low=(-L/2),
+                high=(L/2),
+                size=3,
+            )
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
-                LOGGER.debug("adding a bond")
-                i+=1
-                h2i[prim_handle_incoming] = i        
-                bonds.append( [h2i[prim_handle_outgoing], h2i[prim_handle_incoming]] )
-                delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
-                delta /= np.linalg.norm(delta)*self.bond_l
-                frame.particles.position[h2i[prim_handle_incoming]] = frame.particles.position[h2i[prim_handle_outgoing]] + delta
+                idx_outgoing, idx_incoming = idx_pair = h2i[prim_handle_outgoing], h2i[prim_handle_incoming]
+                LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
+                
+                bonds.append(idx_pair)
+                delta = self.bond_l * random_unit_vector()
+                # delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
+                # delta /= np.linalg.norm(delta)*self.bond_l
+                frame.particles.position[idx_incoming] = frame.particles.position[idx_outgoing] + delta
         
-        # set periodic box based on initial positions and target density
+        ## assign bonded index pairs
+        frame.bonds.group = bonds
+        frame.bonds.N = len(frame.bonds.group)
+        
+        ## set periodic box based on initial positions and target density
         if (L < 3*self.r_cut):
             L = 3*self.r_cut
             LOGGER.warning(
                 f"Small number of particles, lowering density to {frame.particles.N/(L**3)}, and L={L}"
             )
         frame.configuration.box = [L, L, L, 0, 0, 0] # monoclinic cubic box with scale L
-        
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
-        frame.bonds.group = bonds
-        frame.bonds.N = len(frame.bonds.group)
         
         # set up HOOMD Simulation
+        LOGGER.debug('Initializing HOOMD Simulation')
         harmonic = hoomd.md.bond.Harmonic()
         harmonic.params["a"] = dict(r0=self.bond_l, k=self.k)
+        
         integrator = hoomd.md.Integrator(dt=self.dt)
         integrator.forces.append(harmonic)
+        
         simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint(65000))
         simulation.operations.integrator = integrator 
         simulation.create_state_from_snapshot(frame)
+        
         const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
         integrator.methods.append(const_vol)
+        
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
         simulation.operations.nlist = nlist
         DPD = hoomd.md.pair.DPD(nlist, default_r_cut=self.r_cut, kT=self.kT)
@@ -202,15 +218,16 @@ class DPDRandomWalk(PlacementGenerator):
         integrator.forces.append(DPD)
         
         # Run Simulation in intervals until bond lengths converge
+        LOGGER.debug('Beginning HOOMd Simulation')
         simulation.run(1000)
         snap = simulation.state.get_snapshot()
         while not check_inter_particle_distance(snap, minimum_distance=0.95): #TODO: update min_distance?
+            LOGGER.debug('Bond lengths not converged; continuing simulation')
             simulation.run(1000)
+        LOGGER.debug('Bond lengths converged; ending simulation')
         snap = simulation.state.get_snapshot()
 
         # yield placements from final snapshot of simulation
-        for chain in primitive.topology.chains:
-            head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Same issue as above
-            path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
-            for handle in path:
-                yield handle, snap.particles.position[h2i[handle]]
+        for handle, idx in h2i.items():
+            LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
+            yield handle, snap.particles.position[idx]
