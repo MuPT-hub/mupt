@@ -36,10 +36,9 @@ from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
-def pbc(d,box):
+def pbc(d, box):
     '''
-    periodic boundary conditions
-    
+    Periodic boundary conditions
     '''
     for i in range(3):
         a = d[:,i]
@@ -52,10 +51,9 @@ def pbc(d,box):
             pos_min = np.min(a)
     return d
 
-def check_inter_particle_distance(snap,minimum_distance=0.95):
+def check_inter_particle_distance(snap, minimum_distance=0.95):
     '''
     Check particle separations.
-    
     '''
     positions = snap.particles.position
     box = snap.configuration.box
@@ -79,7 +77,6 @@ class DPD_RandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
-        primitive,
         density=0.2,
         k=20000,
         bond_l=1.0,
@@ -90,7 +87,7 @@ class DPD_RandomWalk(PlacementGenerator):
         dt=0.001,
         particle_spacing=1.1
     ) -> None:
-        self.primitive = primitive
+        # self.primitive = primitive
         self.density = density
         self.k = k
         self.bond_l = bond_l
@@ -100,6 +97,7 @@ class DPD_RandomWalk(PlacementGenerator):
         self.gamma = gamma
         self.dt = dt
         self.particle_spacing = particle_spacing
+        
     # optional helper methods (to declutter casework from main logic)
     def get_termini_handles(self, chain : TopologicalStructure) -> tuple[Hashable, Hashable]:
         '''
@@ -116,7 +114,7 @@ class DPD_RandomWalk(PlacementGenerator):
             raise ValueError('Unbranched topology must have either 1 or 2 terminal nodes')
 
     # implementing builder contracts
-    def check_preconditions(self, primitive:Primitive) -> None:
+    def check_preconditions(self, primitive : Primitive) -> None:
         '''Enforce that no branches chains exist anywhere'''
         if primitive.topology.is_branched:
             raise ValueError('Random walk chain builder behavior undefined for branched topologies')
@@ -125,7 +123,7 @@ class DPD_RandomWalk(PlacementGenerator):
         #if any((subprim.shape is None) for subprim in primitive.children):
         #    raise TypeError('Random walk chain builder requires ellipsoidal or spherical beads to determine step sizes')
     
-    def _generate_placements(self, primitive:Primitive) :
+    def _generate_placements(self, primitive : Primitive) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         '''
         Trying to use universe of chains to set monomer positions
         primitive passed in here should be a universe primitive that has chains to loop over 
@@ -134,7 +132,7 @@ class DPD_RandomWalk(PlacementGenerator):
         '''
         frame = gsd.hoomd.Frame()
         frame.particles.types = ['A'] #TODO: introduce HMT's?
-        frame.particles.N = self.primitive.topology.number_of_nodes() 
+        frame.particles.N = primitive.topology.number_of_nodes() 
         frame.particles.typeid = np.zeros(frame.particles.N)
         frame.particles.position = np.zeros((frame.particles.N,3)) #populate with random walks
         #frame.bonds.N = self.primitive.topology.number_of_edges()
@@ -149,7 +147,7 @@ class DPD_RandomWalk(PlacementGenerator):
 
         h2i = {}
         i=0
-        for chain in self.primitive.topology.chains:
+        for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Chains missing edges?
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
             h2i[head_handle] = i
@@ -188,13 +186,8 @@ class DPD_RandomWalk(PlacementGenerator):
             simulation.run(1000)
         snap=simulation.state.get_snapshot()
 
-        for chain in self.primitive.topology.chains:
+        for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Same issue as above
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
             for handle in path:
                 yield handle, snap.particles.position[h2i[handle]]
-
-
-
-
-
