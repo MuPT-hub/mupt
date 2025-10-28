@@ -9,8 +9,8 @@ LOGGER.setLevel(logging.DEBUG)
 import freud
 import gsd, gsd.hoomd 
 import hoomd 
-import numpy as np
-import time
+from hoomd.write import DCD
+from hoomd.trigger import Periodic
 
 from typing import (
     Generator,
@@ -90,15 +90,18 @@ class DPDRandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
-        density=0.2,
-        k=20000,
-        bond_l=1.0,
-        r_cut=1.2,
-        kT=1.0,
-        A=5000,
-        gamma=800,
-        dt=0.001,
-        particle_spacing=1.1
+        density : float=0.2,
+        k : float=20000,
+        bond_l : float=1.0,
+        r_cut : float=1.2,
+        kT : float=1.0,
+        A : float=5000,
+        gamma : float=800,
+        dt : float=0.001,
+        particle_spacing=1.1,
+        step_per_interval : int=1_000,
+        report_interval : int=50_000,
+        max_steps : int=1_000_000,
     ) -> None:
         # self.primitive = primitive
         self.density = density
@@ -110,6 +113,10 @@ class DPDRandomWalk(PlacementGenerator):
         self.gamma = gamma
         self.dt = dt
         self.particle_spacing = particle_spacing
+        
+        self.step_per_interval = step_per_interval
+        self.report_interval = report_interval
+        self.max_steps = max_steps
         
     # optional helper methods (to declutter casework from main logic)
     def get_termini_handles(self, chain : TopologicalStructure) -> tuple[Hashable, Hashable]:
@@ -218,12 +225,24 @@ class DPDRandomWalk(PlacementGenerator):
         integrator.forces.append(DPD)
         
         # Run Simulation in intervals until bond lengths converge
-        LOGGER.debug('Beginning HOOMd Simulation')
-        simulation.run(1000)
+        with gsd.hoomd.open(name="dpd.gsd", mode="w") as f:
+            f.append(frame)
+    
+        dcd = DCD(
+            trigger=hoomd.trigger.Periodic(self.report_interval),
+            filename='dpd_test.dcd',
+        )
+        simulation.operations.writers.append(dcd)
+        
+        LOGGER.debug('Beginning HOOMD Simulation')
+        # simulation.run(1000)
         snap = simulation.state.get_snapshot()
-        while not check_inter_particle_distance(snap, minimum_distance=0.95): #TODO: update min_distance?
-            LOGGER.debug('Bond lengths not converged; continuing simulation')
-            simulation.run(1000)
+        total_steps_run : int = 0
+        while (not check_inter_particle_distance(snap, minimum_distance=0.95)) and (total_steps_run < self.max_steps):
+            if (total_steps_run % self.report_interval) == 0:
+                LOGGER.debug(f'Bond lengths not converged after {total_steps_run} steps; continuing simulation')
+            simulation.run(self.step_per_interval)
+            total_steps_run += self.step_per_interval
         LOGGER.debug('Bond lengths converged; ending simulation')
         snap = simulation.state.get_snapshot()
 
