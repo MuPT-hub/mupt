@@ -2,6 +2,10 @@
 
 __author__ = ''
 
+import logging
+LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.DEBUG)
+
 import freud
 import gsd, gsd.hoomd 
 import hoomd 
@@ -15,6 +19,7 @@ from typing import (
     Optional,
     Sized,
     Union,
+    Sequence,
 )
 from numbers import Number
 from collections import defaultdict
@@ -26,7 +31,7 @@ from networkx import all_simple_paths
 from .base import PlacementGenerator
 from ..mutils.iteration import flexible_iterator, sliding_window
 
-from ..geometry.arraytypes import Shape, Dims
+from ..geometry.arraytypes import Shape, Dims, N
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
@@ -36,12 +41,15 @@ from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
-def pbc(d, box):
+def pbc(
+    positions : np.ndarray[Shape[N, 3], float],
+    box : Sequence[float],
+) -> np.ndarray[Shape[N, 3], float]:
     '''
     Periodic boundary conditions
     '''
     for i in range(3):
-        a = d[:,i]
+        a = positions[:,i]
         pos_max = np.max(a)
         pos_min = np.min(a)
         while pos_max > box[i]/2 or pos_min < -box[i]/2:
@@ -49,9 +57,12 @@ def pbc(d, box):
             a[a >  box[i]/2] -= box[i]
             pos_max = np.max(a)
             pos_min = np.min(a)
-    return d
+    return positions # TB: is "a" acted on in-place here? If so, why return the array that's already been modified in-place?
 
-def check_inter_particle_distance(snap, minimum_distance=0.95):
+def check_inter_particle_distance(
+    snap : hoomd.Snapshot,
+    minimum_distance : float=0.95,
+) -> bool:
     '''
     Check particle separations.
     '''
@@ -64,7 +75,7 @@ def check_inter_particle_distance(snap, minimum_distance=0.95):
     )
     nlist = aq_query.toNeighborList()
     if len(nlist)==0:
-        print("Inter-particle separation reached.")
+        LOGGER.info("Inter-particle separation reached.")
         return True
     else:
         return False
@@ -105,7 +116,7 @@ class DPD_RandomWalk(PlacementGenerator):
         Returns the pair of node labels of the termini (a pair of the same value twice for single-node graphs)
         '''
         termini = tuple(chain.termini)
-        print(termini) #DEBUG
+        LOGGER.debug(termini)
         if len(termini) == 2:
             return termini
         elif len(termini) == 1: 
@@ -142,19 +153,19 @@ class DPD_RandomWalk(PlacementGenerator):
         L = np.cbrt(frame.particles.N / self.density) 
         if (L<3*self.r_cut):
             L = 3*self.r_cut
-            print("Warning: Small number of particles, lowering density to {}, and L={}".format(frame.particles.N/(L**3),L))
+            LOGGER.warning("Small number of particles, lowering density to {}, and L={}".format(frame.particles.N/(L**3),L))
         frame.configuration.box = [L, L, L, 0, 0, 0]
 
-        h2i = {}
-        i=0
+        h2i : dict[PrimitiveHandle, int] = dict()
+        i : int = 0
         for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Chains missing edges?
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
             h2i[head_handle] = i
             frame.particles.position[i] = np.random.uniform(low=(-L/2),high=(L/2),size=3)
-            print("chain")
+            LOGGER.debug("chain")
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
-                print("adding a bond")
+                LOGGER.debug("adding a bond")
                 i+=1
                 h2i[prim_handle_incoming] = i        
                 bonds.append( [h2i[prim_handle_outgoing],h2i[prim_handle_incoming]] )
@@ -162,6 +173,7 @@ class DPD_RandomWalk(PlacementGenerator):
                 delta /= np.linalg.norm(delta)*self.bond_l
                 frame.particles.position[h2i[prim_handle_incoming]] = frame.particles.position[h2i[prim_handle_outgoing]] + delta
         
+        # set up HOOMD Simulation
         frame.particles.position = pbc(frame.particles.position,[L,L,L])
         frame.bonds.group = bonds
         frame.bonds.N = len(frame.bonds.group)
@@ -180,12 +192,14 @@ class DPD_RandomWalk(PlacementGenerator):
         DPD.params[('A', 'A')] = dict(A=self.A, gamma=self.gamma)
         integrator.forces.append(DPD)
         
+        # Run Simulation in intervals until bond lengths converge
         simulation.run(1000)
-        snap=simulation.state.get_snapshot()
-        while not check_inter_particle_distance(snap,minimum_distance=0.95): #TODO: update min_distance?
+        snap = simulation.state.get_snapshot()
+        while not check_inter_particle_distance(snap, minimum_distance=0.95): #TODO: update min_distance?
             simulation.run(1000)
-        snap=simulation.state.get_snapshot()
+        snap = simulation.state.get_snapshot()
 
+        # yield placements from final snapshot of simulation
         for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain) #TODO: Same issue as above
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
