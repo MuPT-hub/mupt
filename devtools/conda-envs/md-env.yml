@@ -1,0 +1,53 @@
+name: mupt-mdenv
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+    # Basic Python dependencies
+    # - python>=3.12
+    - python
+    - pip
+    - jupyterlab
+
+    # Unit testing
+    - pytest
+    - pytest-cov
+    - codecov
+    - nbval
+
+    # Mathematics and scientific computing
+    # - numpy>=2.0
+    - numpy
+    - scipy>=1.16.0 # required to allow use of RigidTransform
+    - sympy
+
+    # Graphs
+    - anytree
+    - networkx
+
+    # Visualization
+    - rich
+    - matplotlib
+    - ipympl
+
+    # Chemistry
+    - rdkit
+    - periodictable
+
+    # Molecular Dynamics toolkits
+    ## OpenFF
+    - openff-toolkit
+    - openff-interchange
+
+    ## HOOMD
+    - hoomd
+    - gsd
+    - freud
+    - fresnel
+
+    ## MoSDeF
+    - mbuild
+    - gmso
+
+    # - pip:
+        # - some_pypi_module_name
