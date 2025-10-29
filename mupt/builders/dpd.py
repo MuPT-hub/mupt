@@ -184,6 +184,7 @@ class DPDRandomWalk(PlacementGenerator):
                 size=3,
             )
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
+                # TODO: make note of Connector anchor positions to a) back out orientations at the end and b) check against target bead radii/bond lengths
                 idx_outgoing, idx_incoming = idx_pair = h2i[prim_handle_outgoing], h2i[prim_handle_incoming]
                 LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
                 bonds.append(idx_pair)
@@ -249,9 +250,9 @@ class DPDRandomWalk(PlacementGenerator):
         LOGGER.debug('Bond lengths converged; ending simulation')
         snap = simulation.state.get_snapshot()
         end_time = time.perf_counter()
-        print("Done initializing after {} seconds, with {}s of hoomd".format(end_time - start_time, end_time - hoomd_time ))
+        print(f"Done initializing after {end_time - start_time} seconds, with {end_time - hoomd_time}s of hoomd")
 
         # yield placements from final snapshot of simulation
         for handle, idx in h2i.items():
-            LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
+            # LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
             yield handle, snap.particles.position[idx]
