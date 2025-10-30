@@ -101,15 +101,15 @@ class DPDRandomWalk(PlacementGenerator):
         self,
         density : float=0.2,
         k : float=20000,
-        bond_l : float=1.0,
+        bond_length : float=1.0,
         r_cut : float=1.2,
         kT : float=1.0,
         A : float=5000,
         gamma : float=800,
         dt : float=0.001,
         particle_spacing : float=1.1,
-        step_per_interval : int=1_000,
-        max_steps : int=1_000_000,
+        n_steps_per_interval : int=1_000,
+        n_steps_max : int=1_000_000,
         report_interval : int=50_000,
         output_name : Optional[str]=None,
     ) -> None:
@@ -120,7 +120,7 @@ class DPDRandomWalk(PlacementGenerator):
             Target number density of particles (representing beads) in DPD simulation
         k : float
             Bond spring constant
-        bond_l : float
+        bond_length : float
             Equilibrium bond length
         r_cut : float
             <seek clarification>
@@ -135,9 +135,9 @@ class DPDRandomWalk(PlacementGenerator):
         particle_spacing : float
             Lower bound on particle separation to consider the system converged
             
-        step_per_interval : int
+        n_steps_per_interval : int
             Number of simulation steps to run between convergence checks
-        max_steps : int
+        n_steps_max : int
             Maximum number of simulation steps to run before returning (regardless of convergence)
         report_interval : int
             Number of steps between debug logging reports during simulation
@@ -147,7 +147,7 @@ class DPDRandomWalk(PlacementGenerator):
         '''
         self.density = density
         self.k = k
-        self.bond_l = bond_l
+        self.bond_length = bond_length
         self.r_cut = r_cut
         self.kT = kT
         self.A = A
@@ -155,8 +155,8 @@ class DPDRandomWalk(PlacementGenerator):
         self.dt = dt
         self.particle_spacing = particle_spacing
         
-        self.step_per_interval = step_per_interval
-        self.max_steps = max_steps
+        self.n_steps_per_interval = n_steps_per_interval
+        self.n_steps_max = n_steps_max
         self.report_interval = report_interval
         self.output_name = output_name
         
@@ -234,9 +234,8 @@ class DPDRandomWalk(PlacementGenerator):
                 idx_outgoing, idx_incoming = idx_pair = h2i[prim_handle_outgoing], h2i[prim_handle_incoming]
                 LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
                 bonds.append(idx_pair)
-                delta = self.bond_l * random_unit_vector()
-                # delta = np.random.uniform(low=(-self.bond_l/2),high=(self.bond_l/2),size=3) #TODO
-                # delta /= np.linalg.norm(delta)*self.bond_l
+                
+                delta = self.bond_length * random_unit_vector()
                 frame.particles.position[idx_incoming] = frame.particles.position[idx_outgoing] + delta
         
         ## assign bonded index pairs
@@ -250,7 +249,7 @@ class DPDRandomWalk(PlacementGenerator):
         # set up HOOMD Simulation
         LOGGER.info('Initializing HOOMD Simulation')
         harmonic = hoomd.md.bond.Harmonic()
-        harmonic.params["a"] = dict(r0=self.bond_l, k=self.k)
+        harmonic.params["a"] = dict(r0=self.bond_length, k=self.k)
         
         integrator = hoomd.md.Integrator(dt=self.dt)
         integrator.forces.append(harmonic)
@@ -286,11 +285,11 @@ class DPDRandomWalk(PlacementGenerator):
         while (not check_inter_particle_distance(snap, minimum_distance=self.particle_spacing)):
             if (total_steps_run % self.report_interval) == 0:
                 LOGGER.debug(f'Bond lengths not converged after {total_steps_run} steps; continuing simulation')
-            simulation.run(self.step_per_interval)
-            total_steps_run += self.step_per_interval
+            simulation.run(self.n_steps_per_interval)
+            total_steps_run += self.n_steps_per_interval
             
-            if (total_steps_run >= self.max_steps):
-                LOGGER.warning(f'Maximum simulation steps {self.max_steps} reached before bond lengths converged; terminating simulation early')
+            if (total_steps_run >= self.n_steps_max):
+                LOGGER.warning(f'Maximum simulation steps {self.n_steps_max} reached before bond lengths converged; terminating simulation early')
                 break
         end_time = time.perf_counter()
         LOGGER.info(f'HOOMD simulation concluded after {total_steps_run} steps ({end_time - hoomd_time}s walltime)')
