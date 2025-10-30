@@ -66,7 +66,7 @@ def pbc(
 
 def check_inter_particle_distance(
     snap : hoomd.Snapshot,
-    minimum_distance : float=0.95,
+    minimum_distance : float=1.05,
 ) -> bool:
     '''
     Return whether all distinct particles in the snapshot 
@@ -99,18 +99,18 @@ class DPDRandomWalk(PlacementGenerator):
     '''
     def __init__(
         self,
-        density : float=0.2,
+        density : float=0.8,
         k : float=20000,
-        bond_length : float=1.0,
+        bond_length : float=1.1,
         r_cut : float=1.2,
         kT : float=1.0,
         A : float=5000,
         gamma : float=800,
         dt : float=0.001,
-        particle_spacing : float=1.1,
+        particle_spacing : float=1.0,
         n_steps_per_interval : int=1_000,
         n_steps_max : int=1_000_000,
-        report_interval : int=50_000,
+        report_interval : int=1_000,
         output_name : Optional[str]=None,
     ) -> None:
         '''
@@ -182,8 +182,8 @@ class DPDRandomWalk(PlacementGenerator):
             raise ValueError('Random walk chain builder behavior undefined for branched topologies')
         
         #TODO: Add shapes
-        #if any((subprim.shape is None) for subprim in primitive.children):
-        #    raise TypeError('Random walk chain builder requires ellipsoidal or spherical beads to determine step sizes')
+        if any((subprim.shape is None) for subprim in primitive.children):
+            raise TypeError('Random walk chain builder requires ellipsoidal or spherical beads to determine step sizes')
     
     def _generate_placements(self, primitive : Primitive) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         '''
@@ -278,19 +278,20 @@ class DPDRandomWalk(PlacementGenerator):
             simulation.operations.writers.append(gsd1)
         
         LOGGER.info('Beginning HOOMD Simulation Run')
-        # simulation.run(1000)
+        simulation.run(1)
         hoomd_time = time.perf_counter()
-        snap = simulation.state.get_snapshot()
         total_steps_run : int = 0
+        snap = simulation.state.get_snapshot()
         while (not check_inter_particle_distance(snap, minimum_distance=self.particle_spacing)):
+            snap = simulation.state.get_snapshot()
             if (total_steps_run % self.report_interval) == 0:
-                LOGGER.debug(f'Bond lengths not converged after {total_steps_run} steps; continuing simulation')
+                LOGGER.debug(f'Some particles are still too close after {total_steps_run} steps; continuing simulation')
             simulation.run(self.n_steps_per_interval)
             total_steps_run += self.n_steps_per_interval
-            
             if (total_steps_run >= self.n_steps_max):
                 LOGGER.warning(f'Maximum simulation steps {self.n_steps_max} reached before bond lengths converged; terminating simulation early')
                 break
+        gsd1.flush()
         end_time = time.perf_counter()
         LOGGER.info(f'HOOMD simulation concluded after {total_steps_run} steps ({end_time - hoomd_time}s walltime)')
 
