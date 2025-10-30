@@ -50,7 +50,8 @@ def pbc(
     box : Sequence[float],
 ) -> np.ndarray[Shape[N, 3], float]:
     '''
-    Periodic boundary conditions
+    Apply periodic boundary conditions to a set of positions,
+    "wrapping" them into the box defined by "box"
     '''
     for i in range(3):
         a = positions[:,i]
@@ -68,18 +69,24 @@ def check_inter_particle_distance(
     minimum_distance : float=0.95,
 ) -> bool:
     '''
-    Check particle separations.
+    Return whether all distinct particles in the snapshot 
+    have separated to a distance greater than minimum_distance
     '''
     positions = snap.particles.position
     box = snap.configuration.box
     aq = freud.locality.AABBQuery(box,positions)
     aq_query = aq.query(
         query_points=positions,
-        query_args=dict(r_min=0.0, r_max=minimum_distance, exclude_ii=True),
+        query_args=dict(
+            r_min=0.0,
+            r_max=minimum_distance,
+            exclude_ii=True,
+        ),
     )
     nlist = aq_query.toNeighborList()
-    if len(nlist)==0:
-        LOGGER.info("Inter-particle separation reached.")
+    
+    if len(nlist) == 0:
+        LOGGER.info(f'Inter-particle separation >{minimum_distance} reached')
         return True
     else:
         return False
@@ -100,12 +107,44 @@ class DPDRandomWalk(PlacementGenerator):
         A : float=5000,
         gamma : float=800,
         dt : float=0.001,
-        particle_spacing=1.1,
+        particle_spacing : float=1.1,
         step_per_interval : int=1_000,
-        report_interval : int=50_000,
         max_steps : int=1_000_000,
+        report_interval : int=50_000,
+        output_name : Optional[str]=None,
     ) -> None:
-        # self.primitive = primitive
+        '''
+        Parameters
+        ----------
+        density : float
+            Target number density of particles (representing beads) in DPD simulation
+        k : float
+            Bond spring constant
+        bond_l : float
+            Equilibrium bond length
+        r_cut : float
+            <seek clarification>
+        kT : float
+            Thermostat temperature, in energy units
+        A : float
+            Maximum pairwise repulsion force between particles
+        gamma : float
+            Effective friction coefficient (in units is velocity)
+        dt : float
+            Time step for simulation
+        particle_spacing : float
+            Lower bound on particle separation to consider the system converged
+            
+        step_per_interval : int
+            Number of simulation steps to run between convergence checks
+        max_steps : int
+            Maximum number of simulation steps to run before returning (regardless of convergence)
+        report_interval : int
+            Number of steps between debug logging reports during simulation
+        output_name : Optional[str]
+            Filename for initial snapshot and trajectory output, if those are desired
+            No output produced if None
+        '''
         self.density = density
         self.k = k
         self.bond_l = bond_l
@@ -117,8 +156,9 @@ class DPDRandomWalk(PlacementGenerator):
         self.particle_spacing = particle_spacing
         
         self.step_per_interval = step_per_interval
-        self.report_interval = report_interval
         self.max_steps = max_steps
+        self.report_interval = report_interval
+        self.output_name = output_name
         
     # optional helper methods (to declutter casework from main logic)
     def get_termini_handles(self, chain : TopologicalStructure) -> tuple[Hashable, Hashable]:
@@ -153,7 +193,6 @@ class DPDRandomWalk(PlacementGenerator):
         If we assume chains are looped over in the same way, we can map from handles to indices
         '''
         # Initialize HOOMD Frame (initial snapshot) and periodic box
-        start_time = time.perf_counter()
         frame = gsd.hoomd.Frame()
         
         ## Pre-allocate space for particles
@@ -161,7 +200,15 @@ class DPDRandomWalk(PlacementGenerator):
         frame.particles.N = primitive.topology.number_of_nodes() # TB: would be nice to set after iterating over children, but needed to size box
         frame.particles.typeid = np.zeros(frame.particles.N)
         frame.particles.position = np.zeros((frame.particles.N, 3)) # populate with random walks
+
+        ## size (for now cubic) periodic box
         L = np.cbrt(frame.particles.N / self.density) 
+        if (L < 3*self.r_cut):
+            L : float = 3*self.r_cut
+            V_new : float = L**3
+            LOGGER.warning(
+                f"Small number of particles, lowering density to {frame.particles.N / V_new}, and L={L}"
+            )
         
         # Read info from chains in universe topology into HOOMD Frame
         #frame.bonds.N = self.primitive.topology.number_of_edges()
@@ -177,7 +224,6 @@ class DPDRandomWalk(PlacementGenerator):
             for bead_handle in path:
                 h2i[bead_handle] = next(particle_indexer)
             
-            LOGGER.debug("chain")
             frame.particles.position[h2i[head_handle]] = np.random.uniform( # place head randomly within box bounds
                 low=(-L/2),
                 high=(L/2),
@@ -198,16 +244,11 @@ class DPDRandomWalk(PlacementGenerator):
         frame.bonds.N = len(frame.bonds.group)
         
         ## set periodic box based on initial positions and target density
-        if (L < 3*self.r_cut):
-            L = 3*self.r_cut
-            LOGGER.warning(
-                f"Small number of particles, lowering density to {frame.particles.N/(L**3)}, and L={L}"
-            )
         frame.configuration.box = [L, L, L, 0, 0, 0] # monoclinic cubic box with scale L
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
         
         # set up HOOMD Simulation
-        LOGGER.debug('Initializing HOOMD Simulation')
+        LOGGER.info('Initializing HOOMD Simulation')
         harmonic = hoomd.md.bond.Harmonic()
         harmonic.params["a"] = dict(r0=self.bond_l, k=self.k)
         
@@ -228,31 +269,36 @@ class DPDRandomWalk(PlacementGenerator):
         integrator.forces.append(DPD)
         
         # Run Simulation in intervals until bond lengths converge
-        with gsd.hoomd.open(name="dpd.gsd", mode='w') as f:
-            f.append(frame)
-    
-        gsd1= GSD(
-            trigger=hoomd.trigger.Periodic(self.report_interval),
-            filename='traj.gsd',
-        )
-        simulation.operations.writers.append(gsd1)
+        if self.output_name is not None:
+            with gsd.hoomd.open(name=f'{self.output_name}_init.gsd', mode='w') as f:
+                f.append(frame)
+            gsd1 = GSD(
+                trigger=hoomd.trigger.Periodic(self.report_interval),
+                filename=f'{self.output_name}_traj.gsd',
+            )
+            simulation.operations.writers.append(gsd1)
         
-        LOGGER.debug('Beginning HOOMD Simulation')
+        LOGGER.info('Beginning HOOMD Simulation Run')
         # simulation.run(1000)
         hoomd_time = time.perf_counter()
         snap = simulation.state.get_snapshot()
         total_steps_run : int = 0
-        while (not check_inter_particle_distance(snap, minimum_distance=self.particle_spacing)) and (total_steps_run < self.max_steps):
+        while (not check_inter_particle_distance(snap, minimum_distance=self.particle_spacing)):
             if (total_steps_run % self.report_interval) == 0:
                 LOGGER.debug(f'Bond lengths not converged after {total_steps_run} steps; continuing simulation')
             simulation.run(self.step_per_interval)
             total_steps_run += self.step_per_interval
-        LOGGER.debug('Bond lengths converged; ending simulation')
-        snap = simulation.state.get_snapshot()
+            
+            if (total_steps_run >= self.max_steps):
+                LOGGER.warning(f'Maximum simulation steps {self.max_steps} reached before bond lengths converged; terminating simulation early')
+                break
         end_time = time.perf_counter()
-        print(f"Done initializing after {end_time - start_time} seconds, with {end_time - hoomd_time}s of hoomd")
+        LOGGER.info(f'HOOMD simulation concluded after {total_steps_run} steps ({end_time - hoomd_time}s walltime)')
 
         # yield placements from final snapshot of simulation
+        snap = simulation.state.get_snapshot()
         for handle, idx in h2i.items():
             # LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
-            yield handle, snap.particles.position[idx]
+            placement = RigidTransform.from_translation(snap.particles.position[idx])
+            # TODO: back out orientation based on position of neighbors
+            yield handle, placement
