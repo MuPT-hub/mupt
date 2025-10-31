@@ -110,6 +110,7 @@ class DPDRandomWalk(PlacementGenerator):
         gamma : float=800,
         dt : float=0.001,
         particle_spacing : float=1.0,
+        bead_separation : float=0.0,
         n_steps_per_interval : int=1_000,
         n_steps_max : int=1_000_000,
         report_interval : int=1_000,
@@ -136,6 +137,9 @@ class DPDRandomWalk(PlacementGenerator):
             Time step for simulation
         particle_spacing : float
             Lower bound on particle separation to consider the system converged
+        bead_separation : float
+            The "real" (i.e. unscaled) distance in angstrom between adjacent beads
+            Represents a bond length between bead anchor points
             
         n_steps_per_interval : int
             Number of simulation steps to run between convergence checks
@@ -157,6 +161,7 @@ class DPDRandomWalk(PlacementGenerator):
         self.dt = dt
         self.particle_spacing = particle_spacing
         
+        self.bead_separation = bead_separation
         self.n_steps_per_interval = n_steps_per_interval
         self.n_steps_max = n_steps_max
         self.report_interval = report_interval
@@ -219,19 +224,23 @@ class DPDRandomWalk(PlacementGenerator):
         bonds : list[tuple[int, int]] = []
         bond_types : list[str] = ['a']
         
-        particle_indexer : Iterator[int] = count(0)
-        handle_to_hoomd_idx : dict[PrimitiveHandle, int] = dict()
+        hoomd_chains : dict[int, tuple[int]] = dict() # for preserving chain order for orientation calc
+        handle_to_particle_idx : dict[PrimitiveHandle, int] = dict()
         reference_anchor_positions : dict[int, np.ndarray[Shape[2, 3], float]] = dict()
         effective_radii : dict[int, float] = dict()
         
-        for chain in primitive.topology.chains:
+        particle_indexer : Iterator[int] = count(0)
+        for chain_idx, chain in enumerate(primitive.topology.chains):
             head_handle, tail_handle = termini = self.get_termini_handles(chain)
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
+
+            chain_indices : list[int] = []
             for bead_handle in path:
                 is_terminal : bool = ((bead_handle == head_handle) or (bead_handle == tail_handle))
                 # determine unique int idx for corresponding particle in HOOMD Frame
-                hoomd_idx = next(particle_indexer)
-                handle_to_hoomd_idx[bead_handle] = hoomd_idx
+                particle_idx = next(particle_indexer)
+                chain_indices.append(particle_idx)
+                handle_to_particle_idx[bead_handle] = particle_idx
 
                 # determine reference anchor points for effective radius scaling and orientation back-calculation post-simulation
                 anchor_positions = np.zeros((2, 3), dtype=float)
@@ -247,22 +256,21 @@ class DPDRandomWalk(PlacementGenerator):
                         radial_vector = conn.anchor.position - bead_prim.shape.centroid
                         diametric_anchor_pos = bead_prim.shape.centroid - radial_vector
                         anchor_positions[traver_dir_idx[TraversalDirection.complement(traver_dir)],:] = diametric_anchor_pos 
-                LOGGER.info(f'Anchor positions for bead "{bead_handle}" (idx {hoomd_idx}, {is_terminal=}): {anchor_positions}')
-                reference_anchor_positions[hoomd_idx] = anchor_positions
+                reference_anchor_positions[particle_idx] = anchor_positions
 
                 r_eff : float = np.linalg.norm(np.subtract(*anchor_positions)) / 2.0 
-                effective_radii[hoomd_idx] = r_eff
+                effective_radii[particle_idx] = r_eff
+            hoomd_chains[chain_idx] = tuple(chain_indices)
             
             # assign positions to LJ particle counterparts in simulation
-            frame.particles.position[handle_to_hoomd_idx[head_handle]] = np.random.uniform( # place head randomly within box bounds
+            frame.particles.position[handle_to_particle_idx[head_handle]] = np.random.uniform( # place head randomly within box bounds
                 low=(-L/2),
                 high=(L/2),
                 size=3,
             )
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
-                # TODO: make note of Connector anchor positions to a) back out orientations at the end and b) check against target bead radii/bond lengths
-                idx_outgoing, idx_incoming = idx_pair = handle_to_hoomd_idx[prim_handle_outgoing], handle_to_hoomd_idx[prim_handle_incoming]
-                LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
+                idx_outgoing, idx_incoming = idx_pair = handle_to_particle_idx[prim_handle_outgoing], handle_to_particle_idx[prim_handle_incoming]
+                # LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
                 bonds.append(idx_pair)
                 
                 delta = self.bond_length * random_unit_vector()
@@ -292,7 +300,7 @@ class DPDRandomWalk(PlacementGenerator):
         frame.configuration.box = [L, L, L, 0, 0, 0] # monoclinic cubic box with scale L
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
         
-        # InitializeHOOMD Simulation
+        # Initialize HOOMD Simulation
         LOGGER.info('Initializing HOOMD Simulation')
         simulation = hoomd.Simulation(
             device=hoomd.device.auto_select(),
@@ -337,13 +345,50 @@ class DPDRandomWalk(PlacementGenerator):
         end_time = time.perf_counter()
         LOGGER.info(f'HOOMD simulation concluded after {total_steps_run} steps ({end_time - hoomd_time}s walltime)')
 
-        # yield placements from final snapshot of simulation
+        # apply proper scaling to LJ beads and post-process final snapshot
+        ## determine on-body (assumed spherical) secant points for each LJ sphere
         snap = simulation.state.get_snapshot()
-        positions_scaled = snap.particles.position * (2*R_max) # TODO: add in "real" bond length for scaling
+        scale_factor : float = 2*R_max + self.bead_separation # NOTE: scaling by max ensures beads never intersect, even with 0 bead separation
+        positions_scaled = scale_factor * snap.particles.position
 
-        for handle, hoomd_idx in handle_to_hoomd_idx.items():
-            # LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
-            placement = RigidTransform.from_translation(positions_scaled[hoomd_idx])
-            LOGGER.debug(f'Orient is {Rotation.from_quat(snap.particles.orientation[hoomd_idx])}')
+        orient_marker_points = np.zeros((frame.particles.N, 3, 3), dtype=float) # each 3x3 slice store incoming-center-outgoing pos for particles
+        for chain_idx, particle_indices in hoomd_chains.items():
+            chain_particle_centers = positions_scaled[particle_indices,:]
+            chain_radii = np.array([effective_radii[idx] for idx in particle_indices]) # shape[N]
+
+            ## determine steps to secant points on spheres forward and backward along chain relative to bead centers
+            unit_step_vectors = normalized( np.diff(chain_particle_centers, axis=0) ) # shape [N - 1]
+            fwd_steps =  chain_radii[:-1, np.newaxis] * unit_step_vectors  
+            bwd_steps = -chain_radii[ 1:, np.newaxis] * unit_step_vectors
+            fwd_steps = np.vstack([fwd_steps, -bwd_steps[-1]]) # final step would "step past" the tail bead by same amount as incoming into tail (but in opposite direction)
+            bwd_steps = np.vstack([-fwd_steps[-1], bwd_steps]) # first step would "step before" the head bead by same amount as outgoing from head (but in opposite direction)
+
+            ## take steps to set incoming and outgoing positions for all beads
+            orient_marker_points[particle_indices, 0, :] = chain_particle_centers + bwd_steps # NOTE: order of deltas is correct here; incoming point is "before" center
+            orient_marker_points[particle_indices, 1, :] = chain_particle_centers
+            orient_marker_points[particle_indices, 2, :] = chain_particle_centers + fwd_steps
+            # LOGGER.debug(f'Chain #{chain_idx} has markers {orient_marker_points[particle_indices,:,:]}')
+
+        ## determine and cache final PBC unit cell parameters
+        Lx, Ly, Lz, alpha, beta, gamma = snap.configuration.box
+        box_scaled = [
+            float(scale_factor*Lx), # coerce from numpy float for eventual SD file storage
+            float(scale_factor*Ly),
+            float(scale_factor*Lz),
+            alpha,
+            beta,
+            gamma,
+        ]
+        primitive.metadata['unit_cell_parameters'] = box_scaled
+        LOGGER.info(f'Final box: {box_scaled}') # TODO: scale up box
+
+        # yield placements from final snapshot of simulation
+        for handle, particle_idx in handle_to_particle_idx.items():
+            point_incoming, point_center, point_outgoing = orient_marker_points[particle_idx, :, :]
+            reference_incoming, reference_outgoing = reference_anchor_positions[particle_idx]
+
+            # TODO: calculate orientations from rigid vector alignment
+
+            placement = RigidTransform.from_translation(positions_scaled[particle_idx])
             # TODO: back out orientation based on position of neighbors
             yield handle, placement
