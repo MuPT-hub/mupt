@@ -341,7 +341,6 @@ class DPDRandomWalk(PlacementGenerator):
             if (total_steps_run >= self.n_steps_max):
                 LOGGER.warning(f'Some particles are still too close after maximum simulation step {self.n_steps_max} reached; terminating simulation early')
                 break
-        gsd1.flush()
         end_time = time.perf_counter()
         LOGGER.info(f'HOOMD simulation concluded after {total_steps_run} steps ({end_time - hoomd_time}s walltime)')
 
@@ -364,9 +363,9 @@ class DPDRandomWalk(PlacementGenerator):
             bwd_steps = np.vstack([-fwd_steps[-1], bwd_steps]) # first step would "step before" the head bead by same amount as outgoing from head (but in opposite direction)
 
             ## take steps to set incoming and outgoing positions for all beads
-            orient_marker_points[particle_indices, 0, :] = chain_particle_centers + bwd_steps # NOTE: order of deltas is correct here; incoming point is "before" center
+            orient_marker_points[particle_indices, 0, :] = chain_particle_centers + fwd_steps
             orient_marker_points[particle_indices, 1, :] = chain_particle_centers
-            orient_marker_points[particle_indices, 2, :] = chain_particle_centers + fwd_steps
+            orient_marker_points[particle_indices, 2, :] = chain_particle_centers + bwd_steps
             # LOGGER.debug(f'Chain #{chain_idx} has markers {orient_marker_points[particle_indices,:,:]}')
 
         ## determine and cache final PBC unit cell parameters
@@ -387,8 +386,13 @@ class DPDRandomWalk(PlacementGenerator):
             point_incoming, point_center, point_outgoing = orient_marker_points[particle_idx, :, :]
             reference_incoming, reference_outgoing = reference_anchor_positions[particle_idx]
 
-            # TODO: calculate orientations from rigid vector alignment
-
-            placement = RigidTransform.from_translation(positions_scaled[particle_idx])
-            # TODO: back out orientation based on position of neighbors
+            secant_vector = point_outgoing - point_incoming # span chord within spehrical bead between inter-bead anchor points
+            placement = rigid_vector_coalignment(
+                reference_incoming,
+                reference_outgoing,
+                point_center,
+                point_center + secant_vector, # radial vector parallel to the secant
+                t1=0.5, # align midpoint of reference anchors...
+                t2=0.0, # with center of final bead position
+            )
             yield handle, placement
