@@ -3,6 +3,7 @@
 __author__ = ''
 
 import logging
+
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
 
@@ -40,9 +41,10 @@ from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
 from ..geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.shapes import Sphere, Ellipsoid
 
 from ..mupr.topology import TopologicalStructure
-from ..mupr.connection import Connector
+from ..mupr.connection import Connector, TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 def pbc(
@@ -182,8 +184,9 @@ class DPDRandomWalk(PlacementGenerator):
             raise ValueError('Random walk chain builder behavior undefined for branched topologies')
         
         #TODO: Add shapes
-        if any((subprim.shape is None) for subprim in primitive.children):
-            raise TypeError('Random walk chain builder requires ellipsoidal or spherical beads to determine step sizes')
+        for subprim in primitive.children:
+            if not isinstance(subprim.shape, (Ellipsoid, Sphere)):
+                raise ValueError('Random walk chain builder requires ellipsoidal or spherical beads to determine step sizes')
     
     def _generate_placements(self, primitive : Primitive) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         '''
@@ -218,12 +221,36 @@ class DPDRandomWalk(PlacementGenerator):
         
         particle_indexer : Iterator[int] = count(0)
         handle_to_hoomd_idx : dict[PrimitiveHandle, int] = dict()
+        reference_anchor_positions : dict[int, np.ndarray[Shape[2, 3], float]] = dict()
+        
         for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain)
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
             for bead_handle in path:
-                handle_to_hoomd_idx[bead_handle] = next(particle_indexer)
+                is_terminal : bool = ((bead_handle == head_handle) or (bead_handle == tail_handle))
+                # determine unique int idx for corresponding particle in HOOMD Frame
+                hoomd_idx = next(particle_indexer)
+                handle_to_hoomd_idx[bead_handle] = hoomd_idx
+
+                # determine reference anchor points for effective radius scaling and orientation back-calculation post-simulation
+                anchor_positions = np.zeros((2, 3), dtype=float)
+                bead_prim : Primitive = primitive.fetch_child(bead_handle)
+                for conn_handle, conn in bead_prim.connectors.items():
+                    traver_dir : TraversalDirection = next(att for att in conn.anchor.attachables if isinstance(att, TraversalDirection))
+                    traver_dir_idx : dict[TraversalDirection, int] = {
+                        TraversalDirection.ANTERO: 0,
+                        TraversalDirection.RETRO: 1,
+                    }
+                    anchor_positions[traver_dir_idx[traver_dir],:] = conn.anchor.position
+                    if is_terminal:
+                        radial_vector = conn.anchor.position - bead_prim.shape.centroid
+                        diametric_anchor_pos = bead_prim.shape.centroid - radial_vector
+                        anchor_positions[traver_dir_idx[TraversalDirection.complement(traver_dir)],:] = diametric_anchor_pos 
+                LOGGER.info(f'Anchor positions for bead "{bead_handle}" (idx {hoomd_idx}, {is_terminal=}): {anchor_positions}')
+                reference_anchor_positions[hoomd_idx] = anchor_positions
+                r_eff : float = np.linalg.norm(np.subtract(*anchor_positions)) / 2.0 # TODO: cache, use to pick bond length and type in pair iteration below
             
+            # assign positions to LJ particle counterparts in simulation
             frame.particles.position[handle_to_hoomd_idx[head_handle]] = np.random.uniform( # place head randomly within box bounds
                 low=(-L/2),
                 high=(L/2),
