@@ -281,9 +281,10 @@ class DPDRandomWalk(PlacementGenerator):
         simulation.run(1)
         hoomd_time = time.perf_counter()
         total_steps_run : int = 0
-        snap = simulation.state.get_snapshot()
-        while (not check_inter_particle_distance(snap, minimum_distance=self.particle_spacing)):
-            snap = simulation.state.get_snapshot()
+        while not check_inter_particle_distance(
+            snap=simulation.state.get_snapshot(),
+            minimum_distance=self.particle_spacing,
+        ):
             if (total_steps_run % self.report_interval) == 0:
                 LOGGER.debug(f'Some particles are still too close after {total_steps_run} steps; continuing simulation')
             simulation.run(self.n_steps_per_interval)
