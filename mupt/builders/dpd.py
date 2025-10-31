@@ -30,7 +30,7 @@ from collections import defaultdict
 from itertools import count
 
 import numpy as np
-from scipy.spatial.transform import RigidTransform
+from scipy.spatial.transform import RigidTransform, Rotation
 from networkx import all_simple_paths
 
 from .base import PlacementGenerator
@@ -222,6 +222,7 @@ class DPDRandomWalk(PlacementGenerator):
         particle_indexer : Iterator[int] = count(0)
         handle_to_hoomd_idx : dict[PrimitiveHandle, int] = dict()
         reference_anchor_positions : dict[int, np.ndarray[Shape[2, 3], float]] = dict()
+        effective_radii : dict[int, float] = dict()
         
         for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain)
@@ -248,7 +249,9 @@ class DPDRandomWalk(PlacementGenerator):
                         anchor_positions[traver_dir_idx[TraversalDirection.complement(traver_dir)],:] = diametric_anchor_pos 
                 LOGGER.info(f'Anchor positions for bead "{bead_handle}" (idx {hoomd_idx}, {is_terminal=}): {anchor_positions}')
                 reference_anchor_positions[hoomd_idx] = anchor_positions
-                r_eff : float = np.linalg.norm(np.subtract(*anchor_positions)) / 2.0 # TODO: cache, use to pick bond length and type in pair iteration below
+
+                r_eff : float = np.linalg.norm(np.subtract(*anchor_positions)) / 2.0 
+                effective_radii[hoomd_idx] = r_eff
             
             # assign positions to LJ particle counterparts in simulation
             frame.particles.position[handle_to_hoomd_idx[head_handle]] = np.random.uniform( # place head randomly within box bounds
@@ -285,6 +288,7 @@ class DPDRandomWalk(PlacementGenerator):
             LOGGER.debug(f'Set harmonic bond parameters for bond type "{bond_type}": r0={self.bond_length}, k={self.k}')
         
         ## set periodic box based on initial positions and target density
+        R_max = max(effective_radii.values()) # for scaling out of LJ units at the end
         frame.configuration.box = [L, L, L, 0, 0, 0] # monoclinic cubic box with scale L
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
         
@@ -335,8 +339,11 @@ class DPDRandomWalk(PlacementGenerator):
 
         # yield placements from final snapshot of simulation
         snap = simulation.state.get_snapshot()
-        for handle, idx in handle_to_hoomd_idx.items():
+        positions_scaled = snap.particles.position * (2*R_max) # TODO: add in "real" bond length for scaling
+
+        for handle, hoomd_idx in handle_to_hoomd_idx.items():
             # LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
-            placement = RigidTransform.from_translation(snap.particles.position[idx])
+            placement = RigidTransform.from_translation(positions_scaled[hoomd_idx])
+            LOGGER.debug(f'Orient is {Rotation.from_quat(snap.particles.orientation[hoomd_idx])}')
             # TODO: back out orientation based on position of neighbors
             yield handle, placement
