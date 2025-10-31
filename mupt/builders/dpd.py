@@ -214,52 +214,61 @@ class DPDRandomWalk(PlacementGenerator):
         #frame.bonds.N = self.primitive.topology.number_of_edges()
         #frame.bonds.group = np.zeros((frame.bonds.N,2)) # populate this with bond indices
         bonds : list[tuple[int, int]] = []
-        frame.bonds.types = ['a']
+        bond_types : list[str] = ['a']
         
         particle_indexer : Iterator[int] = count(0)
-        h2i : dict[PrimitiveHandle, int] = dict()
+        handle_to_hoomd_idx : dict[PrimitiveHandle, int] = dict()
         for chain in primitive.topology.chains:
             head_handle, tail_handle = termini = self.get_termini_handles(chain)
             path : list[PrimitiveHandle] = next(all_simple_paths(chain, source=head_handle, target=tail_handle)) # raise StopIteration if no path exists
             for bead_handle in path:
-                h2i[bead_handle] = next(particle_indexer)
+                handle_to_hoomd_idx[bead_handle] = next(particle_indexer)
             
-            frame.particles.position[h2i[head_handle]] = np.random.uniform( # place head randomly within box bounds
+            frame.particles.position[handle_to_hoomd_idx[head_handle]] = np.random.uniform( # place head randomly within box bounds
                 low=(-L/2),
                 high=(L/2),
                 size=3,
             )
             for prim_handle_outgoing, prim_handle_incoming in sliding_window(path, 2):
                 # TODO: make note of Connector anchor positions to a) back out orientations at the end and b) check against target bead radii/bond lengths
-                idx_outgoing, idx_incoming = idx_pair = h2i[prim_handle_outgoing], h2i[prim_handle_incoming]
+                idx_outgoing, idx_incoming = idx_pair = handle_to_hoomd_idx[prim_handle_outgoing], handle_to_hoomd_idx[prim_handle_incoming]
                 LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
                 bonds.append(idx_pair)
                 
                 delta = self.bond_length * random_unit_vector()
                 frame.particles.position[idx_incoming] = frame.particles.position[idx_outgoing] + delta
         
-        ## assign bonded index pairs
+        # Specify system for HOOMD Simulation
+        ## define integrator
+        integrator = hoomd.md.Integrator(dt=self.dt)
+        const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
+        integrator.methods.append(const_vol)
+        LOGGER.debug(f'Defined constant-volume integrator with time step={self.dt}')
+        
+        ## assign bonded index pairs and bond parameters
         frame.bonds.group = bonds
-        frame.bonds.N = len(frame.bonds.group)
+        frame.bonds.N = len(bonds)
+        LOGGER.debug(f'Assigned {frame.bonds.N} bonded pairs to HOOMD topology')
+        
+        frame.bonds.types = bond_types
+        for bond_type in bond_types:
+            harmonic = hoomd.md.bond.Harmonic()
+            harmonic.params[bond_type] = dict(r0=self.bond_length, k=self.k)
+            integrator.forces.append(harmonic)
+            LOGGER.debug(f'Set harmonic bond parameters for bond type "{bond_type}": r0={self.bond_length}, k={self.k}')
         
         ## set periodic box based on initial positions and target density
         frame.configuration.box = [L, L, L, 0, 0, 0] # monoclinic cubic box with scale L
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
         
-        # set up HOOMD Simulation
+        # InitializeHOOMD Simulation
         LOGGER.info('Initializing HOOMD Simulation')
-        harmonic = hoomd.md.bond.Harmonic()
-        harmonic.params["a"] = dict(r0=self.bond_length, k=self.k)
-        
-        integrator = hoomd.md.Integrator(dt=self.dt)
-        integrator.forces.append(harmonic)
-        
-        simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=np.random.randint(65000))
+        simulation = hoomd.Simulation(
+            device=hoomd.device.auto_select(),
+            seed=np.random.randint(65_000),
+        )
         simulation.operations.integrator = integrator 
         simulation.create_state_from_snapshot(frame)
-        
-        const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
-        integrator.methods.append(const_vol)
         
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
         simulation.operations.nlist = nlist
@@ -268,7 +277,7 @@ class DPDRandomWalk(PlacementGenerator):
         integrator.forces.append(DPD)
         
         # Run Simulation in intervals until bond lengths converge
-        if self.output_name is not None:
+        if (self.output_name is not None):
             with gsd.hoomd.open(name=f'{self.output_name}_init.gsd', mode='w') as f:
                 f.append(frame)
             gsd1 = GSD(
@@ -285,12 +294,13 @@ class DPDRandomWalk(PlacementGenerator):
             snap=simulation.state.get_snapshot(),
             minimum_distance=self.particle_spacing,
         ):
-            if (total_steps_run % self.report_interval) == 0:
-                LOGGER.debug(f'Some particles are still too close after {total_steps_run} steps; continuing simulation')
             simulation.run(self.n_steps_per_interval)
             total_steps_run += self.n_steps_per_interval
+            if (total_steps_run % self.report_interval) == 0:
+                LOGGER.debug(f'Integrated {total_steps_run} steps; continuing simulation')
+            
             if (total_steps_run >= self.n_steps_max):
-                LOGGER.warning(f'Maximum simulation steps {self.n_steps_max} reached before bond lengths converged; terminating simulation early')
+                LOGGER.warning(f'Some particles are still too close after maximum simulation step {self.n_steps_max} reached; terminating simulation early')
                 break
         gsd1.flush()
         end_time = time.perf_counter()
@@ -298,7 +308,7 @@ class DPDRandomWalk(PlacementGenerator):
 
         # yield placements from final snapshot of simulation
         snap = simulation.state.get_snapshot()
-        for handle, idx in h2i.items():
+        for handle, idx in handle_to_hoomd_idx.items():
             # LOGGER.debug(f'Final position of "{handle}" (idx {idx}): {snap.particles.position[idx]}')
             placement = RigidTransform.from_translation(snap.particles.position[idx])
             # TODO: back out orientation based on position of neighbors
