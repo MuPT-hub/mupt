@@ -46,7 +46,7 @@ dependencies:
     - fresnel
 
     ## MoSDeF
-    - mbuild
+    # - mbuild # DEV: dependencies and env solve really don't play nice w/ OpenFF - hiding for now, since unused in code + examples
     - gmso
 
     # - pip:
