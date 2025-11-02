@@ -5,20 +5,30 @@ Multiscale Polymer Toolkit
 [![codecov](https://codecov.io/gh/MuPT_Hub/mupt/branch/main/graph/badge.svg)](https://codecov.io/gh/MuPT_Hub/mupt/branch/main)
 
 
-Drafting repository for the core functionality of the Multiscale Polymer Toolkit (MuPT)
+Library of core components and functionality for the Multiscale Polymer Toolkit (MuPT)
 
 ### Installation
 #### Prerequisites
 Installation of the Multiscale Polymer Toolkit (MuPT) makes use of package/environment management systems such as [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) (recommended) or [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html); be sure you have one of these installed on your machine.
 
 #### Base install
-To create a virtual environment with a fully-featured local install of the MuPT, run the following command line instructions in the directory of choice on your machine:
+To create a virtual environment with a local install of the MuPT, first clone the toolkit in a directory of your choice from the command line via:
 ```sh
 git clone https://github.com/MuPT-hub/mupt
 cd mupt
-mamba env create -f devtools/conda-envs/release-env.yml -n mupt-env
+```
+
+Then set up a fully-featured environment by running:
+```sh
+mamba env create -f devtools/conda-envs/release-env.yml
 pip install .
 mamba activate mupt-env
+```
+Or a much lighter (but non-MD capable) env for toolkit-only testing by running:
+```sh
+mamba env create -f devtools/conda-envs/light-env.yml
+pip install .
+mamba activate mupt-lite
 ```
 
 #### Developer install
@@ -28,11 +38,13 @@ To create an environment with such an install, [create a fork](https://docs.gith
 ```sh
 git clone <link-to-your-fork>
 cd mupt
-mamba env create -f devtools/conda-envs/release-env.yml -n mupt-env
+mamba env create -f devtools/conda-envs/dev-env.yml -n mupt-dev
 pip install -e . --config-settings editable_mode=strict
-mamba activate mupt-env
+mamba activate mupt-dev
 ```
 
+### Examples
+See the accompanying [examples repository](https://github.com/MuPT-hub/mupt-examples) for tutorials on usage of the toolkit
 
 ### Copyright
 
