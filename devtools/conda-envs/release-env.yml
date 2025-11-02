@@ -1,4 +1,4 @@
-name: mupt-mdenv
+name: mupt-env
 channels:
   - conda-forge
   - defaults
