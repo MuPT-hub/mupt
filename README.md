@@ -38,7 +38,7 @@ To create an environment with such an install, [create a fork](https://docs.gith
 ```sh
 git clone <link-to-your-fork>
 cd mupt
-mamba env create -f devtools/conda-envs/release-env.yml -n mupt-dev
+mamba env create -f devtools/conda-envs/dev-env.yml -n mupt-dev
 pip install -e . --config-settings editable_mode=strict
 mamba activate mupt-dev
 ```
