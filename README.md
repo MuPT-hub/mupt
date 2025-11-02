@@ -5,7 +5,7 @@ Multiscale Polymer Toolkit
 [![codecov](https://codecov.io/gh/MuPT_Hub/mupt/branch/main/graph/badge.svg)](https://codecov.io/gh/MuPT_Hub/mupt/branch/main)
 
 
-Drafting repository for the core functionality of the Multiscale Polymer Toolkit (MuPT)
+Library of core components and functionality for the Multiscale Polymer Toolkit (MuPT)
 
 ### Installation
 #### Prerequisites
@@ -43,6 +43,8 @@ pip install -e . --config-settings editable_mode=strict
 mamba activate mupt-dev
 ```
 
+### Examples
+See the accompanying [examples repository](https://github.com/MuPT-hub/mupt-examples) for tutorials on usage of the toolkit
 
 ### Copyright
 
