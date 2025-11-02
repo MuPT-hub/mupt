@@ -30,15 +30,19 @@ dependencies:
 
     # Molecular libraries
     - rdkit
+    - py3Dmol
+    - openbabel>=3.0
+    - mbuild >=1.0
     - periodictable
 
     # MD libraries
     - openff-toolkit
     - openff-interchange
-    - gsd
-    - hoomd
-    # - freud
+    - gsd>=3.0
+    - hoomd=5.3.0
+    - freud=3.0
     # - fresnel
 
-    # - pip:
+    - pip:
+      - build
         # - some_pypi_module_name
