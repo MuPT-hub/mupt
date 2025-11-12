@@ -117,7 +117,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if shape is not None:
             self.shape = shape
         
-        ## atomic chemistry (when applicable)
+        ## atomic chemistry (when applicable) - TODO: move to ONLY be attr of AtomicPrimitive subtype
         self._element = None
         if element is not None:
             self.element = element
