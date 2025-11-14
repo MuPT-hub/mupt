@@ -1,7 +1,7 @@
 '''Fundamental data structures for multiscale molecular representation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
+__author__ = 'Timotej Bernat, Joseph Laforet Jr.'
+__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -58,6 +58,10 @@ from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 
+# For export to MDAnalysis
+import numpy as np
+from typing import List, Tuple, Dict, Any
+import MDAnalysis as mda
 
 class AtomicityError(AttributeError):
     '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
@@ -1274,3 +1278,343 @@ class Primitive(NodeMixin, RigidlyTransformable):
             with_labels=True,
             **draw_kwargs,
         )
+
+    """
+    MuPT to MDAnalysis Topology Exporter
+
+    This module provides functionality to convert MuPT Representation objects
+    (univprim) into MDAnalysis Universe objects, focusing on topology information
+    (atoms, residues, segments, and bonds).
+    """
+
+    
+    def to_mdanalysis(self) -> mda.Universe:
+        import numpy as np
+        """
+        Convert a MuPT Representation (univprim) to an MDAnalysis Universe.
+        
+        This function extracts topology information from a univprim tree structure
+        and creates an MDAnalysis Universe with atoms, residues, segments, and bonds.
+        Note that coordinates are not included as the univprim may not contain them.
+        
+        Parameters
+        ----------
+        univprim : MuPT Representation object
+            The universal primitive representation containing the molecular system
+            in a tree-like hierarchy (universe -> chains -> residues -> atoms).
+        
+        Returns
+        -------
+        MDAnalysis.Universe
+            A new Universe object containing the topology information extracted
+            from the univprim. The Universe will have:
+            - Atoms with elements, names, and unique IDs
+            - Residues with names and IDs
+            - Segments with IDs
+            - Bond connectivity
+        
+        Raises
+        ------
+        ValueError
+            If the univprim structure is malformed or missing required attributes.
+        AttributeError
+            If required methods or attributes are not available on univprim.
+        
+        Notes
+        -----
+        - Atom array indices are 0-based (MDAnalysis internal convention)
+        - Atom IDs, residue IDs, and segment IDs are 1-based (user-facing)
+        - Bond indices are 0-based (array indices)
+        - Atom names are set to element symbols (atom-type agnostic approach)
+        - No coordinates are included in the Universe
+        
+        Examples
+        --------
+        >>> universe = to_mdanalysis(my_univprim)
+        >>> print(f"Created universe with {universe.atoms.n_atoms} atoms")
+        >>> print(f"Number of residues: {universe.residues.n_residues}")
+        >>> print(f"Number of segments: {universe.segments.n_segments}")
+        """
+        
+        # Step 1: Extract all necessary information from the hierarchy BEFORE any modifications
+        # Count residues per chain/segment
+        per_chain_residue_count = []
+        for chain in self.children:
+            per_chain_residue_count.append(len(chain.children))
+        
+        # Count atoms per residue and extract residue names
+        per_residue_atom_count = []
+        per_residue_resname = []
+        for chain in self.children:
+            for residue in chain.children:
+                per_residue_atom_count.append(len(residue.children))
+                per_residue_resname.append(residue.label)
+        
+        # Step 2: Now flatten the universe to get all atoms at the same level
+        flattened_univ = self.flattened()
+        
+        # Step 3: Extract atom labels (0-indexed internal identifiers)
+        atom_labels = []
+        for handle in flattened_univ.children_by_handle.keys():
+            atom_labels.append(handle[1])
+        
+        # Step 4: Store handles at each level for counting
+        n_segments = len(per_chain_residue_count)
+        n_residues = len(per_residue_atom_count)
+        n_atoms = len(atom_labels)
+        
+        # Step 5: Generate residue indices (1-based for user, 0-based for atom_resindex)
+        resindices_1based = self._expand_labels(per_residue_atom_count, n_atoms)
+        atom_resindex = np.array(resindices_1based, dtype=np.int32) - 1  # Convert to 0-based
+        
+        # Step 6: Generate segment indices for residues (0-based for residue_segindex)
+        segindices_per_residue = self._expand_labels(per_chain_residue_count, n_residues)
+        residue_segindex = np.array(segindices_per_residue, dtype=np.int32) - 1  # Convert to 0-based
+        
+        # Step 7: Map segment indices to atoms (for topology attributes, 1-based)
+        atom_segindices_1based = self._expand_segment_labels(
+            per_residue_atom_count,
+            segindices_per_residue,
+            n_atoms
+        )
+        
+        # Step 8: Map residue names to atoms
+        atom_resnames = self._expand_segment_labels(
+            per_residue_atom_count,
+            per_residue_resname,
+            n_atoms
+        )
+        
+        # Step 9: Create empty Universe
+        universe = mda.Universe.empty(
+            n_atoms,
+            n_residues=n_residues,
+            n_segments=n_segments,
+            atom_resindex=atom_resindex,
+            residue_segindex=residue_segindex,
+            trajectory=True  # No coordinates
+        )
+        
+        # Step 10: Extract atom properties and bonds
+        elements = []
+        atomnames = []
+        bonds = []
+        label_to_index = {label: i for i, label in enumerate(atom_labels)}
+        
+        for i, handle in enumerate(flattened_univ.children_by_handle):
+            atom = flattened_univ.children_by_handle[handle]
+            
+            # Extract element
+            if not hasattr(atom, 'element') or atom.element is None:
+                raise ValueError(f"Atom at index {i} is missing element information")
+            
+            elements.append(atom.element.symbol)
+            atomnames.append(atom.element.symbol)  # Use element symbol as atom name
+            
+            # Extract bonds from parent's neighbor information
+            parent = atom.parent
+            for neighbor_handle in parent.neighbor_handles(handle):
+                neighbor_label = neighbor_handle[1]
+                neighbor_idx = label_to_index[neighbor_label]
+                
+                # Store bonds as 0-based indices, avoid duplicates
+                bond_pair = tuple(sorted([i, neighbor_idx]))
+                if bond_pair not in bonds:
+                    bonds.append(bond_pair)
+        
+        # Step 11: Add topology attributes
+        
+        # Atom names (using element symbols)
+        universe.add_TopologyAttr('name', atomnames)
+        
+        # Atom types (using element symbols)
+        universe.add_TopologyAttr('type', elements)
+        
+        # Elements
+        universe.add_TopologyAttr('element', elements)
+        
+        # Residue names
+        universe.add_TopologyAttr('resname', per_residue_resname)
+        
+        # Residue IDs (1-based)
+        resids = list(range(1, n_residues + 1))
+        universe.add_TopologyAttr('resid', resids)
+        
+        # Segment IDs (1-based, as strings)
+        segids = [str(i) for i in range(1, n_segments + 1)]
+        universe.add_TopologyAttr('segid', segids)
+        
+        # Bonds (0-based indices)
+        if bonds:
+            universe.add_TopologyAttr('bonds', bonds)
+        
+        return universe
+
+
+    def _expand_labels(self, segment_lengths: List[int], total_length: int) -> List[int]:
+        """
+        Expand segment labels to create an array where each position corresponds
+        to the segment index (1-based) of an item.
+        
+        Parameters
+        ----------
+        segment_lengths : List[int]
+            Number of items in each segment.
+        total_length : int
+            Expected total number of items.
+        
+        Returns
+        -------
+        List[int]
+            Array where each value is the 1-based segment index.
+        
+        Raises
+        ------
+        ValueError
+            If the sum of segment_lengths doesn't match total_length.
+        
+        Examples
+        --------
+        >>> _expand_labels([2, 3, 1], 6)
+        [1, 1, 2, 2, 2, 3]
+        """
+        labels = []
+        for i, length in enumerate(segment_lengths, start=1):
+            labels.extend([i] * length)
+        
+        if len(labels) != total_length:
+            raise ValueError(
+                f"Expected total length {total_length}, but got {len(labels)}"
+            )
+        
+        return labels
+
+
+    def _expand_segment_labels(
+        self,
+        residue_lengths: List[int],
+        residue_to_segment: List[Any],
+        total_length: int
+    ) -> List[Any]:
+        """
+        Map segment/residue labels to individual atoms.
+        
+        Parameters
+        ----------
+        residue_lengths : List[int]
+            Number of atoms in each residue.
+        residue_to_segment : List[Any]
+            Segment ID or label for each residue.
+        total_length : int
+            Expected total number of atoms.
+        
+        Returns
+        -------
+        List[Any]
+            Array where each value is the segment ID/label for that atom.
+        
+        Raises
+        ------
+        ValueError
+            If residue_lengths and residue_to_segment have different lengths,
+            or if the total doesn't match total_length.
+        
+        Examples
+        --------
+        >>> _expand_segment_labels([2, 3], [1, 2], 5)
+        [1, 1, 2, 2, 2]
+        """
+        if len(residue_lengths) != len(residue_to_segment):
+            raise ValueError(
+                "residue_lengths and residue_to_segment must have the same length"
+            )
+        
+        segment_labels = []
+        for seg_id, n_atoms in zip(residue_to_segment, residue_lengths):
+            segment_labels.extend([seg_id] * n_atoms)
+        
+        if len(segment_labels) != total_length:
+            raise ValueError(
+                f"Expected total length {total_length}, but got {len(segment_labels)}"
+            )
+        
+        return segment_labels
+
+
+    def validate_univprim(self) -> Dict[str, Any]:
+        """
+        Validate a univprim structure and return diagnostic information.
+        
+        Parameters
+        ----------
+        univprim : MuPT Representation object
+            The universal primitive representation to validate.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing validation results and statistics:
+            - 'valid': bool, whether the structure is valid
+            - 'n_chains': int, number of chains/segments
+            - 'n_residues': int, number of residues
+            - 'n_atoms': int, number of atoms
+            - 'errors': List[str], any validation errors found
+        
+        Examples
+        --------
+        >>> info = validate_univprim(my_univprim)
+        >>> if info['valid']:
+        >>>     print(f"Valid structure with {info['n_atoms']} atoms")
+        >>> else:
+        >>>     print(f"Errors: {info['errors']}")
+        """
+        errors = []
+        
+        try:
+            # Check if univprim has required methods
+            if not hasattr(self, 'flattened'):
+                errors.append("univprim missing 'flattened' method")
+            if not hasattr(self, 'children'):
+                errors.append("univprim missing 'children' attribute")
+            if not hasattr(self, 'children_by_handle'):
+                errors.append("univprim missing 'children_by_handle' attribute")
+            
+            if errors:
+                return {
+                    'valid': False,
+                    'n_chains': 0,
+                    'n_residues': 0,
+                    'n_atoms': 0,
+                    'errors': errors
+                }
+            
+            # Count structural elements
+            n_chains = len(self.children)
+            n_residues = sum(len(chain.children) for chain in univprim.children)
+            
+            flattened = self.flattened()
+            n_atoms = len([h for h in flattened.children_by_handle])
+            
+            # Check for atoms with missing elements
+            for i, handle in enumerate(flattened.children_by_handle):
+                atom = flattened.children_by_handle[handle]
+                if not hasattr(atom, 'element') or atom.element is None:
+                    errors.append(f"Atom at index {i} missing element")
+            
+            return {
+                'valid': len(errors) == 0,
+                'n_chains': n_chains,
+                'n_residues': n_residues,
+                'n_atoms': n_atoms,
+                'errors': errors
+            }
+            
+        except Exception as e:
+            errors.append(f"Validation error: {str(e)}")
+            return {
+                'valid': False,
+                'n_chains': 0,
+                'n_residues': 0,
+                'n_atoms': 0,
+                'errors': errors
+            }
