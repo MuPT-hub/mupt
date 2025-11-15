@@ -1289,7 +1289,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     
     def to_mdanalysis(self) -> mda.Universe:
-        import numpy as np
         """
         Convert a MuPT Representation (univprim) to an MDAnalysis Universe.
         
@@ -1395,11 +1394,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
             trajectory=True  # No coordinates
         )
         
-        # Step 10: Extract atom properties and bonds
+        # Step 10: Extract atom properties
         elements = []
         atomnames = []
-        bonds = []
-        label_to_index = {label: i for i, label in enumerate(atom_labels)}
         
         for i, handle in enumerate(flattened_univ.children_by_handle):
             atom = flattened_univ.children_by_handle[handle]
@@ -1410,17 +1407,24 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
             elements.append(atom.element.symbol)
             atomnames.append(atom.element.symbol)  # Use element symbol as atom name
+        
+        # Step 10b: Extract bonds from internal_connections
+        # Build a mapping from primitive handles to atom array indices
+        handle_to_index = {}
+        for i, handle in enumerate(flattened_univ.children_by_handle.keys()):
+            handle_to_index[handle] = i
+        
+        bonds = []
+        # Use internal_connections which contains pairs of ConnectorReferences
+        for (conn_ref1, conn_ref2) in flattened_univ.internal_connections:
+            # Get the primitive handles for each end of the bond
+            atom_idx1 = handle_to_index[conn_ref1.primitive_handle]
+            atom_idx2 = handle_to_index[conn_ref2.primitive_handle]
             
-            # Extract bonds from parent's neighbor information
-            parent = atom.parent
-            for neighbor_handle in parent.neighbor_handles(handle):
-                neighbor_label = neighbor_handle[1]
-                neighbor_idx = label_to_index[neighbor_label]
-                
-                # Store bonds as 0-based indices, avoid duplicates
-                bond_pair = tuple(sorted([i, neighbor_idx]))
-                if bond_pair not in bonds:
-                    bonds.append(bond_pair)
+            # Store bonds as 0-based indices, avoid duplicates
+            bond_pair = tuple(sorted([atom_idx1, atom_idx2]))
+            if bond_pair not in bonds:
+                bonds.append(bond_pair)
         
         # Step 11: Add topology attributes
         
@@ -1521,7 +1525,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Examples
         --------
-        >>> _expand_segment_labels([2, 3], [1, 2], 5)
+        self._expand_segment_labels([2, 3], [1, 2], 5)
         [1, 1, 2, 2, 2]
         """
         if len(residue_lengths) != len(residue_to_segment):
@@ -1547,7 +1551,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Parameters
         ----------
-        univprim : MuPT Representation object
+        univprim : Primitive
             The universal primitive representation to validate.
         
         Returns
@@ -1562,11 +1566,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Examples
         --------
-        >>> info = validate_univprim(my_univprim)
-        >>> if info['valid']:
-        >>>     print(f"Valid structure with {info['n_atoms']} atoms")
-        >>> else:
-        >>>     print(f"Errors: {info['errors']}")
+        info = my_univprim.validate_univprim()
+        if info['valid']:
+            print(f"Valid structure with {info['n_atoms']} atoms")
+        else:
+            print(f"Errors: {info['errors']}")
         """
         errors = []
         
@@ -1590,7 +1594,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             
             # Count structural elements
             n_chains = len(self.children)
-            n_residues = sum(len(chain.children) for chain in univprim.children)
+            n_residues = sum(len(chain.children) for chain in self.children)
             
             flattened = self.flattened()
             n_atoms = len([h for h in flattened.children_by_handle])
