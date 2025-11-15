@@ -98,7 +98,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
     metadata : dict[Hashable, Any]
         Literally any other information the user may want to bind to this Primitive
     '''
-    CONNECTOR_EDGE_ATTR : ClassVar[str] = 'paired_connectors'
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'Prim'
     
     # Initializers
@@ -1273,4 +1272,148 @@ class Primitive(NodeMixin, RigidlyTransformable):
             pos=layout(hier_tree),
             with_labels=True,
             **draw_kwargs,
+        )
+
+
+# DEV: work on refactoring monolithic Primtive class into type hierarchy of substitutable types
+class BasePrimitive(NodeMixin, RigidlyTransformable): # DEV: eventually, rename to just "Primitive" - temp name for refactoring
+    '''
+    A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
+    '''
+    def __init__(
+        self,
+        shape : Optional[BoundedShape]=None,
+        connectors : Optional[Iterable[Connector]]=None,
+        label : Optional[PrimitiveLabel]=None,
+        metadata : Optional[dict[Hashable, Any]]=None,
+    ) -> None:
+        # essential components
+        ## external bounded shape
+        self._shape = None
+        if shape is not None:
+            self.shape = shape
+               
+        self._connectors : UniqueRegistry[ConnectorHandle, Connector] = UniqueRegistry()
+        if connectors is not None:
+            self._connectors.register_from(connectors)
+                   
+        self.label = label
+        self.metadata = metadata or dict()
+
+## Simples
+class SimplePrimitive(BasePrimitive):
+    '''
+    A Primitive with no internal structure (i.e. no children, topology, or internal connections)
+    Used to explicitly demarcate "leaf" Primitives in a representation hierarchy
+    '''
+    def __init__( # DEV: could omit entirely for now; repeated for documentation purposes, and in case extra init config needs to be addeds
+        self,
+        shape : Optional[BoundedShape]=None,
+        connectors : Optional[Iterable[Connector]]=None,
+        label : Optional[PrimitiveLabel]=None,
+        metadata : Optional[dict[Hashable, Any]]=None,
+    ) -> None:
+        # DEV: include topology init? (will be empty, trivial topology in all cases)
+        super().__init__(
+            shape=shape,
+            connectors=connectors,
+            label=label,
+            metadata=metadata,
+        )
+        
+class Atom(SimplePrimitive):
+    '''
+    A Primitive representing a single atom from the periodic table
+    Contains element, formal charge, and nuclear mass information about the aotm
+    '''
+    def __init__(
+        self,
+        element : ElementLike,
+        shape : Optional[BoundedShape]=None,
+        connectors : Optional[Iterable[Connector]]=None,
+        label : Hashable=None,
+        metadata : Optional[dict]=None,
+    ):
+        self.element = element
+        super().__init__(
+            shape=shape,
+            connectors=connectors,
+            label=label,
+            metadata=metadata,
+        )
+
+    @property
+    def element(self) -> Optional[ElementLike]:
+        '''
+        The chemical element, ion, or isotope associated with this AtomicPrimitive
+        '''
+        return self._element
+    
+    @element.setter
+    def element(self, new_element : ElementLike) -> None:
+        if not isatom(new_element):
+            raise TypeError(f'Invalid element type {type(new_element)}')
+        self._element = new_element
+
+## Composites
+class Composite(BasePrimitive):
+    '''
+    A Primitive with an internal structure of "child" Primitives within it
+    Internal attributes about children, their Connectors, and the Topology connecting are immutable after instantiation
+
+    CompositePrimitives form the branches of the a representation hierarchy tree
+    '''
+    def __init__(
+        self,
+        children : Iterable[Primitive],
+        topology : TopologicalStructure,
+        shape : Optional[BoundedShape]=None,
+        connectors : Optional[Iterable[Connector]]=None,
+        label : Hashable=None,
+        metadata : Optional[dict]=None, 
+    ):
+        super().__init__(
+            shape=shape,
+            connectors=connectors,
+            label=label,
+            metadata=metadata,
+        )
+
+        # TODO: check bijection between children and topology on init
+        # TODO: include pre-registered handles?
+        self.topology = topology # call validator on first-time pass
+        self.children_by_handle : UniqueRegistry[PrimitiveHandle, Primitive] = UniqueRegistry()
+        self.children_by_handle.register_from(children)
+
+        self.internal_connections : set[frozenset[ConnectorReference]] = set()
+        # TODO: bind all passed connectors as external
+        self.external_connectors : dict[ConnectorHandle, ConnectorReference] = dict()
+
+class MutableComposite(Composite):
+    '''
+    A CompositePrimitive which allows for dynamic modification of its internal structure
+    (i.e. adding/removing children and connections at will)
+    '''
+    def __init__( # DEV: could omit entirely; repeated for documentation purposes, and in case extra init config needs to be addeds
+        self,
+        children : Optional[Iterable[Primitive]]=None,
+        topology : Optional[TopologicalStructure]=None,
+        shape : Optional[BoundedShape]=None,
+        connectors : Optional[Iterable[Connector]]=None,
+        label : Hashable=None,
+        metadata : Optional[dict]=None, 
+    ):
+        if children is None:
+            children = []
+
+        if topology is None:
+            topology = self.compatible_indiscrete_topology()
+        
+        super().__init__(
+            children=children,
+            topology=topology,
+            shape=shape,
+            connectors=connectors,
+            label=label,
+            metadata=metadata,
         )
