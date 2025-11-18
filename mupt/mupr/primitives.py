@@ -1321,7 +1321,7 @@ class SimplePrimitive(BasePrimitive):
             metadata=metadata,
         )
         
-class Atom(SimplePrimitive):
+class AtomicPrimitive(SimplePrimitive):
     '''
     A Primitive representing a single atom from the periodic table
     Contains element, formal charge, and nuclear mass information about the aotm
@@ -1356,7 +1356,7 @@ class Atom(SimplePrimitive):
         self._element = new_element
 
 ## Composites
-class Composite(BasePrimitive):
+class CompositePrimitive(BasePrimitive):
     '''
     A Primitive with an internal structure of "child" Primitives within it
     Internal attributes about children, their Connectors, and the Topology connecting are immutable after instantiation
@@ -1389,7 +1389,7 @@ class Composite(BasePrimitive):
         # TODO: bind all passed connectors as external
         self.external_connectors : dict[ConnectorHandle, ConnectorReference] = dict()
 
-class MutableComposite(Composite):
+class MutableCompositePrimitive(CompositePrimitive):
     '''
     A CompositePrimitive which allows for dynamic modification of its internal structure
     (i.e. adding/removing children and connections at will)
