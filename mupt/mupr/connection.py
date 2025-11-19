@@ -572,6 +572,13 @@ class Connector(RigidlyTransformable):
         if not isinstance(new_label, Hashable):
             raise TypeError(f'Connector label must be a Hashable type, not {type(new_label)}')
         self._label = new_label
+        
+    def address(self) -> int:
+        '''
+        Address in memory of this Connector
+        Used as unique identifier for Connector instances, irrespective of similarity
+        '''
+        return id(self)
     
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
