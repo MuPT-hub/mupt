@@ -3,16 +3,16 @@
 from typing import (
     Any,
     AbstractSet, # covers both set and frozenset
+    ClassVar,
     Collection,
     Hashable,
     Iterable,
     Optional,
     Protocol,
     Mapping,
-    TypeAlias,
     TypeVar,
 )
-ConnectorAddress = int
+ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 PrimitiveConnectorReference = tuple[PrimitiveHandle, ConnectorAddress]
@@ -68,15 +68,17 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
     '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'PRIM'
+    
     def __init__(
         self,
         shape : Optional[BoundedShape]=None,
-        label : PrimitiveLabel='PRIM',
+        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None, # DEV: make into implicit kwargs instead?
         # TODO: augment init args?
     ) -> None:
         self.shape = shape
-        self.label = label
+        self.label = label if (label is not None) else self.DEFAULT_LABEL 
         self.metadata = metadata or dict()
         
         # declaration of attributes - TODO: find better way to typehint these should be defined w/o proiding definition here
@@ -169,6 +171,52 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
             
         for connector in self.connectors.values():
             connector.rigidly_transform(transformation)
+            
+    # Depiction
+    ## Hashable canonical forms for core components
+    def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
+        '''A canonical string representing this Primitive's Connectors'''
+        return lex_order_multiset_str(
+            (
+                self.connectors[connector_handle].canonical_form()
+                    for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
+            ),
+            element_repr=str, #lambda bt : BondType.values[int(bt)]
+            separator=separator,
+            joiner=joiner,
+        )
+    
+    def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shapefor all kinds of Primitive)
+        '''A canonical string representing this Primitive's shape'''
+        return type(self.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
+    
+    def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
+        '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
+        I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
+        '''
+        elem_form : str = self.element.symbol if (self.element is not None) else str(None) # TODO: move this to external function, eventually
+        return f'{elem_form}' \
+            f'({self.canonical_form_connectors()})' \
+            f'[shape={self.canonical_form_shape()}]' \
+            f'<graph_hash={self.topology.canonical_form()}>'
+
+    def canonical_form_peppered(self) -> str:
+        '''
+        Return a canonical string representation of the Primitive with peppered metadata
+        Used to distinguish two otherwise-equivalent Primitives, e.g. as needed for graph embedding
+        
+        Named for the cryptography technique of augmenting a hash by some external, stored data
+        (as described in https://en.wikipedia.org/wiki/Pepper_(cryptography))
+        '''
+        return f'{self.canonical_form()}-{self.label}' #{self.metadata}'
+
+    ## Stdout printing
+    def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
+        return self.canonical_form_peppered()
+    
+    def __repr__(self) -> str:
+        raise NotImplementedError # TODO - will likely have to change for subtypes
+    
     
 ## Simples
 class SimplePrimitive(BasePrimitive):
@@ -176,11 +224,13 @@ class SimplePrimitive(BasePrimitive):
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
     Used to explicitly demarcate "leaf" Primitives in a representation hierarchy
     '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'SIMPLE'
+    
     def __init__(
         self,
         connectors : Optional[Iterable[Connector]]=None, # only entry point into hierarchy (i.e. can't add or remove Connectors to Composites)
         shape : Optional[BoundedShape]=None,
-        label : PrimitiveLabel='SIMPLE',
+        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
         super().__init__(
@@ -211,12 +261,14 @@ class AtomicPrimitive(SimplePrimitive):
     A Primitive representing a single atom from the periodic table
     Contains element, formal charge, and nuclear mass information about the atom
     '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'ATOM'
+    
     def __init__(
         self,
         element : ElementLike,
         connectors : Optional[Iterable[Connector]]=None,
         shape : Optional[BoundedShape]=None,
-        label : PrimitiveLabel='ATOM',
+        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict]=None,
     ):
         if not isatom(element):
@@ -254,6 +306,8 @@ class CompositePrimitive(BasePrimitive):
 
     CompositePrimitives form the branches of the a representation hierarchy tree
     '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'TREE'
+    
     # Validators
     @staticmethod
     def check_connections_compatible_with_primitive_registry(
@@ -335,15 +389,8 @@ class CompositePrimitive(BasePrimitive):
         return self._connections
     
     def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
+        ... # TODO: impl recursively
         
-    # Overriding RigidlyTransformable contracts to apply recursively to children as well
-    def _copy_untransformed(self) -> 'BasePrimitive':
-        raise NotImplementedError
-        
-    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
-        raise NotImplementedError
-
         
 class FrozenCompositePrimitive(CompositePrimitive):
     '''
@@ -356,7 +403,7 @@ class FrozenCompositePrimitive(CompositePrimitive):
         connections : Iterable[Connection],
         topology : TopologicalStructure,
         shape : Optional[BoundedShape]=None,
-        label : Hashable=None,
+        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict]=None, 
     ):
         # Validate and extract connection info
@@ -366,27 +413,25 @@ class FrozenCompositePrimitive(CompositePrimitive):
                 for child in children
                     for conn_addr, connector in child.connectors.items()
         }
-        all_connector_addrs = set(connectors.keys())
         
-        internal_connector_addrs : set[ConnectorAddress] = set(
+        all_connector_addresses = set(connectors.keys())
+        self._internal_connector_addresses : set[ConnectorAddress] = set(
             conn_addr
                 for connection in connections
                     for prim_handle, conn_addr in connection
         )
-        external_connector_addrs : set[ConnectorAddress] = all_connector_addrs - internal_connector_addrs # guaranteed valid by above precondition
+        self._external_connector_addresses : set[ConnectorAddress] = all_connector_addresses - self._internal_connector_addresses # guaranteed valid by above precondition
         
         # Validate and set topology
         CompositePrimitive.check_primitive_registry_bijective_to_topology_nodes(children, topology)
         CompositePrimitive.check_connections_bijective_to_topology_edges(connections, topology)
+        self._topology = topology # call validator on first-time pass
         
         # Initialization proper
         self.children_by_handle = children
         for child in children.values():
             child.parent = self # TODO: apply readonly trick (https://anytree.readthedocs.io/en/latest/tricks/readonly.html) to add children first, then make immutable forevermore
             
-        self._internal_connections = internal_connections
-        self._external_connector_addrs = ...
-        self.topology = topology # call validator on first-time pass
         
         super().__init__( # DEV: super() call at end to ensure all validations pass first
             shape=shape,
@@ -394,7 +439,17 @@ class FrozenCompositePrimitive(CompositePrimitive):
             metadata=metadata,
         )
         
-class MutableCompositePrimitive(CompositePrimitive):
+    # cached properties
+    ...
+        
+    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def _copy_untransformed(self) -> 'BasePrimitive':
+        raise NotImplementedError
+        
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
+        raise NotImplementedError
+        
+class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by far the closest to the current Primitive impl
     '''
     A CompositePrimitive which allows for dynamic modification of its internal structure
     (i.e. adding/removing children and connections at will)
@@ -405,7 +460,7 @@ class MutableCompositePrimitive(CompositePrimitive):
         topology : Optional[TopologicalStructure]=None,
         shape : Optional[BoundedShape]=None,
         connectors : Optional[Iterable[Connector]]=None,
-        label : Hashable=None,
+        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict]=None, 
     ):
         if children is None:
@@ -423,11 +478,23 @@ class MutableCompositePrimitive(CompositePrimitive):
             metadata=metadata,
         )
         
+    # Resolution shift operations
+    ...
+    
+    # TODO: implement topology.setter (with reference back to base for getter
+        
     def freeze(self) -> FrozenCompositePrimitive:
         '''
         Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
         '''
         ...
+        
+    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def _copy_untransformed(self) -> 'BasePrimitive':
+        raise NotImplementedError
+        
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
+        raise NotImplementedError
         
 ## Builder interface (for acutally setting up hierarchies)
 class CompositePrimitiveBuilder(ABC):
