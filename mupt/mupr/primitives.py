@@ -221,10 +221,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         '''Register multiple Connectors to this Primitive from an iterable'''
         self._connectors.register_from(new_connectors)
         
-    def connector_exists(self, connector_handle : ConnectorHandle) -> bool:
-        '''Verify that a referenced Connector is actually bound to this Primitive'''
-        return connector_handle in self._connectors
-    
     def fetch_connector(self, connector_handle : ConnectorHandle) -> Connector:
         '''Fetch a Connector with a given handle from bound Connectors'''
         try:
@@ -489,34 +485,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self.check_external_connector_references_valid()
         self.check_internal_connection_references_valid()
         
-    def check_child_referenced_faithfully(self, primitive_handle : PrimitiveHandle) -> None:
-        '''
-        Check that a given child Primitive and the Connectors on it are 
-        faithfully referenced in the internal topology and connector registries
-        '''
-        # DEV: looping over all children and calling this check is a less-efficient way of checking self-
-        # consistency than the global check_connectors/check_topology_consistent methods provided elsewhere
-        
-        # 0) check child exists
-        child = self.fetch_child(primitive_handle)
-        
-        # 1) check registries
-        num_child_connectors = child.functionality
-        num_internal_on_child = self.num_internal_connections_on_child(primitive_handle)
-        num_external_on_child = self.num_external_connectors_on_child(primitive_handle)
-        
-        if num_child_connectors != (num_external_on_child + num_internal_on_child):
-            raise BijectionError(
-                f'Connectors on child {child._repr_brief(include_functionality=True, label_to_use=primitive_handle)} not fully accounted for '\
-                f'(c.f. {num_child_connectors} total vs {num_internal_on_child} internal + {num_external_on_child} external Connectors)'
-            )
-
-        # 2) check topology
-        if (child_degree := self.topology.degree[primitive_handle]) != num_internal_on_child:
-            raise BijectionError(
-                f'Primitive "{primitive_handle}" has {num_internal_on_child} registered internal connections versus {child_degree} internal connections suggested by topology'
-            )
-
 
     # Child Primitives
     ## DEV: override __children_or_empty with values of self._children_by_handle?
