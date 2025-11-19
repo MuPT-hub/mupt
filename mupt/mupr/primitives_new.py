@@ -2,6 +2,7 @@
 
 from typing import (
     Any,
+    AbstractSet, # covers both set and frozenset
     Collection,
     Hashable,
     Iterable,
@@ -15,6 +16,7 @@ ConnectorAddress = int
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 PrimitiveConnectorReference = tuple[PrimitiveHandle, ConnectorAddress]
+Connection = AbstractSet[PrimitiveConnectorReference, PrimitiveConnectorReference] # using set, rather than tuple, to avoid order-dependence
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -52,17 +54,15 @@ class BijectionError(ValueError):
 class ManagesConnections(Protocol):
     '''An object which contains Connectors, either internally-paired or externally-facing'''
     connectors : Mapping[ConnectorAddress, Connector]
-    connections : Iterable[frozenset[PrimitiveConnectorReference, PrimitiveConnectorReference]]
+    connections : Iterable[Connection]
     internal_connector_addrs : Collection[ConnectorAddress]
     external_connector_addrs : Collection[ConnectorAddress]
     
-    def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
     
 # Primitive types
 class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name for refactoring
+    ABC,
     NodeMixin,
-    ManagesConnections,
     RigidlyTransformable
 ):
     '''
@@ -73,17 +73,19 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
         shape : Optional[BoundedShape]=None,
         label : PrimitiveLabel='PRIM',
         metadata : Optional[dict[Hashable, Any]]=None, # DEV: make into implicit kwargs instead?
+        # TODO: augment init args?
     ) -> None:
         self.shape = shape
         self.label = label
         self.metadata = metadata or dict()
         
         # declaration of attributes - TODO: find better way to typehint these should be defined w/o proiding definition here
-        self.topology : TopologicalStructure 
+        self._connectors : Mapping[ConnectorAddress, Connector]
+        self._internal_connector_addresses : Collection[ConnectorAddress]
+        self._external_connector_addresses : Collection[ConnectorAddress]
+        self._topology : TopologicalStructure 
 
-    # TODO: placeholder for connection info?
-
-    # Properties derived from stipulated core pieces of information
+    # Connections
     @property
     def functionality(self) -> int:
         return len(self.external_connector_addrs)
@@ -98,6 +100,29 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
         return round(total_bond_order)
     chemical_valence = electronic_valence = valence # aliases for convenience
     
+    ## "Semi-abstract" properties - subtypes implement how "hidden" versions of these attrs are provided - DEV: this seems a little sketchy, revisit later
+    @property
+    def connectors(self) -> Mapping[ConnectorAddress, Connector]:
+        '''All Connectors accessible from this Primitive and any below it in a resolution hierarchy'''
+        return self._connectors
+    
+    @property
+    def internal_connector_addresses(self) -> Collection[ConnectorAddress]:
+        return self._internal_connector_addresses
+    
+    @property
+    def external_connector_addresses(self) -> Collection[ConnectorAddress]:
+        return self._external_connector_addresses
+    
+    @property
+    def topology(self) -> TopologicalStructure:
+        return self._topology
+    
+    ## Local contracts for subtypes
+    @abstractmethod
+    def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
+        ...
+        
     # Geometry
     ## Shape
     @property
@@ -167,19 +192,11 @@ class SimplePrimitive(BasePrimitive):
             id(conn) : conn
                 for conn in connectors
         }
-        
-    @property
-    def connectors(self) -> Mapping[ConnectorAddress, Connector]:
-        '''All Connectors accessible from this Primitive'''
-        return self._connectors
+        ...
+        self._topology = TopologicalStructure() # trivial topology for simples - "calling card" for an eventual canonical graph form
     
-    @property
-    def topology(self) -> TopologicalStructure:
-        '''
-        Always return the trivial (empty) topology for simples
-        Acts as a "calling card" for an eventual canonical form for the topology graph
-        '''
-        return TopologicalStructure()
+    def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
+        return self._connectors[conn_addr] # NOTE: deliberately avoiding call via dict.get() to raise loud KeyError
         
     # Attachment (or lack thereof) of child primitives
     ## TODO: include an explicit reference to attaching a parent above this Simple (OK to do)
@@ -237,37 +254,147 @@ class CompositePrimitive(BasePrimitive):
 
     CompositePrimitives form the branches of the a representation hierarchy tree
     '''
+    # Validators
+    @staticmethod
+    def check_connections_compatible_with_primitive_registry(
+        primitive_registry : UniqueRegistry[PrimitiveHandle, BasePrimitive],
+        connections : Iterable[Connection], # DEV: weakened type requirement here, even though in practice this will most like be a set or frozenset
+    ) -> None:
+        '''
+        Check that a collection of connections (i.e. pairs of (PrimitiveHandle, ConnectorAddress) references)
+        is absolutely compatible with a handled registry of Primitives
+        '''
+        for (prim_handle_1, conn_addr_1), (prim_handle_2, conn_addr_2) in connections:
+            if prim_handle_1 == prim_handle_2:
+                raise ValueError(f'Attempted to connect Primitive with handle "{prim_handle_1}" to itself')
+            
+            if conn_addr_1 == conn_addr_2:
+                raise IncompatibleConnectorError(f'Connections must be between distinct pair of Connector instances, not single Connector at address {conn_addr_1}')
+            
+            for prim_handle in (prim_handle_1, prim_handle_2):
+                if prim_handle not in primitive_registry:
+                    raise ValueError(f'Primitive with handle "{prim_handle}" referenced in internal connections but does not exist in provided registry of children')
+                
+            if not Connector.bondable_with( # NOTE: fetch also implicitly checks each Connector exists on respective child
+                primitive_registry[prim_handle_1].fetch_connector(conn_addr_1),
+                primitive_registry[prim_handle_2].fetch_connector(conn_addr_2),
+            ):
+                raise IncompatibleConnectorError(
+                    f'Connector {conn_addr_1} on Primitive {prim_handle_1} is not bondable with Connector {conn_addr_2} on Primitive {prim_handle_2}'
+                )
+
+    @staticmethod
+    def check_primitive_registry_bijective_to_topology_nodes(
+        primitive_registry : UniqueRegistry[PrimitiveHandle, BasePrimitive],
+        topology : TopologicalStructure,
+    ) -> None:
+        '''
+        Verify 1:1 correspondence between the reference handles in a 
+        registry of Primitives and the nodes in an incidence topology
+        '''
+        num_children : int = len(primitive_registry) # perform cheap counting check first to fail faster
+        if topology.number_of_nodes() != num_children:
+            raise BijectionError(f'Cannot bijectively map {num_children} child Primitives onto {topology.number_of_nodes()}-element topology')
+        
+        node_labels = set(topology.nodes)
+        child_handles = set(primitive_registry.keys())
+        if node_labels != child_handles:
+            raise BijectionError(
+                f'Set underlying topology does not correspond to handles on child Primitives; {len(node_labels - child_handles)} element(s)'\
+                f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
+            )
+
+    @staticmethod
+    def check_connections_bijective_to_topology_edges(
+        connections : AbstractSet[Connection],
+        topology : TopologicalStructure,
+    ) -> None:
+        '''
+        Verify that a 1:1 correspondence exists between the internal connections
+        (Connectors paired between sibling child Primitives) and the edges present in the incidence topology
+        '''
+        num_connections : int = len(connections) # perform cheap counting check first to fail faster
+        if (num_edges := topology.number_of_edges()) != num_connections:
+            raise BijectionError(f'Cannot bijectively map {num_connections} internal connections onto {num_edges}-edge topology')
+
+        edge_labels = set(frozenset(edge) for edge in topology.edges) # cast to frozenset to remove order-dependence
+        if edge_labels != connections:
+            raise BijectionError(
+                f'Incident pairs in associated topology do not correspond to internally-connected pairs of child Primitives;'\
+                f'{len(edge_labels - connections)} edge(s) have no corresponding connection, '\
+                f'and {len(connections - edge_labels)} internal connection(s) are unrepresented in the topology'
+            )
+    
+    # Connection management
+    @property
+    def connections(self) -> AbstractSet[Connection]:
+        '''
+        Generalization chemical bonds - consists of all internally-connected pairs of Connectors,
+        represented by unordered pairs of Primitive handle and Connector references
+        '''
+        return self._connections
+    
+    def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
+        ...
+        
+    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def _copy_untransformed(self) -> 'BasePrimitive':
+        raise NotImplementedError
+        
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
+        raise NotImplementedError
+
+        
+class FrozenCompositePrimitive(CompositePrimitive):
+    '''
+    Composite which is Immutable after instantiation
+    Validation checks are front-loaded and property lookups are cached at initialization time
+    '''
     def __init__(
         self,
-        children : Iterable[BasePrimitive],
-        internal_connections : Iterable[frozenset[PrimitiveConnectorReference, PrimitiveConnectorReference]],
+        children : UniqueRegistry[PrimitiveHandle, BasePrimitive],
+        connections : Iterable[Connection],
         topology : TopologicalStructure,
         shape : Optional[BoundedShape]=None,
         label : Hashable=None,
         metadata : Optional[dict]=None, 
     ):
-        # TODO: check bijection between children and topology on init
-        # TODO: include pre-registered handles?
-        self.topology = topology # call validator on first-time pass
-        self.children_by_handle : UniqueRegistry[PrimitiveHandle, BasePrimitive] = UniqueRegistry()
-        self.children_by_handle.register_from(children)
-
-        self._internal_connections = internal_connections
-        # TODO: bind all passed connectors as external
-        self.external_connectors = dict()
+        # Validate and extract connection info
+        CompositePrimitive.check_connections_compatible_with_primitive_registry(children, connections)
+        connectors : dict[ConnectorAddress, Connector] = {
+            conn_addr : connector
+                for child in children
+                    for conn_addr, connector in child.connectors.items()
+        }
+        all_connector_addrs = set(connectors.keys())
         
-        super().__init__(
+        internal_connector_addrs : set[ConnectorAddress] = set(
+            conn_addr
+                for connection in connections
+                    for prim_handle, conn_addr in connection
+        )
+        external_connector_addrs : set[ConnectorAddress] = all_connector_addrs - internal_connector_addrs # guaranteed valid by above precondition
+        
+        # Validate and set topology
+        CompositePrimitive.check_primitive_registry_bijective_to_topology_nodes(children, topology)
+        CompositePrimitive.check_connections_bijective_to_topology_edges(connections, topology)
+        
+        # Initialization proper
+        self.children_by_handle = children
+        for child in children.values():
+            child.parent = self # TODO: apply readonly trick (https://anytree.readthedocs.io/en/latest/tricks/readonly.html) to add children first, then make immutable forevermore
+            
+        self._internal_connections = internal_connections
+        self._external_connector_addrs = ...
+        self.topology = topology # call validator on first-time pass
+        
+        super().__init__( # DEV: super() call at end to ensure all validations pass first
             shape=shape,
             label=label,
             metadata=metadata,
         )
         
-    @property
-    def connectors(self) -> Mapping[ConnectorAddress, Connector]:
-        '''All Connectors accessible from this Primitive - aggregate of all Connectors on children'''
-        return self._connectors
-        
-class MutableCompositePrimitive(BasePrimitive):
+class MutableCompositePrimitive(CompositePrimitive):
     '''
     A CompositePrimitive which allows for dynamic modification of its internal structure
     (i.e. adding/removing children and connections at will)
@@ -296,7 +423,7 @@ class MutableCompositePrimitive(BasePrimitive):
             metadata=metadata,
         )
         
-    def freeze(self) -> CompositePrimitive:
+    def freeze(self) -> FrozenCompositePrimitive:
         '''
         Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
         '''
