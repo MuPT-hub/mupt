@@ -1298,7 +1298,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Parameters
         ----------
-        univprim : MuPT Representation object
+        self : Primitive
             The universal primitive representation containing the molecular system
             in a tree-like hierarchy (universe -> chains -> residues -> atoms).
         
@@ -1306,7 +1306,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         -------
         MDAnalysis.Universe
             A new Universe object containing the topology information extracted
-            from the univprim. The Universe will have:
+            from the Primitive. The Universe will have:
             - Atoms with elements, names, and unique IDs
             - Residues with names and IDs
             - Segments with IDs
@@ -1315,9 +1315,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Raises
         ------
         ValueError
-            If the univprim structure is malformed or missing required attributes.
+            If the Primitive structure is malformed or missing required attributes.
         AttributeError
-            If required methods or attributes are not available on univprim.
+            If required methods or attributes are not available on Primitive.
         
         Notes
         -----
@@ -1329,7 +1329,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Examples
         --------
-        >>> universe = to_mdanalysis(my_univprim)
+        >>> universe = my_univprim.to_mdanalysis()
         >>> print(f"Created universe with {universe.atoms.n_atoms} atoms")
         >>> print(f"Number of residues: {universe.residues.n_residues}")
         >>> print(f"Number of segments: {universe.segments.n_segments}")
@@ -1391,7 +1391,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             n_segments=n_segments,
             atom_resindex=atom_resindex,
             residue_segindex=residue_segindex,
-            trajectory=True  # No coordinates
+            trajectory=True  # For storing coordinates
         )
         
         # Step 10: Extract atom properties
@@ -1455,7 +1455,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return universe
 
 
-    def _expand_labels(self, segment_lengths: List[int], total_length: int) -> List[int]:
+    def _expand_labels(self,segment_lengths: List[int], total_length: int) -> List[int]:
         """
         Expand segment labels to create an array where each position corresponds
         to the segment index (1-based) of an item.
@@ -1479,7 +1479,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Examples
         --------
-        >>> _expand_labels([2, 3, 1], 6)
+        >>> _expand_labels([2, 3, 1], 6) (total size is 6, two 1's, three 2's, one 3)
         [1, 1, 2, 2, 2, 3]
         """
         labels = []
@@ -1525,7 +1525,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Examples
         --------
-        self._expand_segment_labels([2, 3], [1, 2], 5)
+        >>> _expand_segment_labels([2, 3], [1, 2], 5)
         [1, 1, 2, 2, 2]
         """
         if len(residue_lengths) != len(residue_to_segment):
@@ -1551,8 +1551,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Parameters
         ----------
-        univprim : Primitive
-            The universal primitive representation to validate.
+        self : Primitive
+            The primitive representation to validate.
         
         Returns
         -------
@@ -1566,22 +1566,22 @@ class Primitive(NodeMixin, RigidlyTransformable):
         
         Examples
         --------
-        info = my_univprim.validate_univprim()
-        if info['valid']:
-            print(f"Valid structure with {info['n_atoms']} atoms")
-        else:
-            print(f"Errors: {info['errors']}")
+        >>> info = self.validate_univprim()
+        >>> if info['valid']:
+        >>>     print(f"Valid structure with {info['n_atoms']} atoms")
+        >>> else:
+        >>>     print(f"Errors: {info['errors']}")
         """
         errors = []
         
         try:
-            # Check if univprim has required methods
+            # Check if Primitive has required methods
             if not hasattr(self, 'flattened'):
-                errors.append("univprim missing 'flattened' method")
+                errors.append("Primitive missing 'flattened' method")
             if not hasattr(self, 'children'):
-                errors.append("univprim missing 'children' attribute")
+                errors.append("Primitive missing 'children' attribute")
             if not hasattr(self, 'children_by_handle'):
-                errors.append("univprim missing 'children_by_handle' attribute")
+                errors.append("Primitive missing 'children_by_handle' attribute")
             
             if errors:
                 return {
@@ -1622,3 +1622,66 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 'n_atoms': 0,
                 'errors': errors
             }
+
+
+    def debug_topology_mapping(self) -> None:
+        """
+        Print detailed information about how atoms map to residues and segments.
+        
+        This is a debugging utility to verify that the topology hierarchy is
+        constructed correctly.
+        
+        Parameters
+        ----------
+        self : Primitive
+            The primitive representation to debug.
+        
+        Examples
+        --------
+        >>> self.debug_topology_mapping()
+        Chain 0: 3 residues
+        Residue 0 (ALA): 5 atoms
+        Residue 1 (GLY): 4 atoms
+        ...
+        """
+        print("=== Topology Hierarchy Debug ===")
+        print(f"Total chains: {len(self.children)}")
+        print(f"Hierarchy depth: {self.height}")
+        
+        if self.height == 4:
+            print("Structure: Universe -> Chains -> Residues -> Substructures -> Atoms\n")
+        elif self.height == 3:
+            print("Structure: Universe -> Chains -> Residues -> Atoms\n")
+        else:
+            print(f"Warning: Unexpected hierarchy depth of {self.height}\n")
+        
+        atom_counter = 0
+        residue_counter = 0
+        
+        for chain_idx, chain in enumerate(self.children):
+            chain_label = chain.label if hasattr(chain, 'label') else f"chain_{chain_idx}"
+            print(f"Chain {chain_idx} ('{chain_label}'): {len(chain.children)} residues")
+            
+            for res_idx, residue in enumerate(chain.children):
+                res_label = residue.label if hasattr(residue, 'label') else f"res_{res_idx}"
+                
+                if self.height == 4:
+                    # Count atoms across all substructures
+                    n_atoms = sum(len(sub.children) for sub in residue.children)
+                    n_substructures = len(residue.children)
+                    if n_atoms > 0:
+                        print(f"  Residue {residue_counter} ('{res_label}'): {n_atoms} atoms across {n_substructures} substructures (global atom indices {atom_counter} to {atom_counter + n_atoms - 1})")
+                        atom_counter += n_atoms
+                        residue_counter += 1
+                else:
+                    n_atoms = len(residue.children)
+                    if n_atoms > 0:
+                        print(f"  Residue {residue_counter} ('{res_label}'): {n_atoms} atoms (global atom indices {atom_counter} to {atom_counter + n_atoms - 1})")
+                        atom_counter += n_atoms
+                        residue_counter += 1
+            
+            print()  # Blank line between chains
+        
+        print(f"Total atoms: {atom_counter}")
+        print(f"Total residues: {residue_counter}")
+        print("="*40)
