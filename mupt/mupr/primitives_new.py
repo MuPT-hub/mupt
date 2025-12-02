@@ -3,6 +3,7 @@
 from typing import (
     Any,
     AbstractSet, # covers both set and frozenset
+    Callable,
     ClassVar,
     Collection,
     Hashable,
@@ -18,10 +19,9 @@ PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 PrimitiveConnectorReference = tuple[PrimitiveHandle, ConnectorAddress]
 Connection = AbstractSet[PrimitiveConnectorReference, PrimitiveConnectorReference] # using set, rather than tuple, to avoid order-dependence
 
-from abc import ABC, abstractmethod
 from copy import deepcopy
 
-from anytree import NodeMixin
+from anytree import NodeMixin, findall
 from scipy.spatial.transform import RigidTransform
 
 from .canonicalize import lex_order_multiset_str
@@ -50,42 +50,42 @@ class BijectionError(ValueError):
     '''Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched'''
     pass
 
-# Protocols
-class ManagesConnections(Protocol):
-    '''An object which contains Connectors, either internally-paired or externally-facing'''
-    connectors : Mapping[ConnectorAddress, Connector]
-    connections : Iterable[Connection]
-    internal_connector_addrs : Collection[ConnectorAddress]
-    external_connector_addrs : Collection[ConnectorAddress]
-    
     
 # Primitive types
 class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name for refactoring
-    ABC,
+    Protocol,
     NodeMixin,
-    RigidlyTransformable
+    RigidlyTransformable,
 ):
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
     '''
+    # Attributes
+    ## Classwide defaults
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'PRIM'
+
+    ## Expected geometric data
+    _shape : Optional[BoundedShape]
+
+    ## Expected local connectivity attributes
+    connectors : Mapping[ConnectorAddress, Connector]
+    connections : Iterable[Connection] # DEV: add mechanism for reference
+    internal_connector_addrs : Collection[ConnectorAddress]
+    external_connector_addrs : Collection[ConnectorAddress]
+
+    ## Expected global connectivity data
+    topology : TopologicalStructure
     
-    def __init__(
-        self,
-        shape : Optional[BoundedShape]=None,
-        label : Optional[PrimitiveLabel]=None,
-        metadata : Optional[dict[Hashable, Any]]=None, # DEV: make into implicit kwargs instead?
-        # TODO: augment init args?
-    ) -> None:
-        self.shape = shape
-        self.label = label if (label is not None) else self.DEFAULT_LABEL 
-        self.metadata = metadata or dict()
-        
-        # declaration of attributes - TODO: find better way to typehint these should be defined w/o proiding definition here
-        self._connectors : Mapping[ConnectorAddress, Connector]
-        self._internal_connector_addresses : Collection[ConnectorAddress]
-        self._external_connector_addresses : Collection[ConnectorAddress]
-        self._topology : TopologicalStructure 
+    ## Optional extras
+    metadata : dict[Hashable, Any]
+
+    # Supported methods, based on above-assumed instance attributes
+    @property
+    def label(self) -> PrimitiveLabel:
+        '''A dinsinguishing label which can be assigned by the user for identification purposes'''
+        if 'label' in self.metadata:
+            return self.metadata['label']
+        return self.DEFAULT_LABEL
 
     # Connections
     @property
@@ -101,30 +101,13 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
         )
         return round(total_bond_order)
     chemical_valence = electronic_valence = valence # aliases for convenience
-    
-    ## "Semi-abstract" properties - subtypes implement how "hidden" versions of these attrs are provided - DEV: this seems a little sketchy, revisit later
-    @property
-    def connectors(self) -> Mapping[ConnectorAddress, Connector]:
-        '''All Connectors accessible from this Primitive and any below it in a resolution hierarchy'''
-        return self._connectors
-    
-    @property
-    def internal_connector_addresses(self) -> Collection[ConnectorAddress]:
-        return self._internal_connector_addresses
-    
-    @property
-    def external_connector_addresses(self) -> Collection[ConnectorAddress]:
-        return self._external_connector_addresses
-    
-    @property
-    def topology(self) -> TopologicalStructure:
-        return self._topology
-    
-    ## Local contracts for subtypes
-    @abstractmethod
+      
     def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
         ...
         
+    def connector_trace(self, conn_addr : ConnectorAddress) -> str:
+        ...
+
     # Geometry
     ## Shape
     @property
@@ -186,7 +169,7 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
             joiner=joiner,
         )
     
-    def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shapefor all kinds of Primitive)
+    def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shape for all kinds of Primitive)
         '''A canonical string representing this Primitive's shape'''
         return type(self.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
     
@@ -194,25 +177,13 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
         I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
         '''
-        elem_form : str = self.element.symbol if (self.element is not None) else str(None) # TODO: move this to external function, eventually
-        return f'{elem_form}' \
-            f'({self.canonical_form_connectors()})' \
+        return f'(connectors={self.canonical_form_connectors()})' \
             f'[shape={self.canonical_form_shape()}]' \
             f'<graph_hash={self.topology.canonical_form()}>'
 
-    def canonical_form_peppered(self) -> str:
-        '''
-        Return a canonical string representation of the Primitive with peppered metadata
-        Used to distinguish two otherwise-equivalent Primitives, e.g. as needed for graph embedding
-        
-        Named for the cryptography technique of augmenting a hash by some external, stored data
-        (as described in https://en.wikipedia.org/wiki/Pepper_(cryptography))
-        '''
-        return f'{self.canonical_form()}-{self.label}' #{self.metadata}'
-
     ## Stdout printing
     def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
-        return self.canonical_form_peppered()
+        return self.canonical_form() # self.canonical_form_salted()
     
     def __repr__(self) -> str:
         raise NotImplementedError # TODO - will likely have to change for subtypes
@@ -230,20 +201,15 @@ class SimplePrimitive(BasePrimitive):
         self,
         connectors : Optional[Iterable[Connector]]=None, # only entry point into hierarchy (i.e. can't add or remove Connectors to Composites)
         shape : Optional[BoundedShape]=None,
-        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        super().__init__(
-            shape=shape,
-            label=label,
-            metadata=metadata,
-        )
         self._connectors : dict[ConnectorAddress, Connector] = {
             id(conn) : conn
                 for conn in connectors
         }
-        ...
         self._topology = TopologicalStructure() # trivial topology for simples - "calling card" for an eventual canonical graph form
+        self._shape = shape
+        self.metadata = metadata or dict()
     
     def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
         return self._connectors[conn_addr] # NOTE: deliberately avoiding call via dict.get() to raise loud KeyError
@@ -268,7 +234,6 @@ class AtomicPrimitive(SimplePrimitive):
         element : ElementLike,
         connectors : Optional[Iterable[Connector]]=None,
         shape : Optional[BoundedShape]=None,
-        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict]=None,
     ):
         if not isatom(element):
@@ -276,9 +241,8 @@ class AtomicPrimitive(SimplePrimitive):
         self._element = element
         
         super().__init__(
-            shape=shape,
             connectors=connectors,
-            label=label,
+            shape=shape,
             metadata=metadata,
         )
 
@@ -297,6 +261,8 @@ class AtomicPrimitive(SimplePrimitive):
         if not valence_allowed(self.element.number, self.element.charge, self.valence):
             raise ValueError(f'Atomic {self._repr_brief(include_functionality=True)} with total valence {self.valence} incompatible with assigned element {self.element!r}')
     
+    def canonical_form(self):
+        return f'{self.element.symbol}{super().canonical_form()}'
     
 ## Composites
 class CompositePrimitive(BasePrimitive):
@@ -380,17 +346,35 @@ class CompositePrimitive(BasePrimitive):
             )
     
     # Connection management
-    @property
-    def connections(self) -> AbstractSet[Connection]:
-        '''
-        Generalization chemical bonds - consists of all internally-connected pairs of Connectors,
-        represented by unordered pairs of Primitive handle and Connector references
-        '''
-        return self._connections
-    
     def fetch_connector(self, conn_addr : ConnectorAddress) -> Connector:
         ... # TODO: impl recursively
+
+    def fetch_child(self, handle : PrimitiveHandle) -> BasePrimitive:
+        ...
+
+    # Search
+    def search_hierarchy_by(
+        self,
+        condition : Callable[['BasePrimitive'], bool],
+        halt_when : Optional[Callable[['BasePrimitive'], bool]]=None,
+        to_depth : Optional[int]=None,
+        min_count : Optional[int]=None,
+        max_count : Optional[int]=None,
+    ) -> tuple['BasePrimitive']:
+        '''
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
         
+        Matching descendant Primitives are returned in traversal preorder from the root
+        '''
+        return findall(
+            self,
+            filter_=condition,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
         
 class FrozenCompositePrimitive(CompositePrimitive):
     '''
@@ -403,7 +387,6 @@ class FrozenCompositePrimitive(CompositePrimitive):
         connections : Iterable[Connection],
         topology : TopologicalStructure,
         shape : Optional[BoundedShape]=None,
-        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict]=None, 
     ):
         # Validate and extract connection info
@@ -432,12 +415,8 @@ class FrozenCompositePrimitive(CompositePrimitive):
         for child in children.values():
             child.parent = self # TODO: apply readonly trick (https://anytree.readthedocs.io/en/latest/tricks/readonly.html) to add children first, then make immutable forevermore
             
-        
-        super().__init__( # DEV: super() call at end to ensure all validations pass first
-            shape=shape,
-            label=label,
-            metadata=metadata,
-        )
+        self._shape = shape
+        self.metadata = metadata or dict()
         
     # cached properties
     ...
@@ -460,7 +439,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         topology : Optional[TopologicalStructure]=None,
         shape : Optional[BoundedShape]=None,
         connectors : Optional[Iterable[Connector]]=None,
-        label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict]=None, 
     ):
         if children is None:
@@ -474,12 +452,66 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
             topology=topology,
             shape=shape,
             connectors=connectors,
-            label=label,
             metadata=metadata,
         )
-        
+
+    # Hierarchy modification methods
+    ## Connection management
+    def connect_children( # DEV: provide overloads for PrimitiveConnectorAddress bundled args
+        self,
+        prim_handle_1 : PrimitiveHandle,
+        conn_addr_1 : ConnectorAddress,
+        prim_handle_2 : PrimitiveHandle,
+        conn_addr_2 : ConnectorAddress,
+    ) -> None:
+        '''Create a new internal connection between two child Primitives'''
+        raise NotImplementedError
+
+    def sever_connection(
+        self,
+        prim_handle_1 : PrimitiveHandle,
+        prim_handle_2 : PrimitiveHandle,
+    ) -> None:
+        '''Remove an existing internal connection between two child Primitives'''
+        raise NotImplementedError
+
+    ## Topology editing
+    def set_connectivity_from_topology(
+        self,
+        topology : TopologicalStructure,
+        connector_registration_max_iter: int=25,
+    ) -> None:
+            raise NotImplementedError
+
+    ## Child management - DEV: also include _pre_attach() etc. hooks?
+    def attach_child(self, child : BasePrimitive, salt : int=0) -> PrimitiveHandle:
+        raise NotImplementedError
+
+    def detach_child(self, handle : PrimitiveHandle) -> BasePrimitive:
+        raise NotImplementedError
+
+
     # Resolution shift operations
-    ...
+    def expand(self, target : PrimitiveHandle) -> None:
+        '''Replace a child Primitive with its children, preserving connections and traces'''
+        raise NotImplementedError
+
+    def flatten(self) -> None:
+        '''Recursively expand until all childless subprimitives are depth 1 below this one'''
+        raise NotImplementedError
+
+    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implcit_parts : bool=True) -> None:
+        '''
+        Insert a new level of Primitive between this Composite and its children,
+        with each part of the provided partition forming a new child Primitive
+        
+        Behavior of implcit parts (i.e. any not explicitly mentioned in "parts") can be specified via the "implicit_parts" argument
+        ''' # DEV: eventually, make enum for implicit_parts behavior
+        raise NotImplementedError
+
+    def cauterize(self, target : PrimitiveHandle) -> None:
+        '''Replace a child Primitive with an analogous SimplePrimitive, effectively severing all internal structure beneath it'''
+        raise NotImplementedError
     
     # TODO: implement topology.setter (with reference back to base for getter
         
@@ -496,19 +528,14 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         raise NotImplementedError
         
-## Builder interface (for acutally setting up hierarchies)
-class CompositePrimitiveBuilder(ABC):
-    '''
-    Class which configures and build Composite hierarchies before freezing them
-    Allows construction and usage of repr to be separate while not impinging on immutability of CompositePrimitives
-    '''
-    @abstractmethod
-    def build(self) -> CompositePrimitive:
-        ...
         
-## Checker methods
+## Hierarchy properties - DEV: move to separate module eventually (while somehow avoiding circular import)
+def is_simple(prim : BasePrimitive) -> bool:
+    '''Check whether a Primitive has no internal structure'''
+    return isinstance(prim, SimplePrimitive)
+
 def is_atom(prim : BasePrimitive) -> bool:
-    '''Check whether a Primitive is an AtomicPrimitive'''
+    '''Check whether a Primitive represents a single atom from the periodic table'''
     return isinstance(prim, AtomicPrimitive)
 
 def is_atomizable(prim : BasePrimitive) -> bool:
@@ -522,4 +549,34 @@ def is_atomizable(prim : BasePrimitive) -> bool:
     return all(
         is_atomizable(child)
             for child in prim.children
+    )
+
+def is_exportable(prim : BasePrimitive) -> bool:
+    '''Check whether a Primitive is exportable to external toolkits (i.e. is atomizable and has valid geometry)'''
+    if not is_simple(prim):
+        return False
+    
+    return all(
+        is_simple(leaf)
+            for leaf in prim.leaves
+    )
+
+def is_complete(prim : BasePrimitive) -> bool:
+    '''Check whether a Primitive represents a chemically-complete molecular system'''
+    if prim.functionality > 0: # no unsaturated connections
+        return False 
+    
+    return all( # no dangling composites
+        is_simple(leaf)
+            for leaf in prim.leaves
+    )
+
+def has_residue_form(prim : BasePrimitive) -> bool:
+    '''Check whether a Primitive hierarchy is organized as Universe -> Molecule -> Residue -> Atom down from the root'''
+    if not isinstance(prim, CompositePrimitive):
+        return False
+    
+    return all(
+        is_atom(leaf) and (leaf.depth == 4)        
+            for leaf in prim.leaves
     )
