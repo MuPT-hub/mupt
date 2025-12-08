@@ -29,6 +29,7 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
+from .canonicalize import lex_order_multiset_str
 from ..chemistry.core import BondType
 from ..geometry.arraytypes import Shape, Vector3, as_n_vector, compare_optional_positions
 from ..geometry.measure import within_ball
@@ -509,7 +510,6 @@ class Connector(RigidlyTransformable):
         if (dihedral_angle_rad is not None): # NOTE: sentinel (rather than default 0.0) weakens preconditions on tangents when no dihedral is specified
             self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
-
     # Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
@@ -670,3 +670,13 @@ def make_second_resemble_first(connector1 : Connector, connector2 : Connector) -
 
 # DEV: provide implementations which make some attempt to reconcile spatial info attache to respective Connectors
 ...
+
+# Canonicalization
+def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
+    '''A hashable string representing a collection of Connectors in canonical form'''
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors), # TODO: sort by some metric?
+        element_repr=str, #lambda bt : BondType.values[int(bt)]
+        separator=separator,
+        joiner=joiner,
+    )
