@@ -5,7 +5,7 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Mapping, Self, Sequence, Union
 from typing import Protocol, runtime_checkable
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from scipy.spatial.transform import RigidTransform
 
@@ -13,7 +13,7 @@ from ....mutils.copyable import Copyable, NotCopyableError
 
 
 @runtime_checkable
-class RigidlyTransformable(Protocol):
+class RigidlyTransformable(Copyable, Protocol):
     '''Mixin for objects which support rigid transformations'''
     # DEV: went back and forth on verbiage, but settled on the following as least ambiguous:
     # * "transformation" to refer to the RigidTransforms passed around
@@ -22,6 +22,8 @@ class RigidlyTransformable(Protocol):
     # DON'T change these names until you've understood this and made similar considerations for proposed changes
 
     # transform provenance
+    _cumul_transf : RigidTransform 
+    
     @property
     def cumulative_transformation(self) -> RigidTransform:
         '''
@@ -59,9 +61,7 @@ class RigidlyTransformable(Protocol):
         self.rigidly_transform(self.resetting_transformation)
 
     # copying and out-of-place applications of transformations
-
-    ## DEV: _copy_untransformed() is deliberately NOT an abstract method, as it's not required that child classes implement it;
-    ## ...if children don't implement it, they simply won't be able to perform copying or out-of-place transformations
+    @abstractmethod
     def _copy_untransformed(self) -> Self:
         '''Defines how to make a copy of an object with the same internal parts, but  without preserving it's cumulative transformation'''
         raise NotCopyableError(f'Class {self.__class__.__name__} does not define how instances should copy their parts')
@@ -73,6 +73,7 @@ class RigidlyTransformable(Protocol):
         
         return new_obj
 
+    # out-of-place applications of transformations
     def rigidly_transformed(self, transformation: RigidTransform) -> Self:
         '''Return a copy of this object which has been transformed according to the rigid transformation provided'''
         clone = self.copy() # TODO: implement mechanism to transfer cumul transform during copy of child classes

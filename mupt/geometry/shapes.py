@@ -3,9 +3,9 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Union
+from typing import runtime_checkable, Protocol, Optional, Union
+from abc import abstractmethod
 
-from abc import ABC, abstractmethod
 from functools import cached_property
 
 import numpy as np
@@ -17,6 +17,39 @@ from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.rigid.application import RigidlyTransformable
 
 
+@runtime_checkable # TODO: make class which composes transformability and boundedness (not necessarily the same a priori)
+class BoundedShape(RigidlyTransformable, Protocol):
+    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
+    # measures of extent
+    @property
+    @abstractmethod
+    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
+        '''Coordinate of the geometric center of the body'''
+        ...
+    # COM = CoM = center_of_mass = centroid # aliases for convenience
+    
+    @property
+    @abstractmethod
+    def volume(self) -> Numeric:
+        '''Cumulative measure within the boundary of the body'''
+        ...
+        
+    @abstractmethod
+    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]], Numeric]) -> bool: 
+        '''Whether a given coordinate lies within the boundary of the body'''
+        ... 
+
+    # @abstractmethod
+    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
+    #     '''Determines the furthest point on the surface of the body in a given direction'''
+    #     ...
+
+    # @abstractmethod
+    # def surface_mesh(self, *args, **kwargs) -> np.ndarray[Shape[M, P, 3], Numeric]:
+    #     '''Generate a mesh surface representing the BoundedShape which can be easily digested and plotted by mpl.plot_surface'''
+    #     ...
+        
+# Concrete BoundedShape implementations
 def ellipsoidal_mesh(
     rx : float,
     ry : Optional[float]=None,
@@ -74,38 +107,6 @@ def ellipsoidal_mesh(
 
     return mesh_points
 
-class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some iterations of float in most cases)
-    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    # measures of extent
-    @property
-    @abstractmethod
-    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
-        '''Coordinate of the geometric center of the body'''
-        ...
-    # COM = CoM = center_of_mass = centroid # aliases for convenience
-    
-    @property
-    @abstractmethod
-    def volume(self) -> Numeric:
-        '''Cumulative measure within the boundary of the body'''
-        ...
-        
-    @abstractmethod
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]], Numeric]) -> bool: 
-        '''Whether a given coordinate lies within the boundary of the body'''
-        ... 
-
-    # @abstractmethod
-    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
-    #     '''Determines the furthest point on the surface of the body in a given direction'''
-    #     ...
-
-    # @abstractmethod
-    # def surface_mesh(self, *args, **kwargs) -> np.ndarray[Shape[M, P, 3], Numeric]:
-    #     '''Generate a mesh surface representing the BoundedShape which can be easily digested and plotted by mpl.plot_surface'''
-    #     ...
-        
-# Concrete BoundedShape implementations
 class PointCloud(BoundedShape):
     '''A cluster of points in 3D space'''
     def __init__(self, positions : np.ndarray[Shape[N, 3], Numeric]=None) -> None:
@@ -117,8 +118,6 @@ class PointCloud(BoundedShape):
     def convex_hull(self) -> ConvexHull:
         '''Convex hull of the points contained within'''
         return ConvexHull(self.positions)
-
-    ## TODO: add convex hull surface mesh export
 
     @cached_property
     def triangulation(self) -> Delaunay:
