@@ -574,10 +574,7 @@ class Connector(RigidlyTransformable):
         self._label = new_label
         
     def address(self) -> int:
-        '''
-        Address in memory of this Connector
-        Used as unique identifier for Connector instances, irrespective of similarity
-        '''
+        '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
         return id(self)
     
     def canonical_form(self) -> BondType:
