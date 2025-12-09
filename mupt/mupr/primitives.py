@@ -19,12 +19,13 @@ from typing import (
     Mapping,
     TypeVar,
 )
-ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
 PrimitiveAddress = TypeVar('PrimitiveAddress', bound=int)
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
-PrimitiveConnectorReference = tuple[PrimitiveHandle, ConnectorAddress]
-Connection = AbstractSet[PrimitiveConnectorReference, PrimitiveConnectorReference] # using set, rather than tuple, to avoid order-dependence
+
+ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
+ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
+Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 from abc import abstractmethod
 from copy import deepcopy
@@ -46,7 +47,7 @@ from .topology import GraphLayout, canonical_graph_property
 from .embedding import infer_connections_from_topology, flexible_connector_reference
 
 from ..mutils.containers import UniqueRegistry
-from ..geometry.shapes import BoundedShape
+from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 
@@ -70,9 +71,21 @@ class BijectionError(ValueError):
 
     
 # Primitive types
+class ManagesConnectors(Protocol):
+    '''Interface for objects which manage Connectors and pairs of Connectors ("connections")'''
+    connectors : Collection[Connector]
+    
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
+        ...
+        
+    def connector_trace(self, conn_addr : ConnectorAddress) -> Iterable['ManagesConnectors']:
+        ...
+        
 class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for refactoring
     NodeMixin,
+    Shaped,
     RigidlyTransformable,
+    ManagesConnectors,
     Protocol,
 ):
     '''
@@ -83,8 +96,6 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'PRIM'
 
     # Expected instance attributes
-    _shape : Optional[BoundedShape]
-    connectors : Collection[Connector]
     topology : nx.Graph
     metadata : dict[Hashable, Any]
 
@@ -100,7 +111,6 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
         return id(self)
 
-    ## Connections
     @property
     def functionality(self) -> int:
         return len(self.external_connector_addrs)
@@ -115,42 +125,7 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         return round(total_bond_order)
     chemical_valence = electronic_valence = valence # aliases for convenience
       
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
-        
-    def connector_trace(self, conn_addr : ConnectorAddress) -> str:
-        ...
-
     # Geometry
-    ## Shape
-    @property
-    def has_shape(self) -> bool:
-        '''Whether this Primitive has an associated external shape'''
-        return self._shape is not None
-    
-    @property
-    def shape(self) -> Optional[BoundedShape]: # TODO: make ShapedPrimitive subtype to avoid all these None checks?
-        '''The external shape of this Primitive'''
-        return self._shape
-    
-    @shape.setter
-    def shape(self, new_shape : Optional[BoundedShape]) -> None:
-        '''Set the external shape of this Primitive with another BoundedShape'''
-        # Case 1) no shape
-        if new_shape is None:
-            self._shape = None
-            return
-        
-        # Case 2) valid shape, which may need to have transformation history transferred over
-        if not isinstance(new_shape, BoundedShape):
-            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
-
-        new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
-        if self._shape is not None:
-            new_shape_clone.cumulative_transformation = self._shape.cumulative_transformation # transfer translation history BEFORE overwriting
-        
-        self._shape = new_shape_clone
-        
     def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
         if isinstance(self.shape, RigidlyTransformable):
@@ -195,7 +170,7 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
     
 ## Simples
 TRIVIAL_TOPOLOGY = nx.Graph()
-nx.freeze(TRIVIAL_TOPOLOGY)
+nx.freeze(TRIVIAL_TOPOLOGY) # VITAL that this be frozen to allow it to act as shared singleton across Simples
 
 class SimplePrimitive(Primitive):
     '''
@@ -207,20 +182,20 @@ class SimplePrimitive(Primitive):
     def __init__(
         self,
         connectors : Optional[Iterable[Connector]]=None, # only entry point into hierarchy (i.e. can't add or remove Connectors to Composites)
-        shape : Optional[BoundedShape]=None,
+        shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        self._connectors : dict[ConnectorAddress, Connector] = {
+        self.connectors = tuple(connectors) if connectors is not None else tuple()
+        self.connectors_by_address : dict[ConnectorAddress, Connector] = {
             id(conn) : conn
-                for conn in connectors
+                for conn in self.connectors # NOTE: not iterating over connectors directly in case it was an Iterator which was exhausted during self.connectors assignment
         }
-        
-        self._topology = TRIVIAL_TOPOLOGY # trivial topology for simples - "calling card" for an eventual canonical graph form
+        self.topology = TRIVIAL_TOPOLOGY # trivial topology for simples - "calling card" for an eventual canonical graph form
         self._shape = shape
         self.metadata = metadata or dict()
     
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        return self._connectors[conn_addr] # NOTE: deliberately avoiding call via dict.get() to raise loud KeyError
+        return self.connectors_by_address[conn_addr] # NOTE: deliberately avoiding call via dict.get() to raise loud KeyError when missing
         
     # Attachment (or lack thereof) of child primitives
     ## TODO: include an explicit reference to attaching a parent above this Simple (OK to do)
@@ -251,7 +226,7 @@ class AtomicPrimitive(SimplePrimitive):
         self,
         element : ElementLike,
         connectors : Optional[Iterable[Connector]]=None,
-        shape : Optional[BoundedShape]=None,
+        shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None,
     ):
         if not isatom(element):
@@ -266,9 +241,7 @@ class AtomicPrimitive(SimplePrimitive):
 
     @property # DEV: no setter implemented; element is immutable after instantiation
     def element(self) -> Optional[ElementLike]:
-        '''
-        The chemical element, ion, or isotope associated with this AtomicPrimitive
-        '''
+        '''The chemical element, ion, or isotope associated with this AtomicPrimitive'''
         return self._element
     
     def check_valence(self) -> None:
@@ -293,13 +266,16 @@ class CompositePrimitive(Primitive):
     
     internal_connector_addrs : Collection[ConnectorAddress]
     external_connector_addrs : Collection[ConnectorAddress]
+    connections : AbstractSet[Connection]
+    children_by_address : Mapping[PrimitiveAddress, Primitive]    
     
     # Connection management
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         ... # TODO: impl recursively
 
-    def child(self, handle : PrimitiveHandle) -> Primitive:
-        ...
+    # Subprimitive management
+    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        ... # TODO: provide overload which uses a handle <-> address isomorphism
     
     # Validators
     @staticmethod
@@ -406,7 +382,7 @@ class FrozenCompositePrimitive(CompositePrimitive):
         children : UniqueRegistry[PrimitiveHandle, Primitive],
         connections : Iterable[Connection],
         topology : nx.Graph,
-        shape : Optional[BoundedShape]=None,
+        shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ):
         # Validate and extract connection info
@@ -457,27 +433,26 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         self,
         children : Optional[Iterable[Primitive]]=None,
         topology : Optional[nx.Graph]=None,
-        shape : Optional[BoundedShape]=None,
-        connectors : Optional[Iterable[Connector]]=None,
+        shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ):
         if children is None:
-            children = []
+            children = tuple()
+        for subprimitive in children:
+            self.attach_child(subprimitive)
 
+        self.connections = set()
+
+        self.topology = nx.Graph()
         if topology is None:
-            topology = self.compatible_indiscrete_topology()
+            self.set_connectivity_from_topology(topology)
         
-        # super().__init__(
-        #     children=children,
-        #     topology=topology,
-        #     shape=shape,
-        #     connectors=connectors,
-        #     metadata=metadata,
-        # )
+        self._shape = shape
+        self.metadata = metadata or dict()
 
     # Hierarchy modification methods
     ## Child management - DEV: also include _pre_attach() etc. hooks?
-    def attach_child(self, child : Primitive, salt : int=0) -> PrimitiveHandle:
+    def attach_child(self, child : Primitive) -> PrimitiveHandle:
         raise NotImplementedError
 
     def detach_child(self, handle : PrimitiveHandle) -> Primitive:
@@ -486,19 +461,19 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     ## Connection management
     def connect_children( # DEV: provide overloads for PrimitiveConnectorAddress bundled args
         self,
-        prim_handle_1 : PrimitiveHandle,
+        prim_addr_1 : PrimitiveAddress,
         conn_addr_1 : ConnectorAddress,
-        prim_handle_2 : PrimitiveHandle,
+        prim_addr_2 : PrimitiveAddress,
         conn_addr_2 : ConnectorAddress,
     ) -> None:
         '''Create a new internal connection between two child Primitives'''
         raise NotImplementedError
 
-    def sever_connection(
+    def disconnect_children(
         self,
-        prim_handle_1 : PrimitiveHandle,
-        prim_handle_2 : PrimitiveHandle,
-    ) -> None:
+        prim_addr_1 : PrimitiveAddress,
+        prim_addr_2 : PrimitiveAddress,
+    ) -> None: # TODO: figure out how to distinguish and gracefully handle multiedges here
         '''Remove an existing internal connection between two child Primitives'''
         raise NotImplementedError
 
@@ -508,7 +483,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         topology : nx.Graph,
         connector_registration_max_iter: int=25,
     ) -> None:
-            raise NotImplementedError
+        raise NotImplementedError
 
     # Resolution shift operations
     def expand(self, target : PrimitiveHandle) -> None:

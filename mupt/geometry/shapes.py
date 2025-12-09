@@ -48,6 +48,43 @@ class BoundedShape(RigidlyTransformable, Protocol):
     # def surface_mesh(self, *args, **kwargs) -> np.ndarray[Shape[M, P, 3], Numeric]:
     #     '''Generate a mesh surface representing the BoundedShape which can be easily digested and plotted by mpl.plot_surface'''
     #     ...
+    
+class BoundedTransformableShape(BoundedShape, RigidlyTransformable, Protocol):
+    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
+    ...
+        
+class Shaped(Protocol):
+    '''Interface for objects which have an associated bounded, tranformable shape'''
+    _shape : Optional[BoundedTransformableShape]
+    
+    @property
+    def has_shape(self) -> bool:
+        '''Whether this Primitive has an associated external shape'''
+        return self._shape is not None
+    
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]: # TODO: make ShapedPrimitive subtype to avoid all these None checks?
+        '''The external shape of this Primitive'''
+        return self._shape
+    
+    @shape.setter
+    def shape(self, new_shape : Optional[BoundedTransformableShape]) -> None:
+        '''Set the external shape of this Primitive with another BoundedShape'''
+        # Case 1) no shape
+        if new_shape is None:
+            self._shape = None
+            return
+        
+        # Case 2) valid shape, which may need to have transformation history transferred over
+        if not isinstance(new_shape, BoundedTransformableShape):
+            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
+
+        new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
+        if self._shape is not None:
+            new_shape_clone.cumulative_transformation = self._shape.cumulative_transformation # transfer translation history BEFORE overwriting
+        
+        self._shape = new_shape_clone
+        
         
 # Concrete BoundedShape implementations
 def ellipsoidal_mesh(
@@ -107,7 +144,7 @@ def ellipsoidal_mesh(
 
     return mesh_points
 
-class PointCloud(BoundedShape):
+class PointCloud(BoundedTransformableShape):
     '''A cluster of points in 3D space'''
     def __init__(self, positions : np.ndarray[Shape[N, 3], Numeric]=None) -> None:
         if positions is None:
@@ -153,8 +190,7 @@ class PointCloud(BoundedShape):
     #     # TODO: implement calculating this from ConvexHull
     #     ...
 
-
-class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
+class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     '''A spherical body with arbitrary radius and center'''
     def __init__(self,
         radius : float=1.0,
@@ -211,8 +247,7 @@ class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circl
             transformation=self.cumulative_transformation,
         )
     
-    
-class Ellipsoid(BoundedShape):
+class Ellipsoid(BoundedTransformableShape):
     '''
     A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
     
@@ -382,3 +417,6 @@ class Ellipsoid(BoundedShape):
             transformation=self.cumulative_transformation,
         )
     
+# class Cylinder(BoundedTransformableShape):
+    # '''A cylindrical body with arbitrary radius, height, and center'''
+    # ...
