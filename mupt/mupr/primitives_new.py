@@ -1,5 +1,11 @@
 '''A refactored version of .primitives which is more cohesive and cleanly adheres to functionality where needed'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
+import logging
+LOGGER = logging.getLogger(__name__)
+
 from typing import (
     Any,
     AbstractSet, # covers both set and frozenset
@@ -22,17 +28,19 @@ Connection = AbstractSet[PrimitiveConnectorReference, PrimitiveConnectorReferenc
 from copy import deepcopy
 
 from anytree import NodeMixin, findall
+import networkx as nx
 from scipy.spatial.transform import RigidTransform
 
 from .canonicalize import lex_order_multiset_str
 from .connection import (
     Connector,
     make_second_resemble_first,
+    canonical_form_connectors,
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .topology import TopologicalStructure, GraphLayout
+from .topology import GraphLayout, canonical_graph_property
 from .embedding import infer_connections_from_topology, flexible_connector_reference
 
 from ..mutils.containers import UniqueRegistry
@@ -44,6 +52,14 @@ from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 # Custom Exceptions
 class IrreducibilityError(AttributeError):
     '''Raised when attempting to perform a composite Primitive operation on a simple one'''
+    pass
+
+class AtomicityError(IrreducibilityError):
+    '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
+    pass
+
+class MissingSubprimitiveError(KeyError):
+    '''Raised when a child Primitive expected for a call is not present'''
     pass
 
 class BijectionError(ValueError):
@@ -68,13 +84,12 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
     _shape : Optional[BoundedShape]
 
     ## Expected local connectivity attributes
-    connectors : Mapping[ConnectorAddress, Connector]
-    connections : Iterable[Connection] # DEV: add mechanism for reference
-    internal_connector_addrs : Collection[ConnectorAddress]
-    external_connector_addrs : Collection[ConnectorAddress]
-
+    connectors : Collection[Connector]
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
+        ...
+    
     ## Expected global connectivity data
-    topology : TopologicalStructure
+    topology : nx.Graph
     
     ## Optional extras
     metadata : dict[Hashable, Any]
@@ -82,7 +97,7 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
     # Supported methods, based on above-assumed instance attributes
     @property
     def label(self) -> PrimitiveLabel:
-        '''A dinsinguishing label which can be assigned by the user for identification purposes'''
+        '''A distinguishing label which can be assigned by the user for identification purposes'''
         if 'label' in self.metadata:
             return self.metadata['label']
         return self.DEFAULT_LABEL
@@ -159,12 +174,8 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
     ## Hashable canonical forms for core components
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's Connectors'''
-        return lex_order_multiset_str(
-            (
-                self.connectors[connector_handle].canonical_form()
-                    for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
-            ),
-            element_repr=str, #lambda bt : BondType.values[int(bt)]
+        return canonical_form_connectors(
+            (self.connectors[connector_handle] for connector_handle in sorted(self.connectors.keys())),
             separator=separator,
             joiner=joiner,
         )
@@ -173,13 +184,17 @@ class BasePrimitive(  # DEV: eventually, rename to just "Primitive" - temp name 
         '''A canonical string representing this Primitive's shape'''
         return type(self.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
     
+    def canonical_form_topology(self) -> str:
+        '''A canonical string representing this Primitive's topology'''
+        return canonical_graph_property(self.topology)
+    
     def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
         I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
         '''
-        return f'(connectors={self.canonical_form_connectors()})' \
+        return f'(connectors={self.canonical_form_connectors(self.connectors)})' \
             f'[shape={self.canonical_form_shape()}]' \
-            f'<graph_hash={self.topology.canonical_form()}>'
+            f'<graph_hash={self.canonical_form_topology()}>'
 
     ## Stdout printing
     def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
@@ -207,7 +222,11 @@ class SimplePrimitive(BasePrimitive):
             id(conn) : conn
                 for conn in connectors
         }
-        self._topology = TopologicalStructure() # trivial topology for simples - "calling card" for an eventual canonical graph form
+        
+        trivial_topology = nx.Graph()
+        nx.freeze(trivial_topology)
+        self._topology = trivial_topology # trivial topology for simples - "calling card" for an eventual canonical graph form
+        
         self._shape = shape
         self.metadata = metadata or dict()
     
@@ -274,6 +293,10 @@ class CompositePrimitive(BasePrimitive):
     '''
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'TREE'
     
+    connections : Iterable[Connection] # DEV: add mechanism for reference
+    internal_connector_addrs : Collection[ConnectorAddress]
+    external_connector_addrs : Collection[ConnectorAddress]
+    
     # Validators
     @staticmethod
     def check_connections_compatible_with_primitive_registry(
@@ -306,7 +329,7 @@ class CompositePrimitive(BasePrimitive):
     @staticmethod
     def check_primitive_registry_bijective_to_topology_nodes(
         primitive_registry : UniqueRegistry[PrimitiveHandle, BasePrimitive],
-        topology : TopologicalStructure,
+        topology : nx.Graph,
     ) -> None:
         '''
         Verify 1:1 correspondence between the reference handles in a 
@@ -327,7 +350,7 @@ class CompositePrimitive(BasePrimitive):
     @staticmethod
     def check_connections_bijective_to_topology_edges(
         connections : AbstractSet[Connection],
-        topology : TopologicalStructure,
+        topology : nx.Graph,
     ) -> None:
         '''
         Verify that a 1:1 correspondence exists between the internal connections
@@ -385,7 +408,7 @@ class FrozenCompositePrimitive(CompositePrimitive):
         self,
         children : UniqueRegistry[PrimitiveHandle, BasePrimitive],
         connections : Iterable[Connection],
-        topology : TopologicalStructure,
+        topology : nx.Graph,
         shape : Optional[BoundedShape]=None,
         metadata : Optional[dict]=None, 
     ):
@@ -436,7 +459,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     def __init__( # DEV: could omit entirely; repeated for documentation purposes, and in case extra init config needs to be addeds
         self,
         children : Optional[Iterable[BasePrimitive]]=None,
-        topology : Optional[TopologicalStructure]=None,
+        topology : Optional[nx.Graph]=None,
         shape : Optional[BoundedShape]=None,
         connectors : Optional[Iterable[Connector]]=None,
         metadata : Optional[dict]=None, 
@@ -447,15 +470,22 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         if topology is None:
             topology = self.compatible_indiscrete_topology()
         
-        super().__init__(
-            children=children,
-            topology=topology,
-            shape=shape,
-            connectors=connectors,
-            metadata=metadata,
-        )
+        # super().__init__(
+        #     children=children,
+        #     topology=topology,
+        #     shape=shape,
+        #     connectors=connectors,
+        #     metadata=metadata,
+        # )
 
     # Hierarchy modification methods
+    ## Child management - DEV: also include _pre_attach() etc. hooks?
+    def attach_child(self, child : BasePrimitive, salt : int=0) -> PrimitiveHandle:
+        raise NotImplementedError
+
+    def detach_child(self, handle : PrimitiveHandle) -> BasePrimitive:
+        raise NotImplementedError
+    
     ## Connection management
     def connect_children( # DEV: provide overloads for PrimitiveConnectorAddress bundled args
         self,
@@ -478,18 +508,10 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     ## Topology editing
     def set_connectivity_from_topology(
         self,
-        topology : TopologicalStructure,
+        topology : nx.Graph,
         connector_registration_max_iter: int=25,
     ) -> None:
             raise NotImplementedError
-
-    ## Child management - DEV: also include _pre_attach() etc. hooks?
-    def attach_child(self, child : BasePrimitive, salt : int=0) -> PrimitiveHandle:
-        raise NotImplementedError
-
-    def detach_child(self, handle : PrimitiveHandle) -> BasePrimitive:
-        raise NotImplementedError
-
 
     # Resolution shift operations
     def expand(self, target : PrimitiveHandle) -> None:
