@@ -74,6 +74,7 @@ class BijectionError(ValueError):
 class ManagesConnectors(Protocol):
     '''Interface for objects which manage Connectors and pairs of Connectors ("connections")'''
     connectors : Collection[Connector]
+    connectors_by_address : Mapping[ConnectorAddress, Connector]
     
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         ...
@@ -116,7 +117,7 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         return len(self.external_connector_addrs)
     
     @property
-    def valence(self) -> int:
+    def valence(self) -> int: # DEV: well-defined from more than just atomic primitives since Connectors store BondType info
         '''Electronic valence of the Primitive, i.e. the total bond order of all external-facing Connectors on this Primitive'''
         total_bond_order : float = sum(
             BOND_ORDER.get(conn.bondtype, 0.0)
@@ -159,7 +160,7 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         return f'(connectors={self.canonical_form_connectors(self.connectors)})' \
             f'[shape={self.canonical_form_shape()}]' \
             f'<graph_hash={self.canonical_form_topology()}>'
-
+            
     ## Stdout printing
     # def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
     #     return self.canonical_form() # self.canonical_form_salted()
@@ -269,14 +270,13 @@ class CompositePrimitive(Primitive):
     connections : AbstractSet[Connection]
     children_by_address : Mapping[PrimitiveAddress, Primitive]    
     
-    # Connection management
+    # Hierarchy component management
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         ... # TODO: impl recursively
 
-    # Subprimitive management
     def child(self, prim_addr : PrimitiveAddress) -> Primitive:
         ... # TODO: provide overload which uses a handle <-> address isomorphism
-    
+        
     # Validators
     @staticmethod
     def check_connections_compatible_with_primitive_registry(
@@ -436,29 +436,79 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ):
-        if children is None:
-            children = tuple()
+        # Initialize bookkeeping attrs
+        self.connections : set[Connection] = set()
+        self.connector_is_internal : dict[ConnectorAddress, bool] = dict()
+        self.connector_origin_address : dict[ConnectorAddress, PrimitiveAddress] = dict()
+        self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
+        
+        # Bind subprimitives and set connectivity, if possible
+        self.topology = nx.Graph()
         for subprimitive in children:
             self.attach_child(subprimitive)
 
-        self.connections = set()
-
-        self.topology = nx.Graph()
         if topology is None:
             self.set_connectivity_from_topology(topology)
+
+        if children is None:
+            children = tuple()
         
         self._shape = shape
         self.metadata = metadata or dict()
 
-    # Hierarchy modification methods
-    ## Child management - DEV: also include _pre_attach() etc. hooks?
-    def attach_child(self, child : Primitive) -> PrimitiveHandle:
-        raise NotImplementedError
+    # Hierarchy management
+    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        return self.children_by_address[prim_addr] # raise KeyError if not present
 
-    def detach_child(self, handle : PrimitiveHandle) -> Primitive:
-        raise NotImplementedError
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
+        origin_child : Primitive = self.child(self.connector_origin_address[conn_addr])
+        return origin_child.connector(conn_addr)
     
-    ## Connection management
+    ## Attaching new children
+    def _pre_attach(self, parent : 'MutableCompositePrimitive') -> None:
+        '''Preconditions prior to attempting attachment of this Primitive to a parent'''
+        if not isinstance(parent, MutableCompositePrimitive):
+            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Primitive instances')
+    
+    def attach_child(self, child : Primitive) -> PrimitiveHandle:
+        '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
+        child.parent = self
+        
+        child_address : PrimitiveAddress = child.address()
+        self.topology.add_node(child_address) # this is idempotent, so no need to worry about if the node is already present
+        self.children_by_address[child_address] = child
+        
+        for conn_addr, conn in child.connectors_by_address.items():
+            self.connector_is_internal[conn_addr] = False # all new connectors are external by default until their are paired into a connection
+            self.connector_origin_address[conn_addr] = child_address
+    
+    def _post_attach(self, parent : 'MutableCompositePrimitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        ...
+
+    ## Detaching extant children
+    def _pre_detach(self, parent : 'Primitive') -> None:
+        '''Preconditions prior to attempting detachment of this Primitive from a parent'''
+        if not isinstance(parent, MutableCompositePrimitive):
+            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Prmitive instances')
+        
+    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        subprimitive = self.child(prim_addr)
+        subprimitive.parent = None
+        
+        del self.children_by_address[prim_addr]
+        for conn_addr, conn in subprimitive.connectors_by_address.items():
+            del self.connector_is_internal[conn_addr]
+            del self.connector_origin_address[conn_addr]
+            # TODO: free Connectors at the "other end" of any connections to these Connectors
+        self.topology.remove_node(prim_addr)
+        
+        return subprimitive
+    
+    def _post_detach(self, parent : 'Primitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+    
+    ## Managing connections
     def connect_children( # DEV: provide overloads for PrimitiveConnectorAddress bundled args
         self,
         prim_addr_1 : PrimitiveAddress,
@@ -484,6 +534,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         connector_registration_max_iter: int=25,
     ) -> None:
         raise NotImplementedError
+
 
     # Resolution shift operations
     def expand(self, target : PrimitiveHandle) -> None:
@@ -547,8 +598,8 @@ def is_atomizable(prim : Primitive) -> bool:
 
 def is_exportable(prim : Primitive) -> bool:
     '''Check whether a Primitive is exportable to external toolkits (i.e. is atomizable and has valid geometry)'''
-    if not is_simple(prim):
-        return False
+    if is_simple(prim):
+        return True
     
     return all(
         is_simple(leaf)
