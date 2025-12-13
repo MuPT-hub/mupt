@@ -15,11 +15,6 @@ class Canonicalizable(Protocol):
     def canonical_form(self) -> Hashable:
         ...
 
-# graphs
-def canonical_graph_property(graph : nx.Graph) -> str:
-    '''Canonicalize a graph with an ordered coloring'''
-    raise NotImplementedError('Graph canonicalization is not implemented yet')
-
 # multisets
 def lex_order_multiset(elements : Iterable[Hashable]) -> tuple[tuple[Hashable, int], ...]:
     '''
