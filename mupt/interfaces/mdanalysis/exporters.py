@@ -17,10 +17,21 @@ from typing import Any, Dict, List, Optional
 
 from ...mupr.primitives import Primitive, PrimitiveHandle
 
+def _pdb_resname(label: str, resname_map: Optional[dict]) -> str:
+    if resname_map and label in resname_map:
+        name = resname_map[label]
+    else:
+        name = label
 
+    if len(name) != 3:
+        raise ValueError(
+            f"Residue name '{name}' (from '{label}') is not 3 characters long"
+        )
+    return name.upper()
 
 def primitive_to_mdanalysis(univprim : Primitive,
-                            coords: Optional[np.ndarray] = None) -> mda.Universe:
+                            resname_map: Optional[dict[str, str]] = None,
+                            ) -> mda.Universe:
     """
     Convert a MuPT Representation (univprim) to an MDAnalysis Universe.
     
@@ -33,11 +44,12 @@ def primitive_to_mdanalysis(univprim : Primitive,
     univprim : Primitive
         The universal primitive representation containing the molecular system
         in a tree-like hierarchy (universe -> chains -> residues -> atoms).
-    coords : np.ndarray, optional
-        An optional array of shape (N, 3) containing atomic coordinates. If provided,
-        these coordinates will be assigned to the Universe. If None, no coordinates
-        will be set.
-    
+    resname_map : dict, optional
+        A mapping from residue labels to PDB residue names (3-letter codes).
+        If provided, this mapping will be used to set residue names in the
+        MDAnalysis Universe. If not provided, residue labels from univprim
+        will be used directly.
+
     Returns
     -------
     MDAnalysis.Universe
@@ -73,190 +85,114 @@ def primitive_to_mdanalysis(univprim : Primitive,
     
     assert univprim.height >= 3, "Primitive must have at least 3 levels: universe -> chains -> residues -> atoms"
 
-    num_residues = 0
-    num_chains = 0
-    num_atoms = 0
+    # ----------------------------
+    # Containers (allow duplicates)
+    # ----------------------------
+    atom_elements = []
+    atom_names = []
+    atom_positions = []
 
-    chain_idx_counter = 0
-    residue_idx_counter = 0
-    atom_idx_counter = 0
+    atom_resindex = []
+    atom_segindex = []
 
-    chain_idx_arr = []
-    residue_idx_arr = []
-    atom_idx_arr = []
+    residue_names = []
+    residue_segindex = []
+    residue_ids = []
 
-    residue_chain_index = []
+    bonds = []
 
-    atom_residue_resname = [] # one value per atom, corresponds to the residue name
-    atom_element_identifier = [] # one value per atom, corresponds to the element type
-    atom_name_identifier = [] # one value per atom, corresponds to the atom name
+    # Counters
+    atom_idx = 0
+    res_idx = 0
 
-    residue_resname_mapper = [] # one value per residue, corresponds to the residue name
+    # ----------------------------
+    # Traverse hierarchy explicitly
+    # ----------------------------
+    for chain_idx, chain in enumerate(univprim.children):
 
-    # for every chain x in the universe
-    for x in univprim.children_by_handle.keys():
-        # for every residue y in chain x
-        num_chains += 1
+        resid_counter = 1  # reset per chain
 
-        for y in univprim.children_by_handle[x].children_by_handle.keys():
-            num_residues += 1
-            residue_chain_index.append(chain_idx_counter)
+        for residue in chain.children:
+            residue_names.append(
+                _pdb_resname(residue.label, resname_map)
+            )
 
-            residue = univprim.children_by_handle[x].children_by_handle[y]
+            residue_segindex.append(chain_idx)
+            residue_ids.append(resid_counter)
 
-            residue_resname_mapper.append(residue.label)
+            # Local atom index map for this residue only
+            local_atom_indices = {}
 
-            # for every atom z in residue y of chain x
-            for z in residue.children_by_handle.keys():
-                atom = residue.children_by_handle[z]
-                num_atoms += 1
+            for atom in residue.children:
+                # Record atom
+                atom_elements.append(atom.element.symbol)
+                atom_names.append(atom.element.symbol)
 
-                chain_idx_arr.append(chain_idx_counter) # 0-indexed
-                residue_idx_arr.append(residue_idx_counter) # 0-indexed
-                atom_idx_arr.append(atom_idx_counter) # 0-indexed
-                atom_residue_resname.append(residue.label)
+                if hasattr(atom, "shape") and atom.shape is not None:
+                    atom_positions.append(atom.shape.centroid)
+                else:
+                    atom_positions.append([0.0, 0.0, 0.0])
 
-                # Extract element
-                if not hasattr(atom, 'element') or atom.element is None:
-                    raise ValueError(f"Atom at index {atom_idx_counter} is missing element information")
-                
-                atom_element_identifier.append(atom.element.symbol)
-                atom_name_identifier.append(atom.element.symbol)  # Use element symbol as atom name
+                atom_resindex.append(res_idx)
+                atom_segindex.append(chain_idx)
 
-                atom_idx_counter += 1
-            
-            residue_idx_counter += 1
+                local_atom_indices[atom] = atom_idx
+                atom_idx += 1
 
-        chain_idx_counter += 1
+            # Bonds (local → global index)
+            if hasattr(residue, "topology") and residue.topology is not None:
+                for a1, a2 in residue.topology.edges():
+                    if a1 in local_atom_indices and a2 in local_atom_indices:
+                        bonds.append(
+                            (local_atom_indices[a1], local_atom_indices[a2])
+                        )
 
-    chain_idx_arr = np.array(chain_idx_arr, dtype=int)
-    residue_idx_arr = np.array(residue_idx_arr, dtype=int)
-    atom_idx_arr = np.array(atom_idx_arr, dtype=int)
-    residue_chain_index = np.array(residue_chain_index, dtype=int)
+            resid_counter += 1
+            res_idx += 1
 
+    # ----------------------------
+    # Convert to numpy arrays
+    # ----------------------------
+    atom_positions = np.asarray(atom_positions, dtype=float)
+    atom_resindex = np.asarray(atom_resindex, dtype=int)
+    atom_segindex = np.asarray(atom_segindex, dtype=int)
+    residue_segindex = np.asarray(residue_segindex, dtype=int)
 
-    assert len  (chain_idx_arr) == num_atoms
-    assert len  (residue_idx_arr) == num_atoms
-    assert len  (atom_idx_arr) == num_atoms
+    num_atoms = len(atom_resindex)
+    num_residues = len(residue_names)
+    num_segments = len(univprim.children)
 
-    assert len  (atom_residue_resname) == num_atoms
-    assert len  (atom_element_identifier) == num_atoms
-    assert len  (atom_name_identifier) == num_atoms
+    print(f"Atoms: {num_atoms}, Residues: {num_residues}, Segments: {num_segments}")
+    print(f"Unique atom_resindex: {np.unique(atom_resindex)}")
+    print(f"Unique atom_segindex: {np.unique(atom_segindex)}")
 
-    assert len (residue_chain_index) == num_residues
-
-    print(f"Total chains: {num_chains}, residues: {num_residues}, atoms: {num_atoms}")
-
-    # Create empty Universe
+    # ----------------------------
+    # Create MDAnalysis Universe
+    # ----------------------------
     universe = mda.Universe.empty(
         num_atoms,
         n_residues=num_residues,
-        n_segments=num_chains,
-        atom_resindex=residue_idx_arr,
-        residue_segindex=residue_chain_index,
-        trajectory=True  # For storing coordinates
+        n_segments=num_segments,
+        atom_resindex=atom_resindex,
+        residue_segindex=residue_segindex,
+        trajectory=True,
     )
 
-    # Add topology attributes
-    
-    # Atom names (using element symbols)
-    universe.add_TopologyAttr('name', atom_name_identifier)
+    # ----------------------------
+    # Topology attributes
+    # ----------------------------
+    universe.add_TopologyAttr("name", atom_names)
+    universe.add_TopologyAttr("type", atom_elements)
+    universe.add_TopologyAttr("element", atom_elements)
+    universe.add_TopologyAttr("resname", residue_names)
+    universe.add_TopologyAttr("resid", residue_ids)
 
-    # Atom types (using element symbols)
-    universe.add_TopologyAttr('type', atom_element_identifier)
+    segids = [str(i + 1) for i in range(num_segments)]
+    universe.add_TopologyAttr("segid", segids)
 
-    # Elements
-    universe.add_TopologyAttr('element', atom_element_identifier)
+    if bonds:
+        universe.add_TopologyAttr("bonds", np.asarray(bonds, dtype=np.int32))
 
-    # Residue names
-    universe.add_TopologyAttr('resname', residue_resname_mapper)
+    universe.atoms.positions = atom_positions
 
-    # Residue IDs (1-based)
-    resids = list(range(1, num_residues + 1))
-    universe.add_TopologyAttr('resid', resids)
-
-    # Segment IDs (1-based, as strings)
-    segids = [str(i) for i in range(1, num_chains + 1)]
-    universe.add_TopologyAttr('segid', segids)
-
-    guesser = DefaultGuesser(universe, fudge_factor=1.2)
-
-    if coords is not None:
-        if coords.shape != (num_atoms, 3):
-            raise ValueError(f"Provided coordinates shape {coords.shape} does not match number of atoms {num_atoms}")
-        universe.atoms.positions = coords
-
-        universe.guess_TopologyAttrs(to_guess=["types", 
-                                               "bonds", "angles", "dihedrals", 
-                                               "impropers", "aromaticities",
-                                               "masses"],
-                        context=guesser, fudge_factor=0.5)
-        
-    else:
-        universe.guess_TopologyAttrs(
-                            to_guess=["types",  "masses"], # can only safely guess types and masses
-                      context=guesser, fudge_factor=0.5)
-        
     return universe
-
-def debug_topology_mapping(univprim) -> None:
-    """
-    Print detailed information about how atoms map to residues and segments.
-    
-    This is a debugging utility to verify that the topology hierarchy is
-    constructed correctly.
-    
-    Parameters
-    ----------
-    univprim : Primitive
-        The primitive representation to debug.
-    
-    Examples
-    --------
-    >>> debug_topology_mapping(univprim)
-    Chain 0: 3 residues
-    Residue 0 (ALA): 5 atoms
-    Residue 1 (GLY): 4 atoms
-    ...
-    """
-    print("=== Topology Hierarchy Debug ===")
-    print(f"Total chains: {len(univprim.children)}")
-    print(f"Hierarchy depth: {univprim.height}")
-    
-    if univprim.height == 4:
-        print("Structure: Universe -> Chains -> Residues -> Substructures -> Atoms\n")
-    elif univprim.height == 3:
-        print("Structure: Universe -> Chains -> Residues -> Atoms\n")
-    else:
-        print(f"Warning: Unexpected hierarchy depth of {univprim.height}\n")
-    
-    atom_counter = 0
-    residue_counter = 0
-    
-    for chain_idx, chain in enumerate(univprim.children):
-        chain_label = chain.label if hasattr(chain, 'label') else f"chain_{chain_idx}"
-        print(f"Chain {chain_idx} ('{chain_label}'): {len(chain.children)} residues")
-        
-        for res_idx, residue in enumerate(chain.children):
-            res_label = residue.label if hasattr(residue, 'label') else f"res_{res_idx}"
-            
-            if univprim.height == 4:
-                # Count atoms across all substructures
-                n_atoms = sum(len(sub.children) for sub in residue.children)
-                n_substructures = len(residue.children)
-                if n_atoms > 0:
-                    print(f"  Residue {residue_counter} ('{res_label}'): {n_atoms} atoms across {n_substructures} substructures (global atom indices {atom_counter} to {atom_counter + n_atoms - 1})")
-                    atom_counter += n_atoms
-                    residue_counter += 1
-            else:
-                n_atoms = len(residue.children)
-                if n_atoms > 0:
-                    print(f"  Residue {residue_counter} ('{res_label}'): {n_atoms} atoms (global atom indices {atom_counter} to {atom_counter + n_atoms - 1})")
-                    atom_counter += n_atoms
-                    residue_counter += 1
-        
-        print()  # Blank line between chains
-    
-    print(f"Total atoms: {atom_counter}")
-    print(f"Total residues: {residue_counter}")
-    print("="*40)
