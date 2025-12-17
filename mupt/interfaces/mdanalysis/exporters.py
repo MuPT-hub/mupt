@@ -64,7 +64,11 @@ def _pdb_resname(label: str, resname_map: Optional[dict]) -> str:
     return name.upper()
 
 def _is_AA_export_compliant(prim : Primitive) -> bool:
-    '''Check whether a Primitive hierarchy is organized as universe -> chain -> residue -> atom'''    
+    """
+    Check whether a Primitive hierarchy is organized
+    as universe -> chain -> residue -> atom
+    """   
+    
     return all(
         leaf.is_atom and (leaf.depth == 3)        
             for leaf in prim.leaves
