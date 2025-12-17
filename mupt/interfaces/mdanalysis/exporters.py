@@ -63,6 +63,13 @@ def _pdb_resname(label: str, resname_map: Optional[dict]) -> str:
         )
     return name.upper()
 
+def _is_AA_export_compliant(prim : Primitive) -> bool:
+    '''Check whether a Primitive hierarchy is organized as universe -> chain -> residue -> atom'''    
+    return all(
+        leaf.is_atom and (leaf.depth == 3)        
+            for leaf in prim.leaves
+    )
+
 def primitive_to_mdanalysis(univprim : Primitive,
                             resname_map: Optional[dict[str, str]] = None,
                             ) -> mda.Universe:
@@ -110,7 +117,7 @@ def primitive_to_mdanalysis(univprim : Primitive,
     >>> print(f"Number of segments: {universe.segments.n_segments}")
     """
     
-    assert univprim.height >= 3, "Primitive must have at least 3 levels: universe -> chains -> residues -> atoms"
+    assert _is_AA_export_compliant(univprim), "[Under Construction] Primitive must be ordered according to: universe -> chains -> residues -> atoms"
 
     # ----------------------------
     # Containers (allow duplicates)
@@ -148,6 +155,9 @@ def primitive_to_mdanalysis(univprim : Primitive,
             residue_ids.append(resid_counter)
 
             # Local atom index map for this residue only
+            # This works because the Atomic Primitives are not duplicated
+            # within a residue.
+
             local_atom_indices = {}
 
             for atom in residue.children:
@@ -164,6 +174,9 @@ def primitive_to_mdanalysis(univprim : Primitive,
                 atom_segindex.append(chain_idx)
 
                 local_atom_indices[atom] = atom_idx
+
+                # Recall that atom_idx is a GLOBAL counter of what
+                # idx atom we are on
                 atom_idx += 1
 
             # Bonds (local → global index)
