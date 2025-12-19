@@ -17,15 +17,15 @@ from collections import Counter, UserDict, defaultdict
 from copy import deepcopy
 
 
-LabelT = TypeVar('LabelT', bound=Hashable)
-HandleT = tuple[LabelT, int] # label uniquified with an additional arbitrary index
-
 class Labelled(Protocol):
     '''Protocol for objects that have a label'''
     @property
     def label(self) -> Hashable: 
         ...
-LabelledT = TypeVar('LabelledT', bound=Labelled)
+        
+LabelT = TypeVar('LabelT', bound=Hashable)
+HandleT = tuple[LabelT, int] # label uniquified with an additional arbitrary index
+LabelledT = TypeVar('LabelledT')
 
 class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
     '''
@@ -38,8 +38,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         self._freed = defaultdict(set)
 
     # Unique index ticker management
-    def _take_connector_number(self, label : LabelT) -> int:
-        '''Increment and return the next available integer for uniquifying a Connector label'''
+    def _get_uniquifying_index(self, label : LabelT) -> int:
+        '''Increment and return the next available integer for uniquifying a label'''
         if len(freed_idxs := self._freed[label]) > 0:
             idx = min(freed_idxs)
             self._freed[label].remove(idx)
@@ -70,11 +70,9 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
         super().__setitem__(key, item)
 
-    def register(self, obj: LabelledT, label : Optional[LabelT]=None) -> HandleT:
+    def register(self, obj: LabelledT, label : Optional[LabelT]) -> HandleT:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
-        if label is None:
-            label = obj.label # DEV: opted for behavioral pattern, rather than explicit runtime_checkable Protocol enforcement
-        handle = (label, self._take_connector_number(label))
+        handle = (label, self._get_uniquifying_index(label))
         super().__setitem__(handle, obj)
 
         return handle
