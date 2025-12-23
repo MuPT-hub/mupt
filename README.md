@@ -48,7 +48,7 @@ See the accompanying [examples repository](https://github.com/MuPT-hub/mupt-exam
 
 ### Copyright
 
-Copyright (c) 2024, Timotej Bernat
+Copyright (c) 2024, Timotej Bernat, Joseph R. Laforet Jr.
 
 
 #### Acknowledgements
