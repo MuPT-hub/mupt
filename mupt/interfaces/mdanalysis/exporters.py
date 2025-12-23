@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from ...mupr.primitives import Primitive, PrimitiveHandle
 from ...chemistry.core import BOND_ORDER
 
+# DEV:JRL -> Debating whether to keep resname_map optional.
 def _pdb_resname(label: str, resname_map: Optional[dict]) -> str:
     """
     Map a residue label to a PDB-compliant 3-character residue name.
@@ -76,6 +77,7 @@ def _is_AA_export_compliant(prim : Primitive) -> bool:
             for leaf in prim.leaves
     )
 
+# DEV:JRL -> Debating whether to keep resname_map optional.
 def primitive_to_mdanalysis(univprim : Primitive,
                             resname_map: Optional[dict[str, str]] = None,
                             ) -> mda.Universe:
@@ -91,11 +93,12 @@ def primitive_to_mdanalysis(univprim : Primitive,
     univprim : Primitive
         The universal primitive representation containing the molecular system
         in a tree-like hierarchy (universe -> chains -> residues -> atoms).
-    resname_map : dict, optional
+    resname_map : dict, optional 
         A mapping from residue labels to PDB residue names (3-letter codes).
         If provided, this mapping will be used to set residue names in the
         MDAnalysis Universe. If not provided, residue labels from univprim
-        will be used directly.
+        will be used directly. NOTE: MDAnalysis allows for arbitrary length
+        residue names, and will automatically truncate the names on export.
 
     Returns
     -------

@@ -39,7 +39,7 @@ def _is_AA_export_compliant(prim: Primitive) -> bool:
 
 def primitive_to_openff_molecules(
     primitive: Primitive,
-    resname_map: Optional[dict[str, str]] = None,
+    resname_map: dict[str, str],
     allow_undefined_stereo: bool = True,
 ) -> list[OFFMolecule]:
     """
@@ -61,7 +61,7 @@ def primitive_to_openff_molecules(
     primitive : Primitive
         The root primitive (universe level) containing the molecular system.
         Must be organized as: universe -> chains -> residues -> atoms.
-    resname_map : dict[str, str], optional
+    resname_map : dict[str, str],
         Mapping from MuPT residue labels to 3-character PDB residue names.
         For example: ``{'head': 'HEA', 'middle': 'MID', 'tail': 'TAL'}``.
         If a label is not in the map, the first 3 characters are used.
@@ -136,7 +136,7 @@ def primitive_to_openff_molecules(
 
 def primitive_to_openff_topology(
     primitive: Primitive,
-    resname_map: Optional[dict[str, str]] = None,
+    resname_map: dict[str, str],
     allow_undefined_stereo: bool = True,
 ) -> OFFTopology:
     """
@@ -149,7 +149,7 @@ def primitive_to_openff_topology(
     ----------
     primitive : Primitive
         The root primitive (universe level) containing the molecular system.
-    resname_map : dict[str, str], optional
+    resname_map : dict[str, str],
         Mapping from MuPT residue labels to 3-character PDB residue names.
     allow_undefined_stereo : bool, default=True
         If True, allow molecules with undefined stereochemistry.
