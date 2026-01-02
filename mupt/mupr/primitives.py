@@ -880,7 +880,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     
     # Resolution shift methods
-    ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
     def check_self_consistent(self) -> None:
         '''
         Check sufficient conditions for whether the children of this Primitive, their
@@ -913,6 +912,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         # if not target_labels.issubset(self.unique_child_labels):
         #     raise ValueError('Child Primitives labels chosen for contraction are not a proper subset of the children actually present')
+
+    # TODO: add out-of-place version of contract (once contract() is implemented)
 
     @property
     def expandable_children(self) -> set[PrimitiveHandle]:
