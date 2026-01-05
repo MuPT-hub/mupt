@@ -1,7 +1,7 @@
 '''Fundamental data structures for multiscale molecular representation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
+__author__ = 'Timotej Bernat, Joseph Laforet Jr.'
+__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -57,7 +57,6 @@ from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
-
 
 class AtomicityError(AttributeError):
     '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
@@ -1274,3 +1273,4 @@ class Primitive(NodeMixin, RigidlyTransformable):
             with_labels=True,
             **draw_kwargs,
         )
+        
