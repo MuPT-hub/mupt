@@ -10,7 +10,6 @@ __author__ = 'Joseph R. Laforet Jr.'
 __email__ = 'jola3134@colorado.edu'
 
 import MDAnalysis as mda
-from MDAnalysis.guesser import DefaultGuesser
 from MDAnalysis.core.topologyattrs import Bonds
 
 import numpy as np
