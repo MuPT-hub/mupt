@@ -10,7 +10,6 @@ __email__ = 'jola3134@colorado.edu'
 
 
 import logging
-from typing import Optional
 
 from openff.toolkit import Molecule as OFFMolecule
 from openff.toolkit import Topology as OFFTopology
