@@ -140,7 +140,7 @@ def primitive_to_rdkit(
 def primitive_to_rdkit_hierarchical(
     univprim: Primitive,
     resname_map: Dict[str, str],
-    default_atom_position: Optional[np.ndarray[Shape[3], float]]=None,
+    default_atom_position: Optional[np.ndarray]=None,
 ) -> Mol:
     """
     Convert a Primitive hierarchy to an RDKit Mol WITHOUT flattening.
