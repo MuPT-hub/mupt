@@ -1272,5 +1272,4 @@ class Primitive(NodeMixin, RigidlyTransformable):
             pos=layout(hier_tree),
             with_labels=True,
             **draw_kwargs,
-        )
-        
+        )     
