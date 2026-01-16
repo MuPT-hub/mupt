@@ -15,7 +15,7 @@ from typing import Mapping, Iterable, Optional
 import numpy as np
 import networkx as nx
 
-from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.primitives import Primitive
 from ..mupr.topology import TopologicalStructure
 from ..geometry.shapes import Ellipsoid
 from ..geometry.coordinates.reference import origin

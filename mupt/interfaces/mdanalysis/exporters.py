@@ -16,6 +16,7 @@ import numpy as np
 from typing import Any, Dict, List, Optional
 
 from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mutils.allatomutils import _is_AA_export_compliant
 from ...chemistry.core import BOND_ORDER
 
 # DEV:JRL -> Debating whether to keep resname_map optional.
@@ -64,17 +65,6 @@ def _pdb_resname(label: str, resname_map: Optional[dict]) -> str:
             f"Residue name '{name}' (from '{label}') is not 3 characters long"
         )
     return name.upper()
-
-def _is_AA_export_compliant(prim : Primitive) -> bool:
-    """
-    Check whether a Primitive hierarchy is organized
-    as universe -> chain -> residue -> atom
-    """   
-    
-    return all(
-        leaf.is_atom and (leaf.depth == 3)        
-            for leaf in prim.leaves
-    )
 
 # DEV:JRL -> Debating whether to keep resname_map optional.
 def primitive_to_mdanalysis(univprim : Primitive,

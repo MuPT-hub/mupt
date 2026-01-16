@@ -26,17 +26,7 @@ from ...geometry.arraytypes import Shape
 from ...chemistry.conversion import element_to_rdkit_atom
 from ...mupr.connection import Connector
 from ...mupr.primitives import Primitive, PrimitiveHandle
-
-def _is_AA_export_compliant(prim : Primitive) -> bool:
-    """
-    Check whether a Primitive hierarchy is organized
-    as universe -> chain -> residue -> atom
-    """   
-    
-    return all(
-        leaf.is_atom and (leaf.depth == 3)        
-            for leaf in prim.leaves
-    )
+from ...mutils.allatomutils import _is_AA_export_compliant
 
 def rdkit_atom_from_atomic_primitive(atomic_primitive : Primitive) -> Atom:
     '''Convert an atomic Primitive to an RDKit Atom'''
@@ -150,7 +140,7 @@ def primitive_to_rdkit(
 def primitive_to_rdkit_hierarchical(
     univprim: Primitive,
     resname_map: Dict[str, str],
-    default_atom_position: Optional[np.ndarray[Shape[3], float]]=None,
+    default_atom_position: Optional[np.ndarray]=None,
 ) -> Mol:
     """
     Convert a Primitive hierarchy to an RDKit Mol WITHOUT flattening.
