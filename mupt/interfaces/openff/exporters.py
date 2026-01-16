@@ -17,24 +17,9 @@ from rdkit import Chem
 
 from ..rdkit.exporters import primitive_to_rdkit_hierarchical
 from ...mupr.primitives import Primitive
-
+from ...mutils.allatomutils import _is_AA_export_compliant
 
 logger = logging.getLogger(__name__)
-
-
-def _is_AA_export_compliant(prim: Primitive) -> bool:
-    """
-    Check whether a Primitive hierarchy is organized
-    as universe -> chain -> residue -> atom.
-    
-    This structure is required for proper export to OpenFF with
-    chain/residue metadata preservation.
-    """
-    return all(
-        leaf.is_atom and (leaf.depth == 3)
-        for leaf in prim.leaves
-    )
-
 
 def primitive_to_openff_molecules(
     primitive: Primitive,
