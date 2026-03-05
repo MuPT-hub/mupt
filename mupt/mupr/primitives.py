@@ -1,4 +1,4 @@
-'''A refactored version of .primitives which is more cohesive and cleanly adheres to functionality where needed'''
+'''A refactored version of mupr.primitives which is more cohesive and cleanly adheres to functionality where needed'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
