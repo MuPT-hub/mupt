@@ -36,7 +36,7 @@ AI models often hallucinate comments or reinvent existing utilities.
 
 **Requirement:** All pull requests messages and descriptions must be entirely authored by human. Individual commit methods may use AI tools to fully summarize the changes.
 
-**Failure Condtion:** If the PR is suspected to be AI, the submitters will be asked to rewrite the PR message from scrathc. 
+**Failure Condtion:** If the PR is suspected to be AI, the submitters will be asked to rewrite the PR message from scratch. 
 
 **Requirement:** If a maintainer or reviewer asks during code review, you must be able to derive the math or explain the logic of any function you submit.
 
