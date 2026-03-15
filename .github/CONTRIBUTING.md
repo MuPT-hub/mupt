@@ -34,6 +34,10 @@ describes how to merge code changes into this mupt.
   integration returns checkmarks,
   and multiple core developers give "Approved" reviews.
 
+# Coding Standards 
+
+To be added
+
 # Additional Resources
 
 * [General GitHub documentation](https://help.github.com/)
