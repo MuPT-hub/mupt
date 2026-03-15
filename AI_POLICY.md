@@ -14,7 +14,7 @@ MuPT accepts AI-assisted code (e.g., using Copilot, Cursor, etc.), but strictly 
 
 AI tools frequently write code that looks correct but fails execution. Therefore, "vibe checks" are insufficient.
 
-**Requirement:** Every PR introducing functional changes must include a pasted snippet of the local test logs (e.g., `pixi run test ...`). This is mandatory for all contributors and is particularly important for first-time contributors.
+**Requirement:** Every PR introducing functional changes must pass all tests that are currently extant. This is mandatory for all contributors and is particularly important for first-time contributors. All code with AI contributions must include tests to demonstrate their validity.
 
 **Failure Condition:** If a PR lacks execution proof and contains complex logic, it will be flagged as **Unverified**.
 
@@ -34,23 +34,30 @@ AI models often hallucinate comments or reinvent existing utilities.
 
 ### Law 3: The "Explain It" Standard
 
+**Requirement:** All pull requests messages and descriptions must be entirely authored by human. Individual commit methods may use AI tools to fully summarize the changes.
+
+**Failure Condtion:** If the PR is suspected to be AI, the submitters will be asked to rewrite the PR message from scrathc. 
+
 **Requirement:** If a maintainer or reviewer asks during code review, you must be able to derive the math or explain the logic of any function you submit.
 
 **Failure Condition:** Answering a review question with "That's what the AI outputted" or "I don't know, it works" leads to immediate closure.
+
 
 ### Law 4: Transparency in AI Usage Disclosure
 
 **Requirement:** All PRs must accurately complete the "AI Usage Disclosure" section in the pull request template. This disclosure is mandatory and must reflect the actual use of AI tools.
 
 **When to mark as 🔴 AI-generated:**
-- An AI agent (e.g., Cursor, GitHub Copilot, ChatGPT, etc.) generated the code, PR description, or commit messages
+- An AI agent (e.g., Cursor, GitHub Copilot, ChatGPT, etc.) generated the code or commit messages
 - You cannot explain the logic without referring to the AI's output
 - The PR was created primarily by an agent with minimal human review or modification
+- This should not currently submitted to MuPT
 
 **When to mark as 🟡 AI-assisted:**
 - You used AI tools for boilerplate code, refactoring, or suggestions, but you manually reviewed and tested every line
 - You understand and can explain all the code you're submitting
 - You made significant modifications to AI-suggested code
+- This code is appropriate for MuPT contribution
 
 **When to mark as 🟢 No AI used:**
 - You wrote all code manually without any AI assistance
