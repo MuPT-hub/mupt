@@ -20,7 +20,7 @@ AI tools frequently write code that looks correct but fails execution. Therefore
 
 **Requirement:** All PRs must be previously discussed in via a [GitHub issue](https://github.com/MuPT-hub/mupt/issues) before implementation. The PR must reference the discussion or issue.
 
-**Requirement:** Implementations must be based on an existing library reference (e.g., PyTorch, OpenCV, scikit-image, etc.) that must be provided in the PR description for verification. This reference serves as proof that the implementation follows established algorithms and is not hallucinated.
+**Failure Condition**: IF PR lacks reference to the appropriate issue, the user will be asked to rewrite the PR.
 
 ### Law 2: The Hallucination & Redundancy Ban
 
