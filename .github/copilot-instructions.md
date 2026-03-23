@@ -25,13 +25,13 @@ For the complete and authoritative AI reviewer instructions, see [AI_POLICY.md](
 When generating or reviewing suggestions, prefer:
 - Enforcing the coding standards in [CONTRIBUTING.md](../CONTRIBUTING.md#coding-standards)
 - Enforcing the AI usage rules and review heuristics defined in [AI_POLICY.md](AI_POLICY.md)
-- Highlighting missing tests, missing proof of local execution, and misuse of `kornia` vs. raw PyTorch utilities
+- Highlighting missing tests, missing proof of local execution, and misuse of `mupt` vs. raw numpy/other package re-implementations
 ## Key Guidelines
 
 - **Code style**: Follow PEP8, use 120 character line length, Ruff linting, and f-strings
 - **Type hints**: Required for all function inputs and outputs
 - **Documentation**: Follow documentation and docstring guidelines in [CONTRIBUTING.md](../CONTRIBUTING.md#coding-standards) and match the existing codebase style
-- **Use MuPT**: Always prefer `kornia` utilities over raw PyTorch functions
+- **Use MuPT**: Always prefer `mupt` utilities over raw PyTorch functions
 
 ## Review Checklist
 
@@ -43,7 +43,7 @@ When reviewing code changes, verify:
 - Tests are included for new functionality
 - Code passes `pixi run lint` and `pixi run typecheck`
 - PR includes proof of local test execution (test logs)
-- Code uses `kornia` utilities instead of reinventing existing functionality
+- Code uses `mupt` utilities instead of reinventing existing functionality
 - Comments are written in English and verified by a human with a good understanding of the code
 
 ## PR-Issue Alignment Review
