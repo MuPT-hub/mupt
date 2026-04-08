@@ -177,10 +177,10 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 )
                 # NOTE: traversal in-path-order is what guarantees these appends place everything in the correct order
                 conn_outgoing = primitive.fetch_connector_on_child(prim_handle_outgoing, conn_handle_outgoing)
-                connection_points[prim_handle_outgoing].append(conn_outgoing.anchor_position) # will raise Exception is anchor position is unset
+                connection_points[prim_handle_outgoing].append(conn_outgoing.anchor.position) # will raise Exception is anchor position is unset
                 
                 conn_incoming = primitive.fetch_connector_on_child(prim_handle_incoming, conn_handle_incoming)
-                connection_points[prim_handle_incoming].append(conn_incoming.anchor_position) # will raise Exception is anchor position is unset
+                connection_points[prim_handle_incoming].append(conn_incoming.anchor.position) # will raise Exception is anchor position is unset
                 
                 Connector.mutually_antialign_ballistically(conn_outgoing, conn_incoming) # align linkers w/ other's anchor while leaving anchors themselves undisturbed
             # NOTE: order is critical here; only placing tail point AFTER its incoming connection point is inserted
