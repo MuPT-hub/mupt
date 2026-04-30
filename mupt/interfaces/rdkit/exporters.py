@@ -138,7 +138,18 @@ def primitive_to_rdkit(
 
 
 def _chain_id(segment_idx: int) -> str:
-    """Return a deterministic PDB chain ID for a segment index."""
+    """Return a deterministic PDB chain ID for a segment index.
+
+    Parameters
+    ----------
+    segment_idx : int
+        Zero-based SEGMENT index in exported Mol order.
+
+    Returns
+    -------
+    str
+        PDB-style chain identifier.
+    """
     chain_id = ""
     idx = segment_idx
     while True:
@@ -149,7 +160,20 @@ def _chain_id(segment_idx: int) -> str:
 
 
 def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
-    """Return a PDB-width atom name derived from element and residue-local index."""
+    """Return a PDB-width atom name from element and residue-local index.
+
+    Parameters
+    ----------
+    atom : Primitive
+        Atomic Primitive being exported.
+    atom_idx_in_residue : int
+        Zero-based atom index within the current residue.
+
+    Returns
+    -------
+    str
+        Four-character PDB atom name field.
+    """
     atom_name = f"{atom.element.symbol}{atom_idx_in_residue + 1}"
     if len(atom.element.symbol) == 1:
         return f" {atom_name:<3}"
@@ -157,7 +181,25 @@ def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
 
 
 def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
-    """Build an RDKit Mol from collected role-aware topology data."""
+    """Build an RDKit Mol from collected role-aware topology data.
+
+    Parameters
+    ----------
+    data : RDKitMolData
+        Segment-local atom, bond, residue, and metadata collected from a Primitive tree.
+    segment_idx : int
+        Zero-based SEGMENT index used for chain IDs and MuPT metadata.
+
+    Returns
+    -------
+    rdkit.Chem.rdchem.Mol
+        Immutable RDKit molecule for one SEGMENT-role Primitive.
+
+    Raises
+    ------
+    RuntimeError
+        If RDKit rejects the generated graph during strict property-cache update.
+    """
     mol = RWMol()
     conf = Conformer(len(data.atoms))
     chain_id = _chain_id(segment_idx)
@@ -221,7 +263,24 @@ def primitive_to_rdkit_mols(
     default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
     strategy: Optional[RDKitExportStrategy] = None,
 ) -> list[Mol]:
-    """Convert a role-annotated Primitive hierarchy to one RDKit Mol per segment."""
+    """Convert a role-annotated Primitive hierarchy to one RDKit Mol per segment.
+
+    Parameters
+    ----------
+    primitive : Primitive
+        UNIVERSE-role root of a SAAMR-like hierarchy.
+    resname_map : dict[str, str]
+        Mapping from Primitive residue labels to 3-character PDB residue names.
+    default_atom_position : numpy.ndarray, optional
+        Position used for atoms without shape information when the default strategy is used.
+    strategy : RDKitExportStrategy, optional
+        Custom strategy for collecting RDKit topology data.
+
+    Returns
+    -------
+    list[rdkit.Chem.rdchem.Mol]
+        One RDKit molecule per SEGMENT-role Primitive.
+    """
     if strategy is None:
         strategy = AllAtomRDKitExportStrategy(default_atom_position=default_atom_position)
     mols_data = strategy.collect_mols(primitive, resname_map=resname_map)

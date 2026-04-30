@@ -24,7 +24,24 @@ class SAAMRRoleTopologyIndex:
 
 
 def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
-    """Build a single-pass role index for a SAAMR-like Primitive hierarchy."""
+    """Build a single-pass role index for a SAAMR-like Primitive hierarchy.
+
+    Parameters
+    ----------
+    root : Primitive
+        Root Primitive expected to carry ``PrimitiveRole.UNIVERSE`` and contain
+        non-overlapping SEGMENT, RESIDUE, and PARTICLE role descendants.
+
+    Returns
+    -------
+    SAAMRRoleTopologyIndex
+        Indexed view of segments, residues, particles, and bond-owning nodes.
+
+    Raises
+    ------
+    ValueError
+        If required SAAMR roles are missing or nested incompatibly.
+    """
     if root.role != PrimitiveRole.UNIVERSE:
         raise ValueError(
             "Root Primitive must have role=PrimitiveRole.UNIVERSE. "
@@ -38,6 +55,17 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         current_segment: Primitive | None,
         current_residue: Primitive | None,
     ) -> None:
+        """Visit one node while carrying the enclosing SAAMR role context.
+
+        Parameters
+        ----------
+        node : Primitive
+            Node currently being indexed.
+        current_segment : Primitive or None
+            Enclosing SEGMENT-role node, if one has been entered.
+        current_residue : Primitive or None
+            Enclosing RESIDUE-role node, if one has been entered.
+        """
         role = node.role
 
         # Carry the active SEGMENT/RESIDUE context through unassigned grouping nodes.
@@ -103,7 +131,25 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
 
 
 def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
-    """Map a residue label to a PDB-compliant 3-character residue name."""
+    """Map a residue label to a PDB-compliant 3-character residue name.
+
+    Parameters
+    ----------
+    label : Hashable
+        Original Primitive residue label.
+    resname_map : dict[str, str]
+        Mapping from Primitive labels to 3-character residue names.
+
+    Returns
+    -------
+    str
+        Uppercase 3-character residue name.
+
+    Raises
+    ------
+    ValueError
+        If the mapped or fallback residue name is not exactly 3 characters.
+    """
     label = str(label)
     if resname_map and label in resname_map:
         name = resname_map[label]
@@ -121,7 +167,29 @@ def _resolve_to_atom(
     _depth: int = 0,
     _max_depth: int = 50,
 ) -> Primitive:
-    """Recursively follow external_connectors to find the leaf atom."""
+    """Recursively follow external connectors to find the leaf atom.
+
+    Parameters
+    ----------
+    parent : Primitive
+        Parent node whose child connector reference should be resolved.
+    conn_ref : ConnectorReference
+        Reference to a connector on one of ``parent``'s children.
+    _depth : int, default=0
+        Current recursion depth, used internally for cycle protection.
+    _max_depth : int, default=50
+        Maximum connector-chain depth before resolution is rejected.
+
+    Returns
+    -------
+    Primitive
+        Atomic Primitive at the end of the external-connector chain.
+
+    Raises
+    ------
+    ValueError
+        If the connector chain is malformed or exceeds ``_max_depth``.
+    """
     if _depth > _max_depth:
         raise ValueError(
             f"_resolve_to_atom exceeded maximum recursion depth ({_max_depth}) "
@@ -157,6 +225,19 @@ def _resolve_to_atom(
 
 
 def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
-    """Infer numeric bond order from a connection reference at the current parent level."""
+    """Infer numeric bond order from a connection reference.
+
+    Parameters
+    ----------
+    parent : Primitive
+        Parent node that owns the child connector reference.
+    conn_ref : ConnectorReference
+        Reference to a connector on one of ``parent``'s children.
+
+    Returns
+    -------
+    float
+        Numeric RDKit-compatible bond order.
+    """
     connector = parent.fetch_connector_on_child(conn_ref)
     return BOND_ORDER[connector.bondtype]

@@ -54,6 +54,18 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
     """Role-aware all-atom RDKit export strategy."""
 
     def __init__(self, default_atom_position: Optional[np.ndarray] = None) -> None:
+        """Initialize the all-atom RDKit export strategy.
+
+        Parameters
+        ----------
+        default_atom_position : numpy.ndarray, optional
+            Position used for PARTICLE Primitives without shape information.
+
+        Raises
+        ------
+        ValueError
+            If ``default_atom_position`` is not a 3-vector.
+        """
         if default_atom_position is None:
             self.default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float)
         else:
@@ -68,12 +80,36 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         return "All-atom"
 
     def validate(self, root: Primitive) -> None:
-        """Validate role assignments needed for all-atom RDKit export."""
+        """Validate role assignments needed for all-atom RDKit export.
+
+        Parameters
+        ----------
+        root : Primitive
+            Root Primitive expected to use the SAAMR role protocol.
+
+        Raises
+        ------
+        ValueError
+            If the hierarchy is not role-valid for all-atom RDKit export.
+        """
         # The index builder performs the role and enclosure validation in one pass.
         build_saamr_role_topology_index(root)
 
     def collect_mols(self, root: Primitive, resname_map: dict[str, str]) -> list[RDKitMolData]:
-        """Walk the hierarchy and collect one RDKit topology per segment."""
+        """Collect one RDKit topology dataset per SEGMENT-role node.
+
+        Parameters
+        ----------
+        root : Primitive
+            UNIVERSE-role root of a SAAMR-like hierarchy.
+        resname_map : dict[str, str]
+            Mapping from Primitive residue labels to 3-character PDB residue names.
+
+        Returns
+        -------
+        list[RDKitMolData]
+            Ordered RDKit topology data, one entry per SEGMENT-role Primitive.
+        """
         # Build one DFS-derived index and reuse it for all segment/residue/particle walks.
         index = build_saamr_role_topology_index(root)
 
@@ -142,6 +178,22 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         conn_ref: ConnectorReference,
         cache: dict[tuple[int, object, object], Primitive],
     ) -> Primitive:
+        """Resolve a connector reference to an atom using a per-export cache.
+
+        Parameters
+        ----------
+        parent : Primitive
+            Parent node where the connector reference is defined.
+        conn_ref : ConnectorReference
+            Connector reference to resolve to an atomic Primitive.
+        cache : dict[tuple[int, object, object], Primitive]
+            Mutable cache keyed by parent identity and connector reference handles.
+
+        Returns
+        -------
+        Primitive
+            Atomic Primitive reached by following external connector mappings.
+        """
         cache_key = (id(parent), conn_ref.primitive_handle, conn_ref.connector_handle)
         if cache_key not in cache:
             # Resolve through arbitrary intermediate hierarchy only once per connector ref.

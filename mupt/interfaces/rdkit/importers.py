@@ -195,14 +195,58 @@ def primitive_from_rdkit_chain(
 
 
 def _atom_string_prop(atom: Atom, key: str, default: str) -> str:
+    """Fetch a string atom property with a fallback value.
+
+    Parameters
+    ----------
+    atom : rdkit.Chem.rdchem.Atom
+        RDKit atom to inspect.
+    key : str
+        Property key to fetch.
+    default : str
+        Value returned when the property is absent.
+
+    Returns
+    -------
+    str
+        Atom property value or ``default``.
+    """
     return atom.GetProp(key) if atom.HasProp(key) else default
 
 
 def _atom_int_prop(atom: Atom, key: str, default: int) -> int:
+    """Fetch an integer atom property with a fallback value.
+
+    Parameters
+    ----------
+    atom : rdkit.Chem.rdchem.Atom
+        RDKit atom to inspect.
+    key : str
+        Property key to fetch.
+    default : int
+        Value returned when the property is absent.
+
+    Returns
+    -------
+    int
+        Atom property value or ``default``.
+    """
     return atom.GetIntProp(key) if atom.HasProp(key) else default
 
 
 def _residue_key(atom: Atom) -> tuple[int, str]:
+    """Return the residue identity key for an RDKit atom.
+
+    Parameters
+    ----------
+    atom : rdkit.Chem.rdchem.Atom
+        RDKit atom with optional MuPT or PDB residue metadata.
+
+    Returns
+    -------
+    tuple[int, str]
+        Residue index and residue label used to group atoms into RESIDUE Primitives.
+    """
     # Prefer MuPT export metadata, falling back to PDB residue info when present.
     pdb_info = atom.GetPDBResidueInfo()
     resid = pdb_info.GetResidueNumber() if pdb_info is not None else 1
@@ -224,7 +268,32 @@ def primitive_from_rdkit_segment(
     smiles_writer_params: SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
     **kwargs,
 ) -> Primitive:
-    """Initialize a SAAMR SEGMENT hierarchy from one RDKit Mol."""
+    """Initialize a SAAMR SEGMENT hierarchy from one RDKit Mol.
+
+    Parameters
+    ----------
+    rdmol_segment : rdkit.Chem.rdchem.Mol
+        RDKit molecule representing one connected segment.
+    conformer_idx : int, optional
+        Conformer ID used to transfer atom coordinates.
+    label : Hashable, optional
+        Segment label. If absent, MuPT metadata or RDKit naming is used.
+    residue_role : PrimitiveRole, default=PrimitiveRole.RESIDUE
+        Role assigned to reconstructed residue containers.
+    atom_role : PrimitiveRole, default=PrimitiveRole.PARTICLE
+        Role assigned to reconstructed atomic Primitives.
+    atom_label : str, default='ATOM'
+        Child-handle label used when attaching atoms to residues.
+    external_linker_label : str, default='*'
+        Connector label used when mirroring connectors up the hierarchy.
+    smiles_writer_params : SmilesWriteParams, optional
+        RDKit SMILES writer settings used for fallback segment naming.
+
+    Returns
+    -------
+    Primitive
+        SEGMENT-role Primitive containing RESIDUE and PARTICLE descendants.
+    """
     first_atom = rdmol_segment.GetAtomWithIdx(0) if rdmol_segment.GetNumAtoms() else None
     if label is None:
         if first_atom is not None and first_atom.HasProp("mupt_segment_label"):
@@ -367,9 +436,34 @@ def primitive_from_rdkit(
     denest : bool=True,
     **kwargs,
 ) -> Primitive:
-    '''
-    Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules
-    '''
+    """Initialize a SAAMR hierarchy from an RDKit Mol.
+
+    Parameters
+    ----------
+    rdmol : rdkit.Chem.rdchem.Mol
+        RDKit molecule that may contain one or more disconnected fragments.
+    conformer_idx : int, optional
+        Conformer ID used to transfer atom coordinates.
+    label : Hashable, optional
+        Label assigned to the returned UNIVERSE Primitive.
+    role : PrimitiveRole, default=PrimitiveRole.UNIVERSE
+        Role assigned to the returned root Primitive.
+    residue_role : PrimitiveRole, default=PrimitiveRole.RESIDUE
+        Role assigned to reconstructed residue containers.
+    atom_role : PrimitiveRole, default=PrimitiveRole.PARTICLE
+        Role assigned to reconstructed atomic Primitives.
+    smiles_writer_params : SmilesWriteParams, optional
+        RDKit SMILES writer settings used for fallback segment naming.
+    sanitize_frags : bool, default=True
+        Passed to RDKit fragment extraction.
+    denest : bool, default=True
+        Retained for API compatibility; RDKit fragments are always returned under a UNIVERSE root.
+
+    Returns
+    -------
+    Primitive
+        UNIVERSE-role Primitive with one SEGMENT child per RDKit fragment.
+    """
     chains = GetMolFrags(
         rdmol,
         asMols=True, 
