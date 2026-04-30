@@ -7,13 +7,15 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 
-from anytree import PreOrderIter
 import numpy as np
 
 from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives import Primitive
-from ...roles import PrimitiveRole
-from .._shared.topology import _pdb_resname, _resolve_to_atom
+from .._shared.topology import (
+    build_saamr_role_topology_index,
+    _pdb_resname,
+    _resolve_to_atom,
+)
 
 
 @dataclass
@@ -67,70 +69,24 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
 
     def validate(self, root: Primitive) -> None:
         """Validate role assignments needed for all-atom RDKit export."""
-        if root.role != PrimitiveRole.UNIVERSE:
-            raise ValueError(
-                "Root Primitive must have role=PrimitiveRole.UNIVERSE. "
-                "Assign roles via assign_SAAMR_roles() or set them manually."
-            )
-
-        segment_nodes = [node for node in PreOrderIter(root) if node.role == PrimitiveRole.SEGMENT]
-        residue_nodes = [node for node in PreOrderIter(root) if node.role == PrimitiveRole.RESIDUE]
-        if not segment_nodes:
-            raise ValueError("No SEGMENT-role Primitives found in hierarchy.")
-        if not residue_nodes:
-            raise ValueError("No RESIDUE-role Primitives found in hierarchy.")
-
-        for leaf in root.leaves:
-            if leaf.role != PrimitiveRole.PARTICLE:
-                raise ValueError("All leaves must have role=PrimitiveRole.PARTICLE.")
-            if leaf.element is None:
-                raise ValueError(
-                    f"Leaf Primitive '{leaf}' has role=PARTICLE but no element assigned. "
-                    "AllAtomRDKitExportStrategy requires atomic PARTICLE leaves."
-                )
-
-        for seg in segment_nodes:
-            nested_segs = [
-                node for node in PreOrderIter(seg)
-                if node.role == PrimitiveRole.SEGMENT and node is not seg
-            ]
-            if nested_segs:
-                raise ValueError(
-                    f"SEGMENT '{seg.label}' contains nested SEGMENT(s) "
-                    f"{[n.label for n in nested_segs]}."
-                )
-
-        for res in residue_nodes:
-            nested_res = [
-                node for node in PreOrderIter(res)
-                if node.role == PrimitiveRole.RESIDUE and node is not res
-            ]
-            if nested_res:
-                raise ValueError(
-                    f"RESIDUE '{res.label}' contains nested RESIDUE(s) "
-                    f"{[n.label for n in nested_res]}."
-                )
+        build_saamr_role_topology_index(root)
 
     def collect_mols(self, root: Primitive, resname_map: dict[str, str]) -> list[RDKitMolData]:
         """Walk the hierarchy and collect one RDKit topology per segment."""
-        self.validate(root)
+        index = build_saamr_role_topology_index(root)
 
         mols_data: list[RDKitMolData] = []
-        for segment in [node for node in PreOrderIter(root) if node.role == PrimitiveRole.SEGMENT]:
+        endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
+
+        for segment in index.segments:
             data = RDKitMolData(segment=segment)
             atom_id_to_local: dict[int, int] = {}
-            mapped_atom_ids: set[int] = set()
             resid_counter = 1
 
-            for residue in [node for node in PreOrderIter(segment) if node.role == PrimitiveRole.RESIDUE]:
+            for residue in index.residues_by_segment[id(segment)]:
                 resname = _pdb_resname(residue.label, resname_map)
-                particles = [
-                    node for node in PreOrderIter(residue)
-                    if node.is_leaf and node.role == PrimitiveRole.PARTICLE
-                ]
-                for atom in particles:
+                for atom in index.particles_by_residue[id(residue)]:
                     atom_id_to_local[id(atom)] = len(data.atoms)
-                    mapped_atom_ids.add(id(atom))
                     data.atoms.append(atom)
                     if atom.shape is not None:
                         data.atom_positions.append(atom.shape.centroid)
@@ -142,19 +98,9 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     data.atom_resids.append(resid_counter)
                 resid_counter += 1
 
-            segment_particles = [
-                node for node in PreOrderIter(segment)
-                if node.is_leaf and node.role == PrimitiveRole.PARTICLE
-            ]
-            if {id(atom) for atom in segment_particles} != mapped_atom_ids:
-                raise ValueError(
-                    f"SEGMENT '{segment.label}' contains PARTICLE leaves that are not "
-                    "mapped through RESIDUE-role nodes."
-                )
-
             bonds_set: set[tuple[int, int]] = set()
-            for node in PreOrderIter(segment):
-                if node.is_leaf or not node.internal_connections:
+            for node in index.bond_nodes:
+                if index.segment_of_node[id(node)] is not segment:
                     continue
 
                 for conn_ref_pair in node.internal_connections:
@@ -162,8 +108,8 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                         conn_ref_pair,
                         key=lambda cr: (cr.primitive_handle, cr.connector_handle),
                     )
-                    atom1 = _resolve_to_atom(node, conn_ref1)
-                    atom2 = _resolve_to_atom(node, conn_ref2)
+                    atom1 = self._resolve_to_atom_cached(node, conn_ref1, endpoint_cache)
+                    atom2 = self._resolve_to_atom_cached(node, conn_ref2, endpoint_cache)
                     idx1 = atom_id_to_local[id(atom1)]
                     idx2 = atom_id_to_local[id(atom2)]
                     bond_pair = tuple(sorted((idx1, idx2)))
@@ -184,3 +130,14 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
             mols_data.append(data)
 
         return mols_data
+
+    @staticmethod
+    def _resolve_to_atom_cached(
+        parent: Primitive,
+        conn_ref: ConnectorReference,
+        cache: dict[tuple[int, object, object], Primitive],
+    ) -> Primitive:
+        cache_key = (id(parent), conn_ref.primitive_handle, conn_ref.connector_handle)
+        if cache_key not in cache:
+            cache[cache_key] = _resolve_to_atom(parent, conn_ref)
+        return cache[cache_key]
