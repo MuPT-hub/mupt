@@ -11,11 +11,8 @@ from typing import (
 from rdkit.Chem.rdchem import (
     Atom,
     Mol,
-    Conformer,
-    StereoInfo,
 )
-from rdkit.Chem.rdmolops import FindPotentialStereo, GetMolFrags
-from rdkit.Chem.rdDistGeom import EmbedMolecule
+from rdkit.Chem.rdmolops import GetMolFrags
 
 from ...chemistry.linkers import is_linker
 from .components import atom_positions_from_rdkit, connector_between_rdatoms
@@ -58,7 +55,7 @@ def primitive_from_rdkit_atom(
     
     if attach_connectors:
         for nb_atom in atom.GetNeighbors(): # TODO: decide how bond Props should be split among metadata of the two bonded atoms
-            conn_handle = atom_primitive.register_connector(
+            atom_primitive.register_connector(
                 connector_between_rdatoms(
                     parent_mol=parent_mol,
                     from_atom_idx=atom_idx,
@@ -195,58 +192,17 @@ def primitive_from_rdkit_chain(
 
 
 def _atom_string_prop(atom: Atom, key: str, default: str) -> str:
-    """Fetch a string atom property with a fallback value.
-
-    Parameters
-    ----------
-    atom : rdkit.Chem.rdchem.Atom
-        RDKit atom to inspect.
-    key : str
-        Property key to fetch.
-    default : str
-        Value returned when the property is absent.
-
-    Returns
-    -------
-    str
-        Atom property value or ``default``.
-    """
+    """Fetch a string atom property with a fallback value."""
     return atom.GetProp(key) if atom.HasProp(key) else default
 
 
 def _atom_int_prop(atom: Atom, key: str, default: int) -> int:
-    """Fetch an integer atom property with a fallback value.
-
-    Parameters
-    ----------
-    atom : rdkit.Chem.rdchem.Atom
-        RDKit atom to inspect.
-    key : str
-        Property key to fetch.
-    default : int
-        Value returned when the property is absent.
-
-    Returns
-    -------
-    int
-        Atom property value or ``default``.
-    """
+    """Fetch an integer atom property with a fallback value."""
     return atom.GetIntProp(key) if atom.HasProp(key) else default
 
 
 def _residue_key(atom: Atom) -> tuple[int, str]:
-    """Return the residue identity key for an RDKit atom.
-
-    Parameters
-    ----------
-    atom : rdkit.Chem.rdchem.Atom
-        RDKit atom with optional MuPT or PDB residue metadata.
-
-    Returns
-    -------
-    tuple[int, str]
-        Residue index and residue label used to group atoms into RESIDUE Primitives.
-    """
+    """Return the residue identity key for an RDKit atom."""
     # Prefer MuPT export metadata, falling back to PDB residue info when present.
     pdb_info = atom.GetPDBResidueInfo()
     resid = pdb_info.GetResidueNumber() if pdb_info is not None else 1
@@ -457,7 +413,8 @@ def primitive_from_rdkit(
     sanitize_frags : bool, default=True
         Passed to RDKit fragment extraction.
     denest : bool, default=True
-        Retained for API compatibility; RDKit fragments are always returned under a UNIVERSE root.
+        Preserve legacy single-fragment direct import when ``True``. Set ``False``
+        to always return a UNIVERSE-rooted SAAMR hierarchy.
 
     Returns
     -------
@@ -472,6 +429,29 @@ def primitive_from_rdkit(
         frags=None,
         fragsMolAtomMapping=None,
     )
+
+    if (len(chains) == 1) and denest:
+        # Compatibility note for review: historically, primitive_from_rdkit(...,
+        # denest=True) returned primitive_from_rdkit_chain(...) directly for a
+        # single RDKit fragment, while denest=False wrapped fragments under a
+        # synthetic root. The role-aware importer would be cleaner if denest were
+        # deprecated and every RDKit import returned the canonical SAAMR shape
+        # UNIVERSE -> SEGMENT -> RESIDUE -> PARTICLE. That would remove this
+        # return-type branch and make downstream role-aware export simpler, but
+        # it would break existing callers that rely on the old single-fragment
+        # RESIDUE-like Primitive return. Keep the old behavior in this PR so the
+        # new RDKit path remains non-breaking; reviewers can decide whether a
+        # later PR should formally deprecate denest and migrate callers to the
+        # canonical UNIVERSE-rooted import behavior.
+        return primitive_from_rdkit_chain(
+            chains[0],
+            conformer_idx=conformer_idx,
+            label=label,
+            role=residue_role,
+            atom_role=atom_role,
+            smiles_writer_params=smiles_writer_params,
+            **kwargs,
+        )
 
     universe_primitive = Primitive(
         label=label,

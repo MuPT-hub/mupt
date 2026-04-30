@@ -78,6 +78,23 @@ def test_primitive_to_rdkit_mols_preserves_inter_residue_bond(
     assert cross_residue_bonds[0].GetEndAtom().GetSymbol() == "C"
 
 
+def test_primitive_to_rdkit_mols_preserves_bond_metadata_from_both_connectors(
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+):
+    bond_node = next(node for node in PreOrderIter(single_polyethylene_2mer) if node.internal_connections)
+    conn_ref1, conn_ref2 = tuple(next(iter(bond_node.internal_connections)))
+    bond_node.fetch_connector_on_child(conn_ref1).metadata["mupt_test_conn1"] = "left"
+    bond_node.fetch_connector_on_child(conn_ref2).metadata["mupt_test_conn2"] = "right"
+
+    mol = primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map)[0]
+    metadata_bonds = [bond for bond in mol.GetBonds() if bond.HasProp("mupt_test_conn1")]
+
+    assert len(metadata_bonds) == 1
+    assert metadata_bonds[0].GetProp("mupt_test_conn1") == "left"
+    assert metadata_bonds[0].GetProp("mupt_test_conn2") == "right"
+
+
 def test_primitive_to_rdkit_mols_sets_pdb_residue_info(
     single_polyethylene_2mer,
     polyethylene_resname_map,

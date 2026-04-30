@@ -55,17 +55,7 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         current_segment: Primitive | None,
         current_residue: Primitive | None,
     ) -> None:
-        """Visit one node while carrying the enclosing SAAMR role context.
-
-        Parameters
-        ----------
-        node : Primitive
-            Node currently being indexed.
-        current_segment : Primitive or None
-            Enclosing SEGMENT-role node, if one has been entered.
-        current_residue : Primitive or None
-            Enclosing RESIDUE-role node, if one has been entered.
-        """
+        """Visit one node while carrying the enclosing SAAMR role context."""
         role = node.role
 
         # Carry the active SEGMENT/RESIDUE context through unassigned grouping nodes.
@@ -131,25 +121,7 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
 
 
 def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
-    """Map a residue label to a PDB-compliant 3-character residue name.
-
-    Parameters
-    ----------
-    label : Hashable
-        Original Primitive residue label.
-    resname_map : dict[str, str]
-        Mapping from Primitive labels to 3-character residue names.
-
-    Returns
-    -------
-    str
-        Uppercase 3-character residue name.
-
-    Raises
-    ------
-    ValueError
-        If the mapped or fallback residue name is not exactly 3 characters.
-    """
+    """Map a residue label to a PDB-compliant 3-character residue name."""
     label = str(label)
     if resname_map and label in resname_map:
         name = resname_map[label]
@@ -225,19 +197,6 @@ def _resolve_to_atom(
 
 
 def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
-    """Infer numeric bond order from a connection reference.
-
-    Parameters
-    ----------
-    parent : Primitive
-        Parent node that owns the child connector reference.
-    conn_ref : ConnectorReference
-        Reference to a connector on one of ``parent``'s children.
-
-    Returns
-    -------
-    float
-        Numeric RDKit-compatible bond order.
-    """
+    """Infer numeric bond order from a connection reference."""
     connector = parent.fetch_connector_on_child(conn_ref)
     return BOND_ORDER[connector.bondtype]

@@ -10,7 +10,6 @@ import numpy as np
 
 from rdkit.Chem.rdchem import (
     Atom,
-    Bond,
     Mol,
     RWMol,
     Conformer,
@@ -99,7 +98,7 @@ def primitive_to_rdkit(
         conn2 : Connector = primitive.fetch_connector_on_child(conn_ref2)
         
         # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
-        new_num_bonds : int = mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) 
+        mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype) 
         bond_metadata : dict[str, RDPropType] = {
             **conn1.metadata,
             **conn2.metadata,
@@ -128,7 +127,7 @@ def primitive_to_rdkit(
     # 4) cleanup
     if not ((temp_prim is None) or (lone_atom_label is None)):
         primitive.detach_child(lone_atom_label)
-    conformer_idx : int = mol.AddConformer(conf, assignId=True) # DEV: return this index?
+    mol.AddConformer(conf, assignId=True)
     
     mol = Mol(mol) # freeze writable Mol before returning
     if primitive.label is not None:
@@ -138,18 +137,7 @@ def primitive_to_rdkit(
 
 
 def _chain_id(segment_idx: int) -> str:
-    """Return a deterministic PDB chain ID for a segment index.
-
-    Parameters
-    ----------
-    segment_idx : int
-        Zero-based SEGMENT index in exported Mol order.
-
-    Returns
-    -------
-    str
-        PDB-style chain identifier.
-    """
+    """Return a deterministic PDB chain ID for a segment index."""
     chain_id = ""
     idx = segment_idx
     while True:
@@ -160,20 +148,7 @@ def _chain_id(segment_idx: int) -> str:
 
 
 def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
-    """Return a PDB-width atom name from element and residue-local index.
-
-    Parameters
-    ----------
-    atom : Primitive
-        Atomic Primitive being exported.
-    atom_idx_in_residue : int
-        Zero-based atom index within the current residue.
-
-    Returns
-    -------
-    str
-        Four-character PDB atom name field.
-    """
+    """Return a PDB-width atom name from element and residue-local index."""
     atom_name = f"{atom.element.symbol}{atom_idx_in_residue + 1}"
     if len(atom.element.symbol) == 1:
         return f" {atom_name:<3}"
@@ -236,12 +211,16 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         pos = data.atom_positions[atom_idx]
         conf.SetAtomPosition(idx, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
 
-    for (idx1, idx2), (parent, conn_ref) in zip(data.bonds, data.bond_refs):
-        # Bond order and metadata come from the Primitive connector that owns the bond.
-        conn = parent.fetch_connector_on_child(conn_ref)
-        mol.AddBond(idx1, idx2, order=conn.bondtype)
+    for (idx1, idx2), (parent, conn_refs) in zip(data.bonds, data.bond_refs):
+        conn1 = parent.fetch_connector_on_child(conn_refs[0])
+        conn2 = parent.fetch_connector_on_child(conn_refs[1])
+        mol.AddBond(idx1, idx2, order=conn1.bondtype)
         bond = mol.GetBondBetweenAtoms(idx1, idx2)
-        for bond_key, bond_value in conn.metadata.items():
+        bond_metadata: dict[str, RDPropType] = {
+            **conn1.metadata,
+            **conn2.metadata,
+        }
+        for bond_key, bond_value in bond_metadata.items():
             assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
 
     assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True)

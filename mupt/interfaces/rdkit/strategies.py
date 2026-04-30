@@ -30,7 +30,7 @@ class RDKitMolData:
     atom_particle_labels: list[str] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
-    bond_refs: list[tuple[Primitive, ConnectorReference]] = field(default_factory=list)
+    bond_refs: list[tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]] = field(default_factory=list)
 
 
 class RDKitExportStrategy(ABC):
@@ -158,7 +158,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                         continue
 
                     data.bonds.append(bond_pair)
-                    data.bond_refs.append((node, conn_ref1))
+                    data.bond_refs.append((node, (conn_ref1, conn_ref2)))
                     bonds_set.add(bond_pair)
 
             if data.bonds:
@@ -178,22 +178,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         conn_ref: ConnectorReference,
         cache: dict[tuple[int, object, object], Primitive],
     ) -> Primitive:
-        """Resolve a connector reference to an atom using a per-export cache.
-
-        Parameters
-        ----------
-        parent : Primitive
-            Parent node where the connector reference is defined.
-        conn_ref : ConnectorReference
-            Connector reference to resolve to an atomic Primitive.
-        cache : dict[tuple[int, object, object], Primitive]
-            Mutable cache keyed by parent identity and connector reference handles.
-
-        Returns
-        -------
-        Primitive
-            Atomic Primitive reached by following external connector mappings.
-        """
+        """Resolve a connector reference to an atom using a per-export cache."""
         cache_key = (id(parent), conn_ref.primitive_handle, conn_ref.connector_handle)
         if cache_key not in cache:
             # Resolve through arbitrary intermediate hierarchy only once per connector ref.

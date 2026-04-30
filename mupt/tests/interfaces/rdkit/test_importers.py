@@ -8,7 +8,6 @@ from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.Chem.rdmolops import AddHs
 
-from mupt.chemistry.core import valence_allowed
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.interfaces.smiles import primitive_from_smiles
@@ -36,7 +35,27 @@ def test_valences_permissible(primitive : Primitive) -> None:
 
 
 def test_primitive_from_rdkit_defaults_to_saamr_roles(mol: Mol) -> None:
+    primitive = importers.primitive_from_rdkit(mol, denest=False)
+
+    assert primitive.role == PrimitiveRole.UNIVERSE
+    assert len(primitive.children) == 1
+    segment = primitive.children[0]
+    assert segment.role == PrimitiveRole.SEGMENT
+    assert len(segment.children) == 1
+    residue = segment.children[0]
+    assert residue.role == PrimitiveRole.RESIDUE
+    assert all(atom.role == PrimitiveRole.PARTICLE for atom in residue.children)
+
+
+def test_primitive_from_rdkit_preserves_legacy_denest_default(mol: Mol) -> None:
     primitive = importers.primitive_from_rdkit(mol)
+
+    assert primitive.role == PrimitiveRole.RESIDUE
+    assert all(atom.role == PrimitiveRole.PARTICLE for atom in primitive.children)
+
+
+def test_primitive_from_rdkit_denest_false_returns_saamr_hierarchy(mol: Mol) -> None:
+    primitive = importers.primitive_from_rdkit(mol, denest=False)
 
     assert primitive.role == PrimitiveRole.UNIVERSE
     assert len(primitive.children) == 1
@@ -58,6 +77,7 @@ def test_primitive_from_smiles_defaults_to_residue_particle_roles() -> None:
 def test_primitive_from_rdkit_accepts_explicit_roles(mol: Mol) -> None:
     primitive = importers.primitive_from_rdkit(
         mol,
+        denest=False,
         role=PrimitiveRole.UNIVERSE,
         residue_role=PrimitiveRole.RESIDUE,
         atom_role=PrimitiveRole.PARTICLE,
@@ -74,7 +94,7 @@ def test_rdkit_export_import_preserves_saamr_hierarchy(
     polyethylene_resname_map,
 ) -> None:
     rdkit_mol = primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map)[0]
-    reconstructed = importers.primitive_from_rdkit(rdkit_mol)
+    reconstructed = importers.primitive_from_rdkit(rdkit_mol, denest=False)
 
     assert reconstructed.role == PrimitiveRole.UNIVERSE
     assert len(reconstructed.children) == 1
