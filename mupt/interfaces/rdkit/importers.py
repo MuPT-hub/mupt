@@ -7,7 +7,11 @@ from typing import (
     Hashable,
     Optional,
 )
+import json
+from pathlib import Path
+from collections.abc import Sequence
 
+from rdkit.Chem.rdmolfiles import SDMolSupplier
 from rdkit.Chem.rdchem import (
     Atom,
     Mol,
@@ -27,9 +31,14 @@ from ...mupr.connection import TraversalDirection
 from ...roles import PrimitiveRole
 
 from .exporters import (
+    MUPT_HIERARCHY_PATH,
     MUPT_ROOT_METADATA_COUNT,
     MUPT_ROOT_METADATA_KEY_PREFIX,
     MUPT_ROOT_METADATA_VALUE_PREFIX,
+    MUPT_SAAMR_SDF_KIND,
+    MUPT_SAAMR_SDF_VERSION,
+    MUPT_SERIALIZATION_KIND,
+    MUPT_SERIALIZATION_VERSION,
 )
 
 
@@ -251,12 +260,329 @@ def _root_metadata(rdmol: Mol) -> dict:
     }
 
 
+def _fast_segment_metadata(rdmol: Mol) -> dict:
+    """Return segment metadata without MuPT serialization transport keys."""
+    return {
+        key: value
+        for key, value in _non_root_metadata(rdmol).items()
+        if key not in {MUPT_SERIALIZATION_KIND, MUPT_SERIALIZATION_VERSION}
+    }
+
+
 def _apply_traversal_direction(connector, atom_primitive: Primitive) -> None:
     """Annotate linker connectors from RDKit map-number direction markers."""
     if (mapnum := atom_primitive.metadata.get('molAtomMapNumber')) in {1, 2}:
         chain_direction = TraversalDirection(mapnum)
         connector.anchor.attachables.add(chain_direction)
         connector.linker.attachables.add(TraversalDirection.complement(chain_direction))
+
+
+def _child_handle(parent: Primitive, child: Primitive) -> PrimitiveHandle:
+    """Return the parent-local handle for a known child Primitive."""
+    for handle, candidate in parent.children_by_handle.items():
+        if candidate is child:
+            return handle
+    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
+
+
+def _primitive_role_from_path_entry(entry: dict) -> PrimitiveRole:
+    """Convert a serialized path role string into a PrimitiveRole."""
+    try:
+        return PrimitiveRole(entry["role"])
+    except (KeyError, ValueError) as exc:
+        raise ValueError(f"Invalid MuPT hierarchy path role entry: {entry}") from exc
+
+
+def _path_key(path_entries: list[dict], stop: int) -> tuple[tuple[str, int, str], ...]:
+    """Return a stable key for a serialized path prefix."""
+    return tuple(
+        (
+            str(entry["handle_label"]),
+            int(entry["handle_index"]),
+            str(entry["role"]),
+        )
+        for entry in path_entries[:stop]
+    )
+
+
+def _validate_mupt_saamr_mol(rdmol: Mol) -> None:
+    """Validate MuPT SAAMR SDF serialization markers on one RDKit Mol."""
+    if not rdmol.HasProp(MUPT_SERIALIZATION_KIND) or not rdmol.HasProp(MUPT_SERIALIZATION_VERSION):
+        raise ValueError(
+            "RDKit Mol is missing MuPT SAAMR SDF serialization metadata. "
+            "Use primitive_to_rdkit_mols() to create MuPT-generated SDF input."
+        )
+    if rdmol.GetProp(MUPT_SERIALIZATION_KIND) != MUPT_SAAMR_SDF_KIND:
+        raise ValueError(f"Unsupported MuPT serialization kind: {rdmol.GetProp(MUPT_SERIALIZATION_KIND)}")
+    if rdmol.GetProp(MUPT_SERIALIZATION_VERSION) != MUPT_SAAMR_SDF_VERSION:
+        raise ValueError(
+            f"Unsupported MuPT SAAMR SDF version: {rdmol.GetProp(MUPT_SERIALIZATION_VERSION)}"
+        )
+
+
+def _load_mupt_sdf_mols(source: str | Path | Sequence[str | Path]) -> list[Mol]:
+    """Load one or more RDKit Mols from MuPT SDF path input."""
+    if isinstance(source, (str, Path)):
+        sources = [source]
+    else:
+        sources = list(source)
+
+    mols: list[Mol] = []
+    for sdf_path in sources:
+        supplier = SDMolSupplier(str(sdf_path), removeHs=False, sanitize=False)
+        for mol in supplier:
+            if mol is not None:
+                mols.append(mol)
+    if not mols:
+        raise ValueError("No RDKit molecules were loaded from MuPT SDF input")
+    return mols
+
+
+def _enclosing_role(node: Primitive, role: PrimitiveRole) -> Primitive:
+    """Return the nearest ancestor-or-self carrying the requested role."""
+    current = node
+    while current is not None:
+        if current.role == role:
+            return current
+        current = current.parent
+    raise ValueError(f"Node '{node.label}' is not enclosed by role {role}")
+
+
+def _bind_connector_up_to_owner(
+    atom: Primitive,
+    atom_handle: PrimitiveHandle,
+    atom_parent: Primitive,
+    connector,
+    owner: Primitive,
+    external_linker_label: str,
+) -> tuple[PrimitiveHandle, object, list]:
+    """Mirror an atom connector upward until it is external on the owner."""
+    current_child = atom
+    current_parent = atom_parent
+    current_handle = atom_handle
+    current_conn_handle = atom.register_connector(connector)
+    mirrored_connectors = [atom.fetch_connector(current_conn_handle)]
+
+    while current_parent is not owner:
+        current_conn_handle = current_parent.bind_external_connector(
+            current_handle,
+            current_conn_handle,
+            label=external_linker_label,
+        )
+        mirrored_connectors.append(current_parent.fetch_connector(current_conn_handle))
+        current_child = current_parent
+        current_parent = current_parent.parent
+        current_handle = _child_handle(current_parent, current_child)
+
+    owner.bind_external_connector(current_handle, current_conn_handle, label=external_linker_label)
+    return current_handle, current_conn_handle, mirrored_connectors
+
+
+def _primitive_from_mupt_saamr_mol(
+    rdmol_segment: Mol,
+    conformer_idx: Optional[int],
+    external_linker_label: str,
+    **kwargs,
+) -> Primitive:
+    """Rebuild one SEGMENT tree from MuPT SAAMR SDF atom path metadata."""
+    _validate_mupt_saamr_mol(rdmol_segment)
+
+    segment: Primitive | None = None
+    nodes_by_path: dict[tuple[tuple[str, int, str], ...], Primitive] = {}
+    atom_idx_to_parent: dict[int, Primitive] = {}
+    atom_idx_to_handle: dict[int, PrimitiveHandle] = {}
+    linker_idxs: set[int] = set()
+
+    for atom in rdmol_segment.GetAtoms():
+        atom_idx = atom.GetIdx()
+        if is_linker(atom):
+            linker_idxs.add(atom_idx)
+            continue
+        if not atom.HasProp(MUPT_HIERARCHY_PATH):
+            raise ValueError(f"Atom {atom_idx} is missing {MUPT_HIERARCHY_PATH}")
+
+        path_entries = json.loads(atom.GetProp(MUPT_HIERARCHY_PATH))
+        if not path_entries:
+            raise ValueError(f"Atom {atom_idx} has an empty MuPT hierarchy path")
+        if _primitive_role_from_path_entry(path_entries[0]) != PrimitiveRole.SEGMENT:
+            raise ValueError("MuPT SAAMR SDF atom paths must start at SEGMENT role")
+        if _primitive_role_from_path_entry(path_entries[-1]) != PrimitiveRole.PARTICLE:
+            raise ValueError("MuPT SAAMR SDF atom paths must end at PARTICLE role")
+
+        if segment is None:
+            segment = Primitive(
+                label=str(path_entries[0]["label"]),
+                metadata=_fast_segment_metadata(rdmol_segment),
+                role=PrimitiveRole.SEGMENT,
+            )
+            nodes_by_path[_path_key(path_entries, 1)] = segment
+
+        parent = segment
+        for depth in range(2, len(path_entries)):
+            entry = path_entries[depth - 1]
+            prefix_key = _path_key(path_entries, depth)
+            if prefix_key not in nodes_by_path:
+                metadata = {}
+                if _primitive_role_from_path_entry(entry) == PrimitiveRole.RESIDUE:
+                    pdb_info = atom.GetPDBResidueInfo()
+                    insertion_code = pdb_info.GetInsertionCode() if pdb_info is not None else ""
+                    if insertion_code:
+                        metadata["pdb_insertion_code"] = insertion_code
+                child = Primitive(
+                    label=str(entry["label"]),
+                    metadata=metadata,
+                    role=_primitive_role_from_path_entry(entry),
+                )
+                parent.attach_child(child, label=str(entry["handle_label"]))
+                nodes_by_path[prefix_key] = child
+            parent = nodes_by_path[prefix_key]
+
+        particle_entry = path_entries[-1]
+        atom_primitive = primitive_from_rdkit_atom(
+            rdmol_segment,
+            atom_idx,
+            conformer_idx=conformer_idx,
+            attach_connectors=False,
+            role=PrimitiveRole.PARTICLE,
+        )
+        atom_primitive.label = str(particle_entry["label"])
+        atom_idx_to_parent[atom_idx] = parent
+        atom_idx_to_handle[atom_idx] = parent.attach_child(
+            atom_primitive,
+            label=str(particle_entry["handle_label"]),
+        )
+
+    if segment is None:
+        raise ValueError("MuPT SAAMR SDF segment contained no non-linker atoms")
+
+    for bond in rdmol_segment.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+        if begin_idx in linker_idxs or end_idx in linker_idxs:
+            if begin_idx in linker_idxs and end_idx in linker_idxs:
+                continue
+            atom_idx, linker_idx = (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
+            atom_parent = atom_idx_to_parent[atom_idx]
+            atom_primitive = atom_parent.fetch_child(atom_idx_to_handle[atom_idx])
+            connector = connector_between_rdatoms(
+                rdmol_segment,
+                from_atom_idx=atom_idx,
+                to_atom_idx=linker_idx,
+                conformer_idx=conformer_idx,
+                **kwargs,
+            )
+            _, _, mirrored_connectors = _bind_connector_up_to_owner(
+                atom_primitive,
+                atom_idx_to_handle[atom_idx],
+                atom_parent,
+                connector,
+                segment,
+                external_linker_label,
+            )
+            for mirrored_connector in mirrored_connectors:
+                _apply_traversal_direction(mirrored_connector, atom_primitive)
+            continue
+
+        begin_parent = atom_idx_to_parent[begin_idx]
+        end_parent = atom_idx_to_parent[end_idx]
+        begin_atom = begin_parent.fetch_child(atom_idx_to_handle[begin_idx])
+        end_atom = end_parent.fetch_child(atom_idx_to_handle[end_idx])
+        begin_residue = _enclosing_role(begin_atom, PrimitiveRole.RESIDUE)
+        end_residue = _enclosing_role(end_atom, PrimitiveRole.RESIDUE)
+        owner = begin_residue if begin_residue is end_residue else segment
+
+        # Chemistry ownership is role-based: arbitrary grouping nodes preserve
+        # organization, while bonds live at RESIDUE or SEGMENT SAAMR owners.
+        begin_child_handle, begin_conn_handle, _ = _bind_connector_up_to_owner(
+            begin_atom,
+            atom_idx_to_handle[begin_idx],
+            begin_parent,
+            connector_between_rdatoms(
+                rdmol_segment,
+                from_atom_idx=begin_idx,
+                to_atom_idx=end_idx,
+                conformer_idx=conformer_idx,
+                **kwargs,
+            ),
+            owner,
+            external_linker_label,
+        )
+        end_child_handle, end_conn_handle, _ = _bind_connector_up_to_owner(
+            end_atom,
+            atom_idx_to_handle[end_idx],
+            end_parent,
+            connector_between_rdatoms(
+                rdmol_segment,
+                from_atom_idx=end_idx,
+                to_atom_idx=begin_idx,
+                conformer_idx=conformer_idx,
+                **kwargs,
+            ),
+            owner,
+            external_linker_label,
+        )
+        owner.connect_children(
+            begin_child_handle,
+            begin_conn_handle,
+            end_child_handle,
+            end_conn_handle,
+        )
+
+    for node in reversed(list(nodes_by_path.values())):
+        positions = [atom.shape.centroid for atom in node.leaves if atom.shape is not None]
+        if positions:
+            node.shape = PointCloud(positions=positions)
+
+    return segment
+
+
+def primitive_from_mupt_sdf(
+    source: str | Path | Sequence[str | Path],
+    conformer_idx: Optional[int]=0,
+    label: Optional[Hashable]=None,
+    external_linker_label: str='*',
+    **kwargs,
+) -> Primitive:
+    """Load a UNIVERSE-rooted Primitive from MuPT-generated SAAMR SDF files.
+
+    Parameters
+    ----------
+    source : str, pathlib.Path, or sequence of path-like
+        One SDF path, a multi-record SDF path, or multiple SDF paths generated by
+        :func:`primitive_to_rdkit_mols`.
+    conformer_idx : int, optional
+        Conformer ID used to transfer atom coordinates. Defaults to ``0`` for SDF.
+    label : Hashable, optional
+        Label for the returned UNIVERSE root.
+    external_linker_label : str, default='*'
+        Connector label used when mirroring linker connectors up the hierarchy.
+
+    Returns
+    -------
+    Primitive
+        ``PrimitiveRole.UNIVERSE`` root containing one SEGMENT child per SDF record.
+
+    Raises
+    ------
+    ValueError
+        If the input is not MuPT-generated SAAMR SDF serialization metadata.
+    """
+    rdmols = _load_mupt_sdf_mols(source)
+    universe = Primitive(label=label, role=PrimitiveRole.UNIVERSE)
+    universe.metadata.update(_root_metadata(rdmols[0]))
+
+    # This is a focused issue #48 draft serializer path, not a generic RDKit
+    # import fallback. Missing markers mean callers should use primitive_from_rdkit().
+    for rdmol in rdmols:
+        universe.attach_child(
+            _primitive_from_mupt_saamr_mol(
+                rdmol,
+                conformer_idx=conformer_idx,
+                external_linker_label=external_linker_label,
+                **kwargs,
+            )
+        )
+    return universe
 
 
 def primitive_from_rdkit_segment(
