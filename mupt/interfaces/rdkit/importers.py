@@ -35,7 +35,7 @@ def primitive_from_rdkit_atom(
     atom_idx : int,
     conformer_idx : Optional[int]=None,
     attach_connectors : bool=False,
-    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    role : PrimitiveRole=PrimitiveRole.PARTICLE,
     **kwargs
 ) -> Primitive:
     '''Initialize an atomic Primitive from an RDKit Atom'''
@@ -73,8 +73,8 @@ def primitive_from_rdkit_chain(
     rdmol_chain : Mol,
     conformer_idx : Optional[int]=None,
     label : Optional[Hashable]=None,
-    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
-    atom_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    role : PrimitiveRole=PrimitiveRole.RESIDUE,
+    atom_role : PrimitiveRole=PrimitiveRole.PARTICLE,
     atom_label : str='ATOM',
     external_linker_label : str='*',
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
@@ -197,9 +197,9 @@ def primitive_from_rdkit(
     rdmol : Mol,
     conformer_idx : Optional[int]=None,
     label : Optional[Hashable]=None,
-    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
-    chain_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
-    atom_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    role : PrimitiveRole=PrimitiveRole.RESIDUE,
+    chain_role : PrimitiveRole=PrimitiveRole.SEGMENT,
+    atom_role : PrimitiveRole=PrimitiveRole.PARTICLE,
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
     sanitize_frags : bool=True,
     denest : bool=True,
@@ -216,6 +216,8 @@ def primitive_from_rdkit(
         frags=None,
         fragsMolAtomMapping=None,
     )
+    if (len(chains) > 1) and not denest and role == PrimitiveRole.RESIDUE:
+        role = PrimitiveRole.UNIVERSE
     
     # if only 1 chain is present, fall back to single-chain importer
     if (len(chains) == 1) and denest:
