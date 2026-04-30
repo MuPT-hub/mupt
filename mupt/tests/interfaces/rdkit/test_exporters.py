@@ -16,7 +16,14 @@ from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.interfaces.rdkit import importers, AllAtomRDKitExportStrategy, primitive_to_rdkit_mols
-from mupt.interfaces.rdkit.exporters import _pdb_chain_and_resid
+from mupt.interfaces.rdkit.exporters import (
+    MUPT_HIERARCHY_PATH,
+    MUPT_SAAMR_SDF_KIND,
+    MUPT_SAAMR_SDF_VERSION,
+    MUPT_SERIALIZATION_KIND,
+    MUPT_SERIALIZATION_VERSION,
+    _pdb_chain_and_resid,
+)
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
 
@@ -52,6 +59,17 @@ def test_primitive_to_rdkit_mols_preserves_atom_count(
 
     assert len(mols) == 1
     assert mols[0].GetNumAtoms() == len(single_polyethylene_3mer.leaves)
+
+
+def test_primitive_to_rdkit_mols_sets_mupt_saamr_sdf_metadata(
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+):
+    mol = primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map)[0]
+
+    assert mol.GetProp(MUPT_SERIALIZATION_KIND) == MUPT_SAAMR_SDF_KIND
+    assert mol.GetProp(MUPT_SERIALIZATION_VERSION) == MUPT_SAAMR_SDF_VERSION
+    assert all(atom.HasProp(MUPT_HIERARCHY_PATH) for atom in mol.GetAtoms())
 
 
 def test_primitive_to_rdkit_mols_preserves_bond_count(
