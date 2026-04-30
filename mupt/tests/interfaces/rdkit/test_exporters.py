@@ -12,6 +12,7 @@ from anytree import PreOrderIter
 from mupt.chemistry import ELEMENTS
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
+from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.interfaces.rdkit import AllAtomRDKitExportStrategy, primitive_to_rdkit_mols
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
@@ -117,3 +118,51 @@ def test_rdkit_strategy_rejects_unassigned_root():
 
     with pytest.raises(ValueError, match="UNIVERSE"):
         primitive_to_rdkit_mols(universe, {"res": "RES"})
+
+
+@pytest.mark.parametrize(
+    "label,smiles",
+    [
+        ("mid_thiophene", "*-[C:1]1=C-C=[C:2](-S-1)-*"),
+        ("mid_pyrrole", "*-[C:1]1=C-C=[C:2](-[NH]-1)-*"),
+        (
+            "mid_pyromellitimide",
+            "*-[N:1]1C(=O)c2c(C(=O)1)cc3c(c2)C(=O)[N:2](C(=O)3)-*",
+        ),
+    ],
+)
+def test_primitive_to_rdkit_mols_exports_heterocyclic_aromatics(label, smiles):
+    """Regression coverage for issue #31 on the role-aware exporter path."""
+    residue = primitive_from_smiles(smiles, ensure_explicit_Hs=True, label=label)
+    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(residue)
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(segment)
+
+    mols = primitive_to_rdkit_mols(universe, {label: "UNK"})
+
+    assert len(mols) == 1
+    assert mols[0].GetNumAtoms() == len(residue.leaves)
+    assert mols[0].GetNumBonds() == _count_internal_connections(residue)
+
+
+def test_primitive_to_rdkit_mols_does_not_check_atomic_valence(monkeypatch):
+    """The hierarchical exporter avoids the flatten/check_valence failure mode from #31."""
+    residue = primitive_from_smiles(
+        "*-[C:1]1=C-C=[C:2](-S-1)-*",
+        ensure_explicit_Hs=True,
+        label="mid_thiophene",
+    )
+    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(residue)
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(segment)
+
+    def fail_if_called(self):
+        raise AssertionError("primitive_to_rdkit_mols() must not call check_valence()")
+
+    monkeypatch.setattr(Primitive, "check_valence", fail_if_called)
+
+    mols = primitive_to_rdkit_mols(universe, {"mid_thiophene": "UNK"})
+
+    assert len(mols) == 1
