@@ -313,3 +313,23 @@ def test_primitive_from_mupt_sdf_rejects_missing_serialization_metadata(tmp_path
 
     with pytest.raises(ValueError, match="serialization metadata"):
         primitive_from_mupt_sdf(sdf_path)
+
+
+def test_primitive_from_mupt_sdf_can_skip_bond_reconstruction(
+    tmp_path,
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+) -> None:
+    sdf_path = tmp_path / "chain.sdf"
+    _write_sdf(sdf_path, primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map))
+
+    reconstructed = primitive_from_mupt_sdf(
+        sdf_path,
+        reconstruct_bonds=False,
+        reconstruct_shapes=False,
+    )
+
+    assert reconstructed.role == PrimitiveRole.UNIVERSE
+    assert len(reconstructed.children[0].children) == 2
+    assert len(reconstructed.leaves) == len(single_polyethylene_2mer.leaves)
+    assert all(len(node.internal_connections) == 0 for node in reconstructed.descendants)

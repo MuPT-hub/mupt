@@ -382,6 +382,8 @@ def _primitive_from_mupt_saamr_mol(
     rdmol_segment: Mol,
     conformer_idx: Optional[int],
     external_linker_label: str,
+    reconstruct_bonds: bool,
+    reconstruct_shapes: bool,
     **kwargs,
 ) -> Primitive:
     """Rebuild one SEGMENT tree from MuPT SAAMR SDF atom path metadata."""
@@ -455,83 +457,85 @@ def _primitive_from_mupt_saamr_mol(
     if segment is None:
         raise ValueError("MuPT SAAMR SDF segment contained no non-linker atoms")
 
-    for bond in rdmol_segment.GetBonds():
-        begin_idx = bond.GetBeginAtomIdx()
-        end_idx = bond.GetEndAtomIdx()
-        if begin_idx in linker_idxs or end_idx in linker_idxs:
-            if begin_idx in linker_idxs and end_idx in linker_idxs:
+    if reconstruct_bonds:
+        for bond in rdmol_segment.GetBonds():
+            begin_idx = bond.GetBeginAtomIdx()
+            end_idx = bond.GetEndAtomIdx()
+            if begin_idx in linker_idxs or end_idx in linker_idxs:
+                if begin_idx in linker_idxs and end_idx in linker_idxs:
+                    continue
+                atom_idx, linker_idx = (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
+                atom_parent = atom_idx_to_parent[atom_idx]
+                atom_primitive = atom_parent.fetch_child(atom_idx_to_handle[atom_idx])
+                connector = connector_between_rdatoms(
+                    rdmol_segment,
+                    from_atom_idx=atom_idx,
+                    to_atom_idx=linker_idx,
+                    conformer_idx=conformer_idx,
+                    **kwargs,
+                )
+                _, _, mirrored_connectors = _bind_connector_up_to_owner(
+                    atom_primitive,
+                    atom_idx_to_handle[atom_idx],
+                    atom_parent,
+                    connector,
+                    segment,
+                    external_linker_label,
+                )
+                for mirrored_connector in mirrored_connectors:
+                    _apply_traversal_direction(mirrored_connector, atom_primitive)
                 continue
-            atom_idx, linker_idx = (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
-            atom_parent = atom_idx_to_parent[atom_idx]
-            atom_primitive = atom_parent.fetch_child(atom_idx_to_handle[atom_idx])
-            connector = connector_between_rdatoms(
-                rdmol_segment,
-                from_atom_idx=atom_idx,
-                to_atom_idx=linker_idx,
-                conformer_idx=conformer_idx,
-                **kwargs,
-            )
-            _, _, mirrored_connectors = _bind_connector_up_to_owner(
-                atom_primitive,
-                atom_idx_to_handle[atom_idx],
-                atom_parent,
-                connector,
-                segment,
+
+            begin_parent = atom_idx_to_parent[begin_idx]
+            end_parent = atom_idx_to_parent[end_idx]
+            begin_atom = begin_parent.fetch_child(atom_idx_to_handle[begin_idx])
+            end_atom = end_parent.fetch_child(atom_idx_to_handle[end_idx])
+            begin_residue = _enclosing_role(begin_atom, PrimitiveRole.RESIDUE)
+            end_residue = _enclosing_role(end_atom, PrimitiveRole.RESIDUE)
+            owner = begin_residue if begin_residue is end_residue else segment
+
+            # Chemistry ownership is role-based: arbitrary grouping nodes preserve
+            # organization, while bonds live at RESIDUE or SEGMENT SAAMR owners.
+            begin_child_handle, begin_conn_handle, _ = _bind_connector_up_to_owner(
+                begin_atom,
+                atom_idx_to_handle[begin_idx],
+                begin_parent,
+                connector_between_rdatoms(
+                    rdmol_segment,
+                    from_atom_idx=begin_idx,
+                    to_atom_idx=end_idx,
+                    conformer_idx=conformer_idx,
+                    **kwargs,
+                ),
+                owner,
                 external_linker_label,
             )
-            for mirrored_connector in mirrored_connectors:
-                _apply_traversal_direction(mirrored_connector, atom_primitive)
-            continue
+            end_child_handle, end_conn_handle, _ = _bind_connector_up_to_owner(
+                end_atom,
+                atom_idx_to_handle[end_idx],
+                end_parent,
+                connector_between_rdatoms(
+                    rdmol_segment,
+                    from_atom_idx=end_idx,
+                    to_atom_idx=begin_idx,
+                    conformer_idx=conformer_idx,
+                    **kwargs,
+                ),
+                owner,
+                external_linker_label,
+            )
+            owner.connect_children(
+                begin_child_handle,
+                begin_conn_handle,
+                end_child_handle,
+                end_conn_handle,
+            )
 
-        begin_parent = atom_idx_to_parent[begin_idx]
-        end_parent = atom_idx_to_parent[end_idx]
-        begin_atom = begin_parent.fetch_child(atom_idx_to_handle[begin_idx])
-        end_atom = end_parent.fetch_child(atom_idx_to_handle[end_idx])
-        begin_residue = _enclosing_role(begin_atom, PrimitiveRole.RESIDUE)
-        end_residue = _enclosing_role(end_atom, PrimitiveRole.RESIDUE)
-        owner = begin_residue if begin_residue is end_residue else segment
-
-        # Chemistry ownership is role-based: arbitrary grouping nodes preserve
-        # organization, while bonds live at RESIDUE or SEGMENT SAAMR owners.
-        begin_child_handle, begin_conn_handle, _ = _bind_connector_up_to_owner(
-            begin_atom,
-            atom_idx_to_handle[begin_idx],
-            begin_parent,
-            connector_between_rdatoms(
-                rdmol_segment,
-                from_atom_idx=begin_idx,
-                to_atom_idx=end_idx,
-                conformer_idx=conformer_idx,
-                **kwargs,
-            ),
-            owner,
-            external_linker_label,
-        )
-        end_child_handle, end_conn_handle, _ = _bind_connector_up_to_owner(
-            end_atom,
-            atom_idx_to_handle[end_idx],
-            end_parent,
-            connector_between_rdatoms(
-                rdmol_segment,
-                from_atom_idx=end_idx,
-                to_atom_idx=begin_idx,
-                conformer_idx=conformer_idx,
-                **kwargs,
-            ),
-            owner,
-            external_linker_label,
-        )
-        owner.connect_children(
-            begin_child_handle,
-            begin_conn_handle,
-            end_child_handle,
-            end_conn_handle,
-        )
-
-    for node in reversed(list(nodes_by_path.values())):
-        positions = [atom.shape.centroid for atom in node.leaves if atom.shape is not None]
-        if positions:
-            node.shape = PointCloud(positions=positions)
+    if reconstruct_shapes:
+        for node in reversed(list(nodes_by_path.values())):
+            positions = [atom.shape.centroid for atom in node.leaves if atom.shape is not None]
+            if positions:
+                node.shape = PointCloud(positions=positions)
 
     return segment
 
@@ -541,6 +545,8 @@ def primitive_from_mupt_sdf(
     conformer_idx: Optional[int]=0,
     label: Optional[Hashable]=None,
     external_linker_label: str='*',
+    reconstruct_bonds: bool=True,
+    reconstruct_shapes: bool=True,
     **kwargs,
 ) -> Primitive:
     """Load a UNIVERSE-rooted Primitive from MuPT-generated SAAMR SDF files.
@@ -556,6 +562,12 @@ def primitive_from_mupt_sdf(
         Label for the returned UNIVERSE root.
     external_linker_label : str, default='*'
         Connector label used when mirroring linker connectors up the hierarchy.
+    reconstruct_bonds : bool, default=True
+        Rebuild MuPT connector topology from RDKit bonds. Set ``False`` when only
+        hierarchy metadata is needed, such as notebook validation before OpenFF
+        simulation.
+    reconstruct_shapes : bool, default=True
+        Aggregate container shapes from atom coordinates after bond reconstruction.
 
     Returns
     -------
@@ -579,6 +591,8 @@ def primitive_from_mupt_sdf(
                 rdmol,
                 conformer_idx=conformer_idx,
                 external_linker_label=external_linker_label,
+                reconstruct_bonds=reconstruct_bonds,
+                reconstruct_shapes=reconstruct_shapes,
                 **kwargs,
             )
         )
