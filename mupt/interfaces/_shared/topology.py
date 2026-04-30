@@ -162,6 +162,8 @@ def _resolve_to_atom(
     ValueError
         If the connector chain is malformed or exceeds ``_max_depth``.
     """
+    # Connector chains should be shallow in SAAMR trees; keep a guard so malformed
+    # external-connector cycles fail with context instead of recursing forever.
     if _depth > _max_depth:
         raise ValueError(
             f"_resolve_to_atom exceeded maximum recursion depth ({_max_depth}) "

@@ -26,6 +26,12 @@ from ...mupr.primitives import Primitive, PrimitiveHandle
 from ...mupr.connection import TraversalDirection
 from ...roles import PrimitiveRole
 
+from .exporters import (
+    MUPT_ROOT_METADATA_COUNT,
+    MUPT_ROOT_METADATA_KEY_PREFIX,
+    MUPT_ROOT_METADATA_VALUE_PREFIX,
+)
+
 
 def primitive_from_rdkit_atom(
     parent_mol : Mol,
@@ -201,16 +207,56 @@ def _atom_int_prop(atom: Atom, key: str, default: int) -> int:
     return atom.GetIntProp(key) if atom.HasProp(key) else default
 
 
-def _residue_key(atom: Atom) -> tuple[int, str]:
+def _residue_key(atom: Atom) -> tuple[str, str, int, str]:
     """Return the residue identity key for an RDKit atom."""
     # Prefer MuPT export metadata, falling back to PDB residue info when present.
     pdb_info = atom.GetPDBResidueInfo()
+    chain_id = pdb_info.GetChainId() if pdb_info is not None else ""
+    insertion_code = pdb_info.GetInsertionCode() if pdb_info is not None else ""
     resid = pdb_info.GetResidueNumber() if pdb_info is not None else 1
     resname = pdb_info.GetResidueName().strip() if pdb_info is not None else "RES"
     return (
+        "mupt" if atom.HasProp("mupt_residue_index") else chain_id,
+        insertion_code,
         _atom_int_prop(atom, "mupt_residue_index", resid),
         _atom_string_prop(atom, "mupt_residue_label", resname),
     )
+
+
+def _non_root_metadata(rdmol: Mol) -> dict:
+    """Return Mol properties excluding namespaced UNIVERSE-root metadata."""
+    root_metadata_keys = {MUPT_ROOT_METADATA_COUNT}
+    if rdmol.HasProp(MUPT_ROOT_METADATA_COUNT):
+        for idx in range(rdmol.GetIntProp(MUPT_ROOT_METADATA_COUNT)):
+            root_metadata_keys.add(f"{MUPT_ROOT_METADATA_KEY_PREFIX}{idx}")
+            root_metadata_keys.add(f"{MUPT_ROOT_METADATA_VALUE_PREFIX}{idx}")
+
+    return {
+        key: value
+        for key, value in rdmol.GetPropsAsDict(includePrivate=True, includeComputed=False).items()
+        if key not in root_metadata_keys
+    }
+
+
+def _root_metadata(rdmol: Mol) -> dict:
+    """Return namespaced UNIVERSE-root metadata from an exported RDKit Mol."""
+    if not rdmol.HasProp(MUPT_ROOT_METADATA_COUNT):
+        return {}
+    props = rdmol.GetPropsAsDict(includePrivate=True, includeComputed=False)
+    return {
+        rdmol.GetProp(f"{MUPT_ROOT_METADATA_KEY_PREFIX}{idx}"): props[
+            f"{MUPT_ROOT_METADATA_VALUE_PREFIX}{idx}"
+        ]
+        for idx in range(rdmol.GetIntProp(MUPT_ROOT_METADATA_COUNT))
+    }
+
+
+def _apply_traversal_direction(connector, atom_primitive: Primitive) -> None:
+    """Annotate linker connectors from RDKit map-number direction markers."""
+    if (mapnum := atom_primitive.metadata.get('molAtomMapNumber')) in {1, 2}:
+        chain_direction = TraversalDirection(mapnum)
+        connector.anchor.attachables.add(chain_direction)
+        connector.linker.attachables.add(TraversalDirection.complement(chain_direction))
 
 
 def primitive_from_rdkit_segment(
@@ -259,10 +305,10 @@ def primitive_from_rdkit_segment(
 
     segment_primitive = Primitive(
         label=label,
-        metadata=rdmol_segment.GetPropsAsDict(includePrivate=True, includeComputed=False),
+        metadata=_non_root_metadata(rdmol_segment),
         role=PrimitiveRole.SEGMENT,
     )
-    residue_handles: dict[tuple[int, str], PrimitiveHandle] = {}
+    residue_handles: dict[tuple[str, str, int, str], PrimitiveHandle] = {}
     atom_idx_to_residue_handle: dict[int, PrimitiveHandle] = {}
     atom_idx_to_atom_handle: dict[int, PrimitiveHandle] = {}
     linker_idxs: set[int] = set()
@@ -276,8 +322,15 @@ def primitive_from_rdkit_segment(
 
         res_key = _residue_key(atom)
         if res_key not in residue_handles:
-            _, residue_label = res_key
-            residue = Primitive(label=residue_label, role=residue_role)
+            _, insertion_code, _, residue_label = res_key
+            residue_metadata = {}
+            if insertion_code:
+                residue_metadata["pdb_insertion_code"] = insertion_code
+            residue = Primitive(
+                label=residue_label,
+                metadata=residue_metadata,
+                role=residue_role,
+            )
             residue_handles[res_key] = segment_primitive.attach_child(residue)
 
         residue = segment_primitive.fetch_child(residue_handles[res_key])
@@ -298,6 +351,43 @@ def primitive_from_rdkit_segment(
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
         if begin_idx in linker_idxs or end_idx in linker_idxs:
+            if begin_idx in linker_idxs and end_idx in linker_idxs:
+                continue
+
+            atom_idx, linker_idx = (
+                (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
+            )
+            residue_handle = atom_idx_to_residue_handle[atom_idx]
+            residue = segment_primitive.fetch_child(residue_handle)
+            atom_handle = atom_idx_to_atom_handle[atom_idx]
+            atom_primitive = residue.fetch_child(atom_handle)
+            atom_conn_handle = atom_primitive.register_connector(
+                connector_between_rdatoms(
+                    rdmol_segment,
+                    from_atom_idx=atom_idx,
+                    to_atom_idx=linker_idx,
+                    conformer_idx=conformer_idx,
+                    **kwargs,
+                )
+            )
+            # Linker atoms are not exported as PARTICLEs; their bonds become external
+            # connectors so repeat units keep polymer attachment semantics.
+            residue_conn_handle = residue.bind_external_connector(
+                atom_handle,
+                atom_conn_handle,
+                label=external_linker_label,
+            )
+            segment_conn_handle = segment_primitive.bind_external_connector(
+                residue_handle,
+                residue_conn_handle,
+                label=external_linker_label,
+            )
+            for connector in (
+                atom_primitive.fetch_connector(atom_conn_handle),
+                residue.fetch_connector(residue_conn_handle),
+                segment_primitive.fetch_connector(segment_conn_handle),
+            ):
+                _apply_traversal_direction(connector, atom_primitive)
             continue
 
         begin_res_handle = atom_idx_to_residue_handle[begin_idx]
@@ -401,9 +491,12 @@ def primitive_from_rdkit(
     conformer_idx : int, optional
         Conformer ID used to transfer atom coordinates.
     label : Hashable, optional
-        Label assigned to the returned UNIVERSE Primitive.
+        Label assigned to the returned root Primitive.
     role : PrimitiveRole, default=PrimitiveRole.UNIVERSE
-        Role assigned to the returned root Primitive.
+        Role assigned to the returned UNIVERSE Primitive when ``denest=False``
+        or when importing multiple fragments. The legacy single-fragment
+        ``denest=True`` path returns ``primitive_from_rdkit_chain(...)`` and uses
+        ``residue_role`` for that direct return to preserve the old API shape.
     residue_role : PrimitiveRole, default=PrimitiveRole.RESIDUE
         Role assigned to reconstructed residue containers.
     atom_role : PrimitiveRole, default=PrimitiveRole.PARTICLE
@@ -419,6 +512,7 @@ def primitive_from_rdkit(
     Returns
     -------
     Primitive
+        Legacy single-fragment Primitive when ``denest=True``; otherwise a
         UNIVERSE-role Primitive with one SEGMENT child per RDKit fragment.
     """
     chains = GetMolFrags(
@@ -442,7 +536,9 @@ def primitive_from_rdkit(
         # RESIDUE-like Primitive return. Keep the old behavior in this PR so the
         # new RDKit path remains non-breaking; reviewers can decide whether a
         # later PR should formally deprecate denest and migrate callers to the
-        # canonical UNIVERSE-rooted import behavior.
+        # canonical UNIVERSE-rooted import behavior. The caller's role argument is
+        # therefore intentionally not applied on this branch; residue_role controls
+        # the direct legacy return instead.
         return primitive_from_rdkit_chain(
             chains[0],
             conformer_idx=conformer_idx,
@@ -455,6 +551,10 @@ def primitive_from_rdkit(
 
     universe_primitive = Primitive(
         label=label,
+        metadata={
+            **_non_root_metadata(rdmol),
+            **_root_metadata(rdmol),
+        },
         role=role,
     )
     # RDKit fragments are interpreted as separate SEGMENT-role molecules in one UNIVERSE.

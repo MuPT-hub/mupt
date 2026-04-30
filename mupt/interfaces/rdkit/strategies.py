@@ -26,11 +26,13 @@ class RDKitMolData:
     atoms: list[Primitive] = field(default_factory=list)
     atom_positions: list[np.ndarray] = field(default_factory=list)
     atom_resnames: list[str] = field(default_factory=list)
+    atom_insertion_codes: list[str] = field(default_factory=list)
     atom_residue_labels: list[str] = field(default_factory=list)
     atom_particle_labels: list[str] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
     bond_refs: list[tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]] = field(default_factory=list)
+    linker_refs: list[tuple[int, Primitive, ConnectorReference]] = field(default_factory=list)
 
 
 class RDKitExportStrategy(ABC):
@@ -132,6 +134,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     else:
                         data.atom_positions.append(self.default_atom_position)
                     data.atom_resnames.append(resname)
+                    data.atom_insertion_codes.append(str(residue.metadata.get("pdb_insertion_code", "")))
                     data.atom_residue_labels.append(str(residue.label))
                     data.atom_particle_labels.append(str(atom.label))
                     data.atom_resids.append(resid_counter)
@@ -160,6 +163,10 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     data.bonds.append(bond_pair)
                     data.bond_refs.append((node, (conn_ref1, conn_ref2)))
                     bonds_set.add(bond_pair)
+
+            for conn_ref in segment.external_connectors.values():
+                atom = self._resolve_to_atom_cached(segment, conn_ref, endpoint_cache)
+                data.linker_refs.append((atom_id_to_local[id(atom)], segment, conn_ref))
 
             if data.bonds:
                 sorted_bonds = sorted(

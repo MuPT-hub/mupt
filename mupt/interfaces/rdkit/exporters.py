@@ -136,15 +136,23 @@ def primitive_to_rdkit(
     return mol
 
 
-def _chain_id(segment_idx: int) -> str:
-    """Return a deterministic PDB chain ID for a segment index."""
-    chain_id = ""
-    idx = segment_idx
-    while True:
-        chain_id = chr(ord('A') + (idx % 26)) + chain_id
-        idx = idx // 26 - 1
-        if idx < 0:
-            return chain_id
+PDB_CHAIN_IDS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+PDB_MAX_RESIDUE_NUMBER = 9999
+MUPT_ROOT_METADATA_COUNT = "mupt_root_metadata_count"
+MUPT_ROOT_METADATA_KEY_PREFIX = "mupt_root_metadata_key_"
+MUPT_ROOT_METADATA_VALUE_PREFIX = "mupt_root_metadata_value_"
+
+
+def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
+    """Return PDB-compliant chain/residue identifiers for a global residue index."""
+    chain_idx, resid_offset = divmod(global_residue_idx, PDB_MAX_RESIDUE_NUMBER)
+    if chain_idx >= len(PDB_CHAIN_IDS):
+        raise ValueError(
+            "Role-aware RDKit export exceeded PDB chain/residue capacity "
+            f"({len(PDB_CHAIN_IDS) * PDB_MAX_RESIDUE_NUMBER} residues). "
+            "Use a topology format with larger identifier fields."
+        )
+    return PDB_CHAIN_IDS[chain_idx], resid_offset + 1
 
 
 def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
@@ -155,7 +163,22 @@ def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
     return f"{atom_name:<4}"
 
 
-def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
+def _is_root_metadata_transport_key(key: object) -> bool:
+    """Return whether a Mol prop key is reserved for root metadata transport."""
+    key = str(key)
+    return (
+        key == MUPT_ROOT_METADATA_COUNT
+        or key.startswith(MUPT_ROOT_METADATA_KEY_PREFIX)
+        or key.startswith(MUPT_ROOT_METADATA_VALUE_PREFIX)
+    )
+
+
+def _mol_from_rdkit_data(
+    data: RDKitMolData,
+    segment_idx: int,
+    first_residue_idx: int,
+    root_metadata: dict,
+) -> Mol:
     """Build an RDKit Mol from collected role-aware topology data.
 
     Parameters
@@ -164,6 +187,10 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         Segment-local atom, bond, residue, and metadata collected from a Primitive tree.
     segment_idx : int
         Zero-based SEGMENT index used for chain IDs and MuPT metadata.
+    first_residue_idx : int
+        Zero-based global residue index assigned to this segment's first residue.
+    root_metadata : dict
+        Metadata from the exported UNIVERSE root, copied to each output Mol.
 
     Returns
     -------
@@ -176,33 +203,34 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         If RDKit rejects the generated graph during strict property-cache update.
     """
     mol = RWMol()
-    conf = Conformer(len(data.atoms))
-    chain_id = _chain_id(segment_idx)
+    conf = Conformer(len(data.atoms) + len(data.linker_refs))
     residue_atom_counts: dict[int, int] = {}
 
     for atom_idx, atom_prim in enumerate(data.atoms):
         rdkit_atom = rdkit_atom_from_atomic_primitive(atom_prim)
-        resid = data.atom_resids[atom_idx]
-        atom_idx_in_residue = residue_atom_counts.get(resid, 0)
-        residue_atom_counts[resid] = atom_idx_in_residue + 1
+        local_resid = data.atom_resids[atom_idx]
+        chain_id, resid = _pdb_chain_and_resid(first_residue_idx + local_resid - 1)
+        atom_idx_in_residue = residue_atom_counts.get(local_resid, 0)
+        residue_atom_counts[local_resid] = atom_idx_in_residue + 1
 
-        rdkit_atom.SetMonomerInfo(
-            AtomPDBResidueInfo(
-                atomName=_atom_pdb_name(atom_prim, atom_idx_in_residue),
-                serialNumber=atom_idx + 1,
-                residueName=data.atom_resnames[atom_idx],
-                residueNumber=resid,
-                chainId=chain_id,
-                isHeteroAtom=True,
-            )
+        pdb_info = AtomPDBResidueInfo(
+            atomName=_atom_pdb_name(atom_prim, atom_idx_in_residue),
+            serialNumber=atom_idx + 1,
+            residueName=data.atom_resnames[atom_idx],
+            residueNumber=resid,
+            chainId=chain_id,
+            isHeteroAtom=True,
         )
+        if data.atom_insertion_codes[atom_idx]:
+            pdb_info.SetInsertionCode(data.atom_insertion_codes[atom_idx])
+        rdkit_atom.SetMonomerInfo(pdb_info)
         rdkit_atom.SetProp("residue_name", data.atom_resnames[atom_idx])
         rdkit_atom.SetIntProp("residue_id", resid)
         rdkit_atom.SetProp("chain_id", chain_id)
         # MuPT-specific fields preserve hierarchy for RDKit-file round trips.
         rdkit_atom.SetIntProp("mupt_segment_index", segment_idx)
         rdkit_atom.SetProp("mupt_segment_label", str(data.segment.label))
-        rdkit_atom.SetIntProp("mupt_residue_index", resid)
+        rdkit_atom.SetIntProp("mupt_residue_index", local_resid)
         rdkit_atom.SetProp("mupt_residue_label", data.atom_residue_labels[atom_idx])
         rdkit_atom.SetIntProp("mupt_particle_index", atom_idx)
         rdkit_atom.SetProp("mupt_particle_label", data.atom_particle_labels[atom_idx])
@@ -223,10 +251,58 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         for bond_key, bond_value in bond_metadata.items():
             assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
 
+    for atom_idx, parent, conn_ref in data.linker_refs:
+        conn = parent.fetch_connector_on_child(conn_ref)
+        anchor_atom = mol.GetAtomWithIdx(atom_idx)
+        linker_atom = Atom(0)
+        anchor_pdb_info = anchor_atom.GetPDBResidueInfo()
+        linker_idx = mol.AddAtom(linker_atom)
+        if anchor_pdb_info is not None:
+            pdb_info = AtomPDBResidueInfo(
+                atomName=" *  ",
+                serialNumber=linker_idx + 1,
+                residueName=anchor_pdb_info.GetResidueName(),
+                residueNumber=anchor_pdb_info.GetResidueNumber(),
+                chainId=anchor_pdb_info.GetChainId(),
+                isHeteroAtom=True,
+            )
+            if anchor_pdb_info.GetInsertionCode():
+                pdb_info.SetInsertionCode(anchor_pdb_info.GetInsertionCode())
+            mol.GetAtomWithIdx(linker_idx).SetMonomerInfo(pdb_info)
+            mol.GetAtomWithIdx(linker_idx).SetProp("residue_name", anchor_atom.GetProp("residue_name"))
+            mol.GetAtomWithIdx(linker_idx).SetIntProp("residue_id", anchor_atom.GetIntProp("residue_id"))
+            mol.GetAtomWithIdx(linker_idx).SetProp("chain_id", anchor_atom.GetProp("chain_id"))
+        mol.AddBond(atom_idx, linker_idx, order=conn.bondtype)
+        conf.SetAtomPosition(
+            linker_idx,
+            Point3D(
+                float(conn.linker.position[0]),
+                float(conn.linker.position[1]),
+                float(conn.linker.position[2]),
+            ),
+        )
+        bond = mol.GetBondBetweenAtoms(atom_idx, linker_idx)
+        for bond_key, bond_value in conn.metadata.items():
+            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
+
     assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True)
+    if root_metadata:
+        mol.SetIntProp(MUPT_ROOT_METADATA_COUNT, len(root_metadata))
+        for idx, (key, value) in enumerate(root_metadata.items()):
+            mol.SetProp(f"{MUPT_ROOT_METADATA_KEY_PREFIX}{idx}", str(key))
+            assign_property_to_rdobj(
+                mol,
+                f"{MUPT_ROOT_METADATA_VALUE_PREFIX}{idx}",
+                value,
+                preserve_type=True,
+            )
     if data.segment.label is not None:
         mol.SetProp(RDMOL_NAME_WRITE_PROP, str(data.segment.label))
     for key, value in data.segment.metadata.items():
+        if _is_root_metadata_transport_key(key):
+            raise ValueError(
+                f"Segment metadata key '{key}' is reserved for MuPT root metadata transport"
+            )
         assign_property_to_rdobj(mol, key, value, preserve_type=True)
 
     mol.AddConformer(conf, assignId=True)
@@ -263,8 +339,23 @@ def primitive_to_rdkit_mols(
     if strategy is None:
         strategy = AllAtomRDKitExportStrategy(default_atom_position=default_atom_position)
     mols_data = strategy.collect_mols(primitive, resname_map=resname_map)
-    return [
-        _mol_from_rdkit_data(data, segment_idx)
-        for segment_idx, data in enumerate(mols_data)
-    ]
+
+    mols: list[Mol] = []
+    first_residue_idx = 0
+    for segment_idx, data in enumerate(mols_data):
+        # PDB chain IDs are one-character fields, so disconnected MuPT segments
+        # cannot safely map one-to-one to PDB chains. Instead, residues are
+        # numbered globally across exported segments and overflow to the next
+        # chain ID every 9999 residues. MuPT segment identity remains explicit in
+        # mupt_segment_index/mupt_segment_label atom properties.
+        mols.append(
+            _mol_from_rdkit_data(
+                data,
+                segment_idx,
+                first_residue_idx,
+                root_metadata=primitive.metadata,
+            )
+        )
+        first_residue_idx += max(data.atom_resids, default=0)
+    return mols
     

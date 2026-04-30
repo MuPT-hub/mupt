@@ -4,10 +4,11 @@ __author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
 __email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import pytest
-from rdkit.Chem.rdchem import Mol
+from rdkit.Chem.rdchem import Atom, AtomPDBResidueInfo, Mol, RWMol
 from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.Chem.rdmolops import AddHs
 
+from mupt.mupr.connection import TraversalDirection
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.interfaces.smiles import primitive_from_smiles
@@ -54,6 +55,17 @@ def test_primitive_from_rdkit_preserves_legacy_denest_default(mol: Mol) -> None:
     assert all(atom.role == PrimitiveRole.PARTICLE for atom in primitive.children)
 
 
+def test_primitive_from_rdkit_legacy_denest_uses_residue_role(mol: Mol) -> None:
+    primitive = importers.primitive_from_rdkit(
+        mol,
+        denest=True,
+        role=PrimitiveRole.UNIVERSE,
+        residue_role=PrimitiveRole.SEGMENT,
+    )
+
+    assert primitive.role == PrimitiveRole.SEGMENT
+
+
 def test_primitive_from_rdkit_denest_false_returns_saamr_hierarchy(mol: Mol) -> None:
     primitive = importers.primitive_from_rdkit(mol, denest=False)
 
@@ -65,6 +77,108 @@ def test_primitive_from_rdkit_denest_false_returns_saamr_hierarchy(mol: Mol) -> 
     residue = segment.children[0]
     assert residue.role == PrimitiveRole.RESIDUE
     assert all(atom.role == PrimitiveRole.PARTICLE for atom in residue.children)
+
+
+def test_primitive_from_rdkit_denest_false_preserves_root_metadata() -> None:
+    mol = MolFromSmiles("CC.CC")
+    mol.SetProp("mupt_test_root", "preserved")
+
+    primitive = importers.primitive_from_rdkit(mol, denest=False)
+
+    assert primitive.metadata["mupt_test_root"] == "preserved"
+    assert primitive.role == PrimitiveRole.UNIVERSE
+    assert len(primitive.children) == 2
+
+
+def test_primitive_from_rdkit_does_not_reclassify_external_prefixed_metadata() -> None:
+    mol = MolFromSmiles("CC")
+    mol.SetProp("mupt_root_metadata_external", "segment")
+
+    primitive = importers.primitive_from_rdkit(mol, denest=False)
+
+    assert primitive.metadata["mupt_root_metadata_external"] == "segment"
+    assert "external" not in primitive.metadata
+    assert primitive.children[0].metadata["mupt_root_metadata_external"] == "segment"
+
+
+def test_primitive_from_rdkit_fallback_residue_key_includes_chain_id() -> None:
+    editable = RWMol()
+    for chain_id in ("A", "B"):
+        atom = Atom(6)
+        atom.SetMonomerInfo(
+            AtomPDBResidueInfo(
+                atomName=" C  ",
+                residueName="RES",
+                residueNumber=1,
+                chainId=chain_id,
+            )
+        )
+        editable.AddAtom(atom)
+    editable.AddBond(0, 1)
+
+    primitive = importers.primitive_from_rdkit(Mol(editable), denest=False)
+
+    assert len(primitive.children[0].children) == 2
+
+
+def test_primitive_from_rdkit_fallback_residue_key_includes_insertion_code() -> None:
+    editable = RWMol()
+    for insertion_code in ("A", "B"):
+        atom = Atom(6)
+        pdb_info = AtomPDBResidueInfo(
+            atomName=" C  ",
+            residueName="RES",
+            residueNumber=1,
+            chainId="A",
+        )
+        pdb_info.SetInsertionCode(insertion_code)
+        atom.SetMonomerInfo(pdb_info)
+        editable.AddAtom(atom)
+    editable.AddBond(0, 1)
+
+    primitive = importers.primitive_from_rdkit(Mol(editable), denest=False)
+
+    assert len(primitive.children[0].children) == 2
+
+    exported = primitive_to_rdkit_mols(primitive, {"RES": "RES"})[0]
+    insertion_codes = {
+        atom.GetPDBResidueInfo().GetInsertionCode()
+        for atom in exported.GetAtoms()
+    }
+    reimported = importers.primitive_from_rdkit(exported, denest=False)
+    reimported_insertion_codes = {
+        residue.metadata["pdb_insertion_code"]
+        for residue in reimported.children[0].children
+    }
+
+    assert insertion_codes == {"A", "B"}
+    assert reimported_insertion_codes == {"A", "B"}
+
+
+def test_primitive_from_rdkit_denest_false_preserves_linker_connectors() -> None:
+    mol = MolFromSmiles("*-[C:1]-[C:2]-*")
+
+    primitive = importers.primitive_from_rdkit(mol, denest=False)
+    segment = primitive.children[0]
+    residue = segment.children[0]
+
+    assert len(residue.external_connectors) == 2
+    assert len(segment.external_connectors) == 2
+    residue_directions = {
+        direction
+        for conn_handle in residue.external_connectors
+        for direction in residue.fetch_connector(conn_handle).anchor.attachables
+        if isinstance(direction, TraversalDirection)
+    }
+    segment_directions = {
+        direction
+        for conn_handle in segment.external_connectors
+        for direction in segment.fetch_connector(conn_handle).anchor.attachables
+        if isinstance(direction, TraversalDirection)
+    }
+
+    assert residue_directions == {TraversalDirection(1), TraversalDirection(2)}
+    assert segment_directions == {TraversalDirection(1), TraversalDirection(2)}
 
 
 def test_primitive_from_smiles_defaults_to_residue_particle_roles() -> None:
