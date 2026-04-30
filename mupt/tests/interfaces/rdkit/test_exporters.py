@@ -8,6 +8,8 @@ __email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import pytest
 from anytree import PreOrderIter
+from rdkit import Chem
+from rdkit.Chem.rdchem import BondType
 
 from mupt.chemistry import ELEMENTS
 from mupt.mupr.primitives import Primitive
@@ -146,8 +148,8 @@ def test_primitive_to_rdkit_mols_exports_heterocyclic_aromatics(label, smiles):
     assert mols[0].GetNumBonds() == _count_internal_connections(residue)
 
 
-def test_primitive_to_rdkit_mols_does_not_check_atomic_valence(monkeypatch):
-    """The hierarchical exporter avoids the flatten/check_valence failure mode from #31."""
+def test_primitive_to_rdkit_mols_preserves_valid_thiophene_chemistry():
+    """The role-aware exporter keeps heterocyclic chemistry chemically valid."""
     residue = primitive_from_smiles(
         "*-[C:1]1=C-C=[C:2](-S-1)-*",
         ensure_explicit_Hs=True,
@@ -158,11 +160,16 @@ def test_primitive_to_rdkit_mols_does_not_check_atomic_valence(monkeypatch):
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(segment)
 
-    def fail_if_called(self):
-        raise AssertionError("primitive_to_rdkit_mols() must not call check_valence()")
+    for atom in residue.leaves:
+        atom.check_valence()
 
-    monkeypatch.setattr(Primitive, "check_valence", fail_if_called)
+    mol = primitive_to_rdkit_mols(universe, {"mid_thiophene": "THI"})[0]
+    Chem.SanitizeMol(Chem.Mol(mol))
 
-    mols = primitive_to_rdkit_mols(universe, {"mid_thiophene": "UNK"})
-
-    assert len(mols) == 1
+    assert Chem.MolToSmiles(mol) == "[H]C1=[C:1]S[C:2]=C1[H]"
+    assert [atom.GetSymbol() for atom in mol.GetAtoms()].count("S") == 1
+    assert sorted(bond.GetBondType() for bond in mol.GetBonds()) == sorted(
+        [BondType.DOUBLE, BondType.DOUBLE] + [BondType.SINGLE] * 5
+    )
+    sulfur = next(atom for atom in mol.GetAtoms() if atom.GetSymbol() == "S")
+    assert sulfur.GetTotalValence() == 2
