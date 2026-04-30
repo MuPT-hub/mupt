@@ -5,14 +5,14 @@ __email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import pytest
 from rdkit.Chem.rdchem import Atom, AtomPDBResidueInfo, Mol, RWMol
-from rdkit.Chem.rdmolfiles import MolFromSmiles
+from rdkit.Chem.rdmolfiles import MolFromSmiles, SDWriter
 from rdkit.Chem.rdmolops import AddHs
 
 from mupt.mupr.connection import TraversalDirection
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.interfaces.smiles import primitive_from_smiles
-from mupt.interfaces.rdkit import importers, primitive_to_rdkit_mols
+from mupt.interfaces.rdkit import importers, primitive_from_mupt_sdf, primitive_to_rdkit_mols
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
 
@@ -219,3 +219,97 @@ def test_rdkit_export_import_preserves_saamr_hierarchy(
     assert all(residue.role == PrimitiveRole.RESIDUE for residue in segment.children)
     assert all(atom.role == PrimitiveRole.PARTICLE for atom in reconstructed.leaves)
     assert len(reconstructed.leaves) == len(single_polyethylene_2mer.leaves)
+
+
+def _write_sdf(path, mols) -> None:
+    writer = SDWriter(str(path))
+    for mol in mols:
+        writer.write(mol)
+    writer.close()
+
+
+def test_primitive_from_mupt_sdf_returns_universe_for_single_sdf(
+    tmp_path,
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+) -> None:
+    sdf_path = tmp_path / "chain.sdf"
+    _write_sdf(sdf_path, primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map))
+
+    reconstructed = primitive_from_mupt_sdf(sdf_path)
+
+    assert reconstructed.role == PrimitiveRole.UNIVERSE
+    assert len(reconstructed.children) == 1
+    assert reconstructed.children[0].role == PrimitiveRole.SEGMENT
+    assert [residue.role for residue in reconstructed.children[0].children] == [
+        PrimitiveRole.RESIDUE,
+        PrimitiveRole.RESIDUE,
+    ]
+    assert len(reconstructed.leaves) == len(single_polyethylene_2mer.leaves)
+
+
+def test_primitive_from_mupt_sdf_accepts_multiple_sdf_paths(
+    tmp_path,
+    multi_polyethylene_system,
+    polyethylene_resname_map,
+) -> None:
+    sdf_paths = []
+    mols = primitive_to_rdkit_mols(multi_polyethylene_system, polyethylene_resname_map)
+    for idx, mol in enumerate(mols[:2]):
+        sdf_path = tmp_path / f"chain_{idx}.sdf"
+        _write_sdf(sdf_path, [mol])
+        sdf_paths.append(sdf_path)
+
+    reconstructed = primitive_from_mupt_sdf(sdf_paths)
+
+    assert reconstructed.role == PrimitiveRole.UNIVERSE
+    assert len(reconstructed.children) == 2
+    assert all(segment.role == PrimitiveRole.SEGMENT for segment in reconstructed.children)
+
+
+def test_primitive_from_mupt_sdf_accepts_multirecord_sdf(
+    tmp_path,
+    multi_polyethylene_system,
+    polyethylene_resname_map,
+) -> None:
+    sdf_path = tmp_path / "chains.sdf"
+    _write_sdf(sdf_path, primitive_to_rdkit_mols(multi_polyethylene_system, polyethylene_resname_map)[:2])
+
+    reconstructed = primitive_from_mupt_sdf(sdf_path)
+
+    assert len(reconstructed.children) == 2
+
+
+def test_primitive_from_mupt_sdf_preserves_intermediate_nodes(tmp_path) -> None:
+    residue = primitive_from_smiles(
+        "CC",
+        label="ethane",
+        ensure_explicit_Hs=True,
+        embed_positions=True,
+    )
+    group = Primitive(label="functional_group")
+    group.attach_child(residue)
+    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(group)
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(segment)
+    residue.role = PrimitiveRole.RESIDUE
+    for atom in residue.leaves:
+        atom.role = PrimitiveRole.PARTICLE
+    sdf_path = tmp_path / "grouped.sdf"
+    _write_sdf(sdf_path, primitive_to_rdkit_mols(universe, {"ethane": "EAN"}))
+
+    reconstructed = primitive_from_mupt_sdf(sdf_path)
+
+    segment = reconstructed.children[0]
+    assert segment.children[0].label == "functional_group"
+    assert segment.children[0].role == PrimitiveRole.UNASSIGNED
+    assert segment.children[0].children[0].role == PrimitiveRole.RESIDUE
+
+
+def test_primitive_from_mupt_sdf_rejects_missing_serialization_metadata(tmp_path) -> None:
+    sdf_path = tmp_path / "plain.sdf"
+    _write_sdf(sdf_path, [MolFromSmiles("CC")])
+
+    with pytest.raises(ValueError, match="serialization metadata"):
+        primitive_from_mupt_sdf(sdf_path)
