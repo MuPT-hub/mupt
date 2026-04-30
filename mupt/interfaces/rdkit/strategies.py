@@ -11,6 +11,7 @@ import numpy as np
 
 from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives import Primitive
+from ...roles import PrimitiveRole
 from .._shared.topology import (
     build_saamr_role_topology_index,
     _pdb_resname,
@@ -29,6 +30,7 @@ class RDKitMolData:
     atom_insertion_codes: list[str] = field(default_factory=list)
     atom_residue_labels: list[str] = field(default_factory=list)
     atom_particle_labels: list[str] = field(default_factory=list)
+    atom_hierarchy_paths: list[list[dict[str, object]]] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
     bond_refs: list[tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]] = field(default_factory=list)
@@ -137,6 +139,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     data.atom_insertion_codes.append(str(residue.metadata.get("pdb_insertion_code", "")))
                     data.atom_residue_labels.append(str(residue.label))
                     data.atom_particle_labels.append(str(atom.label))
+                    data.atom_hierarchy_paths.append(_serialized_path_from_segment(segment, atom))
                     data.atom_resids.append(resid_counter)
                 resid_counter += 1
 
@@ -191,3 +194,39 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
             # Resolve through arbitrary intermediate hierarchy only once per connector ref.
             cache[cache_key] = _resolve_to_atom(parent, conn_ref)
         return cache[cache_key]
+
+
+def _child_handle(parent: Primitive, child: Primitive) -> tuple[object, int]:
+    """Return the parent-local handle for a known child Primitive."""
+    for handle, candidate in parent.children_by_handle.items():
+        if candidate is child:
+            return handle
+    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
+
+
+def _serialized_path_from_segment(segment: Primitive, atom: Primitive) -> list[dict[str, object]]:
+    """Return a stable SEGMENT-to-PARTICLE hierarchy path for one atom."""
+    segment_idxs = [idx for idx, node in enumerate(atom.path) if node is segment]
+    if not segment_idxs:
+        raise ValueError(f"Atom '{atom.label}' is not enclosed by segment '{segment.label}'")
+    segment_idx = segment_idxs[0]
+
+    path = []
+    for node in atom.path[segment_idx:]:
+        if node is segment:
+            handle_label, handle_index = str(node.label), 0
+        else:
+            handle_label, handle_index = _child_handle(node.parent, node)
+        path.append(
+            {
+                "role": node.role.value,
+                "label": str(node.label),
+                "handle_label": str(handle_label),
+                "handle_index": int(handle_index),
+                "is_atom": bool(node.is_atom),
+            }
+        )
+
+    if path[-1]["role"] != PrimitiveRole.PARTICLE.value:
+        raise ValueError("Serialized RDKit atom path must terminate at a PARTICLE role")
+    return path

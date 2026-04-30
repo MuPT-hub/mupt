@@ -4,6 +4,7 @@ __author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
 __email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 
+import json
 from typing import Optional
 
 import numpy as np
@@ -15,6 +16,7 @@ from rdkit.Chem.rdchem import (
     Conformer,
     AtomPDBResidueInfo,
 )
+from rdkit.Chem.rdmolfiles import CreateAtomStringPropertyList
 from rdkit.Geometry import Point3D
 
 from .rdprops import RDPropType, assign_property_to_rdobj
@@ -141,6 +143,11 @@ PDB_MAX_RESIDUE_NUMBER = 9999
 MUPT_ROOT_METADATA_COUNT = "mupt_root_metadata_count"
 MUPT_ROOT_METADATA_KEY_PREFIX = "mupt_root_metadata_key_"
 MUPT_ROOT_METADATA_VALUE_PREFIX = "mupt_root_metadata_value_"
+MUPT_SAAMR_SDF_KIND = "mupt_saamr_sdf"
+MUPT_SAAMR_SDF_VERSION = "0.1"
+MUPT_SERIALIZATION_KIND = "mupt_serialization_kind"
+MUPT_SERIALIZATION_VERSION = "mupt_serialization_version"
+MUPT_HIERARCHY_PATH = "mupt_hierarchy_path_json"
 
 
 def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
@@ -234,6 +241,12 @@ def _mol_from_rdkit_data(
         rdkit_atom.SetProp("mupt_residue_label", data.atom_residue_labels[atom_idx])
         rdkit_atom.SetIntProp("mupt_particle_index", atom_idx)
         rdkit_atom.SetProp("mupt_particle_label", data.atom_particle_labels[atom_idx])
+        # Draft issue #48 serialization: a per-atom path preserves arbitrary
+        # SAAMR-compliant grouping nodes beyond the flat segment/residue fields.
+        rdkit_atom.SetProp(
+            MUPT_HIERARCHY_PATH,
+            json.dumps(data.atom_hierarchy_paths[atom_idx], separators=(",", ":")),
+        )
 
         idx = mol.AddAtom(rdkit_atom)
         pos = data.atom_positions[atom_idx]
@@ -286,6 +299,8 @@ def _mol_from_rdkit_data(
             assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
 
     assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True)
+    mol.SetProp(MUPT_SERIALIZATION_KIND, MUPT_SAAMR_SDF_KIND)
+    mol.SetProp(MUPT_SERIALIZATION_VERSION, MUPT_SAAMR_SDF_VERSION)
     if root_metadata:
         mol.SetIntProp(MUPT_ROOT_METADATA_COUNT, len(root_metadata))
         for idx, (key, value) in enumerate(root_metadata.items()):
@@ -307,6 +322,7 @@ def _mol_from_rdkit_data(
 
     mol.AddConformer(conf, assignId=True)
     final_mol = Mol(mol)
+    CreateAtomStringPropertyList(final_mol, MUPT_HIERARCHY_PATH, missingValueMarker="NA", lineSize=10000)
     # Fail fast if the generated RDKit graph has an invalid valence state.
     final_mol.UpdatePropertyCache(strict=True)
     return final_mol
