@@ -24,6 +24,8 @@ class RDKitMolData:
     atoms: list[Primitive] = field(default_factory=list)
     atom_positions: list[np.ndarray] = field(default_factory=list)
     atom_resnames: list[str] = field(default_factory=list)
+    atom_residue_labels: list[str] = field(default_factory=list)
+    atom_particle_labels: list[str] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
     bond_refs: list[tuple[Primitive, ConnectorReference]] = field(default_factory=list)
@@ -135,6 +137,8 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     else:
                         data.atom_positions.append(self.default_atom_position)
                     data.atom_resnames.append(resname)
+                    data.atom_residue_labels.append(str(residue.label))
+                    data.atom_particle_labels.append(str(atom.label))
                     data.atom_resids.append(resid_counter)
                 resid_counter += 1
 

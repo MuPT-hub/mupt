@@ -182,6 +182,12 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         rdkit_atom.SetProp("residue_name", data.atom_resnames[atom_idx])
         rdkit_atom.SetIntProp("residue_id", resid)
         rdkit_atom.SetProp("chain_id", chain_id)
+        rdkit_atom.SetIntProp("mupt_segment_index", segment_idx)
+        rdkit_atom.SetProp("mupt_segment_label", str(data.segment.label))
+        rdkit_atom.SetIntProp("mupt_residue_index", resid)
+        rdkit_atom.SetProp("mupt_residue_label", data.atom_residue_labels[atom_idx])
+        rdkit_atom.SetIntProp("mupt_particle_index", atom_idx)
+        rdkit_atom.SetProp("mupt_particle_label", data.atom_particle_labels[atom_idx])
 
         idx = mol.AddAtom(rdkit_atom)
         pos = data.atom_positions[atom_idx]
