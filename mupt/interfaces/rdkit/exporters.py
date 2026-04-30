@@ -207,7 +207,9 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         assign_property_to_rdobj(mol, key, value, preserve_type=True)
 
     mol.AddConformer(conf, assignId=True)
-    return Mol(mol)
+    final_mol = Mol(mol)
+    final_mol.UpdatePropertyCache(strict=True)
+    return final_mol
 
 
 def primitive_to_rdkit_mols(
