@@ -38,6 +38,7 @@ dependencies:
     ## OpenFF
     - openff-toolkit
     - openff-interchange
+    - mdanalysis
 
     ## HOOMD
     - hoomd
