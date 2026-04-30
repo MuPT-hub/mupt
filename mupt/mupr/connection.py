@@ -13,10 +13,8 @@ from typing import (
     Generator,
     Hashable,
     Iterable,
-    Literal,
     Optional,
     TypeAlias,
-    TypeVar,
     Union,
 )
 from warnings import warn
@@ -31,7 +29,7 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from .canonicalize import lex_order_multiset_str
 from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector, compare_optional_positions
+from ..geometry.arraytypes import Shape, Vector3, Array3x3, as_n_vector, compare_optional_positions
 from ..geometry.measure import within_ball
 from ..geometry.coordinates.basis import is_orthonormal
 from ..geometry.transforms.linear import rejector
@@ -40,9 +38,9 @@ from ..geometry.transforms.rigid.application import RigidlyTransformable
 
 
 # Label typehints
-ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
+type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
+type ConnectorLabel = Hashable
 ConnectorHandle = tuple[ConnectorLabel, int]
-AttachmentLabel = TypeVar('AttachmentLabel', bound=Hashable) # TODO: narrow down this type as use cases become clearer
 
 # Custom Exceptions
 class ConnectionError(Exception):
@@ -186,7 +184,7 @@ class Connector(RigidlyTransformable):
         self.linker.position = as_n_vector(new_bond_vector, 3) + self.anchor.position
         
     @property
-    def bond_length(self) -> float:
+    def bond_length(self) -> np.floating:
         '''Distance spanned by the bond vector - i.e. distance from anchor to linker positions'''
         return np.linalg.norm(self.bond_vector)
     
@@ -195,7 +193,7 @@ class Connector(RigidlyTransformable):
         '''Unit vector in the same direction as the bond (oriented from anchor to linker)'''
         return self.bond_vector / self.bond_length # DEV: use normalized()?
     
-    def set_bond_length(self, new_bond_length : float) -> None:
+    def set_bond_length(self, new_bond_length : float | np.floating) -> None:
         '''Adjust length of bond vector by moving linker position along the bond vector's span, keeping the anchor fixed in place'''
         self.bond_vector = new_bond_length * self.unit_bond_vector
 
@@ -262,18 +260,18 @@ class Connector(RigidlyTransformable):
         return self.has_bond_vector and self.has_tangent_position
     has_local_orthogonal_basis = has_dihedral_orientation # alias
     
-    def local_orthonormal_basis(self) -> np.ndarray[Shape[Literal[3, 3]], float]:
+    def local_orthonormal_basis(self) -> Array3x3:
         '''
         Return a 3x3 array representing an orthonormal basis for this Connector's local coordinate system
         Columns of the array are the basis vectors, which are all mutually orthogonal and of unit length
         
         Basis vectors are in fact the unit bond, tangent, and normal vectors associated to this Connector, respectively
         '''
-        local_orthonormal_basis = np.vstack([
+        local_orthonormal_basis = np.vstack(( # type:ignore
             self.unit_bond_vector,
             self.unit_tangent_vector,
             self.unit_normal_vector,
-        ]).T # DEV: transpose to get basis vectors as columns
+        )).T # DEV: transpose to get basis vectors as columns
         if not is_orthonormal(local_orthonormal_basis):
             raise ValueError('Bond, tangent, and normal vectors of Connector are not mutually orthonormal')
         
@@ -480,7 +478,7 @@ class Connector(RigidlyTransformable):
         self,
         other : 'Connector',
         match_bond_length : bool=False,
-    ) -> None:
+    ) -> 'Connector':
         '''
         Return copy of this Connector whose linker positions is aligned to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify either Connector of the passed pair; returns a modified copy of the first Connector
@@ -526,7 +524,10 @@ class Connector(RigidlyTransformable):
             # TODO: also compare positions, if set?
         )
         
-    def bondable_with_iter(self, *others : Iterable[Union['Connector', Iterable['Connector']]]) -> Generator[bool, None, None]:
+    def bondable_with_iter(
+        self,
+        *others : Iterable[Union['Connector', Iterable['Connector']]],
+    ) -> Generator[Union[bool, Iterable[bool]], None, None]:
         '''Whether this Connector can be connected to each of a sequence of other Connectors, in the order passed'''
         for other in others:
             if isinstance(other, Connector):

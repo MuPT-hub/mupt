@@ -6,13 +6,13 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import Any, Optional, Union
 import numpy as np
 
-from .arraytypes import Shape, N, Numeric
+from .arraytypes import Shape, N, RealValuedNP, NumericNP, VectorN, ArrayNxN
 
 
 def normalize(
-        vector : np.ndarray[Shape[Any], Numeric],
-        order  : Optional[Union[int, float, str]]=None,
-    ) -> None:
+    vector : VectorN | ArrayNxN,
+    order : Optional[Union[int, float, str]]=None,
+) -> None:
     '''Normalize a vector or array of vectors in-place'''
     norms = np.atleast_1d( # ensure shape is broadcastable, even for scalars
         np.linalg.norm(vector, ord=order, axis=-1, keepdims=True)
@@ -23,9 +23,9 @@ def normalize(
     vector /= norms
 
 def normalized(
-        vector : np.ndarray[Shape[N, ...], Numeric],
-        order  : Optional[Union[int, float, str]]=None,
-    ) -> np.ndarray[Shape[N, ...], Numeric]:
+    vector : np.ndarray[Shape[N, ...], NumericNP], # DEV: using generic here to indicate return has same dtype
+    order  : Optional[Union[int, float, str]]=None,
+) -> np.ndarray[Shape[N, ...], NumericNP]:
     '''Return a normalized copy of a vector or array of vectors;
     The array supplied to "vector" is unchanged'''
     new_vector = np.copy(vector)  # preserve original vector
@@ -34,8 +34,8 @@ def normalized(
     return new_vector
 
 def within_ball(
-    position_1 : np.ndarray[Shape[N], float],
-    position_2 : np.ndarray[Shape[N], float],
+    position_1 : np.ndarray[Shape[N], RealValuedNP],
+    position_2 : np.ndarray[Shape[N], RealValuedNP],
     radius : float=1E-6,
 ) -> bool:
     '''Check that two vectors are within a certain absolute distance of one another'''

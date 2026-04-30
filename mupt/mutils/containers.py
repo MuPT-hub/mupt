@@ -38,7 +38,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         self._freed = defaultdict(set)
 
     # Unique index ticker management
-    def _get_uniquifying_index(self, label : LabelT) -> int:
+    def _get_uniquifying_index(self, label : Optional[LabelT]) -> int:
         '''Increment and return the next available integer for uniquifying a label'''
         if len(freed_idxs := self._freed[label]) > 0:
             idx = min(freed_idxs)
@@ -77,12 +77,12 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
 
         return handle
     
-    def register_from(self, collection : Iterable[LabelledT]) -> list[HandleT]:
+    def register_from(self, collection : Iterable[LabelledT] | Mapping[LabelT, LabelledT]) -> list[HandleT]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
         handles : list[HandleT] = []
         if isinstance(collection, Mapping):
             for label, obj in collection.items():
-                handles.append(self.register(obj, label=label))
+                handles.append(self.register(obj, label=label)) # type: ignore
         else:
             for obj in collection:
                 handles.append(self.register(obj, label=None))
