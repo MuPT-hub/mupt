@@ -1,7 +1,7 @@
 '''Interfaces for SMILES, SMARTS, BIGSMILES, and other line notations'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
+__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
+__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 from typing import Hashable, Optional
 
@@ -20,6 +20,7 @@ from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 from .rdkit import primitive_from_rdkit, primitive_to_rdkit
 from ..mupr.primitives import Primitive
+from ..roles import PrimitiveRole
 from ..chemistry.smiles import DEFAULT_SMILES_READ_PARAMS, DEFAULT_SMILES_WRITE_PARAMS
 from ..chemistry.sanitization import sanitized_mol
 
@@ -29,6 +30,8 @@ def primitive_from_smiles(
     label : Optional[Hashable]=None,
     embed_positions : bool=False,
     ensure_explicit_Hs : bool=True,
+    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    atom_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
     aromaticity_model : AromaticityModel=AROMATICITY_MDL,
     sanitize_ops : SanitizeFlags=SANITIZE_ALL,
     smiles_reader_params=DEFAULT_SMILES_READ_PARAMS,
@@ -49,6 +52,8 @@ def primitive_from_smiles(
         rdmol,
         conformer_idx=conformer_idx,
         label=label,
+        role=role,
+        atom_role=atom_role,
         smiles_writer_params=smiles_writer_params, # DEV: needed to generate SMILES from mol in case no explicit label is provided
     )
 

@@ -1,7 +1,7 @@
 '''Readers which convert RDKit Atoms and Mols into the MuPT molecular representation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
+__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
+__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 from typing import (
     Hashable,
@@ -27,6 +27,7 @@ from ...chemistry.conversion import rdkit_atom_to_element
 
 from ...mupr.primitives import Primitive, PrimitiveHandle
 from ...mupr.connection import TraversalDirection
+from ...roles import PrimitiveRole
 
 
 def primitive_from_rdkit_atom(
@@ -34,6 +35,7 @@ def primitive_from_rdkit_atom(
     atom_idx : int,
     conformer_idx : Optional[int]=None,
     attach_connectors : bool=False,
+    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
     **kwargs
 ) -> Primitive:
     '''Initialize an atomic Primitive from an RDKit Atom'''
@@ -45,6 +47,7 @@ def primitive_from_rdkit_atom(
             includePrivate=True,
             includeComputed=False, # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors 
         ), 
+        role=role,
     )
     if (map_num := atom.GetAtomMapNum()) != 0:
         atom_primitive.metadata['molAtomMapNumber'] = map_num
@@ -70,6 +73,8 @@ def primitive_from_rdkit_chain(
     rdmol_chain : Mol,
     conformer_idx : Optional[int]=None,
     label : Optional[Hashable]=None,
+    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    atom_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
     atom_label : str='ATOM',
     external_linker_label : str='*',
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
@@ -97,7 +102,8 @@ def primitive_from_rdkit_chain(
         label = name_for_rdkit_mol(rdmol_chain, smiles_writer_params=smiles_writer_params)
     rdmol_primitive = Primitive(
         label=label,
-        metadata=rdmol_chain.GetPropsAsDict(includePrivate=True, includeComputed=False)
+        metadata=rdmol_chain.GetPropsAsDict(includePrivate=True, includeComputed=False),
+        role=role,
     )
     ## DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
     # stereo_info_map : dict[int, StereoInfo] = {
@@ -118,6 +124,7 @@ def primitive_from_rdkit_chain(
             atom_idx,
             conformer_idx=conformer_idx,
             attach_connectors=False, # will attach per-bond to avoid needing to match connector handles to bond idxs
+            role=atom_role,
         )
         atom_idx_to_handle_map[atom_idx] = rdmol_primitive.attach_child(atom_prim, label=atom_label)
     
@@ -190,6 +197,9 @@ def primitive_from_rdkit(
     rdmol : Mol,
     conformer_idx : Optional[int]=None,
     label : Optional[Hashable]=None,
+    role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    chain_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
+    atom_role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
     sanitize_frags : bool=True,
     denest : bool=True,
@@ -213,13 +223,16 @@ def primitive_from_rdkit(
             chains[0],
             conformer_idx=conformer_idx,
             label=label,
+            role=role,
+            atom_role=atom_role,
             smiles_writer_params=smiles_writer_params,
             **kwargs,
         )
     # otherwise, bind Primitives for each chain to "universal" root Primitive
     else:
         universe_primitive = Primitive(
-            label=label
+            label=label,
+            role=role,
             # DEV: deliberately excluding metadata here to avoid squashing that of individual chains
         ) 
         for chain in chains:
@@ -228,6 +241,8 @@ def primitive_from_rdkit(
                     chain,
                     conformer_idx=conformer_idx,
                     label=None, # impose default label for each individual chain
+                    role=chain_role,
+                    atom_role=atom_role,
                     smiles_writer_params=smiles_writer_params,
                     **kwargs,
                 )
