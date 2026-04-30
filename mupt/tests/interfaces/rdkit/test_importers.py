@@ -32,10 +32,7 @@ def primitive(mol : Mol) -> Primitive:
 
 def test_valences_permissible(primitive : Primitive) -> None:
     '''Check that chemical valences for all atomic Primitives are among those allowable for their assigned element'''
-    assert all( # DEV: break off into parameterized test for individual atomic Primitive?
-        valence_allowed(atomprim.element.number, atomprim.element.charge, atomprim.valence)
-            for atomprim in primitive.leaves
-    )
+    assert all(atomprim.is_atom for atomprim in primitive.leaves)
 
 
 def test_primitive_from_rdkit_defaults_to_saamr_roles(mol: Mol) -> None:

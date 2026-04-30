@@ -319,21 +319,21 @@ def primitive_from_rdkit_segment(
                 end_conn_handle,
             )
         else:
-            begin_seg_conn_handle = segment_primitive.bind_external_connector(
+            segment_primitive.bind_external_connector(
                 begin_res_handle,
                 begin_res_conn_handle,
                 label=external_linker_label,
             )
-            end_seg_conn_handle = segment_primitive.bind_external_connector(
+            segment_primitive.bind_external_connector(
                 end_res_handle,
                 end_res_conn_handle,
                 label=external_linker_label,
             )
             segment_primitive.connect_children(
                 begin_res_handle,
-                begin_seg_conn_handle,
+                begin_res_conn_handle,
                 end_res_handle,
-                end_seg_conn_handle,
+                end_res_conn_handle,
             )
 
     for residue in segment_primitive.children:
