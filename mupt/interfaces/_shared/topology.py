@@ -40,6 +40,7 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
     ) -> None:
         role = node.role
 
+        # Carry the active SEGMENT/RESIDUE context through unassigned grouping nodes.
         if role == PrimitiveRole.SEGMENT:
             if current_segment is not None:
                 raise ValueError(
@@ -65,12 +66,14 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         elif role == PrimitiveRole.PARTICLE and not node.is_leaf:
             raise ValueError("PARTICLE-role Primitives must be leaves.")
 
+        # Index bond-owning nodes once so exporters do not rescan every segment subtree.
         if current_segment is not None:
             index.segment_of_node[id(node)] = current_segment
             if node.internal_connections:
                 index.bond_nodes.append(node)
 
         if node.is_leaf:
+            # A valid all-atom SAAMR leaf must be an atomic PARTICLE inside both roles.
             if role != PrimitiveRole.PARTICLE:
                 raise ValueError("All leaves must have role=PrimitiveRole.PARTICLE.")
             if node.element is None:
@@ -85,6 +88,7 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
             index.particles_by_residue[id(current_residue)].append(node)
             return
 
+        # Explicit recursion keeps this a single DFS while preserving role context.
         for child in node.children:
             visit(child, current_segment, current_residue)
 
@@ -138,6 +142,7 @@ def _resolve_to_atom(
     if child.is_atom:
         return child
 
+    # External connectors mirror the same connector handle down to the next level.
     try:
         next_ref = child.external_connectors[conn_ref.connector_handle]
     except KeyError as exc:

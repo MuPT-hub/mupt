@@ -69,13 +69,16 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
 
     def validate(self, root: Primitive) -> None:
         """Validate role assignments needed for all-atom RDKit export."""
+        # The index builder performs the role and enclosure validation in one pass.
         build_saamr_role_topology_index(root)
 
     def collect_mols(self, root: Primitive, resname_map: dict[str, str]) -> list[RDKitMolData]:
         """Walk the hierarchy and collect one RDKit topology per segment."""
+        # Build one DFS-derived index and reuse it for all segment/residue/particle walks.
         index = build_saamr_role_topology_index(root)
 
         mols_data: list[RDKitMolData] = []
+        # Connector chains can be shared across lookups; cache resolved particle endpoints.
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
 
         for segment in index.segments:
@@ -100,6 +103,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
 
             bonds_set: set[tuple[int, int]] = set()
             for node in index.bond_nodes:
+                # Each output Mol receives only bonds owned by its enclosing SEGMENT.
                 if index.segment_of_node[id(node)] is not segment:
                     continue
 
@@ -114,6 +118,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     idx2 = atom_id_to_local[id(atom2)]
                     bond_pair = tuple(sorted((idx1, idx2)))
                     if bond_pair in bonds_set:
+                        # Multiple hierarchy-level paths can resolve to the same atom pair.
                         continue
 
                     data.bonds.append(bond_pair)
@@ -139,5 +144,6 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
     ) -> Primitive:
         cache_key = (id(parent), conn_ref.primitive_handle, conn_ref.connector_handle)
         if cache_key not in cache:
+            # Resolve through arbitrary intermediate hierarchy only once per connector ref.
             cache[cache_key] = _resolve_to_atom(parent, conn_ref)
         return cache[cache_key]

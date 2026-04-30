@@ -203,6 +203,7 @@ def _atom_int_prop(atom: Atom, key: str, default: int) -> int:
 
 
 def _residue_key(atom: Atom) -> tuple[int, str]:
+    # Prefer MuPT export metadata, falling back to PDB residue info when present.
     pdb_info = atom.GetPDBResidueInfo()
     resid = pdb_info.GetResidueNumber() if pdb_info is not None else 1
     resname = pdb_info.GetResidueName().strip() if pdb_info is not None else "RES"
@@ -241,6 +242,7 @@ def primitive_from_rdkit_segment(
     atom_idx_to_atom_handle: dict[int, PrimitiveHandle] = {}
     linker_idxs: set[int] = set()
 
+    # First pass: rebuild residue containers and attach atomic PARTICLE children.
     for atom in rdmol_segment.GetAtoms():
         atom_idx = atom.GetIdx()
         if is_linker(atom):
@@ -266,6 +268,7 @@ def primitive_from_rdkit_segment(
         atom_idx_to_residue_handle[atom_idx] = residue_handles[res_key]
         atom_idx_to_atom_handle[atom_idx] = residue.attach_child(atom_prim, label=atom_label)
 
+    # Second pass: recreate intra-residue bonds or route inter-residue bonds via segment connectors.
     for bond in rdmol_segment.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
@@ -312,6 +315,7 @@ def primitive_from_rdkit_segment(
         )
 
         if begin_res_handle == end_res_handle:
+            # Bonds within one residue are internal to the RESIDUE Primitive.
             begin_residue.connect_children(
                 begin_atom_handle,
                 begin_conn_handle,
@@ -319,6 +323,7 @@ def primitive_from_rdkit_segment(
                 end_conn_handle,
             )
         else:
+            # Cross-residue bonds are mirrored up to the SEGMENT before connecting residues.
             segment_primitive.bind_external_connector(
                 begin_res_handle,
                 begin_res_conn_handle,
@@ -336,6 +341,7 @@ def primitive_from_rdkit_segment(
                 end_res_conn_handle,
             )
 
+    # Reconstruct coarse shapes from child atom coordinates when conformer data exists.
     for residue in segment_primitive.children:
         if residue.children:
             positions = [atom.shape.centroid for atom in residue.children if atom.shape is not None]
@@ -377,6 +383,7 @@ def primitive_from_rdkit(
         label=label,
         role=role,
     )
+    # RDKit fragments are interpreted as separate SEGMENT-role molecules in one UNIVERSE.
     for chain in chains:
         universe_primitive.attach_child(
             primitive_from_rdkit_segment(

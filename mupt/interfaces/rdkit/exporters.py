@@ -182,6 +182,7 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         rdkit_atom.SetProp("residue_name", data.atom_resnames[atom_idx])
         rdkit_atom.SetIntProp("residue_id", resid)
         rdkit_atom.SetProp("chain_id", chain_id)
+        # MuPT-specific fields preserve hierarchy for RDKit-file round trips.
         rdkit_atom.SetIntProp("mupt_segment_index", segment_idx)
         rdkit_atom.SetProp("mupt_segment_label", str(data.segment.label))
         rdkit_atom.SetIntProp("mupt_residue_index", resid)
@@ -194,6 +195,7 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
         conf.SetAtomPosition(idx, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
 
     for (idx1, idx2), (parent, conn_ref) in zip(data.bonds, data.bond_refs):
+        # Bond order and metadata come from the Primitive connector that owns the bond.
         conn = parent.fetch_connector_on_child(conn_ref)
         mol.AddBond(idx1, idx2, order=conn.bondtype)
         bond = mol.GetBondBetweenAtoms(idx1, idx2)
@@ -208,6 +210,7 @@ def _mol_from_rdkit_data(data: RDKitMolData, segment_idx: int) -> Mol:
 
     mol.AddConformer(conf, assignId=True)
     final_mol = Mol(mol)
+    # Fail fast if the generated RDKit graph has an invalid valence state.
     final_mol.UpdatePropertyCache(strict=True)
     return final_mol
 
