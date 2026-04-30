@@ -192,13 +192,169 @@ def primitive_from_rdkit_chain(
     rdmol_primitive.check_self_consistent()
         
     return rdmol_primitive
+
+
+def _atom_string_prop(atom: Atom, key: str, default: str) -> str:
+    return atom.GetProp(key) if atom.HasProp(key) else default
+
+
+def _atom_int_prop(atom: Atom, key: str, default: int) -> int:
+    return atom.GetIntProp(key) if atom.HasProp(key) else default
+
+
+def _residue_key(atom: Atom) -> tuple[int, str]:
+    pdb_info = atom.GetPDBResidueInfo()
+    resid = pdb_info.GetResidueNumber() if pdb_info is not None else 1
+    resname = pdb_info.GetResidueName().strip() if pdb_info is not None else "RES"
+    return (
+        _atom_int_prop(atom, "mupt_residue_index", resid),
+        _atom_string_prop(atom, "mupt_residue_label", resname),
+    )
+
+
+def primitive_from_rdkit_segment(
+    rdmol_segment: Mol,
+    conformer_idx: Optional[int]=None,
+    label: Optional[Hashable]=None,
+    residue_role: PrimitiveRole=PrimitiveRole.RESIDUE,
+    atom_role: PrimitiveRole=PrimitiveRole.PARTICLE,
+    atom_label: str='ATOM',
+    external_linker_label: str='*',
+    smiles_writer_params: SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
+    **kwargs,
+) -> Primitive:
+    """Initialize a SAAMR SEGMENT hierarchy from one RDKit Mol."""
+    first_atom = rdmol_segment.GetAtomWithIdx(0) if rdmol_segment.GetNumAtoms() else None
+    if label is None:
+        if first_atom is not None and first_atom.HasProp("mupt_segment_label"):
+            label = first_atom.GetProp("mupt_segment_label")
+        else:
+            label = name_for_rdkit_mol(rdmol_segment, smiles_writer_params=smiles_writer_params)
+
+    segment_primitive = Primitive(
+        label=label,
+        metadata=rdmol_segment.GetPropsAsDict(includePrivate=True, includeComputed=False),
+        role=PrimitiveRole.SEGMENT,
+    )
+    residue_handles: dict[tuple[int, str], PrimitiveHandle] = {}
+    atom_idx_to_residue_handle: dict[int, PrimitiveHandle] = {}
+    atom_idx_to_atom_handle: dict[int, PrimitiveHandle] = {}
+    linker_idxs: set[int] = set()
+
+    for atom in rdmol_segment.GetAtoms():
+        atom_idx = atom.GetIdx()
+        if is_linker(atom):
+            linker_idxs.add(atom_idx)
+            continue
+
+        res_key = _residue_key(atom)
+        if res_key not in residue_handles:
+            _, residue_label = res_key
+            residue = Primitive(label=residue_label, role=residue_role)
+            residue_handles[res_key] = segment_primitive.attach_child(residue)
+
+        residue = segment_primitive.fetch_child(residue_handles[res_key])
+        atom_prim = primitive_from_rdkit_atom(
+            rdmol_segment,
+            atom_idx,
+            conformer_idx=conformer_idx,
+            attach_connectors=False,
+            role=atom_role,
+        )
+        if atom.HasProp("mupt_particle_label"):
+            atom_prim.label = atom.GetProp("mupt_particle_label")
+        atom_idx_to_residue_handle[atom_idx] = residue_handles[res_key]
+        atom_idx_to_atom_handle[atom_idx] = residue.attach_child(atom_prim, label=atom_label)
+
+    for bond in rdmol_segment.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+        if begin_idx in linker_idxs or end_idx in linker_idxs:
+            continue
+
+        begin_res_handle = atom_idx_to_residue_handle[begin_idx]
+        end_res_handle = atom_idx_to_residue_handle[end_idx]
+        begin_residue = segment_primitive.fetch_child(begin_res_handle)
+        end_residue = segment_primitive.fetch_child(end_res_handle)
+
+        begin_atom_handle = atom_idx_to_atom_handle[begin_idx]
+        begin_atom = begin_residue.fetch_child(begin_atom_handle)
+        begin_conn_handle = begin_atom.register_connector(
+            connector_between_rdatoms(
+                rdmol_segment,
+                from_atom_idx=begin_idx,
+                to_atom_idx=end_idx,
+                conformer_idx=conformer_idx,
+                **kwargs,
+            )
+        )
+        begin_res_conn_handle = begin_residue.bind_external_connector(
+            begin_atom_handle,
+            begin_conn_handle,
+            label=external_linker_label,
+        )
+
+        end_atom_handle = atom_idx_to_atom_handle[end_idx]
+        end_atom = end_residue.fetch_child(end_atom_handle)
+        end_conn_handle = end_atom.register_connector(
+            connector_between_rdatoms(
+                rdmol_segment,
+                from_atom_idx=end_idx,
+                to_atom_idx=begin_idx,
+                conformer_idx=conformer_idx,
+                **kwargs,
+            )
+        )
+        end_res_conn_handle = end_residue.bind_external_connector(
+            end_atom_handle,
+            end_conn_handle,
+            label=external_linker_label,
+        )
+
+        if begin_res_handle == end_res_handle:
+            begin_residue.connect_children(
+                begin_atom_handle,
+                begin_conn_handle,
+                end_atom_handle,
+                end_conn_handle,
+            )
+        else:
+            begin_seg_conn_handle = segment_primitive.bind_external_connector(
+                begin_res_handle,
+                begin_res_conn_handle,
+                label=external_linker_label,
+            )
+            end_seg_conn_handle = segment_primitive.bind_external_connector(
+                end_res_handle,
+                end_res_conn_handle,
+                label=external_linker_label,
+            )
+            segment_primitive.connect_children(
+                begin_res_handle,
+                begin_seg_conn_handle,
+                end_res_handle,
+                end_seg_conn_handle,
+            )
+
+    for residue in segment_primitive.children:
+        if residue.children:
+            positions = [atom.shape.centroid for atom in residue.children if atom.shape is not None]
+            if positions:
+                residue.shape = PointCloud(positions=positions)
+
+    positions = [atom.shape.centroid for atom in segment_primitive.leaves if atom.shape is not None]
+    if positions:
+        segment_primitive.shape = PointCloud(positions=positions)
+    segment_primitive.check_self_consistent()
+
+    return segment_primitive
     
 def primitive_from_rdkit(
     rdmol : Mol,
     conformer_idx : Optional[int]=None,
     label : Optional[Hashable]=None,
-    role : PrimitiveRole=PrimitiveRole.RESIDUE,
-    chain_role : PrimitiveRole=PrimitiveRole.SEGMENT,
+    role : PrimitiveRole=PrimitiveRole.UNIVERSE,
+    residue_role : PrimitiveRole=PrimitiveRole.RESIDUE,
     atom_role : PrimitiveRole=PrimitiveRole.PARTICLE,
     smiles_writer_params : SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
     sanitize_frags : bool=True,
@@ -216,37 +372,21 @@ def primitive_from_rdkit(
         frags=None,
         fragsMolAtomMapping=None,
     )
-    if (len(chains) > 1) and not denest and role == PrimitiveRole.RESIDUE:
-        role = PrimitiveRole.UNIVERSE
-    
-    # if only 1 chain is present, fall back to single-chain importer
-    if (len(chains) == 1) and denest:
-        return primitive_from_rdkit_chain(
-            chains[0],
-            conformer_idx=conformer_idx,
-            label=label,
-            role=role,
-            atom_role=atom_role,
-            smiles_writer_params=smiles_writer_params,
-            **kwargs,
-        )
-    # otherwise, bind Primitives for each chain to "universal" root Primitive
-    else:
-        universe_primitive = Primitive(
-            label=label,
-            role=role,
-            # DEV: deliberately excluding metadata here to avoid squashing that of individual chains
-        ) 
-        for chain in chains:
-            universe_primitive.attach_child(
-                primitive_from_rdkit_chain(
-                    chain,
-                    conformer_idx=conformer_idx,
-                    label=None, # impose default label for each individual chain
-                    role=chain_role,
-                    atom_role=atom_role,
-                    smiles_writer_params=smiles_writer_params,
-                    **kwargs,
-                )
+
+    universe_primitive = Primitive(
+        label=label,
+        role=role,
+    )
+    for chain in chains:
+        universe_primitive.attach_child(
+            primitive_from_rdkit_segment(
+                chain,
+                conformer_idx=conformer_idx,
+                label=None,
+                residue_role=residue_role,
+                atom_role=atom_role,
+                smiles_writer_params=smiles_writer_params,
+                **kwargs,
             )
-        return universe_primitive
+        )
+    return universe_primitive

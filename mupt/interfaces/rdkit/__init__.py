@@ -25,7 +25,7 @@ from .components import (
     connector_between_rdatoms,
     connectors_from_rdkit,
 )
-from .importers import primitive_from_rdkit
+from .importers import primitive_from_rdkit, primitive_from_rdkit_chain, primitive_from_rdkit_segment
 from .exporters import primitive_to_rdkit, primitive_to_rdkit_mols
 from .strategies import (
     RDKitExportStrategy,

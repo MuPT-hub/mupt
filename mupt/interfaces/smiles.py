@@ -18,7 +18,7 @@ from rdkit.Chem.rdmolfiles import (
 )
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
-from .rdkit import primitive_from_rdkit, primitive_to_rdkit
+from .rdkit import primitive_from_rdkit_chain, primitive_to_rdkit
 from ..mupr.primitives import Primitive
 from ..roles import PrimitiveRole
 from ..chemistry.smiles import DEFAULT_SMILES_READ_PARAMS, DEFAULT_SMILES_WRITE_PARAMS
@@ -48,7 +48,7 @@ def primitive_from_smiles(
     if embed_positions:
         conformer_idx = EmbedMolecule(rdmol, clearConfs=False) # NOTE: don't clobber existing conformers for safety (though new Mol shouldn't have any anyway)
     
-    return primitive_from_rdkit(
+    return primitive_from_rdkit_chain(
         rdmol,
         conformer_idx=conformer_idx,
         label=label,
