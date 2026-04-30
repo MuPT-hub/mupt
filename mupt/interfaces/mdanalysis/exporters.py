@@ -1,387 +1,66 @@
 """
 MuPT to MDAnalysis Topology Exporter
 
-This module provides functionality to convert MuPT Primitive objects that
-contain a hierarchy defined by (Universe) -> (Molecules) -> (Repeat-Unit) -> (Atoms)
+This module provides functionality to convert MuPT Primitive hierarchies
 into MDAnalysis Universe objects, focusing on topology information
 (atoms, residues, segments, and bonds).
+
+The export logic is delegated to pluggable strategy objects
+(see :mod:`~mupt.interfaces.mdanalysis.strategies`), allowing
+the same entry point to support all-atom, coarse-grained, or
+custom export schemes.
 """
 
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
-
-import MDAnalysis as mda
-from MDAnalysis.core.topologyattrs import Bonds
-
-import numpy as np
-from typing import Optional
-from collections import Counter
-
-from ...mupr.primitives import Primitive
-from ...mupr.properties import is_SAAMR_compliant
-from ...chemistry.core import BOND_ORDER
 
 import logging
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
 
+import numpy as np
+from typing import Optional
+from collections import Counter
 
-def _pdb_resname(label: str, resname_map: dict[str, str]) -> str:
+import MDAnalysis as mda
+from MDAnalysis.core.topologyattrs import Bonds
+
+from .strategies import MDAExportStrategy, AllAtomExportStrategy, MDATopologyData
+from ...mupr.primitives import Primitive
+
+
+def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
     """
-    Map a residue label to a PDB-compliant 3-character residue name.
+    Construct an MDAnalysis Universe from pre-collected topology data.
 
-    This helper function is used to ensure residue names are valid for
-    PDB export and downstream visualization (e.g., in PyMOL).
-    It optionally applies a user-provided mapping from original labels
-    to 3-letter codes and enforces uppercase formatting.
+    This is a shared builder that converts the flat arrays in
+    :class:`MDATopologyData` into a fully-formed MDAnalysis Universe
+    with atoms, residues, segments, bonds, and coordinates.
 
     Parameters
     ----------
-    label : str
-        Original residue label from the Primitive object.
-    resname_map : dict, optional
-        Optional mapping from residue labels to 3-character PDB residue names.
-        If the label is in the dictionary, the mapped value is used.
-        Otherwise, the original label is returned.
+    data : MDATopologyData
+        Topology arrays collected by a strategy's ``collect_topology()``.
 
     Returns
     -------
-    str
-        Uppercase, 3-character PDB-compliant residue name.
-
-    Raises
-    ------
-    ValueError
-        If the resulting residue name is not exactly 3 characters long.
-
-    Examples
-    --------
-    >>> _pdb_resname('head', {'head': 'HEA', 'tail': 'TAL'})
-    'HEA'
-    >>> _pdb_resname('mid', {'head': 'HEA', 'tail': 'TAL'})
-    'MID'
+    mda.Universe
+        MDAnalysis Universe with topology attributes and coordinates.
     """
-    if resname_map and label in resname_map:
-        name = resname_map[label]
-    else:
-        name = label
+    atom_positions = np.asarray(data.atom_positions, dtype=float)
+    atom_resindex = np.asarray(data.atom_resindex, dtype=int)
+    residue_segindex = np.asarray(data.residue_segindex, dtype=int)
 
-    if len(name) != 3:
-        raise ValueError(
-            f"Residue name '{name}' (from '{label}') is not 3 characters long"
-        )
-    return name.upper()
-
-
-# DEV: JRL -> I wrote this function with protein-flavored vocabulary in mind.
-# Chains == Molecules, Residues == Repeat-Units, Atoms == Atoms
-def primitive_to_mdanalysis(
-    univprim: Primitive,
-    resname_map: dict[str, str],
-) -> mda.Universe:
-    """
-    Convert a MuPT Primitive (univprim) to a MDAnalysis Universe.
-
-    This function extracts topology information by parsing a Primitive that adheres to
-    the Standard All-Atom Molecular Representation (SAAMR) convention and creates a
-    MDAnalysis Universe with atoms, residues, segments, and bonds.
-    Note that coordinates are extracted from the centroid of Atoms, or set to [0,0,0]
-    if a centroid is not set.
-
-    Parameters
-    ----------
-    univprim : Primitive
-        A SAAMR-compliant MuPT Primitive containing the molecular system
-        in a tree-like hierarchy (universe -> molecules -> repeat-units -> atoms).
-    resname_map : dict, optional
-        A mapping from residue labels to PDB residue names (3-letter codes).
-        If provided, this mapping will be used to set residue names in the
-        MDAnalysis Universe. If not provided, residue labels from univprim
-        will be used directly. NOTE: MDAnalysis allows for arbitrary length
-        residue names, and will automatically truncate the names on export.
-
-    Returns
-    -------
-    MDAnalysis.Universe
-        A new Universe object containing the topology information extracted
-        from the Primitive. The Universe will have:
-        - Atoms with elements, names, and unique IDs
-        - Residues with names and IDs
-        - Segments with IDs
-        - Bond connectivity
-
-    Notes
-    -----
-    - Atom array indices are 0-based (MDAnalysis internal convention)
-    - Atom IDs, residue IDs, and segment IDs are 1-based (user-facing)
-    - Bond indices are 0-based (array indices)
-    - Atom names are set to element symbols (atom-type agnostic approach)
-    - Coordinates are extracted from the centroid of Atom Primitives, [0,0,0] by default
-
-    Examples
-    --------
-    >>> universe = primitive_to_mdanalysis(my_univprim)
-    >>> LOGGER.info(f"Created universe with {universe.atoms.n_atoms} atoms")
-    >>> LOGGER.info(f"Number of residues: {universe.residues.n_residues}")
-    >>> LOGGER.info(f"Number of segments: {universe.segments.n_segments}")
-    """
-
-    if not is_SAAMR_compliant(univprim):
-        raise ValueError(
-            "Primitive is not SAAMR-compliant. Expected a hierarchy ordered as "
-            "universe -> chains -> residues -> atoms. Ensure that the input "
-            "Primitive is constructed or reordered to follow this hierarchy "
-            "before calling primitive_to_mdanalysis()."
-        )
-
-    # ----------------------------
-    # Containers (allow duplicates)
-    # ----------------------------
-    atom_elements = []
-    atom_names = []
-    atom_positions = []
-
-    atom_resindex = []
-    atom_segindex = []
-
-    residue_names = []
-    residue_segindex = []
-    residue_ids = []
-
-    bonds = []
-    bond_orders = []  # Track bond orders for each bond
-    bonds_set = set()  # Track to avoid duplicates
-
-    # Maps to translate between atom hierarchy and global indices
-    # Structure: residue_atom_maps[global_res_idx] = list of atom handles in that residue (in order)
-    residue_atom_maps = []  # List of lists: each inner list is atom handles for that residue
-
-    # We also need a way to map (chain_idx, residue_handle, atom_handle) -> global atom index
-    # But since atom handles like ('ATOM', 14) are unique WITHIN a residue, we need more info
-    # Strategy: Store both the residue object and its atom handle-to-global-index mapping
-    residue_to_atom_global_idx = []  # List of dicts: residue_to_atom_global_idx[global_res_idx][atom_handle] = global_atom_idx
-
-    # Counters
-    atom_idx = 0
-    res_idx = 0
-
-    # ----------------------------
-    # Traverse hierarchy explicitly DEV: JRL -> Consider implementing a more efficient traversal like DFS in the future
-    # ----------------------------
-    for chain_idx, chain in enumerate(univprim.children):
-        resid_counter = 1  # reset per chain
-
-        for residue in chain.children:
-            residue_names.append(_pdb_resname(residue.label, resname_map))
-
-            residue_segindex.append(chain_idx)
-            residue_ids.append(resid_counter)
-
-            # Build mapping from atom handle -> global index for this residue
-            atom_handle_to_global = {}
-            local_atoms_in_residue = []
-
-            for atom_handle, atom in residue.children_by_handle.items():
-                # Record atom
-                atom_elements.append(atom.element.symbol)
-                atom_names.append(atom.element.symbol)
-
-                if hasattr(atom, "shape") and atom.shape is not None:
-                    atom_positions.append(atom.shape.centroid)
-                else:
-                    atom_positions.append([0.0, 0.0, 0.0])
-
-                atom_resindex.append(res_idx)
-                atom_segindex.append(chain_idx)
-
-                # Map atom handle to global index
-                atom_handle_to_global[atom_handle] = atom_idx
-                local_atoms_in_residue.append(atom_handle)
-
-                atom_idx += 1
-
-            # Store mappings for this residue
-            residue_atom_maps.append(local_atoms_in_residue)
-            residue_to_atom_global_idx.append(atom_handle_to_global)
-
-            # Bonds (local → global index) - INTRA-RESIDUE
-            # For intra-residue bonds, we need to find the bond order from internal_connections
-            if hasattr(residue, "topology") and residue.topology is not None:
-                for atom_handle_1, atom_handle_2 in residue.topology.edges():
-                    if (
-                        atom_handle_1 in atom_handle_to_global
-                        and atom_handle_2 in atom_handle_to_global
-                    ):
-                        global_idx_1 = atom_handle_to_global[atom_handle_1]
-                        global_idx_2 = atom_handle_to_global[atom_handle_2]
-
-                        bond_pair = tuple(sorted([global_idx_1, global_idx_2]))
-                        if bond_pair not in bonds_set:
-                            bonds.append(bond_pair)
-                            bonds_set.add(bond_pair)
-
-                            # Get bond order from residue's internal_connections
-                            bond_order = 1.0  # Default to single bond
-                            if hasattr(residue, "internal_connections"):
-                                for (
-                                    conn_ref1,
-                                    conn_ref2,
-                                ) in residue.internal_connections:
-                                    if (
-                                        conn_ref1.primitive_handle == atom_handle_1
-                                        and conn_ref2.primitive_handle == atom_handle_2
-                                    ) or (
-                                        conn_ref1.primitive_handle == atom_handle_2
-                                        and conn_ref2.primitive_handle == atom_handle_1
-                                    ):
-                                        # Found the connection, get the connector and its bondtype
-                                        atom1 = residue.fetch_child(atom_handle_1)
-                                        # Use .connectors which is a UniqueRegistry that can be indexed by handle
-                                        if (
-                                            conn_ref1.connector_handle
-                                            in atom1.connectors
-                                        ):
-                                            connector = atom1.connectors[
-                                                conn_ref1.connector_handle
-                                            ]
-                                            if (
-                                                hasattr(connector, "bondtype")
-                                                and connector.bondtype in BOND_ORDER
-                                            ):
-                                                bond_order = BOND_ORDER[
-                                                    connector.bondtype
-                                                ]
-                                        break
-                            bond_orders.append(bond_order)
-
-            resid_counter += 1
-            res_idx += 1
-
-    # ----------------------------
-    # INTER-RESIDUE BONDS
-    # ----------------------------
-    # Now process inter-residue bonds stored at the chain level
-    # We need to map residue handles to their global residue index
-
-    LOGGER.info(f"Processing inter-residue bonds...")
-    inter_residue_bond_count = 0
-
-    for chain_idx, chain in enumerate(univprim.children):
-        # Build mapping from residue handle -> global residue index for this chain
-        residue_handle_to_global_res_idx = {}
-        global_res_offset = sum(
-            len(univprim.children[c].children) for c in range(chain_idx)
-        )
-
-        for local_res_idx, (res_handle, residue) in enumerate(
-            chain.children_by_handle.items()
-        ):
-            residue_handle_to_global_res_idx[res_handle] = (
-                global_res_offset + local_res_idx
-            )
-
-        if hasattr(chain, "internal_connections") and chain.internal_connections:
-            for conn_ref1, conn_ref2 in chain.internal_connections:
-                residue1_handle = conn_ref1.primitive_handle
-                residue2_handle = conn_ref2.primitive_handle
-
-                # Fetch the residues involved in the inter-residue bond
-                residue1 = chain.fetch_child(residue1_handle)
-                residue2 = chain.fetch_child(residue2_handle)
-
-                # The connector handles in conn_ref1/conn_ref2 are on the RESIDUE level
-                # We need to look up residue.external_connectors to find the ATOM handle
-
-                if conn_ref1.connector_handle not in residue1.external_connectors:
-                    LOGGER.warning(
-                        f"  Connector {conn_ref1.connector_handle} not in residue1.external_connectors"
-                    )
-                    continue
-                if conn_ref2.connector_handle not in residue2.external_connectors:
-                    LOGGER.warning(
-                        f"  Connector {conn_ref2.connector_handle} not in residue2.external_connectors"
-                    )
-                    continue
-
-                # Get the atom references
-                atom_ref1 = residue1.external_connectors[conn_ref1.connector_handle]
-                atom_ref2 = residue2.external_connectors[conn_ref2.connector_handle]
-
-                # atom_ref1.primitive_handle is the ATOM handle within residue1
-                atom1_handle = atom_ref1.primitive_handle
-                atom2_handle = atom_ref2.primitive_handle
-
-                # Get global residue indices
-                global_res1_idx = residue_handle_to_global_res_idx[residue1_handle]
-                global_res2_idx = residue_handle_to_global_res_idx[residue2_handle]
-
-                # Get global atom indices
-                if atom1_handle in residue_to_atom_global_idx[global_res1_idx]:
-                    global_atom1_idx = residue_to_atom_global_idx[global_res1_idx][
-                        atom1_handle
-                    ]
-                else:
-                    LOGGER.warning(
-                        f"  Atom handle {atom1_handle} not found in residue {global_res1_idx}"
-                    )
-                    continue
-
-                if atom2_handle in residue_to_atom_global_idx[global_res2_idx]:
-                    global_atom2_idx = residue_to_atom_global_idx[global_res2_idx][
-                        atom2_handle
-                    ]
-                else:
-                    LOGGER.warning(
-                        f"  Atom handle {atom2_handle} not found in residue {global_res2_idx}"
-                    )
-                    continue
-
-                bond_pair = tuple(sorted([global_atom1_idx, global_atom2_idx]))
-                if bond_pair not in bonds_set:
-                    bonds.append(bond_pair)
-                    bonds_set.add(bond_pair)
-                    inter_residue_bond_count += 1
-
-                    # Get bond order from the connector on residue1
-                    # Use .connectors which is a UniqueRegistry that can be indexed by handle
-                    bond_order = 1.0  # Default to single bond
-                    if conn_ref1.connector_handle in residue1.connectors:
-                        connector = residue1.connectors[conn_ref1.connector_handle]
-                        if (
-                            hasattr(connector, "bondtype")
-                            and connector.bondtype in BOND_ORDER
-                        ):
-                            bond_order = BOND_ORDER[connector.bondtype]
-                    bond_orders.append(bond_order)
-
-    LOGGER.info(f"Added {inter_residue_bond_count} inter-residue bonds")
-    LOGGER.info(f"Total bonds: {len(bonds)}")
-    LOGGER.info(f"Bond orders collected: {len(bond_orders)}")
-
-    # ----------------------------
-    # Convert to numpy arrays
-    # ----------------------------
-    atom_positions = np.asarray(atom_positions, dtype=float)
-    atom_resindex = np.asarray(atom_resindex, dtype=int)
-    atom_segindex = np.asarray(atom_segindex, dtype=int)
-    residue_segindex = np.asarray(residue_segindex, dtype=int)
-
-    num_atoms = len(atom_resindex)
-    num_residues = len(residue_names)
-    num_segments = len(univprim.children)
+    num_atoms = len(data.atom_elements)
+    num_residues = len(data.residue_names)
+    num_segments = data.num_segments
 
     LOGGER.info(
         f"Atoms: {num_atoms}, Residues: {num_residues}, Segments: {num_segments}"
     )
-    LOGGER.info(f"Unique atom_resindex: {np.unique(atom_resindex)}")
-    LOGGER.info(f"Unique atom_segindex: {np.unique(atom_segindex)}")
-    LOGGER.info(f"Total bonds collected: {len(bonds)}")
-    LOGGER.info(f"Total bond orders collected: {len(bond_orders)}")
 
-    # ----------------------------
-    # Create MDAnalysis Universe
-    # ----------------------------
+    # Create empty Universe with correct hierarchy sizes
     universe = mda.Universe.empty(
         num_atoms,
         n_residues=num_residues,
@@ -391,37 +70,114 @@ def primitive_to_mdanalysis(
         trajectory=True,
     )
 
-    # ----------------------------
     # Topology attributes
-    # ----------------------------
-    universe.add_TopologyAttr("name", atom_names)
-    universe.add_TopologyAttr("type", atom_elements)
-    universe.add_TopologyAttr("element", atom_elements)
-    universe.add_TopologyAttr("resname", residue_names)
-    universe.add_TopologyAttr("resid", residue_ids)
+    universe.add_TopologyAttr("name", data.atom_names)
+    universe.add_TopologyAttr("type", data.atom_elements)
+    universe.add_TopologyAttr("element", data.atom_elements)
+    universe.add_TopologyAttr("resname", data.residue_names)
+    universe.add_TopologyAttr("resid", data.residue_ids)
 
     segids = [str(i + 1) for i in range(num_segments)]
     universe.add_TopologyAttr("segid", segids)
 
-    if bonds:
-        LOGGER.info(f"Adding {len(bonds)} bonds to universe")
+    # Bonds
+    if data.bonds:
+        LOGGER.info(f"Adding {len(data.bonds)} bonds to universe")
 
-        # Add bond orders if available - must be passed during bonds creation
-        if bond_orders and len(bond_orders) == len(bonds):
-            # MDAnalysis Bonds class accepts order= parameter at creation time
-            bond_attr = Bonds(np.asarray(bonds, dtype=np.int32), order=bond_orders)
+        if data.bond_orders and len(data.bond_orders) == len(data.bonds):
+            bond_attr = Bonds(
+                np.asarray(data.bonds, dtype=np.int32), order=data.bond_orders
+            )
             universe.add_TopologyAttr(bond_attr)
-            LOGGER.info(f"Added {len(bonds)} bonds with {len(bond_orders)} bond orders")
+            LOGGER.info(
+                f"Added {len(data.bonds)} bonds with {len(data.bond_orders)} bond orders"
+            )
 
-            # Show distribution of bond orders
-            order_counts = Counter(bond_orders)
+            order_counts = Counter(data.bond_orders)
             LOGGER.info(f"Bond order distribution: {dict(order_counts)}")
         else:
-            universe.add_TopologyAttr("bonds", np.asarray(bonds, dtype=np.int32))
-            LOGGER.info(f"Added {len(bonds)} bonds (no bond orders)")
+            universe.add_TopologyAttr(
+                "bonds", np.asarray(data.bonds, dtype=np.int32)
+            )
+            LOGGER.info(f"Added {len(data.bonds)} bonds (no bond orders)")
     else:
         LOGGER.info("No bonds to add")
 
     universe.atoms.positions = atom_positions
 
     return universe
+
+
+def primitive_to_mdanalysis(
+    univprim: Primitive,
+    resname_map: dict[str, str],
+    strategy: Optional[MDAExportStrategy] = None,
+) -> mda.Universe:
+    """
+    Convert a MuPT Primitive hierarchy to an MDAnalysis Universe.
+
+    This function delegates topology collection to a pluggable
+    :class:`MDAExportStrategy`. When no strategy is provided,
+    :class:`AllAtomExportStrategy` is used.
+
+    Parameters
+    ----------
+    univprim : Primitive
+        Root Primitive of the molecular system to export.
+    resname_map : dict[str, str]
+        Mapping from residue labels to PDB residue names (3-letter codes).
+    strategy : MDAExportStrategy, optional
+        Export strategy to use. If ``None`` (default),
+        :class:`AllAtomExportStrategy` is used.
+
+    Returns
+    -------
+    mda.Universe
+        A new Universe object containing topology information extracted
+        from the Primitive.  The Universe will have:
+
+        - Atoms with elements, names, and unique IDs
+        - Residues with names and IDs
+        - Segments with IDs
+        - Bond connectivity
+
+    Raises
+    ------
+    ValueError
+        If the Primitive hierarchy lacks required role assignments.
+        Use :func:`~mupt.mupr.roles.assign_SAAMR_roles` for standard
+        hierarchies or assign roles manually.
+
+    Notes
+    -----
+    - Atom array indices are 0-based (MDAnalysis internal convention)
+    - Atom IDs, residue IDs, and segment IDs are 1-based (user-facing)
+    - Bond indices are 0-based (array indices)
+    - Atom names are set to element symbols (atom-type agnostic approach)
+    - Coordinates are extracted from atom centroids, defaulting to the
+      strategy's ``default_atom_position`` (``[0,0,0]`` unless overridden)
+    - The four SAAMR roles (UNIVERSE, SEGMENT, RESIDUE, PARTICLE) are the
+      only roles recognized for MDAnalysis export, but the tree may contain
+      intermediate nodes at any depth between these roles. Such nodes carry
+      ``PrimitiveRole.UNASSIGNED`` and are traversed transparently.
+
+    Examples
+    --------
+    >>> universe = primitive_to_mdanalysis(my_univprim, resname_map)
+    >>> universe.atoms.n_atoms
+    42
+
+    Using an explicit strategy:
+
+    >>> from mupt.interfaces.mdanalysis.strategies import AllAtomExportStrategy
+    >>> strategy = AllAtomExportStrategy()
+    >>> universe = primitive_to_mdanalysis(my_univprim, resname_map, strategy=strategy)
+    """
+    if strategy is None:
+        strategy = AllAtomExportStrategy()
+
+    # Delegate topology collection to the strategy
+    data = strategy.collect_topology(univprim, resname_map)
+
+    # Build and return the MDAnalysis Universe
+    return _build_mda_universe(data)

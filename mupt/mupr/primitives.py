@@ -50,6 +50,7 @@ from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
+from ..roles import PrimitiveRole
 
 
 # Custom Exceptions
