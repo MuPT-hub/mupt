@@ -27,6 +27,10 @@ from .components import (
 )
 from .importers import primitive_from_rdkit
 from .exporters import primitive_to_rdkit, primitive_to_rdkit_mols
+from .strategies import (
+    RDKitExportStrategy,
+    AllAtomRDKitExportStrategy,
+)
 from .depiction import (
     set_rdkdraw_size,
     show_substruct_highlights,
