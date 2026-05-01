@@ -59,6 +59,7 @@ ArrayNxN = np.ndarray[Shape[N, N], NumericNP]
 ArrayNxM = np.ndarray[Shape[N, M], NumericNP]
 ArrayMxN = np.ndarray[Shape[M, N], NumericNP]
 
+TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]]
 
 # vector comparison
 def as_n_vector(vectorlike : np.ndarray[Shape[N], DType], n : N=3) -> np.ndarray[Shape[N], DType]:

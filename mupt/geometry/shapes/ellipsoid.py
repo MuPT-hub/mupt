@@ -1,113 +1,27 @@
-'''For encoding rigid bodies in space'''
+'''For representing ellipsoidal shapes, including spheres as a special case'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import runtime_checkable, Literal, Protocol, Optional, Union
-from abc import abstractmethod
-
-from functools import cached_property
+from typing import Optional
 
 import numpy as np
-from scipy.spatial import ConvexHull, Delaunay
-from scipy.spatial.transform import Rotation, RigidTransform
+from scipy.spatial import Delaunay
+from scipy.spatial.transform import RigidTransform
 
-from .arraytypes import (
-    Shape,
+from .shapes import BoundedTransformableShape
+from ..arraytypes import (
     NumberLike,
-    NumericNP,
-    N, M, P,
     Vector3,
     Array3x3,
     Array4x4,
     ArrayNxN,
     ArrayNx3,
+    TriangulationIndices,
 )
-TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]] # DEV: might move this elsewhere later
-from .coordinates.basis import is_columnspace_mutually_orthogonal
-from .transforms.rigid.application import RigidlyTransformable
+from ..coordinates.basis import is_columnspace_mutually_orthogonal
 
-
-@runtime_checkable # TODO: make class which composes transformability and boundedness (not necessarily the same a priori)
-class BoundedShape(Protocol):
-    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    # measures of extent
-    @property
-    @abstractmethod
-    def centroid(self) -> Vector3:
-        '''Coordinate of the geometric center of the body'''
-        ...
-    # COM = CoM = center_of_mass = centroid # aliases for convenience
-    
-    @property
-    @abstractmethod
-    def volume(self) -> NumberLike:
-        '''Cumulative measure within the boundary of the body'''
-        ...
         
-    @abstractmethod
-    def contains(self, points : Vector3 | ArrayNxN) -> bool: 
-        '''Whether a given coordinate lies within the boundary of the body'''
-        ... 
-
-    @abstractmethod
-    def surface_mesh(self, *args, **kwargs) -> tuple[ArrayNx3, TriangulationIndices]:
-        '''
-        Generate a triangulated mesh of the surface of the shape which can be easily digested and plotted by mpl.plot_trisurf
-        
-        Returns
-        -------
-        mesh_points : Array[[N, 3], Numeric]
-            An Nx3 array of the XYZ positions of each point in the mesh
-        tri_vertices : Array[[T, 3], int]
-            A Tx3 array describing the T triples in the mesh, with each row being the triples of array indices of that triangle
-            For example, a row with [1,3,6] represents the triangle traversed counterclockwise from vertices 1 -> 3 -> 6 -> 1
-        '''
-        ...
-    
-    # @abstractmethod
-    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
-    #     '''Determines the furthest point on the surface of the body in a given direction'''
-    #     ...
-
-class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
-    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    ...
-        
-class Shaped(Protocol):
-    '''Interface for objects which have an associated bounded, tranformable shape'''
-    _shape : Optional[BoundedTransformableShape]
-    
-    @property
-    def has_shape(self) -> bool:
-        '''Whether this Primitive has an associated external shape'''
-        return self._shape is not None
-    
-    @property
-    def shape(self) -> Optional[BoundedTransformableShape]: # TODO: make ShapedPrimitive subtype to avoid all these None checks?
-        '''The external shape of this Primitive'''
-        return self._shape
-    
-    @shape.setter
-    def shape(self, new_shape : Optional[BoundedTransformableShape]) -> None:
-        '''Set the external shape of this Primitive with another BoundedShape'''
-        # Case 1) no shape
-        if new_shape is None:
-            self._shape = None
-            return
-        
-        # Case 2) valid shape, which may need to have transformation history transferred over
-        if not isinstance(new_shape, BoundedTransformableShape):
-            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
-
-        new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
-        if self._shape is not None:
-            new_shape_clone.cumulative_transformation = self._shape.cumulative_transformation # transfer translation history BEFORE overwriting
-        
-        self._shape = new_shape_clone
-        
-        
-# Concrete BoundedShape implementations
 def ellipsoidal_mesh(
     rx : float,
     ry : Optional[float]=None,
@@ -176,51 +90,6 @@ def ellipsoidal_mesh(
     mesh_points = transformation.apply(mesh_points) # apply transform
 
     return mesh_points, triangulation.simplices
-
-class PointCloud(BoundedTransformableShape):
-    '''A cluster of points in 3D space'''
-    def __init__(self, positions : Optional[ArrayNx3]=None) -> None:
-        if positions is None:
-            positions = np.empty((0, 3), dtype=float)
-        self.positions = np.atleast_2d(positions)
-
-    @cached_property
-    def convex_hull(self) -> ConvexHull:
-        '''Convex hull of the points contained within'''
-        return ConvexHull(self.positions)
-
-    @cached_property
-    def triangulation(self) -> Delaunay:
-        '''Delauney triangulation into simplicial facets whose vertiecs are the positions within'''
-        return Delaunay(self.positions)
-    
-    # fulfilling BoundedShape contracts
-    @property
-    def centroid(self) -> Vector3:
-        '''Geometric (i.e. unweighted) center of mass'''
-        return self.positions.mean(axis=0)
-    
-    @property
-    def volume(self) -> NumberLike:
-        '''Volume of the convex hull of the positions in this PointCloud'''
-        return self.convex_hull.volume
-    
-    def contains(self, points : Union[Vector3, ArrayNx3]) -> bool:
-        return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
-
-    # fulfilling RigidlyTransformable contracts
-    def _copy_untransformed(self) -> 'PointCloud':
-        return self.__class__(positions=np.array(self.positions))
-
-    def _rigidly_transform(self, transformation : RigidTransform) -> None:
-        self.positions = transformation.apply(self.positions)
-
-    # visualization
-    def __repr__(self) -> str: 
-        return f'{self.__class__.__name__}(shape={self.positions.shape})'
-
-    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
-        return self.convex_hull.points, self.convex_hull.simplices
 
 class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     '''A spherical body with arbitrary radius and center'''
@@ -338,7 +207,7 @@ class Ellipsoid(BoundedTransformableShape):
             and np.isclose(w, 1.0), # ensure homogeneous scale of the center is 1 (i.e. unprojected)
         )
         
-    def scaling_matrix(self, as_affine : bool=True) -> Union[Array3x3, Array4x4]:
+    def scaling_matrix(self, as_affine : bool=True) -> Array3x3 | Array4x4:
         '''The scaling matrix which defines the radii of the Ellipsoid'''
         if as_affine:
             return np.diag([*self.radii, 1.0])  # add a 1.0 for the homogeneous coordinate
@@ -446,7 +315,3 @@ class Ellipsoid(BoundedTransformableShape):
             n_phi=n_phi,
             transformation=self.cumulative_transformation,
         )
-    
-# class Cylinder(BoundedTransformableShape):
-    # '''A cylindrical body with arbitrary radius, height, and center'''
-    # ...
