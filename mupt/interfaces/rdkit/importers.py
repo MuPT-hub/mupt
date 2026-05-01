@@ -29,6 +29,7 @@ from ...chemistry.conversion import rdkit_atom_to_element
 from ...mupr.primitives import Primitive, PrimitiveHandle
 from ...mupr.connection import TraversalDirection
 from ...roles import PrimitiveRole
+from .._shared.topology import _child_handle
 
 from .exporters import (
     MUPT_HIERARCHY_PATH,
@@ -275,14 +276,6 @@ def _apply_traversal_direction(connector, atom_primitive: Primitive) -> None:
         chain_direction = TraversalDirection(mapnum)
         connector.anchor.attachables.add(chain_direction)
         connector.linker.attachables.add(TraversalDirection.complement(chain_direction))
-
-
-def _child_handle(parent: Primitive, child: Primitive) -> PrimitiveHandle:
-    """Return the parent-local handle for a known child Primitive."""
-    for handle, candidate in parent.children_by_handle.items():
-        if candidate is child:
-            return handle
-    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
 
 
 def _primitive_role_from_path_entry(entry: dict) -> PrimitiveRole:

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
 from ...mupr.embedding import ConnectorReference
-from ...mupr.primitives import Primitive
+from ...mupr.primitives import Primitive, PrimitiveHandle
 from ...roles import PrimitiveRole
 
 
@@ -131,6 +131,14 @@ def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
     if len(name) != 3:
         raise ValueError(f"Residue name '{name}' (from '{label}') is not 3 characters long")
     return name.upper()
+
+
+def _child_handle(parent: Primitive, child: Primitive) -> PrimitiveHandle:
+    """Return the parent-local handle for a known child Primitive."""
+    for handle, candidate in parent.children_by_handle.items():
+        if candidate is child:
+            return handle
+    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
 
 
 def _resolve_to_atom(

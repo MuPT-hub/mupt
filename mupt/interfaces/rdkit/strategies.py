@@ -13,6 +13,7 @@ from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives import Primitive
 from ...roles import PrimitiveRole
 from .._shared.topology import (
+    _child_handle,
     build_saamr_role_topology_index,
     _pdb_resname,
     _resolve_to_atom,
@@ -194,16 +195,6 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
             # Resolve through arbitrary intermediate hierarchy only once per connector ref.
             cache[cache_key] = _resolve_to_atom(parent, conn_ref)
         return cache[cache_key]
-
-
-def _child_handle(parent: Primitive, child: Primitive) -> tuple[object, int]:
-    """Return the parent-local handle for a known child Primitive."""
-    for handle, candidate in parent.children_by_handle.items():
-        if candidate is child:
-            return handle
-    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
-
-
 def _serialized_path_from_segment(segment: Primitive, atom: Primitive) -> list[dict[str, object]]:
     """Return a stable SEGMENT-to-PARTICLE hierarchy path for one atom."""
     segment_idxs = [idx for idx, node in enumerate(atom.path) if node is segment]
