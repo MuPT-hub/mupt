@@ -227,11 +227,11 @@ class Connector(
         
         Basis vectors are in fact the unit bond, tangent, and normal vectors associated to this Connector, respectively
         '''
-        local_orthonormal_basis = np.vstack([
+        local_orthonormal_basis = np.vstack(( # type:ignore
             self.unit_bond_vector,
             self.unit_tangent_vector,
             self.unit_normal_vector,
-        ]).T # DEV: transpose to get basis vectors as columns
+        )).T # DEV: transpose to get basis vectors as columns
         if not is_orthonormal(local_orthonormal_basis):
             raise ValueError('Bond, tangent, and normal vectors of Connector are not mutually orthonormal')
         
@@ -548,6 +548,10 @@ class Connector(
         if not isinstance(new_label, Hashable):
             raise TypeError(f'Connector label must be a Hashable type, not {type(new_label)}')
         self._label = new_label
+        
+    def address(self) -> int:
+        '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
+        return id(self)
     
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
@@ -617,3 +621,13 @@ def make_second_resemble_first(connector1 : Connector, connector2 : Connector) -
 
 # DEV: provide implementations which make some attempt to reconcile spatial info attache to respective Connectors
 ...
+
+# Canonicalization
+def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
+    '''A hashable string representing a collection of Connectors in canonical form'''
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors), # TODO: sort by some metric?
+        element_repr=str, #lambda bt : BondType.values[int(bt)]
+        separator=separator,
+        joiner=joiner,
+    )
