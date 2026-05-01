@@ -498,17 +498,39 @@ def _rebuild_shape_from_leaf_positions(node: Primitive) -> None:
         node.shape = PointCloud(positions=positions)
 
 
-def _primitive_from_mupt_saamr_mol(
+def _path_entries_from_mupt_atom(atom: Atom, atom_idx: int) -> list[dict]:
+    """Load and validate one serialized MuPT hierarchy path from an RDKit atom."""
+    if not atom.HasProp(MUPT_HIERARCHY_PATH):
+        raise ValueError(f"Atom {atom_idx} is missing {MUPT_HIERARCHY_PATH}")
+
+    path_entries = json.loads(atom.GetProp(MUPT_HIERARCHY_PATH))
+    if not path_entries:
+        raise ValueError(f"Atom {atom_idx} has an empty MuPT hierarchy path")
+    if _primitive_role_from_path_entry(path_entries[0]) != PrimitiveRole.SEGMENT:
+        raise ValueError("MuPT SAAMR SDF atom paths must start at SEGMENT role")
+    if _primitive_role_from_path_entry(path_entries[-1]) != PrimitiveRole.PARTICLE:
+        raise ValueError("MuPT SAAMR SDF atom paths must end at PARTICLE role")
+    return path_entries
+
+
+def _residue_metadata_from_pdb_atom(atom: Atom) -> dict:
+    """Return residue metadata recoverable from RDKit PDB atom info."""
+    pdb_info = atom.GetPDBResidueInfo()
+    insertion_code = pdb_info.GetInsertionCode() if pdb_info is not None else ""
+    return {"pdb_insertion_code": insertion_code} if insertion_code else {}
+
+
+def _materialize_mupt_segment_from_atom_paths(
     rdmol_segment: Mol,
     conformer_idx: Optional[int],
-    external_linker_label: str,
-    reconstruct_bonds: bool,
-    reconstruct_shapes: bool,
-    **kwargs,
-) -> Primitive:
-    """Rebuild one SEGMENT tree from MuPT SAAMR SDF atom path metadata."""
-    _validate_mupt_saamr_mol(rdmol_segment)
-
+) -> tuple[
+    Primitive,
+    dict[tuple[tuple[str, int, str], ...], Primitive],
+    dict[int, Primitive],
+    dict[int, PrimitiveHandle],
+    set[int],
+]:
+    """Build one SEGMENT tree and particle attachments from serialized atom paths."""
     segment: Primitive | None = None
     nodes_by_path: dict[tuple[tuple[str, int, str], ...], Primitive] = {}
     path_entries_by_key: dict[tuple[tuple[str, int, str], ...], dict] = {}
@@ -521,43 +543,32 @@ def _primitive_from_mupt_saamr_mol(
         if is_linker(atom):
             linker_idxs.add(atom_idx)
             continue
-        if not atom.HasProp(MUPT_HIERARCHY_PATH):
-            raise ValueError(f"Atom {atom_idx} is missing {MUPT_HIERARCHY_PATH}")
 
-        path_entries = json.loads(atom.GetProp(MUPT_HIERARCHY_PATH))
-        if not path_entries:
-            raise ValueError(f"Atom {atom_idx} has an empty MuPT hierarchy path")
-        if _primitive_role_from_path_entry(path_entries[0]) != PrimitiveRole.SEGMENT:
-            raise ValueError("MuPT SAAMR SDF atom paths must start at SEGMENT role")
-        if _primitive_role_from_path_entry(path_entries[-1]) != PrimitiveRole.PARTICLE:
-            raise ValueError("MuPT SAAMR SDF atom paths must end at PARTICLE role")
-
+        path_entries = _path_entries_from_mupt_atom(atom, atom_idx)
+        segment_key = _path_key(path_entries, 1)
         if segment is None:
             segment = Primitive(
                 label=str(path_entries[0]["label"]),
                 metadata=_fast_segment_metadata(rdmol_segment),
                 role=PrimitiveRole.SEGMENT,
             )
-            segment_key = _path_key(path_entries, 1)
             nodes_by_path[segment_key] = segment
             path_entries_by_key[segment_key] = path_entries[0]
         else:
-            _validate_path_entry_match(path_entries_by_key[_path_key(path_entries, 1)], path_entries[0], atom_idx, 1)
+            _validate_path_entry_match(path_entries_by_key[segment_key], path_entries[0], atom_idx, 1)
 
         parent = segment
         for depth in range(2, len(path_entries)):
             entry = path_entries[depth - 1]
             prefix_key = _path_key(path_entries, depth)
             if prefix_key not in nodes_by_path:
-                metadata = {}
-                if _primitive_role_from_path_entry(entry) == PrimitiveRole.RESIDUE:
-                    pdb_info = atom.GetPDBResidueInfo()
-                    insertion_code = pdb_info.GetInsertionCode() if pdb_info is not None else ""
-                    if insertion_code:
-                        metadata["pdb_insertion_code"] = insertion_code
                 child = Primitive(
                     label=str(entry["label"]),
-                    metadata=metadata,
+                    metadata=(
+                        _residue_metadata_from_pdb_atom(atom)
+                        if _primitive_role_from_path_entry(entry) == PrimitiveRole.RESIDUE
+                        else {}
+                    ),
                     role=_primitive_role_from_path_entry(entry),
                 )
                 parent.attach_child(child, label=str(entry["handle_label"]))
@@ -585,50 +596,206 @@ def _primitive_from_mupt_saamr_mol(
     if segment is None:
         raise ValueError("MuPT SAAMR SDF segment contained no non-linker atoms")
 
-    if reconstruct_bonds:
-        for bond in rdmol_segment.GetBonds():
-            begin_idx = bond.GetBeginAtomIdx()
-            end_idx = bond.GetEndAtomIdx()
-            if begin_idx in linker_idxs or end_idx in linker_idxs:
-                if begin_idx in linker_idxs and end_idx in linker_idxs:
-                    continue
-                atom_idx, linker_idx = (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
-                _mirror_linker_bond_to_owner(
-                    rdmol_segment,
-                    atom_idx,
-                    linker_idx,
-                    atom_idx_to_parent[atom_idx],
-                    atom_idx_to_handle[atom_idx],
-                    segment,
-                    conformer_idx,
-                    external_linker_label,
-                    **kwargs,
-                )
+    return segment, nodes_by_path, atom_idx_to_parent, atom_idx_to_handle, linker_idxs
+
+
+def _reconstruct_mupt_segment_bonds(
+    rdmol_segment: Mol,
+    segment: Primitive,
+    atom_idx_to_parent: dict[int, Primitive],
+    atom_idx_to_handle: dict[int, PrimitiveHandle],
+    linker_idxs: set[int],
+    conformer_idx: Optional[int],
+    external_linker_label: str,
+    **kwargs,
+) -> None:
+    """Rebuild MuPT connector topology from RDKit bonds for one SAAMR segment."""
+    for bond in rdmol_segment.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+        if begin_idx in linker_idxs or end_idx in linker_idxs:
+            if begin_idx in linker_idxs and end_idx in linker_idxs:
                 continue
-
-            begin_parent = atom_idx_to_parent[begin_idx]
-            end_parent = atom_idx_to_parent[end_idx]
-            begin_atom = begin_parent.fetch_child(atom_idx_to_handle[begin_idx])
-            end_atom = end_parent.fetch_child(atom_idx_to_handle[end_idx])
-            begin_residue = _enclosing_role(begin_atom, PrimitiveRole.RESIDUE)
-            end_residue = _enclosing_role(end_atom, PrimitiveRole.RESIDUE)
-            owner = begin_residue if begin_residue is end_residue else segment
-
-            # Chemistry ownership is role-based: arbitrary grouping nodes preserve
-            # organization, while bonds live at RESIDUE or SEGMENT SAAMR owners.
-            _connect_rdkit_atom_pair_at_owner(
+            atom_idx, linker_idx = (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
+            _mirror_linker_bond_to_owner(
                 rdmol_segment,
-                begin_idx,
-                end_idx,
-                begin_parent,
-                atom_idx_to_handle[begin_idx],
-                end_parent,
-                atom_idx_to_handle[end_idx],
-                owner,
+                atom_idx,
+                linker_idx,
+                atom_idx_to_parent[atom_idx],
+                atom_idx_to_handle[atom_idx],
+                segment,
                 conformer_idx,
                 external_linker_label,
                 **kwargs,
             )
+            continue
+
+        begin_parent = atom_idx_to_parent[begin_idx]
+        end_parent = atom_idx_to_parent[end_idx]
+        begin_atom = begin_parent.fetch_child(atom_idx_to_handle[begin_idx])
+        end_atom = end_parent.fetch_child(atom_idx_to_handle[end_idx])
+        begin_residue = _enclosing_role(begin_atom, PrimitiveRole.RESIDUE)
+        end_residue = _enclosing_role(end_atom, PrimitiveRole.RESIDUE)
+        owner = begin_residue if begin_residue is end_residue else segment
+        _connect_rdkit_atom_pair_at_owner(
+            rdmol_segment,
+            begin_idx,
+            end_idx,
+            begin_parent,
+            atom_idx_to_handle[begin_idx],
+            end_parent,
+            atom_idx_to_handle[end_idx],
+            owner,
+            conformer_idx,
+            external_linker_label,
+            **kwargs,
+        )
+
+
+def _segment_label_from_rdkit_mol(
+    rdmol_segment: Mol,
+    label: Optional[Hashable],
+    smiles_writer_params: SmilesWriteParams,
+) -> Hashable:
+    """Resolve the SEGMENT label for RDKit import."""
+    if label is not None:
+        return label
+
+    first_atom = rdmol_segment.GetAtomWithIdx(0) if rdmol_segment.GetNumAtoms() else None
+    if first_atom is not None and first_atom.HasProp("mupt_segment_label"):
+        return first_atom.GetProp("mupt_segment_label")
+    return name_for_rdkit_mol(rdmol_segment, smiles_writer_params=smiles_writer_params)
+
+
+def _attach_rdkit_segment_atoms_by_residue(
+    rdmol_segment: Mol,
+    segment_primitive: Primitive,
+    residue_role: PrimitiveRole,
+    atom_role: PrimitiveRole,
+    atom_label: str,
+    conformer_idx: Optional[int],
+) -> tuple[dict[int, PrimitiveHandle], dict[int, PrimitiveHandle], set[int]]:
+    """Create residue containers and attach imported atomic PARTICLE children."""
+    residue_handles: dict[tuple[str, str, int, str], PrimitiveHandle] = {}
+    atom_idx_to_residue_handle: dict[int, PrimitiveHandle] = {}
+    atom_idx_to_atom_handle: dict[int, PrimitiveHandle] = {}
+    linker_idxs: set[int] = set()
+
+    for atom in rdmol_segment.GetAtoms():
+        atom_idx = atom.GetIdx()
+        if is_linker(atom):
+            linker_idxs.add(atom_idx)
+            continue
+
+        res_key = _residue_key(atom)
+        if res_key not in residue_handles:
+            _, _, _, residue_label = res_key
+            residue = Primitive(
+                label=residue_label,
+                metadata=_residue_metadata_from_pdb_atom(atom),
+                role=residue_role,
+            )
+            residue_handles[res_key] = segment_primitive.attach_child(residue)
+
+        residue = segment_primitive.fetch_child(residue_handles[res_key])
+        atom_prim = primitive_from_rdkit_atom(
+            rdmol_segment,
+            atom_idx,
+            conformer_idx=conformer_idx,
+            attach_connectors=False,
+            role=atom_role,
+        )
+        if atom.HasProp("mupt_particle_label"):
+            atom_prim.label = atom.GetProp("mupt_particle_label")
+        atom_idx_to_residue_handle[atom_idx] = residue_handles[res_key]
+        atom_idx_to_atom_handle[atom_idx] = residue.attach_child(atom_prim, label=atom_label)
+
+    return atom_idx_to_residue_handle, atom_idx_to_atom_handle, linker_idxs
+
+
+def _reconstruct_rdkit_segment_bonds(
+    rdmol_segment: Mol,
+    segment_primitive: Primitive,
+    atom_idx_to_residue_handle: dict[int, PrimitiveHandle],
+    atom_idx_to_atom_handle: dict[int, PrimitiveHandle],
+    linker_idxs: set[int],
+    conformer_idx: Optional[int],
+    external_linker_label: str,
+    **kwargs,
+) -> None:
+    """Rebuild residue-local and segment-local bonds for generic RDKit import."""
+    for bond in rdmol_segment.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+        if begin_idx in linker_idxs or end_idx in linker_idxs:
+            if begin_idx in linker_idxs and end_idx in linker_idxs:
+                continue
+            atom_idx, linker_idx = (
+                (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
+            )
+            residue_handle = atom_idx_to_residue_handle[atom_idx]
+            residue = segment_primitive.fetch_child(residue_handle)
+            _mirror_linker_bond_to_owner(
+                rdmol_segment,
+                atom_idx,
+                linker_idx,
+                residue,
+                atom_idx_to_atom_handle[atom_idx],
+                segment_primitive,
+                conformer_idx,
+                external_linker_label,
+                **kwargs,
+            )
+            continue
+
+        begin_res_handle = atom_idx_to_residue_handle[begin_idx]
+        end_res_handle = atom_idx_to_residue_handle[end_idx]
+        begin_residue = segment_primitive.fetch_child(begin_res_handle)
+        end_residue = segment_primitive.fetch_child(end_res_handle)
+        owner = begin_residue if begin_res_handle == end_res_handle else segment_primitive
+        _connect_rdkit_atom_pair_at_owner(
+            rdmol_segment,
+            begin_idx,
+            end_idx,
+            begin_residue,
+            atom_idx_to_atom_handle[begin_idx],
+            end_residue,
+            atom_idx_to_atom_handle[end_idx],
+            owner,
+            conformer_idx,
+            external_linker_label,
+            **kwargs,
+        )
+
+
+def _primitive_from_mupt_saamr_mol(
+    rdmol_segment: Mol,
+    conformer_idx: Optional[int],
+    external_linker_label: str,
+    reconstruct_bonds: bool,
+    reconstruct_shapes: bool,
+    **kwargs,
+) -> Primitive:
+    """Rebuild one SEGMENT tree from MuPT SAAMR SDF atom path metadata."""
+    _validate_mupt_saamr_mol(rdmol_segment)
+    segment, nodes_by_path, atom_idx_to_parent, atom_idx_to_handle, linker_idxs = (
+        _materialize_mupt_segment_from_atom_paths(
+            rdmol_segment,
+            conformer_idx,
+        )
+    )
+
+    if reconstruct_bonds:
+        _reconstruct_mupt_segment_bonds(
+            rdmol_segment,
+            segment,
+            atom_idx_to_parent,
+            atom_idx_to_handle,
+            linker_idxs,
+            conformer_idx,
+            external_linker_label,
+            **kwargs,
+        )
 
     if reconstruct_shapes:
         for node in reversed(list(nodes_by_path.values())):
@@ -733,102 +900,29 @@ def primitive_from_rdkit_segment(
     Primitive
         SEGMENT-role Primitive containing RESIDUE and PARTICLE descendants.
     """
-    first_atom = rdmol_segment.GetAtomWithIdx(0) if rdmol_segment.GetNumAtoms() else None
-    if label is None:
-        if first_atom is not None and first_atom.HasProp("mupt_segment_label"):
-            label = first_atom.GetProp("mupt_segment_label")
-        else:
-            label = name_for_rdkit_mol(rdmol_segment, smiles_writer_params=smiles_writer_params)
-
     segment_primitive = Primitive(
-        label=label,
+        label=_segment_label_from_rdkit_mol(rdmol_segment, label, smiles_writer_params),
         metadata=_non_root_metadata(rdmol_segment),
         role=PrimitiveRole.SEGMENT,
     )
-    residue_handles: dict[tuple[str, str, int, str], PrimitiveHandle] = {}
-    atom_idx_to_residue_handle: dict[int, PrimitiveHandle] = {}
-    atom_idx_to_atom_handle: dict[int, PrimitiveHandle] = {}
-    linker_idxs: set[int] = set()
-
-    # First pass: rebuild residue containers and attach atomic PARTICLE children.
-    for atom in rdmol_segment.GetAtoms():
-        atom_idx = atom.GetIdx()
-        if is_linker(atom):
-            linker_idxs.add(atom_idx)
-            continue
-
-        res_key = _residue_key(atom)
-        if res_key not in residue_handles:
-            _, insertion_code, _, residue_label = res_key
-            residue_metadata = {}
-            if insertion_code:
-                residue_metadata["pdb_insertion_code"] = insertion_code
-            residue = Primitive(
-                label=residue_label,
-                metadata=residue_metadata,
-                role=residue_role,
-            )
-            residue_handles[res_key] = segment_primitive.attach_child(residue)
-
-        residue = segment_primitive.fetch_child(residue_handles[res_key])
-        atom_prim = primitive_from_rdkit_atom(
-            rdmol_segment,
-            atom_idx,
-            conformer_idx=conformer_idx,
-            attach_connectors=False,
-            role=atom_role,
-        )
-        if atom.HasProp("mupt_particle_label"):
-            atom_prim.label = atom.GetProp("mupt_particle_label")
-        atom_idx_to_residue_handle[atom_idx] = residue_handles[res_key]
-        atom_idx_to_atom_handle[atom_idx] = residue.attach_child(atom_prim, label=atom_label)
-
-    # Second pass: recreate intra-residue bonds or route inter-residue bonds via segment connectors.
-    for bond in rdmol_segment.GetBonds():
-        begin_idx = bond.GetBeginAtomIdx()
-        end_idx = bond.GetEndAtomIdx()
-        if begin_idx in linker_idxs or end_idx in linker_idxs:
-            if begin_idx in linker_idxs and end_idx in linker_idxs:
-                continue
-
-            atom_idx, linker_idx = (
-                (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
-            )
-            residue_handle = atom_idx_to_residue_handle[atom_idx]
-            residue = segment_primitive.fetch_child(residue_handle)
-            # Linker atoms are not exported as PARTICLEs; their bonds become external
-            # connectors so repeat units keep polymer attachment semantics.
-            _mirror_linker_bond_to_owner(
-                rdmol_segment,
-                atom_idx,
-                linker_idx,
-                residue,
-                atom_idx_to_atom_handle[atom_idx],
-                segment_primitive,
-                conformer_idx,
-                external_linker_label,
-                **kwargs,
-            )
-            continue
-
-        begin_res_handle = atom_idx_to_residue_handle[begin_idx]
-        end_res_handle = atom_idx_to_residue_handle[end_idx]
-        begin_residue = segment_primitive.fetch_child(begin_res_handle)
-        end_residue = segment_primitive.fetch_child(end_res_handle)
-        owner = begin_residue if begin_res_handle == end_res_handle else segment_primitive
-        _connect_rdkit_atom_pair_at_owner(
-            rdmol_segment,
-            begin_idx,
-            end_idx,
-            begin_residue,
-            atom_idx_to_atom_handle[begin_idx],
-            end_residue,
-            atom_idx_to_atom_handle[end_idx],
-            owner,
-            conformer_idx,
-            external_linker_label,
-            **kwargs,
-        )
+    atom_idx_to_residue_handle, atom_idx_to_atom_handle, linker_idxs = _attach_rdkit_segment_atoms_by_residue(
+        rdmol_segment,
+        segment_primitive,
+        residue_role,
+        atom_role,
+        atom_label,
+        conformer_idx,
+    )
+    _reconstruct_rdkit_segment_bonds(
+        rdmol_segment,
+        segment_primitive,
+        atom_idx_to_residue_handle,
+        atom_idx_to_atom_handle,
+        linker_idxs,
+        conformer_idx,
+        external_linker_label,
+        **kwargs,
+    )
 
     # Reconstruct coarse shapes from child atom coordinates when conformer data exists.
     for residue in segment_primitive.children:
