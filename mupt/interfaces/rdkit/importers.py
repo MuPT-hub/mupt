@@ -410,6 +410,89 @@ def _bind_connector_up_to_owner(
     return current_handle, current_conn_handle, mirrored_connectors
 
 
+def _mirror_linker_bond_to_owner(
+    rdmol: Mol,
+    atom_idx: int,
+    linker_idx: int,
+    atom_parent: Primitive,
+    atom_handle: PrimitiveHandle,
+    owner: Primitive,
+    conformer_idx: Optional[int],
+    external_linker_label: str,
+    **kwargs,
+) -> None:
+    """Rebuild one atom-linker bond as external connectors up to the owner."""
+    atom_primitive = atom_parent.fetch_child(atom_handle)
+    _, _, mirrored_connectors = _bind_connector_up_to_owner(
+        atom_primitive,
+        atom_handle,
+        atom_parent,
+        connector_between_rdatoms(
+            rdmol,
+            from_atom_idx=atom_idx,
+            to_atom_idx=linker_idx,
+            conformer_idx=conformer_idx,
+            **kwargs,
+        ),
+        owner,
+        external_linker_label,
+    )
+    for mirrored_connector in mirrored_connectors:
+        _apply_traversal_direction(mirrored_connector, atom_primitive)
+
+
+def _connect_rdkit_atom_pair_at_owner(
+    rdmol: Mol,
+    begin_idx: int,
+    end_idx: int,
+    begin_parent: Primitive,
+    begin_handle: PrimitiveHandle,
+    end_parent: Primitive,
+    end_handle: PrimitiveHandle,
+    owner: Primitive,
+    conformer_idx: Optional[int],
+    external_linker_label: str,
+    **kwargs,
+) -> None:
+    """Rebuild one RDKit atom-atom bond at its owning MuPT node."""
+    begin_atom = begin_parent.fetch_child(begin_handle)
+    end_atom = end_parent.fetch_child(end_handle)
+    begin_child_handle, begin_conn_handle, _ = _bind_connector_up_to_owner(
+        begin_atom,
+        begin_handle,
+        begin_parent,
+        connector_between_rdatoms(
+            rdmol,
+            from_atom_idx=begin_idx,
+            to_atom_idx=end_idx,
+            conformer_idx=conformer_idx,
+            **kwargs,
+        ),
+        owner,
+        external_linker_label,
+    )
+    end_child_handle, end_conn_handle, _ = _bind_connector_up_to_owner(
+        end_atom,
+        end_handle,
+        end_parent,
+        connector_between_rdatoms(
+            rdmol,
+            from_atom_idx=end_idx,
+            to_atom_idx=begin_idx,
+            conformer_idx=conformer_idx,
+            **kwargs,
+        ),
+        owner,
+        external_linker_label,
+    )
+    owner.connect_children(
+        begin_child_handle,
+        begin_conn_handle,
+        end_child_handle,
+        end_conn_handle,
+    )
+
+
 def _primitive_from_mupt_saamr_mol(
     rdmol_segment: Mol,
     conformer_idx: Optional[int],
@@ -505,25 +588,17 @@ def _primitive_from_mupt_saamr_mol(
                 if begin_idx in linker_idxs and end_idx in linker_idxs:
                     continue
                 atom_idx, linker_idx = (end_idx, begin_idx) if begin_idx in linker_idxs else (begin_idx, end_idx)
-                atom_parent = atom_idx_to_parent[atom_idx]
-                atom_primitive = atom_parent.fetch_child(atom_idx_to_handle[atom_idx])
-                connector = connector_between_rdatoms(
+                _mirror_linker_bond_to_owner(
                     rdmol_segment,
-                    from_atom_idx=atom_idx,
-                    to_atom_idx=linker_idx,
-                    conformer_idx=conformer_idx,
+                    atom_idx,
+                    linker_idx,
+                    atom_idx_to_parent[atom_idx],
+                    atom_idx_to_handle[atom_idx],
+                    segment,
+                    conformer_idx,
+                    external_linker_label,
                     **kwargs,
                 )
-                _, _, mirrored_connectors = _bind_connector_up_to_owner(
-                    atom_primitive,
-                    atom_idx_to_handle[atom_idx],
-                    atom_parent,
-                    connector,
-                    segment,
-                    external_linker_label,
-                )
-                for mirrored_connector in mirrored_connectors:
-                    _apply_traversal_direction(mirrored_connector, atom_primitive)
                 continue
 
             begin_parent = atom_idx_to_parent[begin_idx]
@@ -536,39 +611,18 @@ def _primitive_from_mupt_saamr_mol(
 
             # Chemistry ownership is role-based: arbitrary grouping nodes preserve
             # organization, while bonds live at RESIDUE or SEGMENT SAAMR owners.
-            begin_child_handle, begin_conn_handle, _ = _bind_connector_up_to_owner(
-                begin_atom,
-                atom_idx_to_handle[begin_idx],
+            _connect_rdkit_atom_pair_at_owner(
+                rdmol_segment,
+                begin_idx,
+                end_idx,
                 begin_parent,
-                connector_between_rdatoms(
-                    rdmol_segment,
-                    from_atom_idx=begin_idx,
-                    to_atom_idx=end_idx,
-                    conformer_idx=conformer_idx,
-                    **kwargs,
-                ),
-                owner,
-                external_linker_label,
-            )
-            end_child_handle, end_conn_handle, _ = _bind_connector_up_to_owner(
-                end_atom,
-                atom_idx_to_handle[end_idx],
+                atom_idx_to_handle[begin_idx],
                 end_parent,
-                connector_between_rdatoms(
-                    rdmol_segment,
-                    from_atom_idx=end_idx,
-                    to_atom_idx=begin_idx,
-                    conformer_idx=conformer_idx,
-                    **kwargs,
-                ),
+                atom_idx_to_handle[end_idx],
                 owner,
+                conformer_idx,
                 external_linker_label,
-            )
-            owner.connect_children(
-                begin_child_handle,
-                begin_conn_handle,
-                end_child_handle,
-                end_conn_handle,
+                **kwargs,
             )
 
     if reconstruct_shapes:
@@ -739,102 +793,39 @@ def primitive_from_rdkit_segment(
             )
             residue_handle = atom_idx_to_residue_handle[atom_idx]
             residue = segment_primitive.fetch_child(residue_handle)
-            atom_handle = atom_idx_to_atom_handle[atom_idx]
-            atom_primitive = residue.fetch_child(atom_handle)
-            atom_conn_handle = atom_primitive.register_connector(
-                connector_between_rdatoms(
-                    rdmol_segment,
-                    from_atom_idx=atom_idx,
-                    to_atom_idx=linker_idx,
-                    conformer_idx=conformer_idx,
-                    **kwargs,
-                )
-            )
             # Linker atoms are not exported as PARTICLEs; their bonds become external
             # connectors so repeat units keep polymer attachment semantics.
-            residue_conn_handle = residue.bind_external_connector(
-                atom_handle,
-                atom_conn_handle,
-                label=external_linker_label,
+            _mirror_linker_bond_to_owner(
+                rdmol_segment,
+                atom_idx,
+                linker_idx,
+                residue,
+                atom_idx_to_atom_handle[atom_idx],
+                segment_primitive,
+                conformer_idx,
+                external_linker_label,
+                **kwargs,
             )
-            segment_conn_handle = segment_primitive.bind_external_connector(
-                residue_handle,
-                residue_conn_handle,
-                label=external_linker_label,
-            )
-            for connector in (
-                atom_primitive.fetch_connector(atom_conn_handle),
-                residue.fetch_connector(residue_conn_handle),
-                segment_primitive.fetch_connector(segment_conn_handle),
-            ):
-                _apply_traversal_direction(connector, atom_primitive)
             continue
 
         begin_res_handle = atom_idx_to_residue_handle[begin_idx]
         end_res_handle = atom_idx_to_residue_handle[end_idx]
         begin_residue = segment_primitive.fetch_child(begin_res_handle)
         end_residue = segment_primitive.fetch_child(end_res_handle)
-
-        begin_atom_handle = atom_idx_to_atom_handle[begin_idx]
-        begin_atom = begin_residue.fetch_child(begin_atom_handle)
-        begin_conn_handle = begin_atom.register_connector(
-            connector_between_rdatoms(
-                rdmol_segment,
-                from_atom_idx=begin_idx,
-                to_atom_idx=end_idx,
-                conformer_idx=conformer_idx,
-                **kwargs,
-            )
+        owner = begin_residue if begin_res_handle == end_res_handle else segment_primitive
+        _connect_rdkit_atom_pair_at_owner(
+            rdmol_segment,
+            begin_idx,
+            end_idx,
+            begin_residue,
+            atom_idx_to_atom_handle[begin_idx],
+            end_residue,
+            atom_idx_to_atom_handle[end_idx],
+            owner,
+            conformer_idx,
+            external_linker_label,
+            **kwargs,
         )
-        begin_res_conn_handle = begin_residue.bind_external_connector(
-            begin_atom_handle,
-            begin_conn_handle,
-            label=external_linker_label,
-        )
-
-        end_atom_handle = atom_idx_to_atom_handle[end_idx]
-        end_atom = end_residue.fetch_child(end_atom_handle)
-        end_conn_handle = end_atom.register_connector(
-            connector_between_rdatoms(
-                rdmol_segment,
-                from_atom_idx=end_idx,
-                to_atom_idx=begin_idx,
-                conformer_idx=conformer_idx,
-                **kwargs,
-            )
-        )
-        end_res_conn_handle = end_residue.bind_external_connector(
-            end_atom_handle,
-            end_conn_handle,
-            label=external_linker_label,
-        )
-
-        if begin_res_handle == end_res_handle:
-            # Bonds within one residue are internal to the RESIDUE Primitive.
-            begin_residue.connect_children(
-                begin_atom_handle,
-                begin_conn_handle,
-                end_atom_handle,
-                end_conn_handle,
-            )
-        else:
-            # Cross-residue bonds are mirrored up to the SEGMENT before connecting residues.
-            segment_primitive.bind_external_connector(
-                begin_res_handle,
-                begin_res_conn_handle,
-                label=external_linker_label,
-            )
-            segment_primitive.bind_external_connector(
-                end_res_handle,
-                end_res_conn_handle,
-                label=external_linker_label,
-            )
-            segment_primitive.connect_children(
-                begin_res_handle,
-                begin_res_conn_handle,
-                end_res_handle,
-                end_res_conn_handle,
-            )
 
     # Reconstruct coarse shapes from child atom coordinates when conformer data exists.
     for residue in segment_primitive.children:
