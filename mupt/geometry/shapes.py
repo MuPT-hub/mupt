@@ -3,47 +3,151 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Union
+from typing import runtime_checkable, Literal, Protocol, Optional, Union
+from abc import abstractmethod
 
-from abc import ABC, abstractmethod
 from functools import cached_property
 
 import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from .arraytypes import Shape, Numeric, M, N, P
+from .arraytypes import (
+    Shape,
+    NumberLike,
+    NumericNP,
+    N, M, P,
+    Vector3,
+    Array3x3,
+    Array4x4,
+    ArrayNxN,
+    ArrayNx3,
+)
+TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]] # DEV: might move this elsewhere later
 from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.rigid.application import RigidlyTransformable
 
 
+@runtime_checkable # TODO: make class which composes transformability and boundedness (not necessarily the same a priori)
+class BoundedShape(Protocol):
+    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
+    # measures of extent
+    @property
+    @abstractmethod
+    def centroid(self) -> Vector3:
+        '''Coordinate of the geometric center of the body'''
+        ...
+    # COM = CoM = center_of_mass = centroid # aliases for convenience
+    
+    @property
+    @abstractmethod
+    def volume(self) -> NumberLike:
+        '''Cumulative measure within the boundary of the body'''
+        ...
+        
+    @abstractmethod
+    def contains(self, points : Vector3 | ArrayNxN) -> bool: 
+        '''Whether a given coordinate lies within the boundary of the body'''
+        ... 
+
+    @abstractmethod
+    def surface_mesh(self, *args, **kwargs) -> tuple[ArrayNx3, TriangulationIndices]:
+        '''
+        Generate a triangulated mesh of the surface of the shape which can be easily digested and plotted by mpl.plot_trisurf
+        
+        Returns
+        -------
+        mesh_points : Array[[N, 3], Numeric]
+            An Nx3 array of the XYZ positions of each point in the mesh
+        tri_vertices : Array[[T, 3], int]
+            A Tx3 array describing the T triples in the mesh, with each row being the triples of array indices of that triangle
+            For example, a row with [1,3,6] represents the triangle traversed counterclockwise from vertices 1 -> 3 -> 6 -> 1
+        '''
+        ...
+    
+    # @abstractmethod
+    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
+    #     '''Determines the furthest point on the surface of the body in a given direction'''
+    #     ...
+
+class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
+    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
+    ...
+        
+class Shaped(Protocol):
+    '''Interface for objects which have an associated bounded, tranformable shape'''
+    _shape : Optional[BoundedTransformableShape]
+    
+    @property
+    def has_shape(self) -> bool:
+        '''Whether this Primitive has an associated external shape'''
+        return self._shape is not None
+    
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]: # TODO: make ShapedPrimitive subtype to avoid all these None checks?
+        '''The external shape of this Primitive'''
+        return self._shape
+    
+    @shape.setter
+    def shape(self, new_shape : Optional[BoundedTransformableShape]) -> None:
+        '''Set the external shape of this Primitive with another BoundedShape'''
+        # Case 1) no shape
+        if new_shape is None:
+            self._shape = None
+            return
+        
+        # Case 2) valid shape, which may need to have transformation history transferred over
+        if not isinstance(new_shape, BoundedTransformableShape):
+            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
+
+        new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
+        if self._shape is not None:
+            new_shape_clone.cumulative_transformation = self._shape.cumulative_transformation # transfer translation history BEFORE overwriting
+        
+        self._shape = new_shape_clone
+        
+        
+# Concrete BoundedShape implementations
 def ellipsoidal_mesh(
     rx : float,
     ry : Optional[float]=None,
     rz : Optional[float]=None,
-    n_theta : M=100,
-    n_phi : P=100,
-    transformation : Optional[RigidTransform]=None,
-) -> np.ndarray[Shape[M, P, 3], Numeric]:
-    # TODO: flesh out docstring w/ Copilot
+    n_theta : int=30,
+    n_phi : int=30,
+    transformation : RigidTransform=RigidTransform.identity(),
+) -> tuple[ArrayNx3, TriangulationIndices]:
     ''' 
     Generate a mesh of points defining the surface of an ellipsoid 
     (i.e. generalized sphere with 3 independent, arbitrarily sized readii)
     
     Parameters
     ----------
-    n_theta : int, default 100
+    rx : float
+        Radius of the ellipsoid in the x-direction or,
+        if no other radii are provided, radius of the sphere
+    ry : Optional[float], default rx
+        Radius of the ellipsoid in the y-direction
+        If not explicitly provided, takes on the value assigned to rx
+    rz : Optional[float], default rx
+        Radius of the ellipsoid in the z-direction
+        If not explicitly provided, takes on the value assigned to rx
+    n_theta : int, default 30
         Number of points in the azimuthal angle direction
         Equivalent to longitudinal resolution
         
         Theta is taken to be the angle CC from the +x axis in the xy-plane,
         following the mathematics (not physics!) convention
-    n_phi : int, default 100
+    n_phi : int, default 30
         Number of points in the polar angle direction
         Equivalent to latitudinal resolution
         
         Phi is taken to be the angle "downwards" from the +z axis
         following the mathematics (not physics!) convention
+    transformation : RigidTransform, default RigidTransform.identity()
+        An additional rigid transformation (i.e. rotation + translation) 
+        to apply to the ellipsoid from it's defined reference position
+        
+        Defaults to the identity transformation, returning the unmodified mesh points
         
     Returns
     -------
@@ -57,58 +161,25 @@ def ellipsoidal_mesh(
     if rz is None:
         rz = ry
 
-    theta, phi = np.mgrid[
+    angles = theta, phi = np.mgrid[
         0.0:2*np.pi:n_theta*1j,
         0.0:np.pi:n_phi*1j,
     ] # (magnitude of) complex step size is interpreted by numpy as a number of points
+    triangulation = Delaunay(angles.reshape(2, -1).T) # note: .reshape(-1, 2) gives the right shape but NOT the right parity between parametric angles
 
     mesh_points = np.zeros((n_theta, n_phi, 3), dtype=float)
     mesh_points[..., 0] = rx * np.sin(phi) * np.cos(theta)
     mesh_points[..., 1] = ry * np.sin(phi) * np.sin(theta)
     mesh_points[..., 2] = rz * np.cos(phi)
     
-    if transformation is not None:
-        mesh_points = transformation.apply(
-            mesh_points.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array to allow RigidTransform.apply() to digest it
-        ).reshape(n_theta, n_phi, 3) # ...then repackage into mesh for convenient plotting
+    mesh_points = mesh_points.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array of XYZ positions
+    mesh_points = transformation.apply(mesh_points) # apply transform
 
-    return mesh_points
+    return mesh_points, triangulation.simplices
 
-class BoundedShape(ABC, RigidlyTransformable): # template for numeric type (some iterations of float in most cases)
-    '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    # measures of extent
-    @property
-    @abstractmethod
-    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
-        '''Coordinate of the geometric center of the body'''
-        ...
-    # COM = CoM = center_of_mass = centroid # aliases for convenience
-    
-    @property
-    @abstractmethod
-    def volume(self) -> Numeric:
-        '''Cumulative measure within the boundary of the body'''
-        ...
-        
-    @abstractmethod
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]], Numeric]) -> bool: 
-        '''Whether a given coordinate lies within the boundary of the body'''
-        ... 
-
-    # @abstractmethod
-    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
-    #     '''Determines the furthest point on the surface of the body in a given direction'''
-    #     ...
-
-    # @abstractmethod
-    # def surface_mesh(self, *args, **kwargs) -> np.ndarray[Shape[M, P, 3], Numeric]:
-    #     '''Generate a mesh surface representing the BoundedShape which can be easily digested and plotted by mpl.plot_surface'''
-    #     ...
-        
-# Concrete BoundedShape implementations
-class PointCloud(BoundedShape):
+class PointCloud(BoundedTransformableShape):
     '''A cluster of points in 3D space'''
-    def __init__(self, positions : np.ndarray[Shape[N, 3], Numeric]=None) -> None:
+    def __init__(self, positions : Optional[ArrayNx3]=None) -> None:
         if positions is None:
             positions = np.empty((0, 3), dtype=float)
         self.positions = np.atleast_2d(positions)
@@ -118,8 +189,6 @@ class PointCloud(BoundedShape):
         '''Convex hull of the points contained within'''
         return ConvexHull(self.positions)
 
-    ## TODO: add convex hull surface mesh export
-
     @cached_property
     def triangulation(self) -> Delaunay:
         '''Delauney triangulation into simplicial facets whose vertiecs are the positions within'''
@@ -127,40 +196,38 @@ class PointCloud(BoundedShape):
     
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
+    def centroid(self) -> Vector3:
         '''Geometric (i.e. unweighted) center of mass'''
         return self.positions.mean(axis=0)
     
     @property
-    def volume(self) -> Numeric:
+    def volume(self) -> NumberLike:
         '''Volume of the convex hull of the positions in this PointCloud'''
         return self.convex_hull.volume
     
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+    def contains(self, points : Union[Vector3, ArrayNx3]) -> bool:
         return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
 
     # fulfilling RigidlyTransformable contracts
     def _copy_untransformed(self) -> 'PointCloud':
         return self.__class__(positions=np.array(self.positions))
 
-    def _rigidly_transform(self, transform : RigidTransform) -> None:
-        self.positions = transform.apply(self.positions)
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.positions = transformation.apply(self.positions)
 
     # visualization
-    def __repr__(self):
+    def __repr__(self) -> str: 
         return f'{self.__class__.__name__}(shape={self.positions.shape})'
 
-    # def surface_mesh(self) -> np.ndarray[Shape[M, P, 3], Numeric]:
-    #     # TODO: implement calculating this from ConvexHull
-    #     ...
+    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
+        return self.convex_hull.points, self.convex_hull.simplices
 
-
-class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
+class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     '''A spherical body with arbitrary radius and center'''
     def __init__(self,
         radius : float=1.0,
-        center : np.ndarray[Shape[3], Numeric]=None,
-    ) -> 'Sphere':
+        center : Optional[Vector3]=None,
+    ) -> None:
         if center is None:
             center = np.zeros(3, dtype=float)
         center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
@@ -172,14 +239,14 @@ class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circl
     
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
+    def centroid(self) -> Vector3:
         return self.center
 
     @property
-    def volume(self) -> Numeric:
+    def volume(self) -> float:
         return 4/3 * np.pi * self.radius**3
     
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+    def contains(self, points : Vector3 | ArrayNxN) -> bool:
         return (
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
@@ -194,16 +261,14 @@ class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circl
             center=np.array(self.center),
         )
 
-    def _rigidly_transform(self, transform : RigidTransform) -> None:
-        self.center = transform.apply(self.center)
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.center = transformation.apply(self.center)
 
     # visualization
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}(radius={self.radius})'
 
-    def surface_mesh(self, n_theta : int=M, n_phi : P=100) -> np.ndarray[Shape[M, P, 3], Numeric]:
-        # TODO: fill in docstring
-        ''''''
+    def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
         return ellipsoidal_mesh(
             rx=self.radius,
             # ry, rz forced to match rx if not passed explicitly
@@ -212,8 +277,7 @@ class Sphere(BoundedShape): # N.B: doesn't inherit from Ellipsoid to avoid Circl
             transformation=self.cumulative_transformation,
         )
     
-    
-class Ellipsoid(BoundedShape):
+class Ellipsoid(BoundedTransformableShape):
     '''
     A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
     
@@ -222,8 +286,8 @@ class Ellipsoid(BoundedShape):
     '''
     def __init__(
         self,
-        radii : np.ndarray[Shape[3], Numeric]=None,
-        center : np.ndarray[Shape[3], Numeric]=None,
+        radii  : Optional[Vector3]=None,
+        center : Optional[Vector3]=None,
     ) -> None:
         # DEV: extract this vector shape checking into external utility, eventually
         if radii is None:
@@ -244,13 +308,13 @@ class Ellipsoid(BoundedShape):
     def from_components(
         cls,
         # axis lengths
-        radius_x : Numeric=1.0,
-        radius_y : Numeric=1.0,
-        radius_z : Numeric=1.0,
+        radius_x : NumberLike=1.0,
+        radius_y : NumberLike=1.0,
+        radius_z : NumberLike=1.0,
+        center_x : NumberLike=0.0,
+        center_y : NumberLike=0.0,
+        center_z : NumberLike=0.0,
         # center coordinate
-        center_x : Numeric=0.0,
-        center_y : Numeric=0.0,
-        center_z : Numeric=0.0,
     ) -> 'Ellipsoid':
         '''Instantiate Ellipsoid from array-wise representations of its radii and center'''
         return cls(
@@ -258,12 +322,12 @@ class Ellipsoid(BoundedShape):
             center=np.array([center_x, center_y, center_z], dtype=float),
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str: 
         return f'{self.__class__.__name__}(radii={self.radii}, center={self.center})'
 
     # Matrix representations of the Ellipsoid
     @staticmethod
-    def is_valid_ellipsoid_matrix(basis : np.ndarray[Shape[4, 4], Numeric]) -> bool:
+    def is_valid_ellipsoid_matrix(basis : Array4x4) -> bool:
         '''Check that an affine matrix could represent an Ellipsoid'''
         assert basis.shape == (4, 4)
         axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more elegant way to do this splitting
@@ -274,13 +338,13 @@ class Ellipsoid(BoundedShape):
             and np.isclose(w, 1.0), # ensure homogeneous scale of the center is 1 (i.e. unprojected)
         )
         
-    def scaling_matrix(self, as_affine : bool=True) -> np.ndarray[Union[Shape[3, 3], Shape[4, 4]], Numeric]:
+    def scaling_matrix(self, as_affine : bool=True) -> Union[Array3x3, Array4x4]:
         '''The scaling matrix which defines the radii of the Ellipsoid'''
         if as_affine:
             return np.diag([*self.radii, 1.0])  # add a 1.0 for the homogeneous coordinate
         return np.diag(self.radii)
         
-    def as_affine_matrix(self) -> np.ndarray[Shape[4, 4], Numeric]:
+    def as_affine_matrix(self) -> Array4x4:
         '''
         An affine matrix which represents this Ellipsoid
         
@@ -290,18 +354,18 @@ class Ellipsoid(BoundedShape):
         return self.cumulative_transformation.as_matrix() @ self.scaling_matrix(as_affine=True)
     
     @property
-    def basis(self) -> np.ndarray[Shape[4, 4], Numeric]:
+    def basis(self) -> Array4x4:
         '''The basis matrix of the Ellipsoid - alias for Ellipsoid.as_affine_matrix()'''
         return self.as_affine_matrix()
     
     @property
-    def principal_axes(self) -> np.ndarray[Shape[3, 3], Numeric]:
+    def principal_axes(self) -> Array3x3:
         '''The principal axes of the ellipsoid, represented as a 3x3 matrix
         whose rows are the axis vectors emanating from the Ellipsoid's center'''
         return self.cumulative_transformation.apply( self.scaling_matrix(as_affine=False) )
     axes = principal_axes # alias
 
-    def affine_inverse(self) -> np.ndarray[Shape[4, 4], Numeric]:
+    def affine_inverse(self) -> Array4x4:
         '''
         Transformation which maps this Ellipsoid to the unit sphere centered at the origin
         Inverse of the Ellipsoid's affine basis matrix
@@ -309,7 +373,7 @@ class Ellipsoid(BoundedShape):
         return np.linalg.inv(self.as_affine_matrix) # precompute inverse for later use
     
     @property
-    def inv(self) -> np.ndarray[Shape[4, 4], Numeric]:
+    def inv(self) -> Array4x4:
         '''
         The inverse of the Ellipsoid's affine basis matrix - alias for Ellipsoid.affine_inverse()
         Maps this Ellipsoid to the unit sphere centered at the origin
@@ -323,15 +387,15 @@ class Ellipsoid(BoundedShape):
         
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> np.ndarray[Shape[3], Numeric]:
+    def centroid(self) -> Vector3:
         return self.center
     
     @property
-    def volume(self) -> Numeric:
+    def volume(self) -> NumberLike:
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determination of rotation is always 1, so we may as well skip it and the whole determinant calculation
 
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+    def contains(self, points : Vector3 | ArrayNxN) -> bool:
         return ( 
             np.linalg.norm( # NOTE: not applying self.inverse to points because the Ellipsoid basis matrix is not, in general, a rigid transformation
                 np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
@@ -346,23 +410,23 @@ class Ellipsoid(BoundedShape):
             center=np.array(self.center),
         )
 
-    def _rigidly_transform(self, transform : RigidTransform) -> None:
-        self.center = transform.apply(self.center)
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.center = transformation.apply(self.center)
     
     # visualization   
-    def surface_mesh(self, n_theta : int=M, n_phi : P=100) -> np.ndarray[Shape[M, P, 3], Numeric]:
+    def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
         '''
         Generate a mesh of points on the surface of this Ellipsoid
         
         Parameters
         ----------
-        n_theta : int, default 100
+        n_theta : int, default 30
             Number of points in the azimuthal angle direction
             Equivalent to longitudinal resolution
             
             Theta is taken to be the angle CC from the +x axis in the xy-plane,
             following the mathematics (not physics!) convention
-        n_phi : int, default 100
+        n_phi : int, default 30
             Number of points in the polar angle direction
             Equivalent to latitudinal resolution
             
@@ -383,3 +447,6 @@ class Ellipsoid(BoundedShape):
             transformation=self.cumulative_transformation,
         )
     
+# class Cylinder(BoundedTransformableShape):
+    # '''A cylindrical body with arbitrary radius, height, and center'''
+    # ...

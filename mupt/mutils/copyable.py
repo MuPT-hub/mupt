@@ -12,6 +12,6 @@ class Copyable(Protocol):
     def copy(self) -> Self:
         ...
 
-class NotCopyableError(Exception):
+class NotCopyableError(NotImplementedError):
     '''Raised when a copy-based operation is invokes on an object whose class doesn't implement it'''
     ...

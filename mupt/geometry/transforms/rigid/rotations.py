@@ -7,14 +7,14 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from ..linear import reflector, orthogonalizer
-from ...arraytypes import Shape, Numeric
+from ...arraytypes import Vector3
 from ...measure import normalized
 
 from ...coordinates.basis import is_orthogonal
 
 
 def rotator(
-    rotation_axis : np.ndarray[Shape[3], Numeric],
+    rotation_axis : Vector3,
     angle_rad : float=0.0,
 ) -> Rotation:
     ''' 
@@ -36,8 +36,8 @@ def rotator(
 rodrigues = rotator
 
 def alignment_rotation(
-    moved_vector : np.ndarray[Shape[3], Numeric],
-    onto_vector : np.ndarray[Shape[3], Numeric],
+    moved_vector : Vector3,
+    onto_vector : Vector3,
 ) -> Rotation:
     '''
     Compute a rotation which takes moved_vector parallel to the span of onto_vector
