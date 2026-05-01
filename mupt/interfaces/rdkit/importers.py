@@ -399,7 +399,12 @@ def _bind_connector_up_to_owner(
         current_parent = current_parent.parent
         current_handle = _child_handle(current_parent, current_child)
 
-    owner.bind_external_connector(current_handle, current_conn_handle, label=external_linker_label)
+    owner_conn_handle = owner.bind_external_connector(
+        current_handle,
+        current_conn_handle,
+        label=external_linker_label,
+    )
+    mirrored_connectors.append(owner.fetch_connector(owner_conn_handle))
     return current_handle, current_conn_handle, mirrored_connectors
 
 
