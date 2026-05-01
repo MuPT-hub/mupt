@@ -493,6 +493,13 @@ def _connect_rdkit_atom_pair_at_owner(
     )
 
 
+def _rebuild_shape_from_leaf_positions(node: Primitive) -> None:
+    """Assign a PointCloud shape when a container has positioned leaf atoms."""
+    positions = [atom.shape.centroid for atom in node.leaves if atom.shape is not None]
+    if positions:
+        node.shape = PointCloud(positions=positions)
+
+
 def _primitive_from_mupt_saamr_mol(
     rdmol_segment: Mol,
     conformer_idx: Optional[int],
@@ -627,9 +634,7 @@ def _primitive_from_mupt_saamr_mol(
 
     if reconstruct_shapes:
         for node in reversed(list(nodes_by_path.values())):
-            positions = [atom.shape.centroid for atom in node.leaves if atom.shape is not None]
-            if positions:
-                node.shape = PointCloud(positions=positions)
+            _rebuild_shape_from_leaf_positions(node)
 
     return segment
 
@@ -830,13 +835,9 @@ def primitive_from_rdkit_segment(
     # Reconstruct coarse shapes from child atom coordinates when conformer data exists.
     for residue in segment_primitive.children:
         if residue.children:
-            positions = [atom.shape.centroid for atom in residue.children if atom.shape is not None]
-            if positions:
-                residue.shape = PointCloud(positions=positions)
+            _rebuild_shape_from_leaf_positions(residue)
 
-    positions = [atom.shape.centroid for atom in segment_primitive.leaves if atom.shape is not None]
-    if positions:
-        segment_primitive.shape = PointCloud(positions=positions)
+    _rebuild_shape_from_leaf_positions(segment_primitive)
     segment_primitive.check_self_consistent()
 
     return segment_primitive
