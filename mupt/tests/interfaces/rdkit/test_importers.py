@@ -280,6 +280,23 @@ def test_primitive_from_mupt_sdf_accepts_multirecord_sdf(
     assert len(reconstructed.children) == 2
 
 
+def test_primitive_from_mupt_sdf_rejects_mixed_root_metadata(
+    tmp_path,
+    multi_polyethylene_system,
+    polyethylene_resname_map,
+) -> None:
+    sdf_path = tmp_path / "chains.sdf"
+    multi_polyethylene_system.metadata["mupt_test_root"] = "shared"
+    mols = primitive_to_rdkit_mols(multi_polyethylene_system, polyethylene_resname_map)[:2]
+    mols[1].SetProp("mupt_root_metadata_key_0", "conflicting")
+    mols[1].SetProp("mupt_root_metadata_value_0", "metadata")
+
+    _write_sdf(sdf_path, mols)
+
+    with pytest.raises(ValueError, match="UNIVERSE metadata"):
+        primitive_from_mupt_sdf(sdf_path)
+
+
 def test_primitive_from_mupt_sdf_preserves_intermediate_nodes(tmp_path) -> None:
     residue = primitive_from_smiles(
         "CC",

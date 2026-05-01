@@ -338,6 +338,19 @@ def _load_mupt_sdf_mols(source: str | Path | Sequence[str | Path]) -> list[Mol]:
     return mols
 
 
+def _validate_root_metadata_consistency(rdmols: Sequence[Mol]) -> dict:
+    """Return shared MuPT root metadata after verifying all records agree."""
+    reference = _root_metadata(rdmols[0])
+    for mol_idx, rdmol in enumerate(rdmols[1:], start=1):
+        metadata = _root_metadata(rdmol)
+        if metadata != reference:
+            raise ValueError(
+                "MuPT SDF records disagree on duplicated UNIVERSE metadata at "
+                f"record {mol_idx}."
+            )
+    return reference
+
+
 def _enclosing_role(node: Primitive, role: PrimitiveRole) -> Primitive:
     """Return the nearest ancestor-or-self carrying the requested role."""
     current = node
@@ -581,7 +594,7 @@ def primitive_from_mupt_sdf(
     """
     rdmols = _load_mupt_sdf_mols(source)
     universe = Primitive(label=label, role=PrimitiveRole.UNIVERSE)
-    universe.metadata.update(_root_metadata(rdmols[0]))
+    universe.metadata.update(_validate_root_metadata_consistency(rdmols))
 
     # This is a focused issue #48 draft serializer path, not a generic RDKit
     # import fallback. Missing markers mean callers should use primitive_from_rdkit().
