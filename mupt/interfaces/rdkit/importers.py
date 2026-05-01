@@ -305,6 +305,25 @@ def _path_key(path_entries: list[dict], stop: int) -> tuple[tuple[str, int, str]
     )
 
 
+def _path_entry_identity(entry: dict) -> tuple[str, str, str, int]:
+    """Return the structural identity fields for one serialized path entry."""
+    return (
+        str(entry["role"]),
+        str(entry["label"]),
+        str(entry["handle_label"]),
+        int(entry["handle_index"]),
+    )
+
+
+def _validate_path_entry_match(reference: dict, candidate: dict, atom_idx: int, depth: int) -> None:
+    """Reject inconsistent repeated path prefixes within one MuPT SDF record."""
+    if _path_entry_identity(candidate) != _path_entry_identity(reference):
+        raise ValueError(
+            "MuPT hierarchy path prefix is inconsistent for "
+            f"atom {atom_idx} at depth {depth}."
+        )
+
+
 def _validate_mupt_saamr_mol(rdmol: Mol) -> None:
     """Validate MuPT SAAMR SDF serialization markers on one RDKit Mol."""
     if not rdmol.HasProp(MUPT_SERIALIZATION_KIND) or not rdmol.HasProp(MUPT_SERIALIZATION_VERSION):
@@ -404,6 +423,7 @@ def _primitive_from_mupt_saamr_mol(
 
     segment: Primitive | None = None
     nodes_by_path: dict[tuple[tuple[str, int, str], ...], Primitive] = {}
+    path_entries_by_key: dict[tuple[tuple[str, int, str], ...], dict] = {}
     atom_idx_to_parent: dict[int, Primitive] = {}
     atom_idx_to_handle: dict[int, PrimitiveHandle] = {}
     linker_idxs: set[int] = set()
@@ -430,7 +450,11 @@ def _primitive_from_mupt_saamr_mol(
                 metadata=_fast_segment_metadata(rdmol_segment),
                 role=PrimitiveRole.SEGMENT,
             )
-            nodes_by_path[_path_key(path_entries, 1)] = segment
+            segment_key = _path_key(path_entries, 1)
+            nodes_by_path[segment_key] = segment
+            path_entries_by_key[segment_key] = path_entries[0]
+        else:
+            _validate_path_entry_match(path_entries_by_key[_path_key(path_entries, 1)], path_entries[0], atom_idx, 1)
 
         parent = segment
         for depth in range(2, len(path_entries)):
@@ -450,6 +474,9 @@ def _primitive_from_mupt_saamr_mol(
                 )
                 parent.attach_child(child, label=str(entry["handle_label"]))
                 nodes_by_path[prefix_key] = child
+                path_entries_by_key[prefix_key] = entry
+            else:
+                _validate_path_entry_match(path_entries_by_key[prefix_key], entry, atom_idx, depth)
             parent = nodes_by_path[prefix_key]
 
         particle_entry = path_entries[-1]

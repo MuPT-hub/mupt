@@ -3,6 +3,8 @@
 __author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
 __email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
+import json
+
 import pytest
 from rdkit.Chem.rdchem import Atom, AtomPDBResidueInfo, Mol, RWMol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, SDWriter
@@ -294,6 +296,24 @@ def test_primitive_from_mupt_sdf_rejects_mixed_root_metadata(
     _write_sdf(sdf_path, mols)
 
     with pytest.raises(ValueError, match="UNIVERSE metadata"):
+        primitive_from_mupt_sdf(sdf_path)
+
+
+def test_primitive_from_mupt_sdf_rejects_inconsistent_hierarchy_prefix(
+    tmp_path,
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+) -> None:
+    sdf_path = tmp_path / "chain.sdf"
+    mol = primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map)[0]
+    atom = next(candidate for candidate in mol.GetAtoms() if candidate.GetAtomicNum() != 0)
+    path_entries = json.loads(atom.GetProp("mupt_hierarchy_path_json"))
+    path_entries[0]["label"] = "other_segment"
+    atom.SetProp("mupt_hierarchy_path_json", json.dumps(path_entries, separators=(",", ":")))
+
+    _write_sdf(sdf_path, [mol])
+
+    with pytest.raises(ValueError, match="path prefix"):
         primitive_from_mupt_sdf(sdf_path)
 
 
