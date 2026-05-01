@@ -180,6 +180,130 @@ def _is_root_metadata_transport_key(key: object) -> bool:
     )
 
 
+def _add_rdkit_atoms(
+    mol: RWMol,
+    conf: Conformer,
+    data: RDKitMolData,
+    segment_idx: int,
+    first_residue_idx: int,
+) -> None:
+    """Insert RDKit atoms, positions, and per-atom MuPT metadata."""
+    residue_atom_counts: dict[int, int] = {}
+
+    for atom_idx, atom_prim in enumerate(data.atoms):
+        rdkit_atom = rdkit_atom_from_atomic_primitive(atom_prim)
+        local_resid = data.atom_resids[atom_idx]
+        chain_id, resid = _pdb_chain_and_resid(first_residue_idx + local_resid - 1)
+        atom_idx_in_residue = residue_atom_counts.get(local_resid, 0)
+        residue_atom_counts[local_resid] = atom_idx_in_residue + 1
+
+        pdb_info = AtomPDBResidueInfo(
+            atomName=_atom_pdb_name(atom_prim, atom_idx_in_residue),
+            serialNumber=atom_idx + 1,
+            residueName=data.atom_resnames[atom_idx],
+            residueNumber=resid,
+            chainId=chain_id,
+            isHeteroAtom=True,
+        )
+        if data.atom_insertion_codes[atom_idx]:
+            pdb_info.SetInsertionCode(data.atom_insertion_codes[atom_idx])
+        rdkit_atom.SetMonomerInfo(pdb_info)
+        rdkit_atom.SetProp("residue_name", data.atom_resnames[atom_idx])
+        rdkit_atom.SetIntProp("residue_id", resid)
+        rdkit_atom.SetProp("chain_id", chain_id)
+        rdkit_atom.SetIntProp("mupt_segment_index", segment_idx)
+        rdkit_atom.SetProp("mupt_segment_label", str(data.segment.label))
+        rdkit_atom.SetIntProp("mupt_residue_index", local_resid)
+        rdkit_atom.SetProp("mupt_residue_label", data.atom_residue_labels[atom_idx])
+        rdkit_atom.SetIntProp("mupt_particle_index", atom_idx)
+        rdkit_atom.SetProp("mupt_particle_label", data.atom_particle_labels[atom_idx])
+        rdkit_atom.SetProp(
+            MUPT_HIERARCHY_PATH,
+            json.dumps(data.atom_hierarchy_paths[atom_idx], separators=(",", ":")),
+        )
+
+        idx = mol.AddAtom(rdkit_atom)
+        pos = data.atom_positions[atom_idx]
+        conf.SetAtomPosition(idx, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
+
+
+def _add_rdkit_bonds(mol: RWMol, data: RDKitMolData) -> None:
+    """Insert internal bonds and merged bond metadata."""
+    for (idx1, idx2), (parent, conn_refs) in zip(data.bonds, data.bond_refs):
+        conn1 = parent.fetch_connector_on_child(conn_refs[0])
+        conn2 = parent.fetch_connector_on_child(conn_refs[1])
+        mol.AddBond(idx1, idx2, order=conn1.bondtype)
+        bond = mol.GetBondBetweenAtoms(idx1, idx2)
+        bond_metadata: dict[str, RDPropType] = {
+            **conn1.metadata,
+            **conn2.metadata,
+        }
+        for bond_key, bond_value in bond_metadata.items():
+            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
+
+
+def _add_rdkit_linkers(mol: RWMol, conf: Conformer, data: RDKitMolData) -> None:
+    """Insert linker atoms and their bond metadata."""
+    for atom_idx, parent, conn_ref in data.linker_refs:
+        conn = parent.fetch_connector_on_child(conn_ref)
+        anchor_atom = mol.GetAtomWithIdx(atom_idx)
+        linker_idx = mol.AddAtom(Atom(0))
+        anchor_pdb_info = anchor_atom.GetPDBResidueInfo()
+        linker_atom = mol.GetAtomWithIdx(linker_idx)
+        if anchor_pdb_info is not None:
+            pdb_info = AtomPDBResidueInfo(
+                atomName=" *  ",
+                serialNumber=linker_idx + 1,
+                residueName=anchor_pdb_info.GetResidueName(),
+                residueNumber=anchor_pdb_info.GetResidueNumber(),
+                chainId=anchor_pdb_info.GetChainId(),
+                isHeteroAtom=True,
+            )
+            if anchor_pdb_info.GetInsertionCode():
+                pdb_info.SetInsertionCode(anchor_pdb_info.GetInsertionCode())
+            linker_atom.SetMonomerInfo(pdb_info)
+            linker_atom.SetProp("residue_name", anchor_atom.GetProp("residue_name"))
+            linker_atom.SetIntProp("residue_id", anchor_atom.GetIntProp("residue_id"))
+            linker_atom.SetProp("chain_id", anchor_atom.GetProp("chain_id"))
+        mol.AddBond(atom_idx, linker_idx, order=conn.bondtype)
+        conf.SetAtomPosition(
+            linker_idx,
+            Point3D(
+                float(conn.linker.position[0]),
+                float(conn.linker.position[1]),
+                float(conn.linker.position[2]),
+            ),
+        )
+        bond = mol.GetBondBetweenAtoms(atom_idx, linker_idx)
+        for bond_key, bond_value in conn.metadata.items():
+            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
+
+
+def _apply_rdkit_mol_metadata(mol: RWMol, data: RDKitMolData, root_metadata: dict) -> None:
+    """Attach root and segment metadata to one RDKit Mol."""
+    assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True)
+    mol.SetProp(MUPT_SERIALIZATION_KIND, MUPT_SAAMR_SDF_KIND)
+    mol.SetProp(MUPT_SERIALIZATION_VERSION, MUPT_SAAMR_SDF_VERSION)
+    if root_metadata:
+        mol.SetIntProp(MUPT_ROOT_METADATA_COUNT, len(root_metadata))
+        for idx, (key, value) in enumerate(root_metadata.items()):
+            mol.SetProp(f"{MUPT_ROOT_METADATA_KEY_PREFIX}{idx}", str(key))
+            assign_property_to_rdobj(
+                mol,
+                f"{MUPT_ROOT_METADATA_VALUE_PREFIX}{idx}",
+                value,
+                preserve_type=True,
+            )
+    if data.segment.label is not None:
+        mol.SetProp(RDMOL_NAME_WRITE_PROP, str(data.segment.label))
+    for key, value in data.segment.metadata.items():
+        if _is_root_metadata_transport_key(key):
+            raise ValueError(
+                f"Segment metadata key '{key}' is reserved for MuPT root metadata transport"
+            )
+        assign_property_to_rdobj(mol, key, value, preserve_type=True)
+
+
 def _mol_from_rdkit_data(
     data: RDKitMolData,
     segment_idx: int,
@@ -211,114 +335,10 @@ def _mol_from_rdkit_data(
     """
     mol = RWMol()
     conf = Conformer(len(data.atoms) + len(data.linker_refs))
-    residue_atom_counts: dict[int, int] = {}
-
-    for atom_idx, atom_prim in enumerate(data.atoms):
-        rdkit_atom = rdkit_atom_from_atomic_primitive(atom_prim)
-        local_resid = data.atom_resids[atom_idx]
-        chain_id, resid = _pdb_chain_and_resid(first_residue_idx + local_resid - 1)
-        atom_idx_in_residue = residue_atom_counts.get(local_resid, 0)
-        residue_atom_counts[local_resid] = atom_idx_in_residue + 1
-
-        pdb_info = AtomPDBResidueInfo(
-            atomName=_atom_pdb_name(atom_prim, atom_idx_in_residue),
-            serialNumber=atom_idx + 1,
-            residueName=data.atom_resnames[atom_idx],
-            residueNumber=resid,
-            chainId=chain_id,
-            isHeteroAtom=True,
-        )
-        if data.atom_insertion_codes[atom_idx]:
-            pdb_info.SetInsertionCode(data.atom_insertion_codes[atom_idx])
-        rdkit_atom.SetMonomerInfo(pdb_info)
-        rdkit_atom.SetProp("residue_name", data.atom_resnames[atom_idx])
-        rdkit_atom.SetIntProp("residue_id", resid)
-        rdkit_atom.SetProp("chain_id", chain_id)
-        # MuPT-specific fields preserve hierarchy for RDKit-file round trips.
-        rdkit_atom.SetIntProp("mupt_segment_index", segment_idx)
-        rdkit_atom.SetProp("mupt_segment_label", str(data.segment.label))
-        rdkit_atom.SetIntProp("mupt_residue_index", local_resid)
-        rdkit_atom.SetProp("mupt_residue_label", data.atom_residue_labels[atom_idx])
-        rdkit_atom.SetIntProp("mupt_particle_index", atom_idx)
-        rdkit_atom.SetProp("mupt_particle_label", data.atom_particle_labels[atom_idx])
-        # Draft issue #48 serialization: a per-atom path preserves arbitrary
-        # SAAMR-compliant grouping nodes beyond the flat segment/residue fields.
-        rdkit_atom.SetProp(
-            MUPT_HIERARCHY_PATH,
-            json.dumps(data.atom_hierarchy_paths[atom_idx], separators=(",", ":")),
-        )
-
-        idx = mol.AddAtom(rdkit_atom)
-        pos = data.atom_positions[atom_idx]
-        conf.SetAtomPosition(idx, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
-
-    for (idx1, idx2), (parent, conn_refs) in zip(data.bonds, data.bond_refs):
-        conn1 = parent.fetch_connector_on_child(conn_refs[0])
-        conn2 = parent.fetch_connector_on_child(conn_refs[1])
-        mol.AddBond(idx1, idx2, order=conn1.bondtype)
-        bond = mol.GetBondBetweenAtoms(idx1, idx2)
-        bond_metadata: dict[str, RDPropType] = {
-            **conn1.metadata,
-            **conn2.metadata,
-        }
-        for bond_key, bond_value in bond_metadata.items():
-            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
-
-    for atom_idx, parent, conn_ref in data.linker_refs:
-        conn = parent.fetch_connector_on_child(conn_ref)
-        anchor_atom = mol.GetAtomWithIdx(atom_idx)
-        linker_atom = Atom(0)
-        anchor_pdb_info = anchor_atom.GetPDBResidueInfo()
-        linker_idx = mol.AddAtom(linker_atom)
-        if anchor_pdb_info is not None:
-            pdb_info = AtomPDBResidueInfo(
-                atomName=" *  ",
-                serialNumber=linker_idx + 1,
-                residueName=anchor_pdb_info.GetResidueName(),
-                residueNumber=anchor_pdb_info.GetResidueNumber(),
-                chainId=anchor_pdb_info.GetChainId(),
-                isHeteroAtom=True,
-            )
-            if anchor_pdb_info.GetInsertionCode():
-                pdb_info.SetInsertionCode(anchor_pdb_info.GetInsertionCode())
-            mol.GetAtomWithIdx(linker_idx).SetMonomerInfo(pdb_info)
-            mol.GetAtomWithIdx(linker_idx).SetProp("residue_name", anchor_atom.GetProp("residue_name"))
-            mol.GetAtomWithIdx(linker_idx).SetIntProp("residue_id", anchor_atom.GetIntProp("residue_id"))
-            mol.GetAtomWithIdx(linker_idx).SetProp("chain_id", anchor_atom.GetProp("chain_id"))
-        mol.AddBond(atom_idx, linker_idx, order=conn.bondtype)
-        conf.SetAtomPosition(
-            linker_idx,
-            Point3D(
-                float(conn.linker.position[0]),
-                float(conn.linker.position[1]),
-                float(conn.linker.position[2]),
-            ),
-        )
-        bond = mol.GetBondBetweenAtoms(atom_idx, linker_idx)
-        for bond_key, bond_value in conn.metadata.items():
-            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
-
-    assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True)
-    mol.SetProp(MUPT_SERIALIZATION_KIND, MUPT_SAAMR_SDF_KIND)
-    mol.SetProp(MUPT_SERIALIZATION_VERSION, MUPT_SAAMR_SDF_VERSION)
-    if root_metadata:
-        mol.SetIntProp(MUPT_ROOT_METADATA_COUNT, len(root_metadata))
-        for idx, (key, value) in enumerate(root_metadata.items()):
-            mol.SetProp(f"{MUPT_ROOT_METADATA_KEY_PREFIX}{idx}", str(key))
-            assign_property_to_rdobj(
-                mol,
-                f"{MUPT_ROOT_METADATA_VALUE_PREFIX}{idx}",
-                value,
-                preserve_type=True,
-            )
-    if data.segment.label is not None:
-        mol.SetProp(RDMOL_NAME_WRITE_PROP, str(data.segment.label))
-    for key, value in data.segment.metadata.items():
-        if _is_root_metadata_transport_key(key):
-            raise ValueError(
-                f"Segment metadata key '{key}' is reserved for MuPT root metadata transport"
-            )
-        assign_property_to_rdobj(mol, key, value, preserve_type=True)
+    _add_rdkit_atoms(mol, conf, data, segment_idx, first_residue_idx)
+    _add_rdkit_bonds(mol, data)
+    _add_rdkit_linkers(mol, conf, data)
+    _apply_rdkit_mol_metadata(mol, data, root_metadata)
 
     mol.AddConformer(conf, assignId=True)
     final_mol = Mol(mol)
