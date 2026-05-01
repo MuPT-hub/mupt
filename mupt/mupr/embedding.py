@@ -30,9 +30,7 @@ from networkx import Graph
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
-# DEV: this module CANNOT import Primitive if circular imports are to be avoided
 from .connection import Connector, ConnectorHandle
-from .topology import TopologicalStructure
 
 
 class GraphEmbeddingError(ValueError):
@@ -49,9 +47,9 @@ class EdgeEmbeddingError(GraphEmbeddingError):
 
 
 def mapped_equivalence_classes(
-        objects : Iterable[T],
-        relation : Callable[[T, T], bool],
-    ) -> dict[Hashable, list[T]]:
+    objects : Iterable[T],
+    relation : Callable[[T, T], bool],
+) -> dict[Hashable, list[T]]:
     """
     Partition a collection of objects into equivalence classes by
     an equivalence relation defined on pairs of those objects
@@ -123,7 +121,7 @@ def flexible_connector_reference(
     
     
 def infer_connections_from_topology(
-    topology : TopologicalStructure,
+    topology : Graph,
     mapped_connectors : Mapping[PrimitiveHandle, Mapping[ConnectorHandle, Connector]],
     n_iter_max : int=25, # DEV: this is just a number I made up :P
 ) -> dict[frozenset[PrimitiveHandle], frozenset[ConnectorReference]]:
