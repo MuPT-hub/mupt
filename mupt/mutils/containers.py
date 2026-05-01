@@ -25,7 +25,7 @@ class Labelled(Protocol):
         
 LabelT = TypeVar('LabelT', bound=Hashable)
 HandleT = tuple[LabelT, int] # label uniquified with an additional arbitrary index
-LabelledT = TypeVar('LabelledT')
+LabelledT = TypeVar('LabelledT', bound=Labelled)
 
 class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
     '''
@@ -70,8 +70,10 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
         super().__setitem__(key, item)
 
-    def register(self, obj: LabelledT, label : Optional[LabelT]) -> HandleT:
+    def register(self, obj: LabelledT, label : Optional[LabelT]=None) -> HandleT:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
+        if label is None:
+            label = obj.label # DEV: opted for behavioral pattern, rather than explicit runtime_checkable Protocol enforcement
         handle = (label, self._get_uniquifying_index(label))
         super().__setitem__(handle, obj)
 
@@ -82,7 +84,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         handles : list[HandleT] = []
         if isinstance(collection, Mapping):
             for label, obj in collection.items():
-                handles.append(self.register(obj, label=label)) # type: ignore
+                handles.append(self.register(obj, label=label))
         else:
             for obj in collection:
                 handles.append(self.register(obj, label=None))

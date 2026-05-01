@@ -47,7 +47,6 @@ class RigidlyTransformable(Copyable, Protocol):
         return self.cumulative_transformation.inv()
 
     # in-place application of transformations
-    @abstractmethod
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         raise NotImplementedError # implement subclass-specific behavior here
         
@@ -61,7 +60,8 @@ class RigidlyTransformable(Copyable, Protocol):
         self.rigidly_transform(self.resetting_transformation)
 
     # copying and out-of-place applications of transformations
-    @abstractmethod
+    ## DEV: _copy_untransformed() is deliberately NOT an abstract method, as it's not required that child classes implement it;
+    ## ...if children don't implement it, they simply won't be able to perform copying or out-of-place transformations
     def _copy_untransformed(self) -> Self:
         '''Defines how to make a copy of an object with the same internal parts, but  without preserving it's cumulative transformation'''
         raise NotCopyableError(f'Class {self.__class__.__name__} does not define how instances should copy their parts')
@@ -87,9 +87,9 @@ class RigidlyTransformable(Copyable, Protocol):
         
         
 def apply_rigid_transformation_recursive(
-        obj : Union[object, Sequence[Any], Mapping[str, Any]],
-        transformation: RigidTransform,
-    ) -> Union[object, Sequence[Any], dict[str, Any]]:
+    obj : Union[object, Sequence[Any], Mapping[str, Any]],
+    transformation: RigidTransform,
+) -> Union[object, Sequence[Any], dict[str, Any]]:
     '''Apply a rigid transformation to an object, if it supports such a transformation, and
     if the object is a Sequence or Mapping, attempt to transform its members recursively
     
