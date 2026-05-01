@@ -19,10 +19,16 @@ from typing import (
     Self,
     TypeVar,
 )
+PrimitiveAddress = TypeVar('PrimitiveAddress', bound=int)
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveAddress = Hashable
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
+ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
+ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
+Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+
+from abc import abstractmethod
 from copy import deepcopy
 
 from anytree import NodeMixin, findall
