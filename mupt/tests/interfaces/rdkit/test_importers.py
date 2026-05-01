@@ -7,7 +7,7 @@ import json
 
 import pytest
 from rdkit.Chem.rdchem import Atom, AtomPDBResidueInfo, Mol, RWMol
-from rdkit.Chem.rdmolfiles import MolFromSmiles, SDWriter
+from rdkit.Chem.rdmolfiles import CreateAtomStringPropertyList, MolFromSmiles, SDWriter
 from rdkit.Chem.rdmolops import AddHs
 
 from mupt.mupr.connection import TraversalDirection
@@ -306,10 +306,11 @@ def test_primitive_from_mupt_sdf_rejects_inconsistent_hierarchy_prefix(
 ) -> None:
     sdf_path = tmp_path / "chain.sdf"
     mol = primitive_to_rdkit_mols(single_polyethylene_2mer, polyethylene_resname_map)[0]
-    atom = next(candidate for candidate in mol.GetAtoms() if candidate.GetAtomicNum() != 0)
+    atom = next(candidate for candidate in reversed(list(mol.GetAtoms())) if candidate.GetAtomicNum() != 0)
     path_entries = json.loads(atom.GetProp("mupt_hierarchy_path_json"))
     path_entries[0]["label"] = "other_segment"
     atom.SetProp("mupt_hierarchy_path_json", json.dumps(path_entries, separators=(",", ":")))
+    CreateAtomStringPropertyList(mol, "mupt_hierarchy_path_json", missingValueMarker="NA", lineSize=10000)
 
     _write_sdf(sdf_path, [mol])
 
