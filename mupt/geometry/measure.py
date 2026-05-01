@@ -3,10 +3,10 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Any, Optional, Union
+from typing import Optional, Union
 import numpy as np
 
-from .arraytypes import Shape, N, RealValuedNP, NumericNP, VectorN, ArrayNxN
+from .arraytypes import Shape, N, NumericNP, VectorN, ArrayNxN
 
 
 def normalize(
@@ -34,8 +34,8 @@ def normalized(
     return new_vector
 
 def within_ball(
-    position_1 : np.ndarray[Shape[N], RealValuedNP],
-    position_2 : np.ndarray[Shape[N], RealValuedNP],
+    position_1 : VectorN,
+    position_2 : VectorN,
     radius : float=1E-6,
 ) -> bool:
     '''Check that two vectors are within a certain absolute distance of one another'''

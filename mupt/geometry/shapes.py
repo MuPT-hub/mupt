@@ -14,24 +14,22 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from .arraytypes import (
     Shape,
-    Number,
     NumberLike,
     NumericNP,
-    M,
-    N,
-    P,
+    N, M, P,
     Vector3,
     Array3x3,
     Array4x4,
     ArrayNxN,
     ArrayNx3,
 )
+TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]] # DEV: might move this elsewhere later
 from .coordinates.basis import is_columnspace_mutually_orthogonal
 from .transforms.rigid.application import RigidlyTransformable
 
 
 @runtime_checkable # TODO: make class which composes transformability and boundedness (not necessarily the same a priori)
-class BoundedShape(RigidlyTransformable, Protocol):
+class BoundedShape(Protocol):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
     # measures of extent
     @property
@@ -52,18 +50,27 @@ class BoundedShape(RigidlyTransformable, Protocol):
         '''Whether a given coordinate lies within the boundary of the body'''
         ... 
 
+    @abstractmethod
+    def surface_mesh(self, *args, **kwargs) -> tuple[ArrayNx3, TriangulationIndices]:
+        '''
+        Generate a triangulated mesh of the surface of the shape which can be easily digested and plotted by mpl.plot_trisurf
+        
+        Returns
+        -------
+        mesh_points : Array[[N, 3], Numeric]
+            An Nx3 array of the XYZ positions of each point in the mesh
+        tri_vertices : Array[[T, 3], int]
+            A Tx3 array describing the T triples in the mesh, with each row being the triples of array indices of that triangle
+            For example, a row with [1,3,6] represents the triangle traversed counterclockwise from vertices 1 -> 3 -> 6 -> 1
+        '''
+        ...
+    
     # @abstractmethod
     # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
     #     '''Determines the furthest point on the surface of the body in a given direction'''
     #     ...
 
-    # @abstractmethod
-    # def surface_mesh(self, *args, **kwargs) -> np.ndarray[Shape[M, P, 3], Numeric]:
-    #     '''Generate a mesh surface representing the BoundedShape which can be easily digested and plotted by mpl.plot_surface'''
-    #     ...
-    
-@runtime_checkable
-class BoundedTransformableShape(BoundedShape, RigidlyTransformable, Protocol):
+class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
     ...
         
@@ -105,29 +112,42 @@ def ellipsoidal_mesh(
     rx : float,
     ry : Optional[float]=None,
     rz : Optional[float]=None,
-    n_theta : M=100,
-    n_phi : P=100,
-    transformation : Optional[RigidTransform]=None,
-) -> np.ndarray[Shape[M, P, Literal[3]], NumberLike]:
-    # TODO: flesh out docstring w/ Copilot
+    n_theta : int=30,
+    n_phi : int=30,
+    transformation : RigidTransform=RigidTransform.identity(),
+) -> tuple[ArrayNx3, TriangulationIndices]:
     ''' 
     Generate a mesh of points defining the surface of an ellipsoid 
     (i.e. generalized sphere with 3 independent, arbitrarily sized readii)
     
     Parameters
     ----------
-    n_theta : int, default 100
+    rx : float
+        Radius of the ellipsoid in the x-direction or,
+        if no other radii are provided, radius of the sphere
+    ry : Optional[float], default rx
+        Radius of the ellipsoid in the y-direction
+        If not explicitly provided, takes on the value assigned to rx
+    rz : Optional[float], default rx
+        Radius of the ellipsoid in the z-direction
+        If not explicitly provided, takes on the value assigned to rx
+    n_theta : int, default 30
         Number of points in the azimuthal angle direction
         Equivalent to longitudinal resolution
         
         Theta is taken to be the angle CC from the +x axis in the xy-plane,
         following the mathematics (not physics!) convention
-    n_phi : int, default 100
+    n_phi : int, default 30
         Number of points in the polar angle direction
         Equivalent to latitudinal resolution
         
         Phi is taken to be the angle "downwards" from the +z axis
         following the mathematics (not physics!) convention
+    transformation : RigidTransform, default RigidTransform.identity()
+        An additional rigid transformation (i.e. rotation + translation) 
+        to apply to the ellipsoid from it's defined reference position
+        
+        Defaults to the identity transformation, returning the unmodified mesh points
         
     Returns
     -------
@@ -141,22 +161,21 @@ def ellipsoidal_mesh(
     if rz is None:
         rz = ry
 
-    theta, phi = np.mgrid[
+    angles = theta, phi = np.mgrid[
         0.0:2*np.pi:n_theta*1j,
         0.0:np.pi:n_phi*1j,
     ] # (magnitude of) complex step size is interpreted by numpy as a number of points
+    triangulation = Delaunay(angles.reshape(2, -1).T) # note: .reshape(-1, 2) gives the right shape but NOT the right parity between parametric angles
 
     mesh_points = np.zeros((n_theta, n_phi, 3), dtype=float)
     mesh_points[..., 0] = rx * np.sin(phi) * np.cos(theta)
     mesh_points[..., 1] = ry * np.sin(phi) * np.sin(theta)
     mesh_points[..., 2] = rz * np.cos(phi)
     
-    if transformation is not None:
-        mesh_points = transformation.apply(
-            mesh_points.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array to allow RigidTransform.apply() to digest it
-        ).reshape(n_theta, n_phi, 3) # ...then repackage into mesh for convenient plotting
+    mesh_points = mesh_points.reshape(-1, 3) # flatten into (n_theta*n_phi)x3 array of XYZ positions
+    mesh_points = transformation.apply(mesh_points) # apply transform
 
-    return mesh_points
+    return mesh_points, triangulation.simplices
 
 class PointCloud(BoundedTransformableShape):
     '''A cluster of points in 3D space'''
@@ -186,7 +205,7 @@ class PointCloud(BoundedTransformableShape):
         '''Volume of the convex hull of the positions in this PointCloud'''
         return self.convex_hull.volume
     
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+    def contains(self, points : Union[Vector3, ArrayNx3]) -> bool:
         return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
 
     # fulfilling RigidlyTransformable contracts
@@ -197,12 +216,11 @@ class PointCloud(BoundedTransformableShape):
         self.positions = transformation.apply(self.positions)
 
     # visualization
-    def __repr__(self):
+    def __repr__(self) -> str: 
         return f'{self.__class__.__name__}(shape={self.positions.shape})'
 
-    # def surface_mesh(self) -> np.ndarray[Shape[M, P, 3], Numeric]:
-    #     # TODO: implement calculating this from ConvexHull
-    #     ...
+    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
+        return self.convex_hull.points, self.convex_hull.simplices
 
 class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     '''A spherical body with arbitrary radius and center'''
@@ -228,7 +246,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     def volume(self) -> float:
         return 4/3 * np.pi * self.radius**3
     
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+    def contains(self, points : Vector3 | ArrayNxN) -> bool:
         return (
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
@@ -247,12 +265,10 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
         self.center = transformation.apply(self.center)
 
     # visualization
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}(radius={self.radius})'
 
-    def surface_mesh(self, n_theta : M=100, n_phi : P=100) -> np.ndarray[Shape[M, P, Literal[3]], NumberLike]:
-        # TODO: fill in docstring
-        ''''''
+    def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
         return ellipsoidal_mesh(
             rx=self.radius,
             # ry, rz forced to match rx if not passed explicitly
@@ -306,7 +322,7 @@ class Ellipsoid(BoundedTransformableShape):
             center=np.array([center_x, center_y, center_z], dtype=float),
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str: 
         return f'{self.__class__.__name__}(radii={self.radii}, center={self.center})'
 
     # Matrix representations of the Ellipsoid
@@ -379,7 +395,7 @@ class Ellipsoid(BoundedTransformableShape):
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determination of rotation is always 1, so we may as well skip it and the whole determinant calculation
 
-    def contains(self, points : np.ndarray[Union[Shape[3], Shape[N, 3]]]) -> bool:
+    def contains(self, points : Vector3 | ArrayNxN) -> bool:
         return ( 
             np.linalg.norm( # NOTE: not applying self.inverse to points because the Ellipsoid basis matrix is not, in general, a rigid transformation
                 np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
@@ -398,19 +414,19 @@ class Ellipsoid(BoundedTransformableShape):
         self.center = transformation.apply(self.center)
     
     # visualization   
-    def surface_mesh(self, n_theta : M=100, n_phi : P=100) -> np.ndarray[Shape[M, P, Literal[3]], NumericNP]:
+    def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
         '''
         Generate a mesh of points on the surface of this Ellipsoid
         
         Parameters
         ----------
-        n_theta : int, default 100
+        n_theta : int, default 30
             Number of points in the azimuthal angle direction
             Equivalent to longitudinal resolution
             
             Theta is taken to be the angle CC from the +x axis in the xy-plane,
             following the mathematics (not physics!) convention
-        n_phi : int, default 100
+        n_phi : int, default 30
             Number of points in the polar angle direction
             Equivalent to latitudinal resolution
             
