@@ -9,7 +9,13 @@ import numpy as np
 from scipy.spatial.transform import RigidTransform
 
 from .shapes import BoundedTransformableShape
-from ..arraytypes import NumberLike, Vector3, ArrayNx3, TriangulationIndices
+from ..arraytypes import (
+    NumberLike,
+    Vector3,
+    ArrayNx3,
+    TriangulationIndices,
+    BitVectorN,
+)
 from ..measure import normalized
 
 
@@ -72,7 +78,7 @@ class Cylinder(BoundedTransformableShape):
     def volume(self) -> NumberLike:
         return np.pi * self.radius**2 * self.length
     
-    def contains(self, points : Vector3 | ArrayNx3) -> bool:
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
         points_centered = np.atleast_2d(points - self.center)
          # double-transpose needed to get broadcast for multiplication right
         points_axial = (np.dot(points_centered, self.axis_normal) * points_centered.T).T
@@ -100,8 +106,6 @@ class Cylinder(BoundedTransformableShape):
         self.axis_normal = transformation.apply(self.axis_normal)
 
     def surface_mesh(self, n_theta : int=30, n_z : int=5) -> tuple[ArrayNx3, TriangulationIndices]:
-        n_r, n_theta = 100, 200
-
         # # calculate cylinder wall coordinates
         # r, theta = np.mgrid[0.0:R:n_r*1j, 0.0:2*np.pi:n_theta*1j]
         # x_cyl = R * np.cos(theta) # fix radius for walls
@@ -121,5 +125,6 @@ class Cylinder(BoundedTransformableShape):
 
         # apply transform to position in space
         ## TODO: triangulate + append face midpoints to triangulation
+        ...
     
 Rod = Cylinder # alias for convenience

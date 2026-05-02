@@ -6,12 +6,15 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import Optional, Protocol, runtime_checkable
 from abc import abstractmethod
 
+from numpy import ndarray
+
 from ..arraytypes import (
     NumberLike,
     Vector3,
     ArrayNxN,
     ArrayNx3,
     TriangulationIndices,
+    BitVectorN,
 )
 from ..transforms.rigid.application import RigidlyTransformable
 
@@ -34,7 +37,7 @@ class BoundedShape(Protocol):
         ...
         
     @abstractmethod
-    def contains(self, points : Vector3 | ArrayNxN) -> bool: 
+    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN: 
         '''Whether a given coordinate lies within the boundary of the body'''
         ...
 

@@ -18,6 +18,7 @@ from ..arraytypes import (
     ArrayNxN,
     ArrayNx3,
     TriangulationIndices,
+    BitVectorN,
 )
 from ..coordinates.basis import is_columnspace_mutually_orthogonal
 
@@ -124,7 +125,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     def volume(self) -> float:
         return 4/3 * np.pi * self.radius**3
     
-    def contains(self, points : Vector3 | ArrayNxN) -> bool:
+    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
         return (
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
@@ -272,7 +273,7 @@ class Ellipsoid(BoundedTransformableShape):
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
 
-    def contains(self, points : Vector3 | ArrayNxN) -> bool:
+    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
         return ( 
             # NOTE: not applying self.inverse to points because the
             # Ellipsoid basis matrix is not, in general, a rigid transformation

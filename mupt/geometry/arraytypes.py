@@ -21,6 +21,7 @@ from numbers import Number, Real
 NumberLike = Union[np.number, Number, float] # DEV: stupidly, but "float" does not typehint as Number in static type checkers, so have to add it manually
 Numeric = TypeVar('Numeric', bound=Number)
 NumericNP = TypeVar('NumericNP', bound=np.dtype[np.number])
+BoolNP = TypeVar('BoolNP', bound=np.dtype[np.bool])
 
 # RealValued = TypeVar('RealValued', bound=Real)
 # RealValuedNP = TypeVar('RealValuedNP', bound=np.dtype[np.floating])
@@ -60,6 +61,7 @@ ArrayNxM = np.ndarray[Shape[N, M], NumericNP]
 ArrayMxN = np.ndarray[Shape[M, N], NumericNP]
 
 TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]]
+BitVectorN = np.ndarray[Shape[N], BoolNP]
 
 # vector comparison
 def as_n_vector(vectorlike : np.ndarray[Shape[N], DType], n : N=3) -> np.ndarray[Shape[N], DType]:
