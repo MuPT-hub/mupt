@@ -19,15 +19,14 @@ def visualize_shape(
     '''Convenience interface for plotting a surface mesh for a class implementing the BoundedShape Protocol'''
     if ax is None:
         fig = figure()
-        ax = fig.add_subplot(
-            projection='3d',
-            autoscale_on=True,
-        )
+        ax = fig.add_subplot(projection='3d')
     elif not isinstance(ax, Axes):
         raise TypeError(f'Require matplotlib Axes-like for shape mesh drawing, not {type(ax).__name__}')
     elif not isinstance(ax, Axes3D):
         raise ValueError('Provided Axes are not 3D, and cannot support shape mesh drawing')
 
+    fig.set_tight_layout(True)
+    ax.set_autoscale_on(True)
     if grid:
         ax.set_axis_on()
     else:
