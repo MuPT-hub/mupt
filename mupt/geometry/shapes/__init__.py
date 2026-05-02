@@ -7,3 +7,4 @@ from .shapes import BoundedShape, BoundedTransformableShape, Shaped
 from .pointcloud import PointCloud
 from .ellipsoid import Sphere, Ellipsoid
 from .cylinder import Rod, Cylinder
+from .visualize import visualize_shape
