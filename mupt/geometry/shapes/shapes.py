@@ -36,7 +36,12 @@ class BoundedShape(Protocol):
     @abstractmethod
     def contains(self, points : Vector3 | ArrayNxN) -> bool: 
         '''Whether a given coordinate lies within the boundary of the body'''
-        ... 
+        ...
+
+    @abstractmethod
+    def scale(self, scaling_factor : float) -> None:
+        "Scale the shape uniformly about its centroid by the specified factor"
+        ...
 
     @abstractmethod
     def surface_mesh(self, *args, **kwargs) -> tuple[ArrayNx3, TriangulationIndices]:
@@ -60,7 +65,14 @@ class BoundedShape(Protocol):
 
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    ...
+    def scaled(self, scaling_factor : float) -> BoundedTransformableShape:
+        """
+        Return scaled copy of this shape
+        """ 
+        new_shape = self.copy() # works because RigidlyTransformable is also expected to be copyable
+        new_shape.scale(scaling_factor)
+        
+        return new_shape
         
 class Shaped(Protocol):
     '''Interface for objects which have an associated bounded, tranformable shape'''

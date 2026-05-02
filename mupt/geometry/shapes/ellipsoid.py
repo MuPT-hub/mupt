@@ -106,6 +106,9 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
         self.center = center
         self.cumulative_transformation *= RigidTransform.from_translation(center)
     
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(radius={self.radius})'
+    
     # fulfilling BoundedShape contracts
     @property
     def centroid(self) -> Vector3:
@@ -122,20 +125,9 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
                 axis=1, # TODO: 
             ) < self.radius  # TODO: decide whether containment should be boundary-inclusive
         ).astype(object)
-
-    # fulfilling RigidlyTransformable contracts
-    def _copy_untransformed(self) -> 'Sphere':
-        return self.__class__(
-            radius=self.radius,
-            center=np.array(self.center),
-        )
-
-    def _rigidly_transform(self, transformation : RigidTransform) -> None:
-        self.center = transformation.apply(self.center)
-
-    # visualization
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(radius={self.radius})'
+    
+    def scale(self, scaling_factor : float) -> None:
+        self.radius *= scaling_factor
 
     def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
         return ellipsoidal_mesh(
@@ -145,6 +137,16 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
             n_phi=n_phi,
             transformation=self.cumulative_transformation,
         )
+    
+    # fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'Sphere':
+        return self.__class__(
+            radius=self.radius,
+            center=np.array(self.center),
+        )
+
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.center = transformation.apply(self.center)
     
 class Ellipsoid(BoundedTransformableShape):
     '''
@@ -262,27 +264,22 @@ class Ellipsoid(BoundedTransformableShape):
     @property
     def volume(self) -> NumberLike:
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
-        return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determination of rotation is always 1, so we may as well skip it and the whole determinant calculation
+        return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
 
     def contains(self, points : Vector3 | ArrayNxN) -> bool:
         return ( 
-            np.linalg.norm( # NOTE: not applying self.inverse to points because the Ellipsoid basis matrix is not, in general, a rigid transformation
-                np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), # reduce containment check to comparison with auxiliary unit sphere
+            # NOTE: not applying self.inverse to points because the
+            # Ellipsoid basis matrix is not, in general, a rigid transformation
+            np.linalg.norm( 
+                # reduce containment check to comparison with auxiliary unit sphere
+                np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), 
                 axis=1,
             ) < 1 # TODO: decide whether containment should be boundary-inclusive
         ).astype(object) # need to cast from numpy bool to Python bool
-
-    # fulfilling RigidlyTransformable contracts
-    def _copy_untransformed(self) -> 'Ellipsoid':
-        return self.__class__(
-            radii=np.array(self.radii),
-            center=np.array(self.center),
-        )
-
-    def _rigidly_transform(self, transformation : RigidTransform) -> None:
-        self.center = transformation.apply(self.center)
     
-    # visualization   
+    def scale(self, scaling_factor : float) -> None:
+        self.radii *= scaling_factor
+
     def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
         '''
         Generate a mesh of points on the surface of this Ellipsoid
@@ -315,3 +312,13 @@ class Ellipsoid(BoundedTransformableShape):
             n_phi=n_phi,
             transformation=self.cumulative_transformation,
         )
+
+    # fulfilling RigidlyTransformable contracts
+    def _copy_untransformed(self) -> 'Ellipsoid':
+        return self.__class__(
+            radii=np.array(self.radii),
+            center=np.array(self.center),
+        )
+
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.center = transformation.apply(self.center)

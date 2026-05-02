@@ -21,6 +21,9 @@ class PointCloud(BoundedTransformableShape):
             positions = np.empty((0, 3), dtype=float)
         self.positions = np.atleast_2d(positions)
 
+    def __repr__(self) -> str: 
+        return f'{self.__class__.__name__}(shape={self.positions.shape})'
+    
     @cached_property
     def convex_hull(self) -> ConvexHull:
         '''Convex hull of the points contained within'''
@@ -45,16 +48,15 @@ class PointCloud(BoundedTransformableShape):
     def contains(self, points : Vector3 | ArrayNx3) -> bool:
         return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
 
+    def scale(self, scaling_factor : float) -> None:
+        self.positions = scaling_factor*(self.positions - self.centroid) + self.centroid
+
+    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
+        return self.convex_hull.points, self.convex_hull.simplices
+    
     # fulfilling RigidlyTransformable contracts
     def _copy_untransformed(self) -> 'PointCloud':
         return self.__class__(positions=np.array(self.positions))
 
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         self.positions = transformation.apply(self.positions)
-
-    # visualization
-    def __repr__(self) -> str: 
-        return f'{self.__class__.__name__}(shape={self.positions.shape})'
-
-    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
-        return self.convex_hull.points, self.convex_hull.simplices
