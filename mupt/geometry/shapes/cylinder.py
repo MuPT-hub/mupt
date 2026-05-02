@@ -44,6 +44,16 @@ class Cylinder(BoundedTransformableShape):
         return f'{self.__class__.__name__}(radius={self.radius}, length={self.length})'
     
     @property
+    def R(self) -> float:
+        '''Alias for self.radius'''
+        return self.radius
+
+    @property
+    def L(self) -> float:
+        '''Alias for self.radius'''
+        return self.length
+
+    @property
     def axis(self) -> Vector3:
         '''Th vector spanning from the centroid to the center of the leading face'''
         return (self.length / 2) * self.axis_normal

@@ -93,7 +93,8 @@ def ellipsoidal_mesh(
 
 class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
     '''A spherical body with arbitrary radius and center'''
-    def __init__(self,
+    def __init__(
+        self,
         radius : float=1.0,
         center : Optional[Vector3]=None,
     ) -> None:
@@ -109,6 +110,11 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(radius={self.radius})'
     
+    @property
+    def R(self) -> float:
+        '''Alias for self.radius'''
+        return self.radius
+
     # fulfilling BoundedShape contracts
     @property
     def centroid(self) -> Vector3:
@@ -123,7 +129,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
                 axis=1, # TODO: 
-            ) < self.radius  # TODO: decide whether containment should be boundary-inclusive
+            ) <= self.radius
         ).astype(object)
     
     def scale(self, scaling_factor : float) -> None:
