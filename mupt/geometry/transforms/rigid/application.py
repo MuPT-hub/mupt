@@ -5,7 +5,6 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Mapping, Self, Sequence, Union
 from typing import Protocol, runtime_checkable
-from abc import abstractmethod
 
 from scipy.spatial.transform import RigidTransform
 
