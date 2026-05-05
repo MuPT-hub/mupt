@@ -19,6 +19,7 @@ from rdkit.Chem.rdmolfiles import CreateAtomStringPropertyList, SDWriter
 from ..geometry.arraytypes import Shape
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
+from ..mutils.filepaths.pathutils import asstrpath
 from ..mupr.primitives import Primitive
 
 
@@ -45,7 +46,7 @@ def write_primitive_to_sdf(
     molecule in memory.
     """
     records = 0
-    writer = SDWriter(str(path))
+    writer = SDWriter(asstrpath(path))
     try:
         for mol in primitive_to_rdkit_mols(
             primitive,
