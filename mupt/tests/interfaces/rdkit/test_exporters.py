@@ -8,9 +8,11 @@ __email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import pytest
 from anytree import PreOrderIter
+from rdkit import Chem
 
 from mupt.chemistry import ELEMENTS
 from mupt.interfaces.rdkit import AllAtomRDKitExportStrategy, primitive_to_rdkit_mols
+from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 
@@ -34,6 +36,18 @@ def _count_internal_connections(root: Primitive) -> int:
         for node in PreOrderIter(root)
         if not node.is_leaf
     )
+
+
+def _universe_from_residue(residue: Primitive) -> Primitive:
+    """Wrap a repeat-unit primitive in the role-aware SAAMR hierarchy."""
+    residue.role = PrimitiveRole.RESIDUE
+    for atom in residue.leaves:
+        atom.role = PrimitiveRole.PARTICLE
+    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(residue)
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(segment)
+    return universe
 
 
 def test_primitive_to_rdkit_mols_returns_one_mol_per_segment(
@@ -133,3 +147,45 @@ def test_primitive_to_rdkit_mols_rejects_unassigned_root():
 
     with pytest.raises(ValueError, match="UNIVERSE"):
         _rdkit_mols(universe, {"res": "RES"})
+
+
+@pytest.mark.parametrize(
+    "label,smiles",
+    [
+        ("mid_thiophene", "*-[C:1]1=C-C=[C:2](-S-1)-*"),
+        ("mid_pyrrole", "*-[C:1]1=C-C=[C:2](-[NH]-1)-*"),
+        (
+            "mid_pyromellitimide",
+            "*-[N:1]1C(=O)c2c(C(=O)1)cc3c(c2)C(=O)[N:2](C(=O)3)-*",
+        ),
+    ],
+)
+def test_primitive_to_rdkit_mols_exports_heterocyclic_aromatics(label, smiles):
+    """Regression coverage for issue #31 on the role-aware exporter path."""
+    residue = primitive_from_smiles(smiles, ensure_explicit_Hs=True, label=label)
+    universe = _universe_from_residue(residue)
+
+    mols = _rdkit_mols(universe, {label: "UNK"})
+
+    assert len(mols) == 1
+    assert mols[0].GetNumAtoms() == len(residue.leaves) + len(universe.children[0].external_connectors)
+    assert mols[0].GetNumBonds() == _count_internal_connections(residue) + len(universe.children[0].external_connectors)
+
+
+def test_primitive_to_rdkit_mols_preserves_valid_thiophene_chemistry():
+    """Issue #31: heteroaromatic thiophene exports remain RDKit-sanitizable."""
+    residue = primitive_from_smiles(
+        "*-[C:1]1=C-C=[C:2](-S-1)-*",
+        ensure_explicit_Hs=True,
+        label="mid_thiophene",
+    )
+    universe = _universe_from_residue(residue)
+
+    mol = _rdkit_mols(universe, {"mid_thiophene": "THI"})[0]
+    Chem.SanitizeMol(Chem.Mol(mol))
+
+    assert [atom.GetAtomicNum() for atom in mol.GetAtoms()].count(0) == 2
+    assert [atom.GetSymbol() for atom in mol.GetAtoms()].count("S") == 1
+    assert any(bond.GetIsAromatic() for bond in mol.GetBonds())
+    sulfur = next(atom for atom in mol.GetAtoms() if atom.GetSymbol() == "S")
+    assert sulfur.GetTotalValence() == 2
