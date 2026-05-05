@@ -68,7 +68,7 @@ class BoundedShape(Protocol):
 
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    def scaled(self, scaling_factor : float) -> BoundedTransformableShape:
+    def scaled(self, scaling_factor : float) -> 'BoundedTransformableShape':
         """
         Return scaled copy of this shape
         """ 
