@@ -15,6 +15,7 @@ from .._shared.topology import (
     _pdb_resname,
     build_saamr_role_topology_index,
     connector_reference_sort_key,
+    iter_saamr_residue_records,
     resolve_to_atom_cached,
 )
 
@@ -89,12 +90,12 @@ class AllAtomExportStrategy(MDAExportStrategy):
         """Walk the hierarchy once and gather MDAnalysis topology arrays/lists."""
         index = build_saamr_role_topology_index(root)
         data = MDATopologyData()
+        residue_records = list(iter_saamr_residue_records(index))
 
         particles = [
             atom
-            for segment in index.segments
-            for residue in index.residues_by_segment[id(segment)]
-            for atom in index.particles_by_residue[id(residue)]
+            for residue_record in residue_records
+            for atom in residue_record.particles
         ]
         n_atoms = len(particles)
         atom_id_to_global: dict[int, int] = {
@@ -115,20 +116,15 @@ class AllAtomExportStrategy(MDAExportStrategy):
                 data.atom_positions.append(list(self.default_atom_position))
 
         data.num_segments = len(index.segments)
-        for seg_idx, segment in enumerate(index.segments):
-            for resid_counter, residue in enumerate(
-                index.residues_by_segment[id(segment)],
-                start=1,
-            ):
-                data.residue_names.append(_pdb_resname(residue.label, resname_map))
-                data.residue_segindex.append(seg_idx)
-                data.residue_ids.append(resid_counter)
+        for residue_record in residue_records:
+            data.residue_names.append(_pdb_resname(residue_record.residue.label, resname_map))
+            data.residue_segindex.append(residue_record.segment_idx)
+            data.residue_ids.append(residue_record.residue_idx)
 
-                res_global_idx = len(data.residue_names) - 1
-                for atom in index.particles_by_residue[id(residue)]:
-                    atom_global_idx = atom_id_to_global[id(atom)]
-                    data.atom_resindex[atom_global_idx] = res_global_idx
-                    data.atom_segindex[atom_global_idx] = seg_idx
+            for atom in residue_record.particles:
+                atom_global_idx = atom_id_to_global[id(atom)]
+                data.atom_resindex[atom_global_idx] = residue_record.residue_global_idx
+                data.atom_segindex[atom_global_idx] = residue_record.segment_idx
 
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
         for node in index.bond_nodes:
