@@ -62,18 +62,4 @@ def write_primitive_to_sdf(
     return records
 
 
-def write_primitive_to_mupt_sdf(
-    primitive: Primitive,
-    path: str | Path,
-    resname_map: dict[str, str],
-    default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
-    strategy: Optional[RDKitExportStrategy] = None,
-) -> int:
-    """Compatibility alias for :func:`write_primitive_to_sdf`."""
-    return write_primitive_to_sdf(
-        primitive,
-        path,
-        resname_map=resname_map,
-        default_atom_position=default_atom_position,
-        strategy=strategy,
-    )
+write_primitive_to_mupt_sdf = write_primitive_to_sdf
