@@ -16,6 +16,7 @@ from .._shared.topology import (
     _pdb_resname,
     build_saamr_role_topology_index,
     connector_reference_sort_key,
+    iter_saamr_residue_records,
     resolve_to_atom_cached,
 )
 
@@ -81,15 +82,17 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         """Yield one RDKit topology dataset per SEGMENT-role node."""
         index = build_saamr_role_topology_index(root)
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
+        residue_records_by_segment = {id(segment): [] for segment in index.segments}
+        for residue_record in iter_saamr_residue_records(index):
+            residue_records_by_segment[id(residue_record.segment)].append(residue_record)
 
         for segment in index.segments:
             data = RDKitMolData(segment=segment)
             atom_id_to_local: dict[int, int] = {}
-            resid_counter = 1
 
-            for residue in index.residues_by_segment[id(segment)]:
-                resname = _pdb_resname(residue.label, resname_map)
-                for atom in index.particles_by_residue[id(residue)]:
+            for residue_record in residue_records_by_segment[id(segment)]:
+                resname = _pdb_resname(residue_record.residue.label, resname_map)
+                for atom in residue_record.particles:
                     atom_id_to_local[id(atom)] = len(data.atoms)
                     data.atoms.append(atom)
                     if atom.shape is not None:
@@ -97,11 +100,10 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     else:
                         data.atom_positions.append(self.default_atom_position)
                     data.atom_resnames.append(resname)
-                    data.atom_insertion_codes.append(str(residue.metadata.get("pdb_insertion_code", "")))
-                    data.atom_residue_labels.append(str(residue.label))
+                    data.atom_insertion_codes.append(str(residue_record.residue.metadata.get("pdb_insertion_code", "")))
+                    data.atom_residue_labels.append(str(residue_record.residue.label))
                     data.atom_particle_labels.append(str(atom.label))
-                    data.atom_resids.append(resid_counter)
-                resid_counter += 1
+                    data.atom_resids.append(residue_record.residue_idx)
 
             bonds_set: set[tuple[int, int]] = set()
             for node in index.bond_nodes_by_segment[id(segment)]:
