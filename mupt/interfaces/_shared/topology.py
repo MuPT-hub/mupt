@@ -3,12 +3,12 @@
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
-from collections.abc import Hashable
+from collections.abc import Hashable, Iterator
 from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
 from ...mupr.embedding import ConnectorReference
-from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.primitives import Primitive
 from ...roles import PrimitiveRole
 
 
@@ -22,6 +22,18 @@ class SAAMRRoleTopologyIndex:
     segment_of_node: dict[int, Primitive] = field(default_factory=dict)
     bond_nodes: list[Primitive] = field(default_factory=list)
     bond_nodes_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SAAMRResidueRecord:
+    """One RESIDUE-role node and its role-aware traversal context."""
+
+    segment_idx: int
+    segment: Primitive
+    residue_idx: int
+    residue_global_idx: int
+    residue: Primitive
+    particles: tuple[Primitive, ...]
 
 
 def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
@@ -138,6 +150,27 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
     return index
 
 
+def iter_saamr_residue_records(
+    index: SAAMRRoleTopologyIndex,
+) -> Iterator[SAAMRResidueRecord]:
+    """Yield RESIDUE-role records in deterministic SAAMR traversal order."""
+    residue_global_idx = 0
+    for segment_idx, segment in enumerate(index.segments):
+        for residue_idx, residue in enumerate(
+            index.residues_by_segment[id(segment)],
+            start=1,
+        ):
+            yield SAAMRResidueRecord(
+                segment_idx=segment_idx,
+                segment=segment,
+                residue_idx=residue_idx,
+                residue_global_idx=residue_global_idx,
+                residue=residue,
+                particles=tuple(index.particles_by_residue[id(residue)]),
+            )
+            residue_global_idx += 1
+
+
 def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
     """Map a residue label to a PDB-compliant 3-character residue name."""
     label = str(label)
@@ -154,14 +187,6 @@ def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
 def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str]:
     """Return a deterministic key for connector refs with arbitrary hashable handles."""
     return (repr(conn_ref.primitive_handle), repr(conn_ref.connector_handle))
-
-
-def _child_handle(parent: Primitive, child: Primitive) -> PrimitiveHandle:
-    """Return the parent-local handle for a known child Primitive."""
-    for handle, candidate in parent.children_by_handle.items():
-        if candidate is child:
-            return handle
-    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
 
 
 def _resolve_to_atom(
