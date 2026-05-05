@@ -1,7 +1,7 @@
 '''Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
+__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
+__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 
 from .selection import (
@@ -26,7 +26,11 @@ from .components import (
     connectors_from_rdkit,
 )
 from .importers import primitive_from_rdkit
-from .exporters import primitive_to_rdkit
+from .exporters import primitive_to_rdkit, primitive_to_rdkit_mols
+from .strategies import (
+    RDKitExportStrategy,
+    AllAtomRDKitExportStrategy,
+)
 from .depiction import (
     set_rdkdraw_size,
     show_substruct_highlights,
