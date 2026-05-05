@@ -144,6 +144,17 @@ def primitive_to_rdkit(
 
 PDB_CHAIN_IDS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 PDB_MAX_RESIDUE_NUMBER = 9999
+MUPT_RDKIT_ATOM_PROPS = (
+    "chain_id",
+    "residue_id",
+    "residue_name",
+    "mupt_segment_index",
+    "mupt_segment_label",
+    "mupt_residue_index",
+    "mupt_residue_label",
+    "mupt_particle_index",
+    "mupt_particle_label",
+)
 
 
 def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:

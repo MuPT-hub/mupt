@@ -17,22 +17,12 @@ from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import CreateAtomStringPropertyList, SDWriter
 
 from ..geometry.arraytypes import Shape
-from ..interfaces.rdkit.exporters import primitive_to_rdkit_mols
+from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
 from ..mupr.primitives import Primitive
 
 
-MUPT_SDF_ATOM_PROPS = (
-    "chain_id",
-    "residue_id",
-    "residue_name",
-    "mupt_segment_index",
-    "mupt_segment_label",
-    "mupt_residue_index",
-    "mupt_residue_label",
-    "mupt_particle_index",
-    "mupt_particle_label",
-)
+MUPT_SDF_ATOM_PROPS = MUPT_RDKIT_ATOM_PROPS
 
 
 def prepare_mupt_sdf_atom_props(mol: Mol) -> None:
