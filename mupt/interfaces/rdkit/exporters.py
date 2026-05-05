@@ -47,7 +47,12 @@ def primitive_to_rdkit(
     '''
     Convert a Primitive hierarchy to an RDKit Mol
     Will return as single Mol instance, even is underlying Primitive represents a collection of multiple disconnected molecules
-    
+
+    DEV: This is the legacy flattened exporter. We recommend replacing downstream
+    workflows with primitive_to_rdkit_mols() and removing this path after reviewer
+    approval, rather than abstracting shared bond or metadata helpers around code
+    that is likely to be retired.
+
     Will set spatial positions for each atom ("default_atom_position" if not assigned per atom) to a Conformer bound to the returned Mol
     '''
     if default_atom_position is None:
