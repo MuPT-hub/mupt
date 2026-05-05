@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
 from ...mupr.embedding import ConnectorReference
-from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.primitives import Primitive
 from ...roles import PrimitiveRole
 
 
@@ -187,14 +187,6 @@ def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
 def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str]:
     """Return a deterministic key for connector refs with arbitrary hashable handles."""
     return (repr(conn_ref.primitive_handle), repr(conn_ref.connector_handle))
-
-
-def _child_handle(parent: Primitive, child: Primitive) -> PrimitiveHandle:
-    """Return the parent-local handle for a known child Primitive."""
-    for handle, candidate in parent.children_by_handle.items():
-        if candidate is child:
-            return handle
-    raise ValueError(f"Child '{child.label}' is not attached to parent '{parent.label}'")
 
 
 def _resolve_to_atom(
