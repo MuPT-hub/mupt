@@ -66,10 +66,12 @@ def ellipsoidal_mesh(
         
     Returns
     -------
-    ellipsoid_mesh : Array[[M, P, 3], float]
-        A mesh of points on the surface of the Ellipsoid
+    mesh_points : ndarray[[MxP, 3], float]
+        The points fo the 3D mesh on the surface of the cylinder
         M is the number of points in the azimuthal direction
         P is the number of points in the polar direction
+    triangles : ndarray[[T, 3], int]
+        Array of the triples of indices defining triangular faces in the mesh 
     '''
     if ry is None:
         ry = rx
@@ -274,45 +276,20 @@ class Ellipsoid(BoundedTransformableShape):
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
 
     def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
+        # Reduce containment check to comparison with auxiliary unit sphere
+        # NB: not applying self.inverse to points because the Ellipsoid basis
+        # matrix in general not a rigid transformation because of axial stretching
         return ( 
-            # Reduce containment check to comparison with auxiliary unit sphere
-            # NB: not applying self.inverse to points because the Ellipsoid basis
-            # matrix in general not a rigid transformation because of axial stretching
             np.linalg.norm( 
                 np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), 
                 axis=1,
-            ) =< 1
+            ) <= 1
         ).astype(object) # need to cast from numpy bool to Python bool
     
     def scale(self, scaling_factor : float) -> None:
         self.radii *= scaling_factor
 
     def surface_mesh(self, n_theta : int=30, n_phi : int=30) -> tuple[ArrayNx3, TriangulationIndices]:
-        '''
-        Generate a mesh of points on the surface of this Ellipsoid
-        
-        Parameters
-        ----------
-        n_theta : int, default 30
-            Number of points in the azimuthal angle direction
-            Equivalent to longitudinal resolution
-            
-            Theta is taken to be the angle CC from the +x axis in the xy-plane,
-            following the mathematics (not physics!) convention
-        n_phi : int, default 30
-            Number of points in the polar angle direction
-            Equivalent to latitudinal resolution
-            
-            Phi is taken to be the angle "downwards" from the +z axis
-            following the mathematics (not physics!) convention
-            
-        Returns
-        -------
-        ellipsoid_mesh : Array[[M, P, 3], float]
-            A mesh of points on the surface of the Ellipsoid
-            M is the number of points in the azimuthal direction
-            P is the number of points in the polar direction
-        '''
         return ellipsoidal_mesh(
             *self.radii,
             n_theta=n_theta,
