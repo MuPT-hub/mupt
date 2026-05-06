@@ -154,8 +154,8 @@ class Cylinder(BoundedTransformableShape):
     def from_radius_and_axis(
         cls,
         radius : float,
-        center : Vector3,
         axis_vector : Vector3,
+        center : Optional[Vector3]=None,
     ) -> 'Cylinder':
         '''
         Initialize Cylinder from axial vector (whose length is
