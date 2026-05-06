@@ -11,7 +11,22 @@ from scipy.spatial.transform import Rotation, RigidTransform
 from mupt.geometry.shapes import (
     visualize_shape,
     BoundedShape,
+    BoundedTransformableShape,
     PointCloud,
+    Cylinder,
     Sphere,
     Ellipsoid,
 )
+
+
+def test_volume(shape : BoundedShape) -> None:
+    ...
+
+def test_scaling(shape : BoundedShape) -> None:
+    ...
+
+def test_containment(shape : BoundedShape) -> None:
+    ...
+
+def test_rigid_transforms(shape : BoundedTransformableShape) -> None:
+    ...
