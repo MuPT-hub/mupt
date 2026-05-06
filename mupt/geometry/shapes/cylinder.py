@@ -7,7 +7,7 @@ from typing import Optional
 
 import numpy as np
 from scipy.spatial import Delaunay
-from scipy.spatial.transform import RigidTransform
+from scipy.spatial.transform import Rotation, RigidTransform
 
 from .shapes import BoundedTransformableShape
 from ..arraytypes import (
@@ -21,12 +21,14 @@ from ..measure import normalized
 from ..transforms.rigid.rotations import alignment_rotation
 
 
+Z_UNIT = np.array([0., 0., 1.])
+Z_UNIT.setflags(write=False) # make immutable
+
 def cylindrical_mesh(
     radius : float,
     length : float,
     n_theta : int=30,
     n_z : int=5,
-    direction : Optional[Vector3]=None,
     transformation : RigidTransform=RigidTransform.identity(),
 ) -> tuple[ArrayNx3, TriangulationIndices]:
     '''
@@ -39,11 +41,40 @@ def cylindrical_mesh(
     
     Parameters
     ----------
-    ...
+    radius : float
+        The radius of the cylinder
+    length : float
+        The axial ("face-to-face") length of the cylinder
+    n_theta : int, default 30
+        Number of points to sample in the angular direction
+        Will resemble an extruded regular n_theta-gon, e.g. n_theta=4 will be a square prism
+    n_z : int, default 5
+        Number of points to sample along the cylinder walls in the axial direction
+        E.g. n_z=5 will yield a mesh with bands around the bottom
+        face, 1/4 way up, 1/2 way up, 3/4 way up, and the top face
+    transformation : RigidTransform, default RigidTransform.identity()
+        A rigid transformation (e.g. combined rotation + translation) to apply to the cylinder
+        Used to draw a cylinder which has been rotated and/or displaced from the origin
+
+        By default, will apply the identity transformation, resulting in a cylinder
+        parallel to the z-axis with centroid coincident with the origin
+        i.e. with top and bottom faces at z=-L/2 and z=+L/2, respectively
 
     Returns
     -------
-    ...
+    mesh_points : ndarray[[P, 3], float]
+        The points fo the 3D mesh on the surface of the cylinder
+        
+        The first point will be the midpoint of the bottom face, and the
+        n_theta next points will be the band of neighboring points around the bottom face
+
+        Likewise, the last point in the array will be the midpoint of the top face,
+        with the preceding n_theta points being its neighbors around the edge of the top face
+
+        NB: We take "top" here to mean the face in the axial direction,
+        and "bottom" to mean the face in the opposite direction  
+    triangles : ndarray[[T, 3], int]
+        Array of the triples of indices defining triangular faces in the mesh 
     '''
     # compute positions of mesh points
     params = zs, theta = np.mgrid[
@@ -52,10 +83,15 @@ def cylindrical_mesh(
     ]
     xs = radius * np.cos(theta)
     ys = radius * np.sin(theta)
+    axis = length/2 * Z_UNIT
 
     mesh_points = np.dstack([xs, ys, zs]).reshape(-1, 3)
-    mesh_points = np.concatenate([-cyl.axis[None, :], mesh_points, cyl.axis[None, :]]) # face midpoints are adjacent to runs of their neighbor points
-    mesh_points = transformation.apply(mesh_points)
+    mesh_points = np.concatenate([
+        -axis[None, :],
+        mesh_points,
+        axis[None, :]]
+    ) # face midpoints are adjacent to runs of their neighbor points
+    mesh_points = transformation.apply(mesh_points) # axial tilts should be bundled here
     n_points = len(mesh_points)
 
     # triangulate mesh points
@@ -95,17 +131,42 @@ class Cylinder(BoundedTransformableShape):
         assert center_std.shape == (3,)
 
         if axial_direction is None:
-            axial_direction = np.array([0., 0., 1.]) # default to pointing in z-direction
+            axis_normal = Z_UNIT # default to pointing in z-direction
+            axial_rotation = Rotation.identity()
+        else:
+            axis_normal = normalized(axial_direction.astype(float))
+            axial_rotation = alignment_rotation(Z_UNIT, axis_normal)
 
-        self.radius = radius
-        self.length = length
         # DEV: opted to have the normal stored internally for 3 reasons:
         # 1) avoids need to rescale when scaling (accounted for by ".axis" property) 
         # 2) decreases likelihood of numerical instability when applying rigid transformations
         # 3) avoids needing to renormalize each time the axis is transformed
-        self.axis_normal = normalized(axial_direction) 
+        self.radius = radius
+        self.length = length
+        self.axis_normal = axis_normal 
         self.center = center
-        self.cumulative_transformation *= RigidTransform.from_translation(center)
+        self.cumulative_transformation *= RigidTransform.from_components(
+            translation=center,
+            rotation=axial_rotation,
+        )
+
+    @classmethod
+    def from_radius_and_axis(
+        cls,
+        radius : float,
+        center : Vector3,
+        axis_vector : Vector3,
+    ) -> 'Cylinder':
+        '''
+        Initialize Cylinder from axial vector (whose length is
+        half the length of the cylinder), centroid, and radius
+        '''
+        return cls(
+            radius=radius,
+            length=np.linalg.norm(axis_vector) / 2,
+            center=center,
+            axial_direction=axis_vector,
+        )
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(radius={self.radius}, length={self.length})'
@@ -172,7 +233,6 @@ class Cylinder(BoundedTransformableShape):
             self.length,
             n_theta=n_theta,
             n_z=n_z,
-            direction=self.axis_normal,
             transformation=self.cumulative_transformation,
         )
     
