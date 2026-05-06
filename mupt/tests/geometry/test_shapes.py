@@ -19,14 +19,28 @@ from mupt.geometry.shapes import (
 )
 
 
+# DEV: deliverately not a fixture, since iterated over in parametrize args
+def shapes() -> list[BoundedTransformableShape]: 
+    '''Sample instances of BoundedTransformableShapes to test on'''
+    return [
+        PointCloud(np.random.rand(40,3)),
+        Cylinder(1, 4),
+        Sphere(1),
+        Ellipsoid.from_components(1, 1, 2),
+    ]
+
+@pytest.mark.parametrize('shape', shapes())
 def test_volume(shape : BoundedShape) -> None:
     ...
 
+@pytest.mark.parametrize('shape', shapes())
 def test_scaling(shape : BoundedShape) -> None:
     ...
 
+@pytest.mark.parametrize('shape', shapes())
 def test_containment(shape : BoundedShape) -> None:
     ...
 
+@pytest.mark.parametrize('shape', shapes())
 def test_rigid_transforms(shape : BoundedTransformableShape) -> None:
     ...
