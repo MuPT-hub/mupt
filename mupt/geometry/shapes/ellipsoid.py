@@ -82,7 +82,7 @@ def ellipsoidal_mesh(
     ] # (magnitude of) complex step size is interpreted by numpy as a number of points
     triangulation = Delaunay(angles.reshape(2, -1).T) # note: .reshape(-1, 2) gives the right shape but NOT the right parity between parametric angles
 
-    mesh_points = np.zeros((n_theta, n_phi, 3), dtype=float)
+    mesh_points = np.zeros((n_theta, n_phi, 3), dtype=float) # TODO: rewrite as dstack?
     mesh_points[..., 0] = rx * np.sin(phi) * np.cos(theta)
     mesh_points[..., 1] = ry * np.sin(phi) * np.sin(theta)
     mesh_points[..., 2] = rz * np.cos(phi)
@@ -240,7 +240,7 @@ class Ellipsoid(BoundedTransformableShape):
     def principal_axes(self) -> Array3x3:
         '''The principal axes of the ellipsoid, represented as a 3x3 matrix
         whose rows are the axis vectors emanating from the Ellipsoid's center'''
-        return self.cumulative_transformation.apply( self.scaling_matrix(as_affine=False) )
+        return self.cumulative_transformation.apply(self.scaling_matrix(as_affine=False))
     axes = principal_axes # alias
 
     def affine_inverse(self) -> Array4x4:
@@ -275,13 +275,13 @@ class Ellipsoid(BoundedTransformableShape):
 
     def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
         return ( 
-            # NOTE: not applying self.inverse to points because the
-            # Ellipsoid basis matrix is not, in general, a rigid transformation
+            # Reduce containment check to comparison with auxiliary unit sphere
+            # NB: not applying self.inverse to points because the Ellipsoid basis
+            # matrix in general not a rigid transformation because of axial stretching
             np.linalg.norm( 
-                # reduce containment check to comparison with auxiliary unit sphere
                 np.atleast_2d(self.resetting_transformation.apply(points) / self.radii), 
                 axis=1,
-            ) < 1 # TODO: decide whether containment should be boundary-inclusive
+            ) =< 1
         ).astype(object) # need to cast from numpy bool to Python bool
     
     def scale(self, scaling_factor : float) -> None:
