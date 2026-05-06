@@ -6,6 +6,7 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import Optional
 
 import numpy as np
+from scipy.spatial import Delaunay
 from scipy.spatial.transform import RigidTransform
 
 from .shapes import BoundedTransformableShape
@@ -17,6 +18,66 @@ from ..arraytypes import (
     BitVectorN,
 )
 from ..measure import normalized
+from ..transforms.rigid.rotations import alignment_rotation
+
+
+def cylindrical_mesh(
+    radius : float,
+    length : float,
+    n_theta : int=30,
+    n_z : int=5,
+    direction : Optional[Vector3]=None,
+    transformation : RigidTransform=RigidTransform.identity(),
+) -> tuple[ArrayNx3, TriangulationIndices]:
+    '''
+    Generate a mesh of points defining the surface of a cylinder,
+    including the walls and both faces.
+
+    Without an applied transformation, will be centered at the origin
+    with both faces a distance L/2 and -L/2, respectively, relative to
+    the provided normal direction (Default z-axis)
+    
+    Parameters
+    ----------
+    ...
+
+    Returns
+    -------
+    ...
+    '''
+    # compute positions of mesh points
+    params = zs, theta = np.mgrid[
+        -length/2:length/2:n_z*1j,
+        0.0:2*np.pi:(n_theta+1)*1j  # need +1 to get right number of polygon sides (since last is coincident with first)
+    ]
+    xs = radius * np.cos(theta)
+    ys = radius * np.sin(theta)
+
+    mesh_points = np.dstack([xs, ys, zs]).reshape(-1, 3)
+    mesh_points = np.concatenate([-cyl.axis[None, :], mesh_points, cyl.axis[None, :]]) # face midpoints are adjacent to runs of their neighbor points
+    mesh_points = transformation.apply(mesh_points)
+    n_points = len(mesh_points)
+
+    # triangulate mesh points
+    ## bottom face
+    triangles_face_bottom = np.zeros((n_theta, 3), dtype=int)
+    face_bottom_edge_idxs = np.arange(1, n_theta + 1)
+    triangles_face_bottom[:, 0] = 0
+    triangles_face_bottom[:, 1] = face_bottom_edge_idxs
+    triangles_face_bottom[:, 2] = np.roll(face_bottom_edge_idxs, -1)
+
+    ## top face
+    triangles_face_top = np.zeros((n_theta, 3), dtype=int)
+    face_top_edge_idxs = np.arange(n_points - n_theta - 1, n_points - 1)
+    triangles_face_top[:, 0] = n_points - 1
+    triangles_face_top[:, 1] = face_top_edge_idxs
+    triangles_face_top[:, 2] = np.roll(face_top_edge_idxs, -1)
+
+    ## walls
+    triangles_wall = Delaunay(params.reshape(2, -1).T).simplices + 1 # offset accounts for base point prepended to mesh positions
+    triangles = np.concatenate([triangles_face_bottom, triangles_wall, triangles_face_top])
+
+    return mesh_points, triangles
 
 
 class Cylinder(BoundedTransformableShape):
@@ -106,25 +167,13 @@ class Cylinder(BoundedTransformableShape):
         self.axis_normal = transformation.apply(self.axis_normal)
 
     def surface_mesh(self, n_theta : int=30, n_z : int=5) -> tuple[ArrayNx3, TriangulationIndices]:
-        # # calculate cylinder wall coordinates
-        # r, theta = np.mgrid[0.0:R:n_r*1j, 0.0:2*np.pi:n_theta*1j]
-        # x_cyl = R * np.cos(theta) # fix radius for walls
-        # y_cyl = R * np.sin(theta) # fix radius for walls
-        # z, _ = np.mgrid[-L/2:L/2:n_r*1j, 0.0:2*np.pi:n_theta*1j]
-
-        # # calculate face coordinates
-        # x_face = r * np.cos(theta) # vary radius and fix Z for caps
-        # y_face = r * np.sin(theta) # vary radius and fix Z for caps
-        # z_face1 = np.full((n_r, n_theta), fill_value=-L/2)
-        # z_face2 = np.full((n_r, n_theta), fill_value=L/2)
-
-        # # stack XYZ coordinates together
-        # cyl_pos_ref   = np.dstack([x_cyl, y_cyl, z])
-        # face1_pos_ref = np.dstack([x_face, y_face, z_face1])
-        # face2_pos_ref = np.dstack([x_face, y_face, z_face2])
-
-        # apply transform to position in space
-        ## TODO: triangulate + append face midpoints to triangulation
-        ...
+        return cylindrical_mesh(
+            self.radius,
+            self.length,
+            n_theta=n_theta,
+            n_z=n_z,
+            direction=self.axis_normal,
+            transformation=self.cumulative_transformation,
+        )
     
 Rod = Cylinder # alias for convenience
