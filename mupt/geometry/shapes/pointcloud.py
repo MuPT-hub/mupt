@@ -3,15 +3,17 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional
+from typing import Iterable, Literal, Optional
+
 from functools import cached_property
+from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
 from scipy.spatial import ConvexHull, Delaunay
 
 from .shapes import BoundedTransformableShape
-from ..arraytypes import NumberLike, Vector3, ArrayNx3, TriangulationIndices
+from ..arraytypes import Shape, NumberLike, Vector3, ArrayNx3, TriangulationIndices
 from ...mutils.copyable import clear_cached_properties
 
 
@@ -25,6 +27,36 @@ class PointCloud(BoundedTransformableShape):
     def __repr__(self) -> str: 
         return f'{self.__class__.__name__}(shape={self.positions.shape})'
     
+    @classmethod
+    def cubic(cls, sidelen : float=1.0, centered : bool=True) -> PointCloud:
+        '''
+        Initialize a PointCloud whose point lie on the
+        vertices of a cube with the given side lengths
+        
+        Parameters
+        ----------
+        sidelen : float, default 1.0
+            The sidelen of the embedded cube
+        centered : bool, default True
+            Whether or not to center the vertices about the origin
+            * If True, vertices will lie at the points (±S/2, ±S/2, ±S/2)
+            * If False, the first vertex will lie at (0, 0, 0)
+            and the rest extend by S into the first quadrant
+        
+        Returns
+        -------
+        cubic : PointCloud
+            A PointCloud instance whose 8 vertices 
+            are the vertices of the specified cube
+        
+        '''
+        vertices : Iterable[tuple[int, int, int]] = cartesian(*[(0.0, sidelen) for _ in range(3)])
+        positions : np.ndarray[Shape[Literal[8], Literal[3]], np.floating] = np.array(list(vertices))
+        if centered:
+            positions -= (sidelen / 2)
+
+        return cls(positions)
+
     @cached_property
     def convex_hull(self) -> ConvexHull:
         '''Convex hull of the points contained within'''
@@ -62,3 +94,13 @@ class PointCloud(BoundedTransformableShape):
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         self.positions = transformation.apply(self.positions)
         clear_cached_properties(self) # invalidate cached qHull objects to prevent invariant plotting bug
+
+    # derived quantities
+    @property
+    def bounding_radius(self) -> float:
+        '''
+        Bounding radius of the point cloud, defined as the 
+        maximum center-of-mass distance scross all points
+        '''
+        return np.linalg.norm(self.positions - self.centroid, axis=1).max()
+    r_bound = bounding_radius
