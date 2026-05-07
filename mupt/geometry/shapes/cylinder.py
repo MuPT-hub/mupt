@@ -163,7 +163,7 @@ class Cylinder(BoundedTransformableShape):
         '''
         return cls(
             radius=radius,
-            length=np.linalg.norm(axis_vector) / 2,
+            length=np.linalg.norm(axis_vector),
             center=center,
             axial_direction=axis_vector,
         )
@@ -226,6 +226,7 @@ class Cylinder(BoundedTransformableShape):
 
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         self.axis_normal = transformation.apply(self.axis_normal)
+        self.center = transformation.apply(self.center)
 
     def surface_mesh(self, n_theta : int=30, n_z : int=5) -> tuple[ArrayNx3, TriangulationIndices]:
         return cylindrical_mesh(
