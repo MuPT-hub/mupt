@@ -28,7 +28,7 @@ class PointCloud(BoundedTransformableShape):
         return f'{self.__class__.__name__}(shape={self.positions.shape})'
     
     @classmethod
-    def cubic(cls, sidelen : float=1.0, centered : bool=True) -> PointCloud:
+    def cubic(cls, sidelen : float=1.0, centered : bool=True) -> 'PointCloud':
         '''
         Initialize a PointCloud whose point lie on the
         vertices of a cube with the given side lengths
