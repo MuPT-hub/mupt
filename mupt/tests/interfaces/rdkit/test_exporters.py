@@ -173,7 +173,8 @@ def test_primitive_to_rdkit_mols_exports_heterocyclic_aromatics(label, smiles):
 
 
 def test_primitive_to_rdkit_mols_preserves_valid_thiophene_chemistry():
-    """Issue #31: heteroaromatic thiophene exports remain RDKit-sanitizable."""
+    """Issue #31: heteroaromatic thiophene exports remain RDKit-sanitizable.
+       See https://github.com/MuPT-hub/mupt/issues/31"""
     residue = primitive_from_smiles(
         "*-[C:1]1=C-C=[C:2](-S-1)-*",
         ensure_explicit_Hs=True,
