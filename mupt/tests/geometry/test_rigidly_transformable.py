@@ -1,5 +1,8 @@
 '''Test that Protocol for RigidlyTransformable objects is implemented correctly'''
 
+__author__ = 'Timotej Bernat'
+__email__ = 'timotej.bernat@colorado.edu'
+
 import pytest
 from typing import Union
 from itertools import product as cartesian
