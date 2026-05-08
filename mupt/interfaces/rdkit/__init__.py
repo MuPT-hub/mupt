@@ -31,6 +31,7 @@ from .strategies import (
     RDKitExportStrategy,
     AllAtomRDKitExportStrategy,
 )
+from ...muptio.sdf import write_primitive_to_mupt_sdf, write_primitive_to_sdf
 from .depiction import (
     set_rdkdraw_size,
     show_substruct_highlights,
