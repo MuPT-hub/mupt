@@ -6,8 +6,6 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import Optional, Protocol, runtime_checkable
 from abc import abstractmethod
 
-from numpy import ndarray
-
 from ..arraytypes import (
     NumberLike,
     Vector3,
@@ -19,16 +17,14 @@ from ..arraytypes import (
 from ..transforms.rigid.application import RigidlyTransformable
 
 
-@runtime_checkable # TODO: make class which composes transformability and boundedness (not necessarily the same a priori)
+@runtime_checkable
 class BoundedShape(Protocol):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
-    # measures of extent
     @property
     @abstractmethod
     def centroid(self) -> Vector3:
         '''Coordinate of the geometric center of the body'''
         ...
-    # COM = CoM = center_of_mass = centroid # aliases for convenience
     
     @property
     @abstractmethod
@@ -43,7 +39,7 @@ class BoundedShape(Protocol):
 
     @abstractmethod
     def scale(self, scaling_factor : float) -> None:
-        "Scale the shape uniformly about its centroid by the specified factor"
+        '''Scale the shape uniformly about its centroid by the specified factor'''
         ...
 
     @abstractmethod
@@ -62,8 +58,8 @@ class BoundedShape(Protocol):
         ...
     
     # @abstractmethod
-    # def support(self, direction : np.ndarray[Shape[3], Numeric]) -> np.ndarray[Shape[3], Numeric]:
-    #     '''Determines the furthest point on the surface of the body in a given direction'''
+    # def support(self, direction : Vector3) -> Vector3:
+    #     '''Returns the coordinates of the furthest point on the surface of the body in the given direction'''
     #     ...
 
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
