@@ -22,15 +22,26 @@ from mupt.geometry.shapes import (
 )
 
 
-# DEV: deliverately not a fixture, since iterated over in parametrize args
+# DEV: deliberately not a fixture, since iterated over in parametrize args
 def shapes() -> list[BoundedTransformableShape]: 
-    '''Sample instances of BoundedTransformableShapes to test on'''
+    '''Sample instances of untransformed BoundedTransformableShapes to test on'''
     return [
         PointCloud(np.random.rand(40,3)),
         Cylinder(1.2, 4),
         Sphere(3.5),
         Ellipsoid.from_components(1, 1, 2),
     ]
+
+def shapes_transformed() -> list[BoundedTransformableShape]:
+    '''Transformed versions of the sample test BoundedTransformableShape instances returned by `shapes()`'''
+    return [
+        shape.rigidly_transformed(random_rigid_transformation())
+            for shape in shapes()
+    ]
+
+def shapes_mixed() -> list[BoundedTransformableShape]:
+    '''Combined collection of transformed and untransformed example shapes'''
+    return [*shapes(), *shapes_transformed()]
 
 def shapes_with_volumes() -> list[tuple[BoundedTransformableShape, float]]:
     '''Collection of shapes with known volumes, returned as (shape, expected volume) pairs'''
@@ -40,6 +51,7 @@ def shapes_with_volumes() -> list[tuple[BoundedTransformableShape, float]]:
         (Sphere(3.0), 36*np.pi),
         (Ellipsoid.from_components(1, 2, 3), 8*np.pi),
     ]
+
 
 @pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())
 def test_volume(shape : BoundedShape, volume_expected : float) -> None:
@@ -54,6 +66,7 @@ def test_volume_transformed(shape : BoundedTransformableShape, volume_expected :
 
 @pytest.mark.parametrize('shape', shapes())
 def test_scaling(shape : BoundedShape) -> None:
+    # TODO: implement BoundedShape.__eq__() (and on subtypes) to permit easy comparisons
     ...
 
 @pytest.mark.parametrize('shape,scaling_factor', cartesian(shapes(), (0.5, 1.0, 2.0)))
@@ -64,11 +77,47 @@ def test_volume_scaling(shape : BoundedShape, scaling_factor : float) -> None:
 
     nptest.assert_allclose(v_scaled / v_orig, scaling_factor**3)
 
+@pytest.mark.parametrize('shape', shapes_mixed())
+def test_containment_centroidal(shape : BoundedShape) -> None:
+    '''Test that BoundedShapes contain their centroid''' 
+    # DEV TB: assumes shapes are convex - true at time of writing, but may need to revisit in the future
+    assert shape.contains(shape.centroid).all()
 
-@pytest.mark.parametrize('shape', shapes())
-def test_containment(shape : BoundedShape) -> None:
-    ...
+@pytest.mark.parametrize(
+    'shape,scaling_factor,expected_contains',
+    [
+        (shape, scaling_factor, expected_contains)
+            for shape, (scaling_factor, expected_contains) in cartesian(
+                shapes_mixed(),
+                {
+                    0.25 : True,
+                    0.5  : True,
+                    2.0  : False,
+                    3.14 : False,
+                }.items(),
+            )
+    ],
+)
+def test_containment_scaled(
+    shape : BoundedTransformableShape,
+    scaling_factor : float,
+    expected_contains : bool, 
+) -> None:
+    '''Test containment checks on shapes, relative to dilated and compressed versions of themselves'''
+    # NB: in this SPECIFIC case, uniform scaling of convex shapes about center by non-unity scaling factor
+    # means either the scaled copy contains the original (if factor >1) or vice-versa (if <1)
+    mesh_points, triangles = shape.scaled(scaling_factor).surface_mesh() # implicitly also tests surface_mesh() - convenient, but not very atomic
+    print(shape.contains(mesh_points) == expected_contains)
+    assert np.all(shape.contains(mesh_points) == expected_contains)
 
-@pytest.mark.parametrize('shape', shapes())
-def test_rigid_transforms(shape : BoundedTransformableShape) -> None:
+@pytest.mark.parametrize(
+    'shape_init,transformation,shape_transformed_expected',
+    [],
+)
+def test_shape_rigidly_transformed(
+    shape_init : BoundedTransformableShape,
+    transformation : RigidTransform,
+    shape_transformed_expected : BoundedTransformableShape,
+) -> None:
+    '''Test thatout-of-place rigid transformations of shapes give the expected output shape'''
     ...
