@@ -202,8 +202,7 @@ class Cylinder(BoundedTransformableShape):
     
     def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
         points_centered = np.atleast_2d(points - self.center)
-         # double-transpose needed to get broadcast for multiplication right
-        points_axial = (np.dot(points_centered, self.axis_normal) * points_centered.T).T
+        points_axial = np.outer(np.dot(points_centered, self.axis_normal), self.axis_normal)
         points_radial = points_centered - points_axial
 
         within_axis = np.linalg.norm(points_radial, axis=1) <= (self.length / 2)
@@ -225,6 +224,7 @@ class Cylinder(BoundedTransformableShape):
         )
 
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        # TODO: triage why rigid transforms seem to scale normal vector 
         self.axis_normal = transformation.apply(self.axis_normal)
         self.center = transformation.apply(self.center)
 
