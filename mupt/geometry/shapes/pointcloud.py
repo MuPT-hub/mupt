@@ -94,7 +94,14 @@ class PointCloud(BoundedTransformableShape):
         self.positions = scaling_factor*self.positions + (1 - scaling_factor)*self.centroid
 
     def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
-        return self.convex_hull.points, self.convex_hull.simplices
+        verts = self.convex_hull.vertices  # NB: self.convex_hull.points returns ALL points, even in interior 
+        remap : dict[int, int] = {
+            old_idx : new_idx
+                for new_idx, old_idx in enumerate(verts)
+        }
+        remapped = np.vectorize(lambda x: remap.get(x, x))
+
+        return self.positions[verts], remapped(self.convex_hull.simplices)
     
     # fulfilling RigidlyTransformable contracts
     def _copy_untransformed(self) -> 'PointCloud':
