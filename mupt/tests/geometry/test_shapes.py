@@ -84,10 +84,10 @@ def test_containment_centroidal(shape : BoundedShape) -> None:
     assert shape.contains(shape.centroid).all()
 
 @pytest.mark.parametrize(
-    'shape,scaling_factor,expected_contains',
+    'shape,scaling_factor,all_inside',
     [
-        (shape, scaling_factor, expected_contains)
-            for shape, (scaling_factor, expected_contains) in cartesian(
+        (shape, scaling_factor, all_inside)
+            for shape, (scaling_factor, all_inside) in cartesian(
                 shapes_mixed(),
                 {
                     0.25 : True,
@@ -101,23 +101,26 @@ def test_containment_centroidal(shape : BoundedShape) -> None:
 def test_containment_scaled(
     shape : BoundedTransformableShape,
     scaling_factor : float,
-    expected_contains : bool, 
+    all_inside : bool, 
 ) -> None:
     '''Test containment checks on shapes, relative to dilated and compressed versions of themselves'''
     # NB: in this SPECIFIC case, uniform scaling of convex shapes about center by non-unity scaling factor
     # means either the scaled copy contains the original (if factor >1) or vice-versa (if <1)
     mesh_points, triangles = shape.scaled(scaling_factor).surface_mesh() # implicitly also tests surface_mesh() - convenient, but not very atomic
-    print(shape.contains(mesh_points) == expected_contains)
-    assert np.all(shape.contains(mesh_points) == expected_contains)
+    assert np.all(shape.contains(mesh_points) == all_inside)
 
 @pytest.mark.parametrize(
-    'shape_init,transformation,shape_transformed_expected',
+    'shape,transformation,shape_transformed_expected',
     [],
 )
 def test_shape_rigidly_transformed(
-    shape_init : BoundedTransformableShape,
+    shape : BoundedTransformableShape,
     transformation : RigidTransform,
     shape_transformed_expected : BoundedTransformableShape,
 ) -> None:
     '''Test thatout-of-place rigid transformations of shapes give the expected output shape'''
-    ...
+    shape_init = shape.copy()
+    shape_transformed = shape.rigidly_transform(transformation)
+    
+    # ensure target output is attained AND that original is unmodified
+    assert (shape_transformed == shape_transformed_expected) and (shape == shape_init)
