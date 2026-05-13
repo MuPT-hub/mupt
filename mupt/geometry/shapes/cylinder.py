@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from .shapes import BoundedTransformableShape
 from ..arraytypes import (
+    Shape,
     NumberLike,
     Vector3,
     ArrayNx3,
@@ -77,13 +78,14 @@ def cylindrical_mesh(
         Array of the triples of indices defining triangular faces in the mesh 
     '''
     # compute positions of mesh points
+    half_length : float = length / 2
     params = zs, theta = np.mgrid[
-        -length/2:length/2:n_z*1j,
+        -half_length:half_length:n_z*1j,
         0.0:2*np.pi:(n_theta+1)*1j  # need +1 to get right number of polygon sides (since last is coincident with first)
     ]
     xs = radius * np.cos(theta)
     ys = radius * np.sin(theta)
-    axis = length/2 * Z_UNIT
+    axis = half_length * Z_UNIT
 
     mesh_points = np.dstack([xs, ys, zs]).reshape(-1, 3)
     mesh_points = np.concatenate([
@@ -125,26 +127,45 @@ class Cylinder(BoundedTransformableShape):
         center : Optional[Vector3]=None,
         axial_direction : Optional[Vector3]=None,
     ) -> None:
+        '''
+        Parameters
+        ----------
+        radius : float, default 1.0
+            The radius of the Cylinder, orthogonal to its central axis
+        length : float, default 2.0
+            The distance between the two parallel faces of the cylinder
+        center : Optional[Vector3], default [0., 0., 0.]
+            The absolute position of the geometric center of the cylinder
+            If not explicitly provided, or provided as NoneType, will default to the origin, i.e. [0., 0., 0.]
+        axial_direction : Optional[Vector3], default [0., 0., 1.]
+            The direction from the center in which the leading ("top") face of the cylinder lies
+            The length of this vector is inconsequential, and will be normalized to `length / 2`
+            i.e. each face lies half of the Cylinder's length away from its center
+            
+            If not explicitly provided, or provided as NoneType, will default to the +z axis, i.e. [0., 0., 1.]
+        '''
         if center is None:
             center = np.zeros(3, dtype=float)
         center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
         assert center_std.shape == (3,)
 
+        half_length : float = length / 2
         if axial_direction is None:
-            axis_normal = Z_UNIT # default to pointing in z-direction
+            axis_vector = half_length * Z_UNIT # default to pointing in z-direction
             axial_rotation = Rotation.identity()
         else:
             axis_normal = normalized(axial_direction.astype(float))
             axial_rotation = alignment_rotation(Z_UNIT, axis_normal)
+            axis_vector = half_length * axis_normal
 
-        # DEV: opted to have the normal stored internally for 3 reasons:
-        # 1) avoids need to rescale when scaling (accounted for by ".axis" property) 
-        # 2) decreases likelihood of numerical instability when applying rigid transformations
-        # 3) avoids needing to renormalize each time the axis is transformed
         self.radius = radius
         self.length = length
-        self.axis_normal = axis_normal 
         self.center = center
+        # DEV TB: storing absolute positions, rather than relative axis vector,
+        # to ensure cylinder changes as expected under rigid transformations
+        # Axis vector is calculated as difference in-site
+        self.face_center_top = center + axis_vector
+        self.face_center_bottom = center - axis_vector
         self.cumulative_transformation *= RigidTransform.from_components(
             translation=center,
             rotation=axial_rotation,
@@ -158,12 +179,29 @@ class Cylinder(BoundedTransformableShape):
         center : Optional[Vector3]=None,
     ) -> 'Cylinder':
         '''
-        Initialize Cylinder from axial vector (whose length is
-        half the length of the cylinder), centroid, and radius
+        Initialize Cylinder from a radius, axial vector, and centroid
+        
+        Parameters
+        ----------
+        radius : float
+            The radius of the Cylinder, orthogonal to its central axis
+        axial_vector : Vector3
+            A vector whose direction is parallel to the center-to-face direction of the Cylinder
+            and whose length is half of the intended length of the Cylinder
+            
+            E.g. axis_vector=np.array([0., 1., 0.,]) yields a Cylinder of length 2 parallel to the y-axis
+        center : Optional[Vector3], default [0., 0., 0.]
+            The absolute position of the geometric center of the Cylinder
+            If not explicitly provided, or provided as NoneType, will default to the origin, i.e. [0., 0., 0.]
+        
+        Returns
+        -------
+        cylinder : Cylinder
+            A cylinder instance pointing in the desired direction
         '''
         return cls(
             radius=radius,
-            length=np.linalg.norm(axis_vector),
+            length=2*np.linalg.norm(axis_vector),
             center=center,
             axial_direction=axis_vector,
         )
@@ -183,13 +221,25 @@ class Cylinder(BoundedTransformableShape):
 
     @property
     def axis(self) -> Vector3:
-        '''Th vector spanning from the centroid to the center of the leading face'''
-        return (self.length / 2) * self.axis_normal
+        '''
+        The vector spanning from the centroid to the center of the leading face
+        Has length equal to half the length of the Cylinder
+        '''
+        return self.face_center_top - self.center
+    axis_vector = axis
     
     @property
-    def face_centers(self) -> tuple[Vector3, Vector3]:
+    def axis_normal(self) -> Vector3:
+        '''Unit vector in the direction from the centroid to the center of the leading face'''
+        return normalized(self.axis)
+    
+    @property
+    def face_centers(self) -> np.ndarray[
+        Shape[Literal[3], Literal[2]],
+        np.dtype[np.floating],
+    ]:
         '''The absolute positions of the midpoints of the leading and tailing faces on the cylinder'''
-        return (self.center + self.axis, self.center - self.axis)
+        return np.vstack((self.face_center_top, self.face_center_bottom))
 
     # fulfilling BoundedShape contracts
     @property
@@ -224,9 +274,10 @@ class Cylinder(BoundedTransformableShape):
         )
 
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
-        # TODO: triage why rigid transforms seem to scale normal vector 
-        self.axis_normal = transformation.apply(self.axis_normal)
         self.center = transformation.apply(self.center)
+        self.face_center_top = transformation.apply(self.face_center_top)
+        self.face_center_bottom = transformation.apply(self.face_center_top)
+        print(np.linalg.norm(self.axis_normal))
 
     def surface_mesh(self, n_theta : int=30, n_z : int=5) -> tuple[ArrayNx3, TriangulationIndices]:
         return cylindrical_mesh(
