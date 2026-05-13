@@ -4,11 +4,28 @@ When contributing to this repository, we recommend starting by making an issue b
 
 A fun, welcoming spirit of helping to solve polymer science problems is the primary goal here. 
 
-## Pull Request Process
+## Making an Issue
+Please open an issue for bug reports and feature requests using the GitHub issue tracker.
 
-1. Update appropriate files with details of changes to interfaces, functionality.
-2. You may merge the Pull Request in once you have the sign-off of two other developers, or if you 
-   do not have permission to do that, you may request the second reviewer to merge it for you.
+If you are reporting a bug, please include the following information:
+
+* Concise description of the bug
+* Expected behavior
+* Actual behavior
+* Steps to reproduce
+* Details of your software environment
+
+For feature requests, please include a short description of the feature.
+
+## Submitting a Pull Request
+We welcome code contributions in the form of pull requests. Please follow the steps below:
+
+* Fork the repository (default branch is main)
+* Create a new branch for your feature/bug fix
+* Make your changes
+* Commit your changes
+* Push your changes to your fork and create a pull request. In your pull request, include a short description and idenitfy any existing To-Do's. Include unit tests in your PR if your code adds new functionality.
+* Assign the pull request to a reviewer and wait for the reviewers feedback
 
 ## Code of Conduct
 
