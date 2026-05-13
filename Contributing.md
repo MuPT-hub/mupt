@@ -1,7 +1,6 @@
 # Contributing
 
-When contributing to this repository, we recommend starting by making an issue, or
-introducing yourself over email before submitting a pull request.
+When contributing to this repository, we recommend starting by making an issue before submitting a pull request.
 
 A fun, welcoming spirit of helping to solve polymer science problems is the primary goal here. 
 
