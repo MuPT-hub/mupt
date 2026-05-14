@@ -53,16 +53,11 @@ def shapes_with_volumes() -> list[tuple[BoundedTransformableShape, float]]:
     ]
 
 
+# "Pure" shape tests
 @pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())
 def test_volume(shape : BoundedShape, volume_expected : float) -> None:
     '''Test that volume calculation is accurate'''
     nptest.assert_allclose(shape.volume, volume_expected)
-
-@pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())
-def test_volume_transformed(shape : BoundedTransformableShape, volume_expected : float) -> None:
-    '''Test that volume calculations remain invariant under rigid transformations'''
-    shape_transformed = shape.rigidly_transformed(random_rigid_transformation())
-    nptest.assert_allclose(shape_transformed.volume, volume_expected) # rigid motions have unit determinant and shouldn't affect volumes
 
 @pytest.mark.parametrize('shape', shapes())
 def test_scaling(shape : BoundedShape) -> None:
@@ -82,6 +77,19 @@ def test_containment_centroidal(shape : BoundedShape) -> None:
     '''Test that BoundedShapes contain their centroid''' 
     # DEV TB: assumes shapes are convex - true at time of writing, but may need to revisit in the future
     assert shape.contains(shape.centroid).all()
+
+# Transformable shape tests
+@pytest.mark.parametrize('shape', [])#shapes())
+def test_equality(shape : BoundedTransformableShape) -> None:
+    # NB: not checking direct equality with self, since that would be
+    # true even if no __eq__ was imlemented! (defaults to "is" behavior)
+    assert shape.copy() == shape
+
+@pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())
+def test_volume_transformed(shape : BoundedTransformableShape, volume_expected : float) -> None:
+    '''Test that volume calculations remain invariant under rigid transformations'''
+    shape_transformed = shape.rigidly_transformed(random_rigid_transformation())
+    nptest.assert_allclose(shape_transformed.volume, volume_expected) # rigid motions have unit determinant and shouldn't affect volumes
 
 @pytest.mark.parametrize(
     'shape,scaling_factor,all_inside',
