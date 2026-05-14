@@ -3,7 +3,8 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Optional, Self
+from typing import Protocol, runtime_checkable
 from abc import abstractmethod
 
 from ..arraytypes import (
@@ -37,6 +38,14 @@ class BoundedShape(Protocol):
         '''Whether a given coordinate lies within the boundary of the body'''
         ...
 
+    def congruent_to(self, other : Self) -> bool:
+        '''Check if another BoundedShape instance has the same size and shape as this one'''
+        ...
+
+    def __eq__(self, other :  Self) -> bool:
+        # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
+        return self.congruent_to(other) 
+
     @abstractmethod
     def scale(self, scaling_factor : float) -> None:
         '''Scale the shape uniformly about its centroid by the specified factor'''
@@ -65,13 +74,14 @@ class BoundedShape(Protocol):
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
     def scaled(self, scaling_factor : float) -> 'BoundedTransformableShape':
-        """
-        Return scaled copy of this shape
-        """ 
+        '''Return a scaled copy of this shape'''
         new_shape = self.copy() # works because RigidlyTransformable is also expected to be copyable
         new_shape.scale(scaling_factor)
         
         return new_shape
+    
+    def __eq__(self, other : Self) -> bool:
+        return super().__eq__(other) and self.transformed_like(other)
         
 class Shaped(Protocol):
     '''Interface for objects which have an associated bounded, tranformable shape'''

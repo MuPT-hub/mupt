@@ -57,6 +57,18 @@ class RigidlyTransformable(Copyable, Protocol):
     def cumulative_transformation(self, transformation : RigidTransform) -> None:
         # DEV: might include some additional checks in here in the future
         self._cumul_transf = transformation
+
+    def transformed_like(self, other : 'RigidlyTransformable', *args, **kwargs) -> bool:
+        '''
+        Whether of not this RigidlyTransformable object has a 
+        cumulative transformation approximately equal to that of another
+        '''
+        return transformations_approx_equal(
+            self.cumulative_transformation,
+            other.cumulative_transformation,
+            *args,
+            **kwargs,
+        )
         
     @property
     def resetting_transformation(self) -> RigidTransform:
