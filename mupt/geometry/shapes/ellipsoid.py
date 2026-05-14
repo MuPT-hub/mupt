@@ -20,6 +20,7 @@ from ..arraytypes import (
     TriangulationIndices,
     BitVectorN,
 )
+from ..measure import vector_flexible
 from ..coordinates.basis import is_columnspace_mutually_orthogonal
 
         
@@ -103,8 +104,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     ) -> None:
         if center is None:
             center = np.zeros(3, dtype=float)
-        center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
-        assert center_std.shape == (3,)
+        center = vector_flexible(center, dimension=3, dtype=float)
 
         self.radius = radius
         self.center = center
@@ -176,13 +176,11 @@ class Ellipsoid(BoundedTransformableShape):
         # DEV: extract this vector shape checking into external utility, eventually
         if radii is None:
             radii = np.ones(3, dtype=float)
-        radii_std = np.atleast_2d(radii).reshape(-1) # permits transposed and nested vector inputs
-        assert radii_std.shape == (3,)
+        radii = vector_flexible(radii, dimension=3, dtype=float)
             
         if center is None:
             center = np.zeros(3, dtype=float)
-        center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
-        assert center_std.shape == (3,)
+        center = vector_flexible(center, dimension=3, dtype=float)
 
         self.radii = radii
         self.center = center
@@ -214,7 +212,11 @@ class Ellipsoid(BoundedTransformableShape):
     def is_valid_ellipsoid_matrix(basis : Array4x4) -> bool:
         '''Check that an affine matrix could represent an Ellipsoid'''
         assert basis.shape == (4, 4)
-        axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more elegant way to do this splitting
+        # TODO: find more elegant way to do this splitting
+        axes = basis[:-1, :-1]
+        center = basis[:-1, -1]
+        projective_part = basis[-1, :-1]
+        w = basis[-1, -1]
         
         return bool(
             is_columnspace_mutually_orthogonal(axes) # ensure principal axes are mutually orthogonal

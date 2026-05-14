@@ -18,7 +18,7 @@ from ..arraytypes import (
     TriangulationIndices,
     BitVectorN,
 )
-from ..measure import normalized
+from ..measure import normalized, vector_flexible
 from ..transforms.rigid.rotations import alignment_rotation
 
 
@@ -146,8 +146,7 @@ class Cylinder(BoundedTransformableShape):
         '''
         if center is None:
             center = np.zeros(3, dtype=float)
-        center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
-        assert center_std.shape == (3,)
+        center = vector_flexible(center, dimension=3, dtype=float)
 
         half_length : float = length / 2
         if axial_direction is None:
