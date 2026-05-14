@@ -48,10 +48,12 @@ Array2x2 = np.ndarray[Shape[Literal[2], Literal[2]], NumericNP]
 Array3x3 = np.ndarray[Shape[Literal[3], Literal[3]], NumericNP]
 Array4x4 = np.ndarray[Shape[Literal[4], Literal[4]], NumericNP]
 
+ArrayNx1 = np.ndarray[Shape[N, Literal[1]], NumericNP]
 ArrayNx2 = np.ndarray[Shape[N, Literal[2]], NumericNP]
 ArrayNx3 = np.ndarray[Shape[N, Literal[3]], NumericNP]
 ArrayNx4 = np.ndarray[Shape[N, Literal[4]], NumericNP]
 
+Array1xN = np.ndarray[Shape[Literal[1], N], NumericNP]
 Array2xN = np.ndarray[Shape[Literal[2], N], NumericNP]
 Array3xN = np.ndarray[Shape[Literal[3], N], NumericNP]
 Array4xN = np.ndarray[Shape[Literal[4], N], NumericNP]
