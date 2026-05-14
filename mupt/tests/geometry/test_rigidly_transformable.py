@@ -20,7 +20,7 @@ from mupt.geometry.transforms.rigid.application import (
 # dummy classes for testing over
 class Points(RigidlyTransformable):
     '''Dummy class for testing RigidlyTransformable Protocol'''
-    def __init__(self, positions: np.ndarray):
+    def __init__(self, positions: np.ndarray) -> None:
         self.positions = positions
 
     def _rigidly_transform(self, transform: RigidTransform) -> None:
@@ -31,7 +31,7 @@ class Points(RigidlyTransformable):
     
 class PointsNonCopyable(RigidlyTransformable):
     '''Dummy class for to test that in-place methods fail when copying is undefined'''
-    def __init__(self, positions: np.ndarray):
+    def __init__(self, positions: np.ndarray) -> None:
         self.positions = positions
 
     def _rigidly_transform(self, transform: RigidTransform) -> None:
@@ -66,7 +66,11 @@ def points_non_copyable(sample_positions : np.ndarray) -> PointsNonCopyable:
 
 # Tests
 ## Test in-place methods
-def test_rigidly_transform(points : Points, transform : RigidTransform, sample_positions_transformed : np.ndarray):
+def test_rigidly_transform(
+    points : Points,
+    transform : RigidTransform,
+    sample_positions_transformed : np.ndarray,
+) -> None:
     '''Test that rigid transformation are correctly applied in-place'''
     points.rigidly_transform(transform)
     np.testing.assert_allclose(
@@ -77,10 +81,10 @@ def test_rigidly_transform(points : Points, transform : RigidTransform, sample_p
 
 @pytest.mark.parametrize('num_applications', range(8))
 def test_cumulative_transformation(
-        points : Points,
-        transform : RigidTransform,
-        num_applications : int,
-    ):
+    points : Points,
+    transform : RigidTransform,
+    num_applications : int,
+) -> None:
     '''Test that transformed applied one after the other are correctly accumulated'''
     cumul_trans = RigidTransform.identity()
     for _ in range(num_applications):
@@ -88,7 +92,7 @@ def test_cumulative_transformation(
         cumul_trans *= transform
         
     assert transformations_approx_equal(
-        points.cumulative_transformation 
+        points.cumulative_transformation,
         cumul_trans,
     )
 
@@ -98,7 +102,7 @@ def test_reset_transform(points : Points, transform : RigidTransform):
     points.reset_transform()
 
     assert transformations_approx_equal(
-        points.cumulative_transformation 
+        points.cumulative_transformation,
         RigidTransform.identity(),
     )
 
@@ -106,7 +110,7 @@ def test_reset_transform(points : Points, transform : RigidTransform):
 def test_rigidly_transformed(
     points : Union[Points, PointsNonCopyable],
     transform : RigidTransform,
-):
+) -> None:
     '''Test that rigid transformation are correctly applied in-place'''
     new_points = points.rigidly_transformed(transform)
     # NOTE: will not compare as expected when transform is within float imprecision
@@ -121,14 +125,14 @@ def test_rigidly_transformed(
 def test_rigidly_transformed_fails_when_non_copyable(
     points_non_copyable : Union[Points, PointsNonCopyable],
     transform : RigidTransform,
-):
+) -> None:
     '''Test that rigid transformation are correctly applied out-of-place'''
     _ = points_non_copyable.rigidly_transformed(transform) # no asserts needed, since this line should fail
 
 def test_reset_transformed(
     points : Union[Points, PointsNonCopyable],
     transform : RigidTransform,
-):
+) -> None:
     '''Test that resetting a rigid transformation in-place return the object to its original state'''
     new_points = points.rigidly_transformed(transform)
     resetted_points = new_points.reset_transformed()
@@ -148,7 +152,7 @@ def test_reset_transformed(
 )
 def test_reset_transformed_fails_when_non_copyable(
         points_non_copyable : Union[Points, PointsNonCopyable],
-    ):
+    ) -> None:
     '''Test that rigid transformation are correctly applied out-of-place'''
     _ = points_non_copyable.reset_transformed() # no asserts needed, since this line should fail
 
