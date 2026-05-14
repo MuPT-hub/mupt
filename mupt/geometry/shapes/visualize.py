@@ -6,8 +6,7 @@ from inspect import signature
 from .shapes import BoundedShape
 
 if TYPE_CHECKING:
-    from matplotlib.axes import Axes # DEV: eventually, declare explicit dependency on mpl...
-    from mpl_toolkits.mplot3d import Axes3D # ...(maybe even import conditionally?)
+    from mpl_toolkits.mplot3d import Axes3D
 
 
 def visualize_shape(
@@ -17,6 +16,7 @@ def visualize_shape(
     **kwargs,
 ) -> 'Axes3D':
     '''Convenience interface for plotting a surface mesh for a class implementing the BoundedShape Protocol'''
+    # DEV TODO: eventually, have a more standardized way to deal with these kinds of dependencies on import (a la @requires(...))
     try:
         from matplotlib.axes import Axes
         from mpl_toolkits.mplot3d import Axes3D

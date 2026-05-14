@@ -12,7 +12,6 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from mupt.geometry.transforms.rigid import random_rigid_transformation
 from mupt.geometry.shapes import (
-    visualize_shape,
     BoundedShape,
     BoundedTransformableShape,
     PointCloud,
