@@ -21,7 +21,7 @@ from numbers import Number, Real
 NumberLike = Union[np.number, Number, float] # DEV: stupidly, but "float" does not typehint as Number in static type checkers, so have to add it manually
 Numeric = TypeVar('Numeric', bound=Number)
 NumericNP = TypeVar('NumericNP', bound=np.dtype[np.number])
-BoolNP = TypeVar('BoolNP', bound=np.dtype[np.bool])
+BoolNP = TypeVar('BoolNP', bound=np.dtype[np.bool_])
 
 # RealValued = TypeVar('RealValued', bound=Real)
 # RealValuedNP = TypeVar('RealValuedNP', bound=np.dtype[np.floating])

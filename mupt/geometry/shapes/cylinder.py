@@ -254,8 +254,8 @@ class Cylinder(BoundedTransformableShape):
         points_axial = np.outer(np.dot(points_centered, self.axis_normal), self.axis_normal)
         points_radial = points_centered - points_axial
 
-        within_axis = np.linalg.norm(points_radial, axis=1) <= (self.length / 2)
-        within_radius = np.linalg.norm(points_axial, axis=1) <= self.radius
+        within_axis = np.linalg.norm(points_axial, axis=1) <= (self.length / 2)
+        within_radius = np.linalg.norm(points_radial, axis=1) <= self.radius
 
         return (within_axis & within_radius).astype(object)
 
@@ -280,8 +280,7 @@ class Cylinder(BoundedTransformableShape):
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         self.center = transformation.apply(self.center)
         self.face_center_top = transformation.apply(self.face_center_top)
-        self.face_center_bottom = transformation.apply(self.face_center_top)
-        print(np.linalg.norm(self.axis_normal))
+        self.face_center_bottom = transformation.apply(self.face_center_bottom)
 
     def surface_mesh(self, n_theta : int=30, n_z : int=5) -> tuple[ArrayNx3, TriangulationIndices]:
         return cylindrical_mesh(

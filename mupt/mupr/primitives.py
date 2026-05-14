@@ -1049,7 +1049,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def shape(self, new_shape : BoundedTransformableShape) -> None:
         '''Set the external shape of this Primitive'''
         if not isinstance(new_shape, BoundedTransformableShape):
-            raise TypeError(f'Primitive shape must be BoundedTransformableShape instance, not object of type {type(new_shape.__name__)}')
+            raise TypeError(f'Primitive shape must be BoundedTransformableShape instance, not object of type {type(new_shape).__name__}')
 
         new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
         if self._shape is not None:

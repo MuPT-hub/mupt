@@ -34,7 +34,7 @@ class BoundedShape(Protocol):
         ...
         
     @abstractmethod
-    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN: 
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN: 
         '''Whether a given coordinate lies within the boundary of the body'''
         ...
 
@@ -113,7 +113,7 @@ class Shaped(Protocol):
         
         # Case 2) valid shape, which may need to have transformation history transferred over
         if not isinstance(new_shape, BoundedTransformableShape):
-            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
+            raise TypeError(f'Primitive shape must be BoundedTransformableShape instance, not object of type {type(new_shape).__name__}')
 
         new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
         if self._shape is not None:

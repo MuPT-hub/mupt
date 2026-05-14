@@ -65,7 +65,10 @@ def vector_flexible(
     Enables permissive ingestion of vector-shaped objects
     '''
     vector_column = np.atleast_2d(vectorlike).reshape(-1) # permits transposed and nested vector inputs
-    assert vector_column.shape == (dimension,)
+    if vector_column.shape != (dimension,):
+        raise ValueError(
+            f'Expected vector with shape {(dimension,)}, got {vector_column.shape}'
+        )
     
     if dtype is not None:
         vector_column = vector_column.astype(dtype)

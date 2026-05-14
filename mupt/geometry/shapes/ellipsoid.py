@@ -256,7 +256,7 @@ class Ellipsoid(BoundedTransformableShape):
         Transformation which maps this Ellipsoid to the unit sphere centered at the origin
         Inverse of the Ellipsoid's affine basis matrix
         '''
-        return np.linalg.inv(self.as_affine_matrix) # precompute inverse for later use
+        return np.linalg.inv(self.as_affine_matrix()) # precompute inverse for later use
     
     @property
     def inv(self) -> Array4x4:
@@ -295,7 +295,7 @@ class Ellipsoid(BoundedTransformableShape):
             ) <= 1
         ).astype(object) # need to cast from numpy bool to Python bool
     
-    def congruent_to(self, other : 'Sphere') -> bool:
+    def congruent_to(self, other : 'Ellipsoid') -> bool:
         return np.allclose(self.radii, other.radii) \
             and np.allclose(self.center, other.center)
 
