@@ -11,7 +11,10 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from mupt.mutils.copyable import NotCopyableError
-from mupt.geometry.transforms.rigid.application import RigidlyTransformable
+from mupt.geometry.transforms.rigid.application import (
+    transformations_approx_equal,
+    RigidlyTransformable
+)
 
 
 # dummy classes for testing over
@@ -84,20 +87,19 @@ def test_cumulative_transformation(
         points.rigidly_transform(transform)
         cumul_trans *= transform
         
-    np.testing.assert_allclose(
-        points.cumulative_transformation.as_matrix(), # NOTE: must compare as matrix, as __eq__ does not perform this comparison
-        cumul_trans.as_matrix(),
-        strict=True, # check dtype and shape for completeness
+    assert transformations_approx_equal(
+        points.cumulative_transformation 
+        cumul_trans,
     )
 
 def test_reset_transform(points : Points, transform : RigidTransform):
     '''Test that resetting a rigid transformation in-place return the object to its original state'''
     points.rigidly_transform(transform)
     points.reset_transform()
-    np.testing.assert_allclose(
-        points.cumulative_transformation.as_matrix(),
-        RigidTransform.identity().as_matrix(),
-        strict=True,
+
+    assert transformations_approx_equal(
+        points.cumulative_transformation 
+        RigidTransform.identity(),
     )
 
 ## Test read-only variants of methods

@@ -260,10 +260,13 @@ class Ellipsoid(BoundedTransformableShape):
         '''
         return self.affine_inverse()
 
-    def coincident_with(self, other : 'Ellipsoid') -> bool:
+    def coincident_with(self, other : 'Ellipsoid') -> bool: # TODO: replace with __eq__
         return np.allclose(self.radii, other.radii) \
             and np.allclose(self.center, other.center) \
-            and np.allclose(self.cumulative_transformation.as_matrix(), other.cumulative_transformation.as_matrix())
+            and np.allclose(
+                self.cumulative_transformation.as_matrix(),
+                other.cumulative_transformation.as_matrix(),
+            )
         
     # fulfilling BoundedShape contracts
     @property
