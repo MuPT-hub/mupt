@@ -151,19 +151,3 @@ def test_containment_scaled(
     # means either the scaled copy contains the original (if factor >1) or vice-versa (if <1)
     mesh_points, triangles = shape.scaled(scaling_factor).surface_mesh() # implicitly also tests surface_mesh() - convenient, but not very atomic
     assert np.all(shape.contains(mesh_points) == all_inside)
-
-@pytest.mark.parametrize(
-    'shape,transformation,shape_transformed_expected',
-    [],
-)
-def test_shape_rigidly_transformed(
-    shape : BoundedTransformableShape,
-    transformation : RigidTransform,
-    shape_transformed_expected : BoundedTransformableShape,
-) -> None:
-    '''Test thatout-of-place rigid transformations of shapes give the expected output shape'''
-    shape_init = shape.copy()
-    shape_transformed = shape.rigidly_transform(transformation)
-    
-    # ensure target output is attained AND that original is unmodified
-    assert (shape_transformed == shape_transformed_expected) and (shape == shape_init)
