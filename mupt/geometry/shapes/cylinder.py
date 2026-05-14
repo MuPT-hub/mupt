@@ -260,6 +260,11 @@ class Cylinder(BoundedTransformableShape):
 
         return (within_axis & within_radius).astype(object)
 
+    def congruent_to(self, other : 'Cylinder') -> bool:
+        return (self.radius == other.radius) \
+            and (self.length == other.length) \
+            and np.allclose(self.center, other.center)
+
     def scale(self, scaling_factor : float) -> None:
         self.radius *= scaling_factor
         self.length *= scaling_factor

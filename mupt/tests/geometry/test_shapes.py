@@ -75,14 +75,16 @@ def test_volume_scaling(shape : BoundedShape, scaling_factor : float) -> None:
 @pytest.mark.parametrize('shape', shapes_mixed())
 def test_containment_centroidal(shape : BoundedShape) -> None:
     '''Test that BoundedShapes contain their centroid''' 
-    # DEV TB: assumes shapes are convex - true at time of writing, but may need to revisit in the future
+    # DEV TB: assumes shapes are convex - true at time,
+    # of writing but may need to revisit in the future
     assert shape.contains(shape.centroid).all()
 
 # Transformable shape tests
-@pytest.mark.parametrize('shape', [])#shapes())
+@pytest.mark.parametrize('shape', shapes())
+# @pytest.mark.parametrize('shape', [])
 def test_equality(shape : BoundedTransformableShape) -> None:
     # NB: not checking direct equality with self, since that would be
-    # true even if no __eq__ was imlemented! (defaults to "is" behavior)
+    # true even if no __eq__ was implemented! (defaults to "is" behavior)
     assert shape.copy() == shape
 
 @pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())

@@ -90,6 +90,9 @@ class PointCloud(BoundedTransformableShape):
             self.triangulation.find_simplex(points) != -1
         ).astype(object) # need to cast from numpy bool to Python bool
 
+    def congruent_to(self, other : 'PointCloud') -> bool:
+        return np.allclose(self.positions, other.positions)
+
     def scale(self, scaling_factor : float) -> None:
         self.positions = scaling_factor*self.positions + (1 - scaling_factor)*self.centroid
 

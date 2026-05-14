@@ -38,10 +38,12 @@ class BoundedShape(Protocol):
         '''Whether a given coordinate lies within the boundary of the body'''
         ...
 
+    @abstractmethod
     def congruent_to(self, other : Self) -> bool:
         '''Check if another BoundedShape instance has the same size and shape as this one'''
         ...
 
+    # NB: deliberately NOT abstract - supplies implementation in case of explicit inheritance
     def __eq__(self, other :  Self) -> bool:
         # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
         return self.congruent_to(other) 
