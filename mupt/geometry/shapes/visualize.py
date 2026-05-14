@@ -1,22 +1,31 @@
 '''Convenience utilities for drawing shaped objects'''
 
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 from inspect import signature
 
-from matplotlib.axes import Axes # DEV: eventually, declare explicit dependency on mpl...
-from mpl_toolkits.mplot3d import Axes3D # ...(maybe even import conditionally?)
-from matplotlib.pyplot import figure
-
 from .shapes import BoundedShape
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes # DEV: eventually, declare explicit dependency on mpl...
+    from mpl_toolkits.mplot3d import Axes3D # ...(maybe even import conditionally?)
 
 
 def visualize_shape(
     shape : BoundedShape,
-    ax : Optional[Axes3D]=None,
+    ax : Optional['Axes3D']=None,
     grid : bool=True, 
     **kwargs,
-) -> Axes3D:
+) -> 'Axes3D':
     '''Convenience interface for plotting a surface mesh for a class implementing the BoundedShape Protocol'''
+    try:
+        from matplotlib.axes import Axes
+        from mpl_toolkits.mplot3d import Axes3D
+        from matplotlib.pyplot import figure
+    except ImportError as exc:
+        raise RuntimeError(
+            'matplotlib is required to use visualize_shape(); install matplotlib to enable shape visualization'
+        ) from exc
+
     if ax is None:
         fig = figure(layout='tight')
         ax = fig.add_subplot(projection='3d')
