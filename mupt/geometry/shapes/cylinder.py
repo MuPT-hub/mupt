@@ -234,7 +234,7 @@ class Cylinder(BoundedTransformableShape):
     
     @property
     def face_centers(self) -> np.ndarray[
-        Shape[Literal[3], Literal[2]],
+        Shape[Literal[2], Literal[3]],
         np.dtype[np.floating],
     ]:
         '''The absolute positions of the midpoints of the leading and tailing faces on the cylinder'''

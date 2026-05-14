@@ -15,7 +15,6 @@ from ..arraytypes import (
     Vector3,
     Array3x3,
     Array4x4,
-    ArrayNxN,
     ArrayNx3,
     TriangulationIndices,
     BitVectorN,
@@ -127,7 +126,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     def volume(self) -> float:
         return 4/3 * np.pi * self.radius**3
     
-    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
         return (
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
@@ -284,7 +283,7 @@ class Ellipsoid(BoundedTransformableShape):
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
 
-    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
         # Reduce containment check to comparison with auxiliary unit sphere
         # NB: not applying self.inverse to points because the Ellipsoid basis
         # matrix in general not a rigid transformation because of axial stretching

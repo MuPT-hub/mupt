@@ -47,7 +47,7 @@ class BoundedShape(Protocol):
     def __eq__(self, other : Self) -> bool:
         # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
         if not isinstance(other, BoundedShape):
-            raise TypeError(f'Cannot compare BoundedShape to object of type {type(other).__name__}')
+            return False
         return self.congruent_to(other) 
 
     @abstractmethod
@@ -86,7 +86,7 @@ class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     
     def __eq__(self, other : Self) -> bool:
         if not isinstance(other, BoundedTransformableShape):
-            raise TypeError(f'Cannot compare BoundedTransformableShape to object of type {type(other).__name__}')
+            return False
         return super().__eq__(other) and self.transformed_like(other)
         
 class Shaped(Protocol):
