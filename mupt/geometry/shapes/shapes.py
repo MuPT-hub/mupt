@@ -46,7 +46,7 @@ class BoundedShape(Protocol):
     # NB: deliberately NOT abstract - supplies implementation in case of explicit inheritance
     def __eq__(self, other : Self) -> bool:
         # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
-        if not isinstance(other, BoundedShape):
+        if not isinstance(other, type(self)):
             return False
         return self.congruent_to(other) 
 
@@ -85,8 +85,6 @@ class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
         return new_shape
     
     def __eq__(self, other : Self) -> bool:
-        if not isinstance(other, BoundedTransformableShape):
-            return False
         return super().__eq__(other) and self.transformed_like(other)
         
 class Shaped(Protocol):

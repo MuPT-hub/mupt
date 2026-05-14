@@ -55,6 +55,30 @@ def shapes_with_volumes() -> list[tuple[BoundedTransformableShape, float]]:
     
 
 # "Pure" shape tests
+@pytest.mark.parametrize(
+    'shape,other,expected_equal',
+    [
+        (PointCloud.cubic(2.0), PointCloud.cubic(2.0), True),
+        (PointCloud.cubic(2.0), PointCloud(np.random.rand(8,3)), False),
+        (Ellipsoid.from_components(1,2,3), Ellipsoid(radii=np.array([1.,2.,3.])), True),
+        (Sphere(radius=1), Sphere(radius=1.0), True),
+        (
+            Cylinder(1.5, length=2*np.sqrt(3), axial_direction=np.array([1,1,1])),
+            Cylinder.from_radius_and_axis(1.5, axis_vector=np.array([1,1,1])),
+            True,
+        ),
+        (Sphere(radius=1), Cylinder(1, 1), False),
+        (PointCloud.cubic(2.0), Sphere(3.14), False),
+    ]
+)
+def test_comparison(
+    shape : BoundedShape,
+    other : BoundedShape,
+    expected_equal : bool,
+) -> None:
+    '''Test that __eq__ is able to discern shape instances as expected'''
+    assert (shape == other) == expected_equal
+
 @pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())
 def test_volume(shape : BoundedShape, volume_expected : float) -> None:
     '''Test that volume calculation is accurate'''
@@ -112,6 +136,7 @@ def test_containment_centroidal(shape : BoundedShape) -> None:
     # DEV TB: assumes shapes are convex - true at time,
     # of writing but may need to revisit in the future
     assert shape.contains(shape.centroid).all()
+
 
 # Transformable shape tests
 @pytest.mark.parametrize('shape', shapes())
