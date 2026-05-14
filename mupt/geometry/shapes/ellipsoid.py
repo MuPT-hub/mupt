@@ -136,7 +136,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
         ).astype(object)
 
     def congruent_to(self, other : 'Sphere') -> bool:
-        return (self.radius == other.radius) \
+        return np.allclose(self.radius, other.radius) \
             and np.allclose(self.center, other.center)
     
     def scale(self, scaling_factor : float) -> None:
