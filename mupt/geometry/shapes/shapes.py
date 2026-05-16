@@ -3,7 +3,8 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Optional, Self
+from typing import Protocol, runtime_checkable
 from abc import abstractmethod
 
 from ..arraytypes import (
@@ -33,9 +34,21 @@ class BoundedShape(Protocol):
         ...
         
     @abstractmethod
-    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN: 
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN: 
         '''Whether a given coordinate lies within the boundary of the body'''
         ...
+
+    @abstractmethod
+    def congruent_to(self, other : Self) -> bool:
+        '''Check if another BoundedShape instance has the same size and shape as this one'''
+        ...
+
+    # NB: deliberately NOT abstract - supplies implementation in case of explicit inheritance
+    def __eq__(self, other : Self) -> bool:
+        # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
+        if not isinstance(other, type(self)):
+            return False
+        return self.congruent_to(other) 
 
     @abstractmethod
     def scale(self, scaling_factor : float) -> None:
@@ -65,13 +78,14 @@ class BoundedShape(Protocol):
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     '''Interface for bounded rigid bodies which can undergo coordinate transforms'''
     def scaled(self, scaling_factor : float) -> 'BoundedTransformableShape':
-        """
-        Return scaled copy of this shape
-        """ 
+        '''Return a scaled copy of this shape'''
         new_shape = self.copy() # works because RigidlyTransformable is also expected to be copyable
         new_shape.scale(scaling_factor)
         
         return new_shape
+    
+    def __eq__(self, other : Self) -> bool:
+        return super().__eq__(other) and self.transformed_like(other)
         
 class Shaped(Protocol):
     '''Interface for objects which have an associated bounded, tranformable shape'''
@@ -97,7 +111,7 @@ class Shaped(Protocol):
         
         # Case 2) valid shape, which may need to have transformation history transferred over
         if not isinstance(new_shape, BoundedTransformableShape):
-            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
+            raise TypeError(f'Primitive shape must be BoundedTransformableShape instance, not object of type {type(new_shape).__name__}')
 
         new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
         if self._shape is not None:

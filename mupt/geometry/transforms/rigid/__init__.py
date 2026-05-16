@@ -36,6 +36,6 @@ def random_rigid_transformation(
         translation_bound = 0.0
     
     return RigidTransform.from_components(
-        translation=(translation_bound *  np.random.rand(3)),
+        translation=np.random.uniform(-translation_bound, translation_bound, size=3),
         rotation=Rotation.random(),
     )

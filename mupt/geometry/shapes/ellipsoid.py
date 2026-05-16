@@ -15,11 +15,11 @@ from ..arraytypes import (
     Vector3,
     Array3x3,
     Array4x4,
-    ArrayNxN,
     ArrayNx3,
     TriangulationIndices,
     BitVectorN,
 )
+from ..measure import vector_flexible
 from ..coordinates.basis import is_columnspace_mutually_orthogonal
 
         
@@ -103,8 +103,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     ) -> None:
         if center is None:
             center = np.zeros(3, dtype=float)
-        center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
-        assert center_std.shape == (3,)
+        center = vector_flexible(center, dimension=3, dtype=float)
 
         self.radius = radius
         self.center = center
@@ -127,13 +126,17 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     def volume(self) -> float:
         return 4/3 * np.pi * self.radius**3
     
-    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
         return (
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
                 axis=1, # TODO: 
             ) <= self.radius
         ).astype(object)
+
+    def congruent_to(self, other : 'Sphere') -> bool:
+        return np.allclose(self.radius, other.radius) \
+            and np.allclose(self.center, other.center)
     
     def scale(self, scaling_factor : float) -> None:
         self.radius *= scaling_factor
@@ -172,13 +175,11 @@ class Ellipsoid(BoundedTransformableShape):
         # DEV: extract this vector shape checking into external utility, eventually
         if radii is None:
             radii = np.ones(3, dtype=float)
-        radii_std = np.atleast_2d(radii).reshape(-1) # permits transposed and nested vector inputs
-        assert radii_std.shape == (3,)
+        radii = vector_flexible(radii, dimension=3, dtype=float)
             
         if center is None:
             center = np.zeros(3, dtype=float)
-        center_std = np.atleast_2d(center).reshape(-1) # permits transposed and nested vector inputs
-        assert center_std.shape == (3,)
+        center = vector_flexible(center, dimension=3, dtype=float)
 
         self.radii = radii
         self.center = center
@@ -210,7 +211,11 @@ class Ellipsoid(BoundedTransformableShape):
     def is_valid_ellipsoid_matrix(basis : Array4x4) -> bool:
         '''Check that an affine matrix could represent an Ellipsoid'''
         assert basis.shape == (4, 4)
-        axes, center, projective_part, w = basis[:-1, :-1], basis[:-1, -1], basis[-1, :-1], basis[-1, -1] # TODO: find more elegant way to do this splitting
+        # TODO: find more elegant way to do this splitting
+        axes = basis[:-1, :-1]
+        center = basis[:-1, -1]
+        projective_part = basis[-1, :-1]
+        w = basis[-1, -1]
         
         return bool(
             is_columnspace_mutually_orthogonal(axes) # ensure principal axes are mutually orthogonal
@@ -250,7 +255,7 @@ class Ellipsoid(BoundedTransformableShape):
         Transformation which maps this Ellipsoid to the unit sphere centered at the origin
         Inverse of the Ellipsoid's affine basis matrix
         '''
-        return np.linalg.inv(self.as_affine_matrix) # precompute inverse for later use
+        return np.linalg.inv(self.as_affine_matrix()) # precompute inverse for later use
     
     @property
     def inv(self) -> Array4x4:
@@ -260,10 +265,13 @@ class Ellipsoid(BoundedTransformableShape):
         '''
         return self.affine_inverse()
 
-    def coincident_with(self, other : 'Ellipsoid') -> bool:
+    def coincident_with(self, other : 'Ellipsoid') -> bool: # TODO: replace with __eq__
         return np.allclose(self.radii, other.radii) \
             and np.allclose(self.center, other.center) \
-            and np.allclose(self.cumulative_transformation.as_matrix(), other.cumulative_transformation.as_matrix())
+            and np.allclose(
+                self.cumulative_transformation.as_matrix(),
+                other.cumulative_transformation.as_matrix(),
+            )
         
     # fulfilling BoundedShape contracts
     @property
@@ -275,7 +283,7 @@ class Ellipsoid(BoundedTransformableShape):
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return 4/3 * np.pi * np.prod(self.radii) # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
 
-    def contains(self, points : Vector3 | ArrayNxN) -> BitVectorN:
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
         # Reduce containment check to comparison with auxiliary unit sphere
         # NB: not applying self.inverse to points because the Ellipsoid basis
         # matrix in general not a rigid transformation because of axial stretching
@@ -286,6 +294,10 @@ class Ellipsoid(BoundedTransformableShape):
             ) <= 1
         ).astype(object) # need to cast from numpy bool to Python bool
     
+    def congruent_to(self, other : 'Ellipsoid') -> bool:
+        return np.allclose(self.radii, other.radii) \
+            and np.allclose(self.center, other.center)
+
     def scale(self, scaling_factor : float) -> None:
         self.radii *= scaling_factor
 

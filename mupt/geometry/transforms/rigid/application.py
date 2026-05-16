@@ -6,10 +6,28 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import Any, Mapping, Self, Sequence, Union
 from typing import Protocol, runtime_checkable
 
+from numpy import allclose
 from scipy.spatial.transform import RigidTransform
 
 from ....mutils.copyable import Copyable, NotCopyableError
 
+
+def transformations_approx_equal(
+    transformation1 : RigidTransform,
+    transformation2 : RigidTransform,
+    rtol : float = 1E-5,
+    atol : float=1E-8,
+    equal_nan : bool=False,
+) -> bool:
+    '''Check if two RigidTransforms are within '''
+    return allclose(
+        # NOTE: must compare as matrix, as __eq__ does not perform this comparison
+        transformation1.as_matrix(),
+        transformation2.as_matrix(),
+        rtol=rtol,
+        atol=atol,
+        equal_nan=equal_nan,
+    )
 
 @runtime_checkable
 class RigidlyTransformable(Copyable, Protocol):
@@ -39,6 +57,18 @@ class RigidlyTransformable(Copyable, Protocol):
     def cumulative_transformation(self, transformation : RigidTransform) -> None:
         # DEV: might include some additional checks in here in the future
         self._cumul_transf = transformation
+
+    def transformed_like(self, other : 'RigidlyTransformable', *args, **kwargs) -> bool:
+        '''
+        Whether of not this RigidlyTransformable object has a 
+        cumulative transformation approximately equal to that of another
+        '''
+        return transformations_approx_equal(
+            self.cumulative_transformation,
+            other.cumulative_transformation,
+            *args,
+            **kwargs,
+        )
         
     @property
     def resetting_transformation(self) -> RigidTransform:

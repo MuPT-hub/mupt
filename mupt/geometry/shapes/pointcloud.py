@@ -13,7 +13,14 @@ from scipy.spatial.transform import RigidTransform
 from scipy.spatial import ConvexHull, Delaunay
 
 from .shapes import BoundedTransformableShape
-from ..arraytypes import Shape, NumberLike, Vector3, ArrayNx3, TriangulationIndices
+from ..arraytypes import (
+    Shape,
+    NumberLike,
+    Vector3,
+    ArrayNx3,
+    BitVectorN,
+    TriangulationIndices,
+)
 from ...mutils.copyable import clear_cached_properties
 
 
@@ -78,14 +85,26 @@ class PointCloud(BoundedTransformableShape):
         '''Volume of the convex hull of the positions in this PointCloud'''
         return self.convex_hull.volume
     
-    def contains(self, points : Vector3 | ArrayNx3) -> bool:
-        return (self.triangulation.find_simplex(points) != -1).astype(object) # need to cast from numpy bool to Python bool
+    def contains(self, points : Vector3 | ArrayNx3) -> BitVectorN:
+        return np.atleast_1d(
+            self.triangulation.find_simplex(points) != -1
+        ).astype(object) # need to cast from numpy bool to Python bool
+
+    def congruent_to(self, other : 'PointCloud') -> bool:
+        return np.allclose(self.positions, other.positions)
 
     def scale(self, scaling_factor : float) -> None:
         self.positions = scaling_factor*self.positions + (1 - scaling_factor)*self.centroid
 
     def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
-        return self.convex_hull.points, self.convex_hull.simplices
+        verts = self.convex_hull.vertices  # NB: self.convex_hull.points returns ALL points, even in interior 
+        remap : dict[int, int] = {
+            old_idx : new_idx
+                for new_idx, old_idx in enumerate(verts)
+        }
+        remapped = np.vectorize(lambda x: remap.get(x, x))
+
+        return self.positions[verts], remapped(self.convex_hull.simplices)
     
     # fulfilling RigidlyTransformable contracts
     def _copy_untransformed(self) -> 'PointCloud':
