@@ -12,6 +12,7 @@ from typing import (
     Callable,
     ClassVar,
     Collection,
+    Container,
     Hashable,
     Iterable,
     Optional,
@@ -22,10 +23,6 @@ from typing import (
 PrimitiveAddress = TypeVar('PrimitiveAddress', bound=int)
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
-
-ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
-ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 from abc import abstractmethod
 from copy import deepcopy
@@ -42,6 +39,8 @@ from .connection import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
+    ManagesConnectors,
+    ConnectorAddress,
 )
 from .topology import GraphLayout, canonical_graph_property
 from .embedding import infer_connections_from_topology, flexible_connector_reference
@@ -49,8 +48,10 @@ from .embedding import infer_connections_from_topology, flexible_connector_refer
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
-from ..roles import PrimitiveRole
+from ..chemistry.core import ElementLike, isatom, valence_allowed
+
+ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
+Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -71,19 +72,8 @@ class BijectionError(ValueError):
     pass
 
     
-# Primitive types
-class ManagesConnectors(Protocol):
-    '''Interface for objects which manage Connectors and pairs of Connectors ("connections")'''
-    connectors : Collection[Connector]
-    connectors_by_address : Mapping[ConnectorAddress, Connector]
-    
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
-        
-    def connector_trace(self, conn_addr : ConnectorAddress) -> Iterable['ManagesConnectors']:
-        ...
-        
-class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for refactoring
+# Primitive types        
+class Primitive(
     NodeMixin,
     Shaped,
     RigidlyTransformable,
@@ -98,10 +88,9 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'PRIM'
 
     # Expected instance attributes
-    topology : nx.Graph
     metadata : dict[Hashable, Any]
 
-    # Supported methods, based on above-assumed instance attributes
+    # Derived properties
     @property
     def label(self) -> PrimitiveLabel:
         '''A distinguishing label which can be assigned by the user for identification purposes'''
@@ -113,29 +102,23 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
         return id(self)
 
-    @property
-    def functionality(self) -> int:
-        return len(self.external_connector_addrs)
-    
-    @property
-    def valence(self) -> int: # DEV: well-defined from more than just atomic primitives since Connectors store BondType info
-        '''Electronic valence of the Primitive, i.e. the total bond order of all external-facing Connectors on this Primitive'''
-        total_bond_order : float = sum(
-            BOND_ORDER.get(conn.bondtype, 0.0)
-                for conn in self.connectors
-        )
-        return round(total_bond_order)
-    chemical_valence = electronic_valence = valence # aliases for convenience
-      
     # Geometry
     def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
         if isinstance(self.shape, RigidlyTransformable):
             self.shape.rigidly_transform(transformation)
             
-        for connector in self.connectors.values():
+        for connector in self.connectors:
             connector.rigidly_transform(transformation)
-            
+
+    # Topology
+    def connector_trace(self, conn_addr : ConnectorAddress) -> Iterable['ManagesConnectors']:
+        ...
+
+    def neighbors(self) -> Iterable['Primitive']:
+        ''''''
+        ...
+
     # Depiction
     ## Hashable canonical forms for core components
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
@@ -150,9 +133,9 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         '''A canonical string representing this Primitive's shape'''
         return type(self.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
     
-    def canonical_form_topology(self) -> str:
-        '''A canonical string representing this Primitive's topology'''
-        return canonical_graph_property(self.topology)
+    # def canonical_form_topology(self) -> str:
+    #     '''A canonical string representing this Primitive's topology'''
+    #     return canonical_graph_property(self.topology)
     
     def canonical_form(self) -> str: # NOTE: deliberately NOT a property to indicated computing this might be expensive
         '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
@@ -160,7 +143,7 @@ class Primitive(  # DEV: eventually, rename to just "Primitive" - temp name for 
         '''
         return f'(connectors={self.canonical_form_connectors(self.connectors)})' \
             f'[shape={self.canonical_form_shape()}]' \
-            f'<graph_hash={self.canonical_form_topology()}>'
+            # f'<graph_hash={self.canonical_form_topology()}>'
             
     ## Stdout printing
     # def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
@@ -275,6 +258,13 @@ class CompositePrimitive(Primitive):
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         ... # TODO: impl recursively
 
+    def connectors_internal(self) -> Collection[Connector]:
+        '''
+        Connectors (originating from children as they must) which are
+        bound and whose neighbor is also a child of this Composite
+        '''
+        ...
+
     def child(self, prim_addr : PrimitiveAddress) -> Primitive:
         ... # TODO: provide overload which uses a handle <-> address isomorphism
         
@@ -373,6 +363,11 @@ class CompositePrimitive(Primitive):
             maxcount=max_count,
         )
         
+    # Topology
+    def export_cross_section(self, criterion : Callable[[Primitive], bool]) -> nx.Graph:
+        '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
+        raise NotImplementedError
+
 class FrozenCompositePrimitive(CompositePrimitive):
     '''
     Composite which is Immutable after instantiation
@@ -559,8 +554,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         '''Replace a child Primitive with an analogous SimplePrimitive, effectively severing all internal structure beneath it'''
         raise NotImplementedError
     
-    # TODO: implement topology.setter (with reference back to base for getter
-        
     def freeze(self) -> FrozenCompositePrimitive:
         '''
         Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
