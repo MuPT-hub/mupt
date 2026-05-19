@@ -10,9 +10,11 @@ LOGGER = logging.getLogger(__name__)
 from typing import (
     Any,
     ClassVar,
+    Collection,
     Generator,
     Hashable,
     Iterable,
+    Mapping,
     Optional,
     Protocol,
     TypeVar,

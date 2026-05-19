@@ -12,6 +12,7 @@ from typing import (
     Callable,
     ClassVar,
     Collection,
+    Container,
     Hashable,
     Iterable,
     Optional,
@@ -23,10 +24,6 @@ PrimitiveAddress = TypeVar('PrimitiveAddress', bound=int)
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveAddress = Hashable
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
-
-ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
-ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 from abc import abstractmethod
 from copy import deepcopy
@@ -43,6 +40,8 @@ from .connection import (
     UnboundConnectorError,
     ManagesConnectors,
     ConnectorAddress,
+    ManagesConnectors,
+    ConnectorAddress,
 )
 from .topology import GraphLayout, canonical_graph_property
 from .embedding import infer_connections_from_topology, flexible_connector_reference
@@ -53,8 +52,7 @@ from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, valence_allowed
 
 ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
-Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -77,6 +75,7 @@ class BijectionError(ValueError):
     
 # Primitive types        
 class Primitive(
+    NodeMixin,
     Shaped,
     RigidlyTransformable,
     ManagesConnectors,
@@ -91,6 +90,7 @@ class Primitive(
     # Expected instance attributes
     metadata : dict[Hashable, Any]
 
+    # Derived properties
     # Derived properties
     @property
     def label(self) -> PrimitiveLabel:
