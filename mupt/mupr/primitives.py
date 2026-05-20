@@ -34,7 +34,6 @@ from scipy.spatial.transform import RigidTransform
 from .canonicalize import lex_order_multiset_str
 from .connection import (
     Connector,
-    make_second_resemble_first,
     canonical_form_connectors,
     IncompatibleConnectorError,
     MissingConnectorError,
@@ -51,7 +50,7 @@ from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, valence_allowed
 
 ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+Connection = AbstractSet[ConnectionReference] # of size 2; using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -74,11 +73,10 @@ class BijectionError(ValueError):
     
 # Primitive types        
 class Primitive(
-    NodeMixin,
     Shaped,
     RigidlyTransformable,
     ManagesConnectors,
-    Protocol,
+    NodeMixin,
 ):
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
@@ -306,7 +304,6 @@ class FrozenCompositePrimitive(CompositePrimitive):
         self,
         children : UniqueRegistry[PrimitiveHandle, Primitive],
         connections : Iterable[Connection],
-        topology : nx.Graph,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ):
@@ -460,7 +457,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     ) -> None:
         raise NotImplementedError
 
-
     # Resolution shift operations
     def expand(self, target : PrimitiveHandle) -> None:
         '''Replace a child Primitive with its children, preserving connections and traces'''
@@ -470,12 +466,12 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         '''Recursively expand until all childless subprimitives are depth 1 below this one'''
         raise NotImplementedError
 
-    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implcit_parts : bool=True) -> None:
+    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
         '''
         Insert a new level of Primitive between this Composite and its children,
         with each part of the provided partition forming a new child Primitive
         
-        Behavior of implcit parts (i.e. any not explicitly mentioned in "parts") can be specified via the "implicit_parts" argument
+        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts") can be specified via the "implicit_parts" argument
         ''' # DEV: eventually, make enum for implicit_parts behavior
         raise NotImplementedError
 
