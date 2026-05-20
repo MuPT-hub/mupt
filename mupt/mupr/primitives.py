@@ -52,7 +52,7 @@ from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, valence_allowed
 
 ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+Connection = AbstractSet[ConnectionReference] # of size 2; using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -75,10 +75,10 @@ class BijectionError(ValueError):
     
 # Primitive types        
 class Primitive(
-    NodeMixin,
     Shaped,
     RigidlyTransformable,
     ManagesConnectors,
+    NodeMixin,
 ):
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
@@ -431,11 +431,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         self,
         topology : nx.Graph,
     ) -> None:
-        infer_connections_from_topology(
-            topology,
-            mapped_connectors=dict(),
-            n_iter_max=10*len(topology), # TB TODO: fill in actual llogic fordecisidng this - 10 is a number I made up for now
-        )
+        raise NotImplementedError
 
     # Resolution shift operations
     def expand(self) -> None:
