@@ -1,0 +1,75 @@
+#Required inputs for .gro file creation
+
+; box dimensions in nm
+box_dim               = 6.7,6.7,6.7
+
+; molecule names and gro files
+molecule_name         = MPD,TMC
+molecule_gro          = ../gro-files/mpd_gmx.gro,../gro-files/tmc_gmx.gro
+
+; number of molecules
+nmolecules            = 384,256
+
+#---------------------------------------------------#
+
+#Required inputs for .mdp file creation
+
+;number of processes to write mdp file for
+nprocess              = 3
+
+;integrator to use
+integrator            = steep,md,md
+emin                  = T,F,F
+
+;number of steps
+nsteps                = 100000,100000,100000
+
+;ensemble (NVE, NVT, NPT)
+ensemble              = NVE,NVT,NPT
+
+#---------------------------------------------------#
+
+#Required inputs for .top file creation
+
+; force field file
+ff                    = forcefield.itp
+
+; molecule topology files
+molecule_topology     = mpd_gmx.itp,tmc_gmx.itp
+
+#---------------------------------------------------#
+#---------------------------------------------------#
+
+# optional inputs
+
+; filenames for .mdp files
+mdp_filename          = emin,nvt,npt
+
+
+# For energy minimization
+
+emtol                = 1000
+
+# For equilibration
+; timestep size in ps
+dt                    = None,0.002,0.002
+
+; velocity generation
+gen-vel               = None,yes,no
+gen-temp              = None,298.15,298.15
+gen-seed              = None,-1,-1
+
+; constraints
+constraints           = None,h-bonds,h-bonds
+constraint_algorithm  = None,lincs,lincs
+
+; output control
+nstxout              = None,0,0
+nstvout              = None,0,0
+nstfout              = None,0,0
+nstlog               = None,2500,2500
+nstenergy            = None,2500,2500
+nstxout-compressed   = None,2500,2500
+
+
+
