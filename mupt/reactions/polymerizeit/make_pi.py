@@ -39,6 +39,8 @@ def make_pi(inputs_file=None):
 
         init_pi.generate_config_file(inputs, system)
 
+        init_pi.fill_config(inputs, system)
+
 
     return inputs
     
