@@ -12,13 +12,10 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
-    Callable,
     ClassVar,
-    Collection,
     Generator,
     Hashable,
     Iterable,
-    Mapping,
     Optional,
     Protocol,
     TypeVar,
@@ -513,28 +510,6 @@ def canonical_form_connectors(
         joiner=joiner,
     )
 
-## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
-ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
-
-def select_first(connector1 : Connector, connector2 : Connector) -> Connector:
-    '''Select the first of a pair of Connectors'''
-    return connector1
-
-def select_second(connector1 : Connector, connector2 : Connector) -> Connector:
-    '''Select the second of a pair of Connectors'''
-    return connector2
-
-def make_second_resemble_first(connector1 : Connector, connector2 : Connector) -> Connector:
-    '''Select the first of a pair of Connectors, but merge their linkables'''
-    new_connector = connector2.copy()
-    new_connector.anchor.attachables.update(connector1.anchor.attachables)
-    new_connector.linker.attachables.update(connector1.linker.attachables)
-    
-    return new_connector
-
-# DEV: provide implementations which make some attempt to reconcile spatial info attache to respective Connectors
-...
-
 # Canonicalization
 def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
     '''A hashable string representing a collection of Connectors in canonical form'''
@@ -544,36 +519,3 @@ def canonical_form_connectors(connectors: Iterable[Connector], separator : str='
         separator=separator,
         joiner=joiner,
     )
-
-class ManagesConnectors(Protocol):
-    '''Interface for objects which manage Connectors and pairs of Connectors ("connections")'''
-    connectors : Collection[Connector]
-    connectors_by_address : Mapping[ConnectorAddress, Connector]
-    
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
-
-    @property
-    def connectors_free(self) -> Collection[Connector]:
-        '''Connectors which are currently unbound'''
-        ...
-
-    @property
-    def connectors_bound(self) -> Collection[Connector]:
-        '''Connectors which have a neighbor'''
-        ...
-
-    # default implementations, for when explicitly inherited
-    @property
-    def functionality(self) -> int:
-        return len(self.connectors_free)
-    
-    @property
-    def valence(self) -> int: # DEV: well-defined from more than just atomic primitives since Connectors store BondType info
-        '''Electronic valence of the Primitive, i.e. the total bond order of all external-facing Connectors on this Primitive'''
-        total_bond_order : float = sum(
-            BOND_ORDER.get(conn.bondtype, 0.0)
-                for conn in self.connectors
-        )
-        return round(total_bond_order)
-    chemical_valence = electronic_valence = valence # aliases for convenience
