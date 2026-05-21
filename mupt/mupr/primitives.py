@@ -96,7 +96,10 @@ class Primitive(
         return self.DEFAULT_LABEL
     
     def address(self) -> int:
-        '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
+        '''
+        Unique identifier used to identify this Primitive instance,
+        irrespective of similarity to other Connectors
+        '''
         return id(self)
 
     # Geometry
