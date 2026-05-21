@@ -1,4 +1,8 @@
-'''Abstractions of connections between two primitives'''
+'''
+Core components of connections, namely:
+* AttachmentPoints, which define geometric positions and selectivity of attachment sites
+* Connectors, which comprise 2 attachment points (an "anchor" and a "linker") and represent half of a chemical bond
+'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
@@ -8,89 +12,32 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
-    Callable,
     ClassVar,
     Generator,
     Hashable,
     Iterable,
-    Literal,
     Optional,
-    TypeAlias,
-    TypeVar,
     Union,
 )
 from warnings import warn
 
 from dataclasses import dataclass, field
-from enum import Enum
 from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector, compare_optional_positions
-from ..geometry.measure import within_ball
-from ..geometry.coordinates.basis import is_orthonormal
-from ..geometry.transforms.linear import rejector
-from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..geometry.transforms.rigid.application import RigidlyTransformable
+from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
+from ..canonicalize import lex_order_multiset_str
+from ...chemistry.core import BondType, BOND_ORDER
+from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector, compare_optional_positions
+from ...geometry.measure import within_ball
+from ...geometry.coordinates.basis import is_orthonormal
+from ...geometry.transforms.linear import rejector
+from ...geometry.transforms.rigid.rotations import alignment_rotation
+from ...geometry.transforms.rigid.application import RigidlyTransformable
 
-
-# Label typehints
-ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
-ConnectorHandle = tuple[ConnectorLabel, int]
-AttachmentLabel = TypeVar('AttachmentLabel', bound=Hashable) # TODO: narrow down this type as use cases become clearer
-
-# Custom Exceptions
-class ConnectionError(Exception):
-    '''Raised when Connector-related errors as encountered'''
-    pass
-
-class IncompatibleConnectorError(ConnectionError):
-    '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
-    pass
-
-class MissingConnectorError(ConnectionError):
-    '''Raised when a required Connector is missing'''
-    pass
-
-class UnboundConnectorError(ConnectionError):
-    '''Raised when a pair of Connectors are unexpectedly not bound to one another'''
-    pass
-
-# Helper classes
-class TraversalDirection(Enum):
-    '''
-    Uniquifying label indicating whether a connection faces "forward" or "backward" along a path graph 
-    relative to an arbitrary-but-consistent absolute direction of traversal along the path from end-to-end
-    '''
-    AMBI = 0
-    ANTERO = 1
-    RETRO = 2
-    
-    @classmethod
-    def complement(cls, direction : 'TraversalDirection') -> 'TraversalDirection':
-        '''
-        Get the complement (i.e. "opposite") direction to a given TraversalDirection
-        
-        Parameters
-        ----------
-        direction : TraversalDirection
-            The direction to get the complement of
-            
-        Returns
-        -------
-        TraversalDirection
-            The complement of the given direction
-        '''
-        if direction == cls.ANTERO:
-            return cls.RETRO
-        elif direction == cls.RETRO:
-            return cls.ANTERO
-        elif direction == cls.AMBI:
-            return cls.AMBI
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable mechanism under-the-hood,
 # and also prevents reassignment of the attachment label, which is important in some cases
@@ -147,6 +94,14 @@ class Connector(RigidlyTransformable):
     
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
+    @property
+    def bond_order(self) -> float:
+        '''
+        A numerical bond order corresponding to the type of bond this Connector is associated with
+        E.g. UNASSIGNED = 0.0, AROMATIC = 1.5, DOUBLE = 2.0, etc.
+        '''
+        return BOND_ORDER.get(self.bondtype, 0.0)
+
     # Geometric properties
     ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
     ## preserving relative orientations for local orthogonal basis under general rigid transformations; key observation is that 
@@ -185,7 +140,7 @@ class Connector(RigidlyTransformable):
         self.linker.position = as_n_vector(new_bond_vector, 3) + self.anchor.position
         
     @property
-    def bond_length(self) -> float:
+    def bond_length(self) -> np.floating:
         '''Distance spanned by the bond vector - i.e. distance from anchor to linker positions'''
         return np.linalg.norm(self.bond_vector)
     
@@ -194,7 +149,7 @@ class Connector(RigidlyTransformable):
         '''Unit vector in the same direction as the bond (oriented from anchor to linker)'''
         return self.bond_vector / self.bond_length # DEV: use normalized()?
     
-    def set_bond_length(self, new_bond_length : float) -> None:
+    def set_bond_length(self, new_bond_length : float | np.floating) -> None:
         '''Adjust length of bond vector by moving linker position along the bond vector's span, keeping the anchor fixed in place'''
         self.bond_vector = new_bond_length * self.unit_bond_vector
 
@@ -261,18 +216,18 @@ class Connector(RigidlyTransformable):
         return self.has_bond_vector and self.has_tangent_position
     has_local_orthogonal_basis = has_dihedral_orientation # alias
     
-    def local_orthonormal_basis(self) -> np.ndarray[Shape[Literal[3, 3]], float]:
+    def local_orthonormal_basis(self) -> Array3x3:
         '''
         Return a 3x3 array representing an orthonormal basis for this Connector's local coordinate system
         Columns of the array are the basis vectors, which are all mutually orthogonal and of unit length
         
         Basis vectors are in fact the unit bond, tangent, and normal vectors associated to this Connector, respectively
         '''
-        local_orthonormal_basis = np.vstack([
+        local_orthonormal_basis = np.vstack(( # type:ignore
             self.unit_bond_vector,
             self.unit_tangent_vector,
             self.unit_normal_vector,
-        ]).T # DEV: transpose to get basis vectors as columns
+        )).T # DEV: transpose to get basis vectors as columns
         if not is_orthonormal(local_orthonormal_basis):
             raise ValueError('Bond, tangent, and normal vectors of Connector are not mutually orthonormal')
         
@@ -479,7 +434,7 @@ class Connector(RigidlyTransformable):
         self,
         other : 'Connector',
         match_bond_length : bool=False,
-    ) -> None:
+    ) -> 'Connector':
         '''
         Return copy of this Connector whose linker positions is aligned to the anchor position of the other Connector (if assigned)
         NOTE: does NOT modify either Connector of the passed pair; returns a modified copy of the first Connector
@@ -509,7 +464,6 @@ class Connector(RigidlyTransformable):
         if (dihedral_angle_rad is not None): # NOTE: sentinel (rather than default 0.0) weakens preconditions on tangents when no dihedral is specified
             self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
-
     # Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
@@ -526,7 +480,10 @@ class Connector(RigidlyTransformable):
             # TODO: also compare positions, if set?
         )
         
-    def bondable_with_iter(self, *others : Iterable[Union['Connector', Iterable['Connector']]]) -> Generator[bool, None, None]:
+    def bondable_with_iter(
+        self,
+        *others : Iterable[Union['Connector', Iterable['Connector']]],
+    ) -> Generator[Union[bool, Iterable[bool]], None, None]:
         '''Whether this Connector can be connected to each of a sequence of other Connectors, in the order passed'''
         for other in others:
             if isinstance(other, Connector):
@@ -572,6 +529,13 @@ class Connector(RigidlyTransformable):
         if not isinstance(new_label, Hashable):
             raise TypeError(f'Connector label must be a Hashable type, not {type(new_label)}')
         self._label = new_label
+        
+    def address(self) -> int:
+        '''
+        Unique identifier used to identify this Connector instances,
+        irrespective of similarity to other Connectors
+        '''
+        return id(self)
     
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
@@ -642,24 +606,12 @@ class Connector(RigidlyTransformable):
         
         return counterpart
 
-## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
-ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
-
-def select_first(connector1 : Connector, connector2 : Connector) -> Connector:
-    '''Select the first of a pair of Connectors'''
-    return connector1
-
-def select_second(connector1 : Connector, connector2 : Connector) -> Connector:
-    '''Select the second of a pair of Connectors'''
-    return connector2
-
-def make_second_resemble_first(connector1 : Connector, connector2 : Connector) -> Connector:
-    '''Select the first of a pair of Connectors, but merge their linkables'''
-    new_connector = connector2.copy()
-    new_connector.anchor.attachables.update(connector1.anchor.attachables)
-    new_connector.linker.attachables.update(connector1.linker.attachables)
-    
-    return new_connector
-
-# DEV: provide implementations which make some attempt to reconcile spatial info attache to respective Connectors
-...
+# Canonicalization
+def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
+    '''A hashable string representing a collection of Connectors in canonical form'''
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors), # TODO: sort by some metric?
+        element_repr=str, #lambda bt : BondType.values[int(bt)]
+        separator=separator,
+        joiner=joiner,
+    )
