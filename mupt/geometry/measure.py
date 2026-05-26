@@ -13,11 +13,12 @@ from .arraytypes import (
     VectorN,
     ArrayNxN,
 )
+OrderType = Union[int, float, str] # types accepted by 'order' arg of np.linalg.norm()
 
 
 def normalize(
     vector : VectorN | ArrayNxN,
-    order : Optional[Union[int, float, str]]=None,
+    order : Optional[OrderType]=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
     norms = np.atleast_1d( # ensure shape is broadcastable, even for scalars
@@ -30,22 +31,45 @@ def normalize(
 
 def normalized(
     vector : np.ndarray[Shape[N, ...], NumericNP], # DEV: using generic here to indicate return has same dtype
-    order  : Optional[Union[int, float, str]]=None,
+    order  : Optional[OrderType]=None,
 ) -> np.ndarray[Shape[N, ...], NumericNP]:
-    '''Return a normalized copy of a vector or array of vectors;
-    The array supplied to "vector" is unchanged'''
+    '''
+    Return a normalized copy of a vector or array of vectors;
+    The array supplied to "vector" is unchanged
+    '''
     new_vector = np.copy(vector)  # preserve original vector
     normalize(new_vector, order=order)
 
     return new_vector
 
-def within_ball(
-    position_1 : VectorN,
-    position_2 : VectorN,
-    radius : float=1E-6,
+def compare_optional_positions(
+    position_1 : Optional[VectorN],
+    position_2 : Optional[VectorN],
+    radius : float=1E-8,
+    order : Optional[OrderType]=None,
 ) -> bool:
-    '''Check that two vectors are within a certain absolute distance of one another'''
-    # TODO: check vector shapes match
-    if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
-        raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    return (np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < radius).astype(object) # cast to Python bool
+    '''
+    Check that two positional values are either:
+    * Both undefined (returns True)
+    * Both defined AND within a set in distance in a given p-norm (returns True if both conditions are met)
+    * One defined and one undefined, in either order (returns False)
+    '''
+    if type(position_1) != type(position_2):
+        return False
+    
+    if position_1 is None: # both are None
+        return True
+    elif isinstance(position_1, np.ndarray):
+        return (
+            np.linalg.norm(
+                position_1 - position_2,
+                ord=order,
+                axis=-1,
+            ) < radius
+        ).astype(object) # cast to Python bool
+    else:
+        raise TypeError(
+            f'Expected positions to be either NoneType or numpy.ndarray: ' \
+            f'got {type(position_1).__name__} and {type(position_2).__name__}'
+        )
+    

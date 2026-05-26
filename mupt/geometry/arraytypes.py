@@ -90,21 +90,3 @@ def as_n_vector(
         vector_column = vector_column.astype(dtype)
         
     return vector_column
-
-def compare_optional_positions(
-    position_1 : Optional[VectorN],
-    position_2 : Optional[VectorN],
-    **kwargs,
-) -> bool:
-    '''Check that two positional values are either 1) both undefined, or 2) both defined and equal'''
-    # DEV: replace with monadic interface down the line ("Maybe" pattern?)
-    if type(position_1) != type(position_2):
-        return False
-    
-    if position_1 is None: # both are None
-        return True
-    elif isinstance(position_1, np.ndarray):
-        return np.allclose(position_1, position_2, **kwargs)
-    else:
-        raise TypeError(f'Expected positions to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    
