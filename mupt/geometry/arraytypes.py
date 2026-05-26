@@ -82,7 +82,9 @@ def as_n_vector(
     
     Enables permissive ingestion of vector-shaped objects
     '''
-    if not isinstance(vectorlike, (np.ndarray, Sequence)): # TODO: include support for list/tuple-like WITHOUT including sets, str, etc
+    # N.B.: strins and byte-like are TECHNICALLY also Sequences, but not the kind we want here
+    if isinstance(vectorlike, (str, bytes)) \
+        or (not isinstance(vectorlike, (np.ndarray, Sequence))):
         raise TypeError(f'Vectorlike must be a numpy array of Sequence of Numerics, not {type(vectorlike).__name__}')
     
     vector_column = np.atleast_2d(vectorlike).reshape(-1) # permits transposed and nested vector inputs
