@@ -12,14 +12,12 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
+    Callable,
     ClassVar,
-    Generator,
     Hashable,
     Iterable,
     Optional,
-    Union,
 )
-from warnings import warn
 
 from dataclasses import dataclass, field
 from copy import deepcopy
@@ -91,17 +89,17 @@ class Connector(RigidlyTransformable):
         label : Optional[ConnectorLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ):
-        self.anchor = anchor if (anchor is not None) else AttachmentPoint()
-        self.linker = linker if (linker is not None) else AttachmentPoint()
+        self.anchor : AttachmentPoint = anchor if (anchor is not None) else AttachmentPoint()
+        self.linker : AttachmentPoint = linker if (linker is not None) else AttachmentPoint()
         
-        self.bondtype = bondtype
-        self.query_smarts = query_smarts
-        self.label = self.__class__.DEFAULT_LABEL if (label is None) else label
-        self.metadata = metadata or dict()
+        self.bondtype : BondType = bondtype
+        self.query_smarts : str = query_smarts
+        self.label : Hashable = self.__class__.DEFAULT_LABEL if (label is None) else label
+        self.metadata : dict[Hashable, Any] = metadata or dict()
 
         ## Protected attributes
         self._neighbor : Optional[Connector] = None
-        self._parents : list[ManagesConnectors] = list()
+        self._managers : list[ManagesConnectors] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -314,6 +312,31 @@ class Connector(RigidlyTransformable):
         if self.has_tangent_position:
             self._tangent_position = transformation.apply(self._tangent_position)
 
+    # Parents
+    @property
+    def managers(self) -> list[ManagesConnectors]:
+        return self._managers
+    # N.B.: deliberately excluded managers.setter; moderated thru add_manager and remove_manager methods instead
+
+    def add_manager(
+        self,
+        manager : ManagesConnectors,
+        ranking : Optional[Callable[[ManagesConnectors], int]]=None,
+    ) -> None:
+        '''
+        Insert new manager into registry of manager connector managers
+        If ranking Callable is given, will apply to sort managers in-place post-insertion
+        '''
+        if manager in self._managers:
+            raise IndexError(f'The Connector manager {manager!r} is already present in the registry of Connector {self!r}')
+        self._managers.append(manager)
+
+        if ranking:
+            self._managers.sort(key=ranking, reverse=False)
+
+    def remove_manager(self, manager : ManagesConnectors) -> None:
+        self._managers.remove(manager) # no need to check membership - already raises ValueError if not present
+
     # Interactions with neighboring Connectors
     ## Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
@@ -322,7 +345,7 @@ class Connector(RigidlyTransformable):
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
         # DEV: opting for loosest possible comparison where at least on of the attachable elements overlaps between opposing pairs of attachment points
         # opted not to check the (perhaps more obvious) "self.anchor.attachment in other.linker.attachables", etc., 
-        # because the attachment labels may be unassigned between resolution shift operations in the representation hierarchy
+        # because the attachment labels may differ between resolution shift operations in the representation hierarchy
         return ( 
             (not set.isdisjoint(self.anchor.attachables, other.linker.attachables))
             and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
