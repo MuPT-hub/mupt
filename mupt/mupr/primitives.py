@@ -51,7 +51,7 @@ from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, valence_allowed
 
 ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference, ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -74,7 +74,6 @@ class BijectionError(ValueError):
     
 # Primitive types        
 class Primitive(
-    NodeMixin,
     Shaped,
     RigidlyTransformable,
     ManagesConnectors,
@@ -157,7 +156,7 @@ class Primitive(
 TRIVIAL_TOPOLOGY = nx.Graph()
 nx.freeze(TRIVIAL_TOPOLOGY) # VITAL that this be frozen to allow it to act as shared singleton across Simples
 
-class SimplePrimitive(Primitive):
+class SimplePrimitive(Primitive, NodeMixin):
     '''
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
     Used to explicitly demarcate "leaf" Primitives in a representation hierarchy
@@ -240,7 +239,7 @@ class AtomicPrimitive(SimplePrimitive):
     # TODO: implement copying
     
 ## Composites
-class CompositePrimitive(Primitive):
+class CompositePrimitive(Primitive, NodeMixin):
     '''
     A Primitive with an internal structure of "child" Primitives within it
     Internal attributes about children, their Connectors, and the Topology connecting are immutable after instantiation
