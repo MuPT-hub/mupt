@@ -29,7 +29,6 @@ from anytree import NodeMixin, findall
 import networkx as nx
 from scipy.spatial.transform import RigidTransform
 
-from .canonicalize import lex_order_multiset_str
 from .connection import (
     Connector,
     canonical_form_connectors,
@@ -551,18 +550,6 @@ def check_connections_bijective_to_topology_edges(
         )
 
 # Hashable canonical forms for core components
-def canonical_form_connectors(
-    primitive : Primitive,
-    separator : str=':',
-    joiner : str='-',
-) -> str:
-    '''A canonical string representing this Primitive's Connectors'''
-    return canonical_form_connectors(
-        sorted(primitive.connectors),
-        separator=separator,
-        joiner=joiner,
-    )
-
 def canonical_form_shape(primitive : Primitive) -> str:
     '''A canonical string representing this Primitive's shape'''
     return type(primitive.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses

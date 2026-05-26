@@ -498,7 +498,11 @@ class Connector(RigidlyTransformable):
     
 
 # Canonicalization
-def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
+def canonical_form_connectors(
+    connectors: Iterable[Connector],
+    separator : str=':',
+    joiner : str='-',
+) -> str:
     '''A hashable string representing a collection of Connectors in canonical form'''
     return lex_order_multiset_str(
         map(Connector.canonical_form, connectors), # TODO: sort by some metric?
