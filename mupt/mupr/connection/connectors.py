@@ -61,7 +61,7 @@ class AttachmentPoint(RigidlyTransformable):
             if (value is not None) and (value not in self.attachables):
                 raise ValueError(f'Attachment "{value!s}" not designated as one of attachable labels {self.attachables}')
         if key == 'position':
-            value = as_n_vector(value, 3)
+            value = as_n_vector(value, dimension=3)
         return super().__setattr__(key, value)
         
     # Implementing RigidTransformable contracts
@@ -132,7 +132,7 @@ class Connector(RigidlyTransformable):
     @bond_vector.setter
     def bond_vector(self, new_bond_vector : Vector3) -> None:
         # TODO: cast this as a rigid transformation of linker to track cumulative transform? (would enable reset of bond length history)
-        self.linker.position = as_n_vector(new_bond_vector, 3) + self.anchor.position
+        self.linker.position = as_n_vector(new_bond_vector, dimension=3) + self.anchor.position
         
     @property
     def bond_length(self) -> np.floating:
@@ -169,7 +169,7 @@ class Connector(RigidlyTransformable):
     @tangent_vector.setter
     def tangent_vector(self, new_tangent_vector : Vector3) -> None:
         '''Update tangent positions given a new tangent vector'''
-        new_tangent_vector = as_n_vector(new_tangent_vector, 3)
+        new_tangent_vector = as_n_vector(new_tangent_vector, dimension=3)
         if not np.isclose(
             np.dot( # DEV: opting not to normalize here in case either vector has small magnitude - revisit if that becomes an issue
                 self.bond_vector,
@@ -302,7 +302,7 @@ class Connector(RigidlyTransformable):
             metadata=deepcopy(self.metadata),
         )
         if self.has_tangent_position:
-            new_connector.tangent_vector = as_n_vector(self.tangent_vector, 3)
+            new_connector.tangent_vector = as_n_vector(self.tangent_vector, dimension=3)
 
         return new_connector
 
