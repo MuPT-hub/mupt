@@ -460,7 +460,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     ) -> None:
         raise NotImplementedError
 
-
     # Resolution shift operations
     def expand(self, target : PrimitiveHandle) -> None:
         '''Replace a child Primitive with its children, preserving connections and traces'''
@@ -483,7 +482,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         '''Replace a child Primitive with an analogous SimplePrimitive, effectively severing all internal structure beneath it'''
         raise NotImplementedError
     
-    def freeze(self) -> FrozenCompositePrimitive:
+    def frozen(self) -> FrozenCompositePrimitive:
         '''
         Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
         '''
