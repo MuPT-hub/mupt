@@ -126,9 +126,6 @@ class Primitive(
     
     
 ## Simples
-TRIVIAL_TOPOLOGY = nx.Graph()
-nx.freeze(TRIVIAL_TOPOLOGY) # VITAL that this be frozen to allow it to act as shared singleton across Simples
-
 class SimplePrimitive(Primitive, NodeMixin):
     '''
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
