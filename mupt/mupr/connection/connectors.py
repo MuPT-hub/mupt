@@ -453,12 +453,27 @@ class Connector(RigidlyTransformable):
             raise TypeError(f'Connector label must be a Hashable type, not {type(new_label)}')
         self._label = new_label
         
+    # def __hash__(self) -> int:
+    #     return hash((
+    #         self.address
+    #         self.anchor,
+    #         # self.linker,
+    #         frozenset(self.linkables), # TODO: make linkables frozen at __init__ level to avoid post-init mutation?
+    #         *self.is_position_assigned.keys(),
+    #     ))
+    #     # raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
+    
+    # def __eq__(self, other : 'Connector') -> bool:
+    #     # return hash(self) == hash(other)
+    #     return self.fungible_with(other)
+    
+    @property
     def address(self) -> int:
         '''
         Unique identifier used to identify this Connector instances,
         irrespective of similarity to other Connectors
         '''
-        return id(self)
+        raise NotImplementedError # TODO: find hasing strategy that is more robust than id(...) (volatile, and w/o many desired properties)
     
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
@@ -480,20 +495,6 @@ class Connector(RigidlyTransformable):
         )
         
         return f'{self.__class__.__name__}({attr_str})'
-
-    # def __hash__(self) -> int:
-    #     return hash((
-    #         # id(self),
-    #         self.anchor,
-    #         # self.linker,
-    #         frozenset(self.linkables), # TODO: make linkables frozen at __init__ level to avoid post-init mutation?
-    #         *self.is_position_assigned.keys(),
-    #     ))
-    #     # raise NotImplementedError # DEVNOTE: need to decide what info should (and shouldn't) go into the making of this sausage
-    
-    # def __eq__(self, other : 'Connector') -> bool:
-    #     # return hash(self) == hash(other)
-    #     return self.fungible_with(other)
     
 
 # Canonicalization
