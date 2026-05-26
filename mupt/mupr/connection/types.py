@@ -8,9 +8,10 @@ from typing import (
     Hashable,
     Mapping,
     Protocol,
-    TypeVar,
+    TYPE_CHECKING,
 )
-from .connectors import Connector
+if TYPE_CHECKING:
+    from .connectors import Connector
 
 type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
 type ConnectorLabel = Hashable
@@ -21,19 +22,19 @@ type ConnectorAddress = int # DEV TB: consider if this type needs to be more spe
 
 class ManagesConnectors(Protocol):
     '''Interface for objects which manage Connectors and pairs of Connectors ("connections")'''
-    connectors : Collection[Connector]
-    connectors_by_address : Mapping[ConnectorAddress, Connector]
+    connectors : Collection['Connector']
+    connectors_by_address : Mapping[ConnectorAddress, 'Connector']
     
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
+    def connector(self, conn_addr : ConnectorAddress) -> 'Connector':
         ...
 
     @property
-    def connectors_free(self) -> Collection[Connector]:
+    def connectors_free(self) -> Collection['Connector']:
         '''Connectors which are currently unbound'''
         ...
 
     @property
-    def connectors_bound(self) -> Collection[Connector]:
+    def connectors_bound(self) -> Collection['Connector']:
         '''Connectors which have a neighbor'''
         ...
 
