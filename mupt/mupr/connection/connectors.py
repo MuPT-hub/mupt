@@ -329,21 +329,6 @@ class Connector(RigidlyTransformable):
             and (self.bondtype == other.bondtype)
         )
         
-    def bondable_with_iter(
-        self,
-        *others : Iterable[Union['Connector', Iterable['Connector']]],
-    ) -> Generator[Union[bool, Iterable[bool]], None, None]:
-        '''Whether this Connector can be connected to each of a sequence of other Connectors, in the order passed'''
-        for other in others:
-            if isinstance(other, Connector):
-                yield self.bondable_with(other)
-            elif isinstance(other, Iterable):
-                # DEVNOTE: deliberately NOT using "yield from" to preserve parity with input
-                # (output element corresponding to iterable is now just a Generator instance, rather than a bool)
-                yield self.bondable_with_iter(*other)
-            else:
-                raise TypeError(f'Connector can only be bonded to other Connectors or collection of Connectors, not with object of type {type(other)}')
-
     def coincides_with(self, other : 'Connector') -> bool:
         '''Whether this Connector overlaps spatially with another Connector'''
         return ( # TODO: set atol/rtol for float vector comparison
