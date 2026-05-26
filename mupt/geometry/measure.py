@@ -8,16 +8,17 @@ import numpy as np
 
 from .arraytypes import (
     N,
-    Shape,
     NumericNP,
+    OrderType,
+    Shape,
     VectorN,
     ArrayNxM,
 )
 
 
 def normalize(
-    vector : VectorN | ArrayNxM,
-    order : Optional[Union[int, float, str]]=None,
+    vector : VectorN | ArrayNxN,
+    order : OrderType=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
     norms = np.atleast_1d( # ensure shape is broadcastable, even for scalars
@@ -29,20 +30,24 @@ def normalize(
     vector /= norms
 
 def normalized(
-    vector : np.ndarray[Shape[N, ...], NumericNP], # DEV: using generic here to indicate return has same dtype
-    order  : Optional[Union[int, float, str]]=None,
+    # DEV: using generic here to indicate return has same dtype
+    vector : np.ndarray[Shape[N, ...], NumericNP], 
+    order : OrderType=None,
 ) -> np.ndarray[Shape[N, ...], NumericNP]:
-    '''Return a normalized copy of a vector or array of vectors;
-    The array supplied to "vector" is unchanged'''
-    new_vector = np.copy(vector)  # preserve original vector
+    '''
+    Return a normalized copy of a vector or array of vectors;
+    The array supplied to "vector" is unchanged
+    '''
+    new_vector = np.copy(vector)
     normalize(new_vector, order=order)
 
     return new_vector
 
-def within_ball(
-    position_1 : VectorN,
-    position_2 : VectorN,
-    radius : float=1E-6,
+def compare_optional_positions(
+    position_1 : Optional[VectorN],
+    position_2 : Optional[VectorN],
+    radius : float=1E-8,
+    order : OrderType=None,
 ) -> bool:
     '''Check that two vectors are within a certain absolute distance of one another'''
     # TODO: check vector shapes match

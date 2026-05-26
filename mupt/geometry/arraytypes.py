@@ -9,12 +9,13 @@ from typing import (
     TypeVar,
     Union,
 )
-S = TypeVar('S') # pure generics
-T = TypeVar('T') # pure generics
+# pure generics
+S = TypeVar('S')
+T = TypeVar('T')
 
 import numpy as np
 import numpy.typing as npt
-from numbers import Number, Real
+from numbers import Number#, Real
 
 
 # Numeric typehints
@@ -30,6 +31,9 @@ BoolNP = TypeVar('BoolNP', bound=np.dtype[np.bool_])
 Shape = tuple
 DType = TypeVar('DType', bound=np.dtype)
 
+## types accepted by 'order' arg of np.linalg.norm()
+OrderType = Optional[Union[int, Literal['fro'], Literal['nuc']]] 
+
 ## Typehints for indeterminate size of a given array dimension
 M = TypeVar('M', bound=int) 
 N = TypeVar('N', bound=int)
@@ -38,7 +42,7 @@ Dims = TypeVar('Dims', bound=int) # intended to typehint the number of dimension
 DimsPlus = TypeVar('DimsPlus', bound=int) # intended to typehint the number of dimensions +1 (no easy way to do arithmetic to generic types yet)
 
 # Fixed-size vector and array type annotations - consider deprecating, since they're not currently being used anywhere
-## DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
+## TB DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
 Vector2  = np.ndarray[Shape[Literal[2]], NumericNP]
 Vector3  = np.ndarray[Shape[Literal[3]], NumericNP]
 Vector4  = np.ndarray[Shape[Literal[4]], NumericNP]
