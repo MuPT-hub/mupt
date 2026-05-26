@@ -32,7 +32,7 @@ Shape = tuple
 DType = TypeVar('DType', bound=np.dtype)
 
 ## types accepted by 'order' arg of np.linalg.norm()
-OrderType = Optional[Union[int, Literal['fro'], Literal['nuc']]] 
+OrderType = Optional[Union[int, float, Literal['fro'], Literal['nuc']]] 
 
 ## Typehints for indeterminate size of a given array dimension
 M = TypeVar('M', bound=int) 

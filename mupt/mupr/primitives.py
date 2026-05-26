@@ -99,7 +99,7 @@ class Primitive(
     def address(self) -> int:
         '''
         Unique identifier used to identify this Primitive instance,
-        irrespective of similarity to other Connectors
+        irrespective of similarity to other Primitives
         '''
         return id(self)
 
