@@ -79,7 +79,7 @@ class Primitive(
     NodeMixin,
 ):
     '''
-    A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
+    Base class for fundamental, scale-agnostic building block of a molecular system
     '''
     # Attributes
     ## Classwide defaults
@@ -113,12 +113,12 @@ class Primitive(
             connector.rigidly_transform(transformation)
 
     # Topology
-    def connector_trace(self, conn_addr : ConnectorAddress) -> Iterable['ManagesConnectors']:
-        ...
-
-    def neighbors(self) -> Iterable['Primitive']:
-        ''''''
-        ...
+    def neighbors(self, criterion : Callable[['Primitive'], bool]) -> Iterable['Primitive']:
+        '''Primitives on the other end of a bound Connector, selected at the target level of resolution'''
+        for conn in self.connectors_bound: # inherited from ManagesConnectors contract
+            for nb_primitive in conn.managers:
+                if criterion(nb_primitive): # TB DEV: criterion Callable is not Covariant, gives type error
+                    return nb_primitive # TB DEV: opting for return over yield to take first - this may change later
 
     # Depiction
     ## Hashable canonical forms for core components
@@ -153,11 +153,8 @@ class Primitive(
     # def __repr__(self) -> str:
     #     raise NotImplementedError # TODO - will likely have to change for subtypes
     
-    
-## Simples
-TRIVIAL_TOPOLOGY = nx.Graph()
-nx.freeze(TRIVIAL_TOPOLOGY) # VITAL that this be frozen to allow it to act as shared singleton across Simples
 
+## Simples
 class SimplePrimitive(Primitive):
     '''
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
@@ -176,7 +173,6 @@ class SimplePrimitive(Primitive):
             id(conn) : conn
                 for conn in self.connectors # NOTE: not iterating over connectors directly in case it was an Iterator which was exhausted during self.connectors assignment
         }
-        self.topology = TRIVIAL_TOPOLOGY # trivial topology for simples - "calling card" for an eventual canonical graph form
         self._shape = shape
         self.metadata = metadata or dict()
     
@@ -226,14 +222,14 @@ class AtomicPrimitive(SimplePrimitive):
         )
 
     @property # DEV: no setter implemented; element is immutable after instantiation
-    def element(self) -> Optional[ElementLike]:
+    def element(self) -> ElementLike:
         '''The chemical element, ion, or isotope associated with this AtomicPrimitive'''
         return self._element
     
     def check_valence(self) -> None:
         '''Check that element assigned to atomic Primitives and bond orders of Connectors are chemically-compatible'''
         if not valence_allowed(self.element.number, self.element.charge, self.valence):
-            raise ValueError(f'Atomic {self._repr_brief(include_functionality=True)} with total valence {self.valence} incompatible with assigned element {self.element!r}')
+            raise ValueError(f'Atomic {self!r} with total valence {self.valence} incompatible with assigned element {self.element!r}')
     
     def canonical_form(self):
         return f'{self.element.symbol}{super().canonical_form()}'
@@ -248,7 +244,7 @@ class CompositePrimitive(Primitive):
 
     CompositePrimitives form the branches of the a representation hierarchy tree
     '''
-    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'TREE'
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE'
     
     internal_connector_addrs : Collection[ConnectorAddress]
     external_connector_addrs : Collection[ConnectorAddress]
@@ -327,9 +323,9 @@ class FrozenCompositePrimitive(CompositePrimitive):
         self._external_connector_addresses : set[ConnectorAddress] = all_connector_addresses - self._internal_connector_addresses # guaranteed valid by above precondition
         
         # Validate and set topology
-        check_primitive_registry_bijective_to_topology_nodes(children, topology)
-        check_connections_bijective_to_topology_edges(connections, topology)
-        self._topology = topology # call validator on first-time pass
+        # check_primitive_registry_bijective_to_topology_nodes(children, topology)
+        # check_connections_bijective_to_topology_edges(connections, topology)
+        # self._topology = topology # call validator on first-time pass
         
         # Initialization proper
         self.children_by_handle = children
@@ -351,8 +347,10 @@ class FrozenCompositePrimitive(CompositePrimitive):
         
 class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by far the closest to the current Primitive impl
     '''
-    A CompositePrimitive which allows for dynamic modification of its internal structure
-    (i.e. adding/removing children and connections at will)
+    A CompositePrimitive which allows for dynamic modification of its internal
+    structure (i.e. adding/removing children and connections at will)
+
+    Used for assembling and connecting systems
     '''
     def __init__( # DEV: could omit entirely; repeated for documentation purposes, and in case extra init config needs to be addeds
         self,
