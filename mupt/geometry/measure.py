@@ -5,15 +5,12 @@ __email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Optional, Union
 import numpy as np
-from numpy.typing import DTypeLike
 
 from .arraytypes import (
     N,
     Shape,
     NumericNP,
     VectorN,
-    Array1xN,
-    ArrayNx1,
     ArrayNxN,
 )
 
@@ -52,25 +49,3 @@ def within_ball(
     if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
         raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
     return (np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < radius).astype(object) # cast to Python bool
-
-def vector_flexible(
-    vectorlike : VectorN | Array1xN | ArrayNx1,
-    dimension : int=3,
-    dtype : Optional[DTypeLike]=None,
-) -> VectorN:
-    '''
-    Convert row vector, column vector, Nx1 array, or 1xN array into
-    1D column vector with appropriate dimension and data type
-    
-    Enables permissive ingestion of vector-shaped objects
-    '''
-    vector_column = np.atleast_2d(vectorlike).reshape(-1) # permits transposed and nested vector inputs
-    if vector_column.shape != (dimension,):
-        raise ValueError(
-            f'Expected vector with shape {(dimension,)}, got {vector_column.shape}'
-        )
-    
-    if dtype is not None:
-        vector_column = vector_column.astype(dtype)
-        
-    return vector_column

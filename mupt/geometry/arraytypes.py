@@ -66,14 +66,30 @@ TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]]
 BitVectorN = np.ndarray[Shape[N], BoolNP]
 
 # vector comparison
-def as_n_vector(vectorlike : np.ndarray[Shape[N], DType], n : N=3) -> np.ndarray[Shape[N], DType]:
-    '''Interpret array as a 1D n-element vector''' 
+def as_n_vector(
+    vectorlike : VectorN | Array1xN | ArrayNx1,
+    dimension : int=3,
+    dtype : Optional[npt.DTypeLike]=None,
+) -> VectorN:
+    '''
+    Convert row vector, column vector, Nx1 array, or 1xN array into
+    1D column vector with appropriate dimension and data type
+    
+    Enables permissive ingestion of vector-shaped objects
+    '''
     if not isinstance(vectorlike, np.ndarray): # TODO: include support for list/tuple-like WITHOUT including sets, str, etc
         raise TypeError(f'Vectorlike must be a numpy array, not {type(vectorlike)}')
-    if len(vectorlike) != n:
-        raise ValueError(f'Expected {n}-element vectorlike, received {len(vectorlike)}-element array instead')
     
-    return vectorlike.reshape(n)
+    vector_column = np.atleast_2d(vectorlike).reshape(-1) # permits transposed and nested vector inputs
+    if vector_column.shape != (dimension,):
+        raise ValueError(
+            f'Expected vector with shape {(dimension,)}, got {vector_column.shape}'
+        )
+    
+    if dtype is not None:
+        vector_column = vector_column.astype(dtype)
+        
+    return vector_column
 
 def compare_optional_positions(
     position_1 : Optional[VectorN],
