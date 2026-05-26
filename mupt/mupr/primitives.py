@@ -48,6 +48,7 @@ from ..chemistry.core import ElementLike, isatom, valence_allowed
 
 ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
 Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -125,6 +126,9 @@ class Primitive(
     
     
 ## Simples
+TRIVIAL_TOPOLOGY = nx.Graph()
+nx.freeze(TRIVIAL_TOPOLOGY) # VITAL that this be frozen to allow it to act as shared singleton across Simples
+
 class SimplePrimitive(Primitive, NodeMixin):
     '''
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
