@@ -14,11 +14,12 @@ from .arraytypes import (
     VectorN,
     ArrayNxM,
 )
+OrderType = Union[int, float, str] # types accepted by 'order' arg of np.linalg.norm()
 
 
 def normalize(
-    vector : VectorN | ArrayNxM,
-    order : OrderType=None,
+    vector : VectorN | ArrayNxN,
+    order : Optional[OrderType]=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
     norms = np.atleast_1d( # ensure shape is broadcastable, even for scalars
@@ -30,15 +31,14 @@ def normalize(
     vector /= norms
 
 def normalized(
-    # DEV: using generic here to indicate return has same dtype
-    vector : np.ndarray[Shape[N, ...], NumericNP], 
-    order : OrderType=None,
+    vector : np.ndarray[Shape[N, ...], NumericNP], # DEV: using generic here to indicate return has same dtype
+    order  : Optional[OrderType]=None,
 ) -> np.ndarray[Shape[N, ...], NumericNP]:
     '''
     Return a normalized copy of a vector or array of vectors;
     The array supplied to "vector" is unchanged
     '''
-    new_vector = np.copy(vector)
+    new_vector = np.copy(vector)  # preserve original vector
     normalize(new_vector, order=order)
 
     return new_vector
@@ -47,7 +47,7 @@ def compare_optional_positions(
     position_1 : Optional[VectorN],
     position_2 : Optional[VectorN],
     radius : float=1E-8,
-    order : OrderType=None,
+    order : Optional[OrderType]=None,
 ) -> bool:
     '''
     Check that two positional values are either:

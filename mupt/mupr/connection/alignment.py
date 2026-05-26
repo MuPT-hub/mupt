@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from ...geometry.measure import within_ball
+from ...geometry.measure import compare_optional_positions
 from ...geometry.transforms.rigid.rotations import alignment_rotation
 if TYPE_CHECKING:
     from .connectors import Connector
@@ -30,12 +30,12 @@ def are_antialigned(
     N.B.: this operation is commutative, i.e. are_antialigned(Ca, Cb) = are_antialigned(Cb, Ca)
     '''
     return (
-        within_ball(
+        compare_optional_positions(
             align_connector.anchor.position,
             to_connector.linker.position,
             radius=within,
         )
-        and within_ball(
+        and compare_optional_positions(
             align_connector.linker.position,
             to_connector.anchor.position,
             radius=within,

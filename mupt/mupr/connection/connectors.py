@@ -35,7 +35,7 @@ from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
 from .alignment import are_antialigned
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
-from ...geometry.arraytypes import Shape, Vector3, as_n_vector
+from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
 from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
@@ -338,7 +338,7 @@ class Connector(RigidlyTransformable):
         the anchor of this Connector is within some cutoff distance of the linker
         of the other Connector, and vice-versa (with the same tolerance for both)
         '''
-        return are_antialigned(self, other)
+        return are_antialigned(self, other, within=within)
       
     ## Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
