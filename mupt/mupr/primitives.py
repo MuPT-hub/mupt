@@ -460,7 +460,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     ) -> None:
         raise NotImplementedError
 
-
     # Resolution shift operations
     def expand(self, target : PrimitiveHandle) -> None:
         '''Replace a child Primitive with its children, preserving connections and traces'''
@@ -470,20 +469,20 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         '''Recursively expand until all childless subprimitives are depth 1 below this one'''
         raise NotImplementedError
 
-    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implcit_parts : bool=True) -> None:
+    def retract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
         '''
         Insert a new level of Primitive between this Composite and its children,
         with each part of the provided partition forming a new child Primitive
         
-        Behavior of implcit parts (i.e. any not explicitly mentioned in "parts") can be specified via the "implicit_parts" argument
+        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts") can be specified via the "implicit_parts" argument
         ''' # DEV: eventually, make enum for implicit_parts behavior
         raise NotImplementedError
 
-    def cauterize(self, target : PrimitiveHandle) -> None:
+    def truncate(self, target : PrimitiveHandle) -> None:
         '''Replace a child Primitive with an analogous SimplePrimitive, effectively severing all internal structure beneath it'''
         raise NotImplementedError
     
-    def freeze(self) -> FrozenCompositePrimitive:
+    def frozen(self) -> FrozenCompositePrimitive:
         '''
         Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
         '''
