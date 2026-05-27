@@ -328,10 +328,9 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     def __init__( # DEV: could omit entirely; repeated for documentation purposes, and in case extra init config needs to be addeds
         self,
         children : Optional[Iterable[Primitive]]=None,
-        topology : Optional[nx.Graph]=None,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
-    ):
+    ) -> None:
         # Initialize bookkeeping attrs
         self.connections : set[Connection] = set()
         self.connector_is_internal : dict[ConnectorAddress, bool] = dict()
@@ -343,11 +342,9 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         for subprimitive in children:
             self.attach_child(subprimitive)
 
-        if topology is None:
-            self.set_connectivity_from_topology(topology)
-
         if children is None:
             children = tuple()
+        self.children = children
         
         self._shape = shape
         self.metadata = metadata or dict()
