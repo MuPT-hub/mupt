@@ -216,7 +216,7 @@ class Cylinder(BoundedTransformableShape):
 
     @property
     def L(self) -> float:
-        '''Alias for self.radius'''
+        '''Alias for self.length'''
         return self.length
 
     @property

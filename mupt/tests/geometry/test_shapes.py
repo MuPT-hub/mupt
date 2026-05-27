@@ -34,7 +34,7 @@ def shapes() -> list[BoundedTransformableShape]:
 def shapes_transformed() -> list[BoundedTransformableShape]:
     '''Transformed versions of the sample test BoundedTransformableShape instances returned by `shapes()`'''
     return [
-        shape.rigidly_transformed(random_rigid_transformation())
+        shape.rigidly_transformed(random_rigid_transformation(translation_bound=1.0))
             for shape in shapes()
     ]
 
@@ -147,7 +147,7 @@ def test_equality(shape : BoundedTransformableShape) -> None:
 @pytest.mark.parametrize('shape,volume_expected', shapes_with_volumes())
 def test_volume_transformed(shape : BoundedTransformableShape, volume_expected : float) -> None:
     '''Test that volume calculations remain invariant under rigid transformations'''
-    shape_transformed = shape.rigidly_transformed(random_rigid_transformation())
+    shape_transformed = shape.rigidly_transformed(random_rigid_transformation(translation_bound=1.0))
     nptest.assert_allclose(shape_transformed.volume, volume_expected) # rigid motions have unit determinant and shouldn't affect volumes
 
 @pytest.mark.parametrize(
