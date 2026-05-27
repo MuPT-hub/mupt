@@ -11,12 +11,12 @@ from .arraytypes import (
     Shape,
     NumericNP,
     VectorN,
-    ArrayNxN,
+    ArrayNxM,
 )
 
 
 def normalize(
-    vector : VectorN | ArrayNxN,
+    vector : VectorN | ArrayNxM,
     order : Optional[Union[int, float, str]]=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
