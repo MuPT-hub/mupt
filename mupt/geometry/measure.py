@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Union
+from typing import Optional
 import numpy as np
 
 from .arraytypes import (
@@ -17,7 +17,7 @@ from .arraytypes import (
 
 
 def normalize(
-    vector : VectorN | ArrayNxN,
+    vector : VectorN | ArrayNxM,
     order : OrderType=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
@@ -49,8 +49,28 @@ def compare_optional_positions(
     radius : float=1E-8,
     order : OrderType=None,
 ) -> bool:
-    '''Check that two vectors are within a certain absolute distance of one another'''
-    # TODO: check vector shapes match
-    if not (isinstance(position_1, np.ndarray) and isinstance(position_2, np.ndarray)):
-        raise TypeError(f'Expected position attributes to be numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    return (np.linalg.norm(position_1 - position_2, ord=2, axis=-1) < radius).astype(object) # cast to Python bool
+    '''
+    Check that two positional values are either:
+    * Both undefined (returns True)
+    * Both defined AND within a set in distance in a given p-norm (returns True if both conditions are met)
+    * One defined and one undefined, in either order (returns False)
+    '''
+    if type(position_1) != type(position_2):
+        return False
+    
+    if position_1 is None: # both are None
+        return True
+    elif isinstance(position_1, np.ndarray):
+        return (
+            np.linalg.norm(
+                position_1 - position_2,
+                ord=order,
+                axis=-1,
+            ) < radius
+        ).astype(object) # cast to Python bool
+    else:
+        raise TypeError(
+            f'Expected positions to be either NoneType or numpy.ndarray: ' \
+            f'got {type(position_1).__name__} and {type(position_2).__name__}'
+        )
+    

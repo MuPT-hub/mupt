@@ -6,6 +6,7 @@ __email__ = 'timotej.bernat@colorado.edu'
 from typing import (
     Literal,
     Optional,
+    Sequence,
     TypeVar,
     Union,
 )
@@ -71,8 +72,8 @@ BitVectorN = np.ndarray[Shape[N], BoolNP]
 
 # vector comparison
 def as_n_vector(
-    vectorlike : VectorN | Array1xN | ArrayNx1,
-    dimension : int=3,
+    vectorlike : VectorN | Array1xN | ArrayNx1 | Sequence[NumberLike],
+    dimension : Optional[int]=None,
     dtype : Optional[npt.DTypeLike]=None,
 ) -> VectorN:
     '''
@@ -81,11 +82,13 @@ def as_n_vector(
     
     Enables permissive ingestion of vector-shaped objects
     '''
-    if not isinstance(vectorlike, np.ndarray): # TODO: include support for list/tuple-like WITHOUT including sets, str, etc
-        raise TypeError(f'Vectorlike must be a numpy array, not {type(vectorlike)}')
+    # N.B.: strings and byte-like are TECHNICALLY also Sequences, but not the kind we want here
+    if isinstance(vectorlike, (str, bytes)) \
+        or (not isinstance(vectorlike, (np.ndarray, Sequence))):
+        raise TypeError(f'Vectorlike must be a numpy array of Sequence of Numerics, not {type(vectorlike).__name__}')
     
     vector_column = np.atleast_2d(vectorlike).reshape(-1) # permits transposed and nested vector inputs
-    if vector_column.shape != (dimension,):
+    if (dimension is not None) and (vector_column.shape != (dimension,)):
         raise ValueError(
             f'Expected vector with shape {(dimension,)}, got {vector_column.shape}'
         )
@@ -94,21 +97,3 @@ def as_n_vector(
         vector_column = vector_column.astype(dtype)
         
     return vector_column
-
-def compare_optional_positions(
-    position_1 : Optional[VectorN],
-    position_2 : Optional[VectorN],
-    **kwargs,
-) -> bool:
-    '''Check that two positional values are either 1) both undefined, or 2) both defined and equal'''
-    # DEV: replace with monadic interface down the line ("Maybe" pattern?)
-    if type(position_1) != type(position_2):
-        return False
-    
-    if position_1 is None: # both are None
-        return True
-    elif isinstance(position_1, np.ndarray):
-        return np.allclose(position_1, position_2, **kwargs)
-    else:
-        raise TypeError(f'Expected positions to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
-    
