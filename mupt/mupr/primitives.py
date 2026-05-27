@@ -1061,7 +1061,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def _copy_untransformed(self) -> 'Primitive':
         '''Return a new Primitive with the same information and children as this one, but which has no parent'''
         clone_primitive = self.__class__(
-            shape=(None if self.shape is None else self.shape.copy()), # DEV TODO: should be _copy_untransformed()?
+            shape=self.shape, # handles unset NoneType case natively
             element=self.element,
             # NOTE: connectors and children transferred verbatim below - no need to set in init here
             connectors=None, 
