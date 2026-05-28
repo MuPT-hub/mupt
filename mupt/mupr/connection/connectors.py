@@ -41,6 +41,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
@@ -69,6 +70,41 @@ from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
 from ...geometry.transforms.rigid.rotations import alignment_rotation
 from ...geometry.transforms.rigid.application import RigidlyTransformable
+=======
+from ..chemistry.core import BondType
+from ..geometry.arraytypes import Shape, Vector3, as_n_vector
+from ..geometry.measure import compare_optional_positions
+from ..geometry.coordinates.basis import is_orthonormal
+from ..geometry.transforms.linear import rejector
+from ..geometry.transforms.rigid.rotations import alignment_rotation
+from ..geometry.transforms.rigid.application import RigidlyTransformable
+
+
+# Label typehints
+type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
+type ConnectorLabel = Hashable
+ConnectorHandle = tuple[ConnectorLabel, int]
+
+ConnectorAddress = TypeVar('ConnectorAddress', bound=int)
+
+
+# Custom Exceptions
+class ConnectionError(Exception):
+    '''Raised when Connector-related errors as encountered'''
+    pass
+
+class IncompatibleConnectorError(ConnectionError):
+    '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
+    pass
+
+class MissingConnectorError(ConnectionError):
+    '''Raised when a required Connector is missing'''
+    pass
+
+class UnboundConnectorError(ConnectionError):
+    '''Raised when a pair of Connectors are unexpectedly not bound to one another'''
+    pass
+>>>>>>> a771186 (Merge from upstream)
 
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable mechanism under-the-hood,

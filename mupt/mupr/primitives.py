@@ -12,7 +12,6 @@ from typing import (
     Callable,
     ClassVar,
     Collection,
-    Container,
     Hashable,
     Iterable,
     Optional,
@@ -20,12 +19,10 @@ from typing import (
     Self,
     TypeVar,
 )
-PrimitiveAddress = TypeVar('PrimitiveAddress', bound=int)
 PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
 PrimitiveAddress = Hashable
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
-from abc import abstractmethod
 from copy import deepcopy
 
 from anytree import NodeMixin, findall
@@ -52,7 +49,7 @@ from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, valence_allowed
 
 ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference] # of size 2; using set, rather than tuple, to avoid order-dependence
+Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
 
 
 # Custom Exceptions
@@ -78,7 +75,6 @@ class Primitive(
     Shaped,
     RigidlyTransformable,
     ManagesConnectors,
-    NodeMixin,
 ):
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
@@ -431,7 +427,11 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         self,
         topology : nx.Graph,
     ) -> None:
-        raise NotImplementedError
+        infer_connections_from_topology(
+            topology,
+            mapped_connectors=dict(),
+            n_iter_max=10*len(topology), # TB TODO: fill in actual llogic fordecisidng this - 10 is a number I made up for now
+        )
 
     # Resolution shift operations
     def expand(self) -> None:
