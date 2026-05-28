@@ -233,6 +233,50 @@ class Connector(RigidlyTransformable):
         
         return local_orthonormal_basis
     
+    # Applying rigid transformations (fulfilling RigidlyTransformable contracts)
+    def _copy_untransformed(self) -> 'Connector':
+        new_connector = self.__class__(
+            anchor=self.anchor.copy(),
+            linker=self.linker.copy(),
+            bondtype=self.bondtype,
+            query_smarts=str(self.query_smarts),
+            label=self._label,
+            metadata=deepcopy(self.metadata),
+        )
+        if self.has_tangent_position:
+            new_connector.tangent_vector = as_n_vector(self.tangent_vector, dimension=3)
+
+        return new_connector
+
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.anchor.rigidly_transform(transformation)
+        self.linker.rigidly_transform(transformation)
+        if self.has_tangent_position:
+            self._tangent_position = transformation.apply(self._tangent_position)
+
+    # Anti-aligning Connectors to one another (simulates bonding in 3D space)
+    ## DEV: eventually try to move as much of the implementation of these transforms to geometry.transforms.rigid as possible
+    def are_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
+        ## DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
+        ## that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
+        '''
+        Whether this Connector is anti-aligned with another Connector, i.e. whether 
+        the anchor of this Connector is within some cutoff distance of the linker
+        of the other Connector, and vice-versa (with the same tolerance for both)
+        '''
+        return (
+            compare_optional_positions(
+                self.anchor.position,
+                other.linker.position,
+                radius=within,
+            )
+            and compare_optional_positions(
+                self.linker.position,
+                other.anchor.position,
+                radius=within,
+            )
+        )
+        
     ## Dihedral angle
     def dihedral_assignment_transform(
         self,
