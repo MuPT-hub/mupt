@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from .shapes import BoundedTransformableShape
 from ..arraytypes import (
+    as_n_vector,
     Shape,
     NumberLike,
     Vector3,
@@ -18,7 +19,7 @@ from ..arraytypes import (
     TriangulationIndices,
     BitVectorN,
 )
-from ..measure import normalized, vector_flexible
+from ..measure import normalized
 from ..transforms.rigid.rotations import alignment_rotation
 
 
@@ -146,7 +147,7 @@ class Cylinder(BoundedTransformableShape):
         '''
         if center is None:
             center = np.zeros(3, dtype=float)
-        center = vector_flexible(center, dimension=3, dtype=float)
+        center = as_n_vector(center, dimension=3, dtype=float)
 
         half_length : float = length / 2
         if axial_direction is None:
@@ -215,7 +216,7 @@ class Cylinder(BoundedTransformableShape):
 
     @property
     def L(self) -> float:
-        '''Alias for self.radius'''
+        '''Alias for self.length'''
         return self.length
 
     @property

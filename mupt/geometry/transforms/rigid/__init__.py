@@ -12,30 +12,28 @@ from .rotations import rotator, rodrigues, alignment_rotation
 from .alignment import rigid_vector_coalignment
 
 
-def random_rigid_transformation(
-    centered : bool=False,
-    translation_bound : float=1.0,
-) -> RigidTransform:
+def random_rigid_transformation(translation_bound : float=0.0) -> RigidTransform:
     """
     Generate a random rigid transformation, with both translation and rotation components by default
 
     Parameters
     ----------
-    centered : bool, default False
-        Whether the transformation should contain a translational component
-    translation_bound : float, default 1.0
+    translation_bound : float, default 0.0
         Uniform bound along all Cartesian axes for translation component
-        E.g. translation_bound=5.0 will pick a random translation vector from the set [-5, 5]**3
+        E.g. translation_bound=5.0 will pick a random translation vector from the set [-5.0, 5.0]**3
+
+        If 0.0 bound is provided (default), resulting transformation will have NO translational component
 
     Returns
     -------
     rand_transform : RigidTransform
         The resulting randomized rigid transformation
     """
-    if centered:
-        translation_bound = 0.0
-    
     return RigidTransform.from_components(
-        translation=np.random.uniform(-translation_bound, translation_bound, size=3),
+        translation=np.random.uniform(
+            -translation_bound,
+            translation_bound,
+            size=3,
+        ),
         rotation=Rotation.random(),
     )

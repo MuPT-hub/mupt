@@ -23,6 +23,13 @@ import networkx as nx
 GraphLayout : TypeAlias = Callable[[nx.Graph], dict[Hashable, ndarray]]
     
 
+class TopologicalStructure:
+    '''
+    Dummy class for backwards compat (mdanalysis fixtures hard-coded into conftest 
+    prevent any other tests from running unless this import is present)
+    '''
+    ...
+
 # Network properties
 @property
 def is_indiscrete(self) -> bool:

@@ -11,6 +11,7 @@ from scipy.spatial.transform import RigidTransform
 
 from .shapes import BoundedTransformableShape
 from ..arraytypes import (
+    as_n_vector,
     NumberLike,
     Vector3,
     Array3x3,
@@ -19,7 +20,6 @@ from ..arraytypes import (
     TriangulationIndices,
     BitVectorN,
 )
-from ..measure import vector_flexible
 from ..coordinates.basis import is_columnspace_mutually_orthogonal
 
         
@@ -103,7 +103,7 @@ class Sphere(BoundedTransformableShape): # N.B: doesn't inherit from Ellipsoid t
     ) -> None:
         if center is None:
             center = np.zeros(3, dtype=float)
-        center = vector_flexible(center, dimension=3, dtype=float)
+        center = as_n_vector(center, dimension=3, dtype=float)
 
         self.radius = radius
         self.center = center
@@ -175,11 +175,11 @@ class Ellipsoid(BoundedTransformableShape):
         # DEV: extract this vector shape checking into external utility, eventually
         if radii is None:
             radii = np.ones(3, dtype=float)
-        radii = vector_flexible(radii, dimension=3, dtype=float)
+        radii = as_n_vector(radii, dimension=3, dtype=float)
             
         if center is None:
             center = np.zeros(3, dtype=float)
-        center = vector_flexible(center, dimension=3, dtype=float)
+        center = as_n_vector(center, dimension=3, dtype=float)
 
         self.radii = radii
         self.center = center
