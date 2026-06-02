@@ -1,8 +1,27 @@
 '''For providing support and validation for chemical line notations'''
+# DEV: resist the temptation to merge this into interfaces.smiles; will cause a circular import own the line
+# Namely, interfaces.rdkit depends on utils here, and importers/exports in interfaces.smileslib depend in turn on those RDKit utils
 
 from typing import Union
 from rdkit import Chem
 
+from rdkit.Chem.rdmolfiles import SmilesParserParams, SmilesWriteParams
+
+
+# LIBRARY-WIDE DEFAULTS FOR SMILES I/O
+## Reading
+DEFAULT_SMILES_READ_PARAMS = SmilesParserParams()
+DEFAULT_SMILES_READ_PARAMS.sanitize = False
+DEFAULT_SMILES_READ_PARAMS.removeHs = False
+DEFAULT_SMILES_READ_PARAMS.allowCXSMILES = True
+
+## Writing
+DEFAULT_SMILES_WRITE_PARAMS = SmilesWriteParams()
+DEFAULT_SMILES_WRITE_PARAMS.doIsomericSmiles = True
+DEFAULT_SMILES_WRITE_PARAMS.doKekule         = False
+DEFAULT_SMILES_WRITE_PARAMS.canonical        = True
+DEFAULT_SMILES_WRITE_PARAMS.allHsExplicit    = False
+DEFAULT_SMILES_WRITE_PARAMS.doRandom         = False
 
 # CUSTOM TYPEHINTS
 type Smiles = str # these are just aliases for now
