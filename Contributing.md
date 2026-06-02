@@ -25,7 +25,8 @@ We welcome code contributions in the form of pull requests. Please follow the st
 * Make your changes
 * Commit your changes
 * Push your changes to your fork and create a pull request. In your pull request, include a short description and idenitfy any existing To-Do's. Include unit tests in your PR if your code adds new functionality.
-* Assign the pull request to a reviewer and wait for the reviewers feedback
+* Funded MuPT team members should directly message reviewers before assigning them, and should expect a reply within two days of when the review can be expected or whether it should be delegated to another team member.
+* Unfunded developers, THANK YOU, we will do our best to review as soon as possible.
 
 ## Authorship
 This repository is developed and used for scientific research, which may be shared in posters, presentations, and journal publications, among other products.
