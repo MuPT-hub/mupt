@@ -1,8 +1,3 @@
-Demonstration of a commit for Ennea. 
-Hello sage!
-
-
-
 Multiscale Polymer Toolkit
 ==============================
 [//]: # (Badges)
