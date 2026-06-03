@@ -86,7 +86,7 @@ def primitive_from_rdkit_chain(
         The ID of the conformer to use, by default None (uses no conformer)
     label : Hashable, optional
         A distinguishing label for the Primitive
-        If none is provided, the canonical SMILES of the RDKit Mol will be used
+        If none is provided, the canonicalized SMILES of the RDKit Mol will be used
     
     Returns
     -------

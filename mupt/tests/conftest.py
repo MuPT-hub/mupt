@@ -5,30 +5,31 @@ File to house various fixtures that are used by multiple tests.
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
-import pytest
-
 import logging
+logger = logging.getLogger(__name__)
+
+import pytest
 from typing import Any, Generator, Mapping, Iterable, Optional
 
 import numpy as np
 import networkx as nx
+from periodictable import elements
 
 from ..mupr.primitives import Primitive
 from ..mupr.topology import TopologicalStructure
 from ..geometry.coordinates.reference import origin
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.shapes import Sphere
 from ..interfaces.smiles import primitive_from_smiles
 from ..interfaces.rdkit import suppress_rdkit_logs
 from ..builders.random_walk import AngleConstrainedRandomWalk
+from ..roles import assign_SAAMR_roles, PrimitiveRole
 
-
-logger = logging.getLogger(__name__)
 
 # DEV:JRL The following functions are useful helpers to streamline the building
 # of copolymer systems from SMILES. They were taken from the ellipsoidal_chain_placement.ipynb
 # tutorial notebook authored by @timbernat
-
 
 def sequence_repeat_units(
     chain_len: int,
@@ -282,6 +283,8 @@ def build_SAAMR_polymer_system(
         f"Built system: {n_chains} chains, {total_residues} residues, {total_atoms} atoms"
     )
 
+    assign_SAAMR_roles(univprim)
+
     return univprim
 
 
@@ -435,9 +438,6 @@ def single_helium_atom_saamr() -> Primitive:
     - 1 repeat unit
     - 1 atom (He) at position [0, 0, 0]
     """
-    from ..geometry.shapes import Sphere
-    from periodictable import elements
-
     # Create the atom-level primitive (Helium)
     atom_prim = Primitive(label="He")
     atom_prim.element = elements.He  # Set element to make it an atom
@@ -455,4 +455,134 @@ def single_helium_atom_saamr() -> Primitive:
     universe_prim = Primitive(label="universe")
     universe_prim.attach_child(molecule_prim)
 
+    assign_SAAMR_roles(universe_prim)
+
     return universe_prim
+
+
+@pytest.fixture
+def depth4_helium_system() -> Primitive:
+    """
+    Non-SAAMR depth-4 hierarchy with manually assigned roles.
+
+    Demonstrates that the strategy-based exporter handles arbitrary
+    tree depth when roles are set manually.  An intermediate "domain"
+    node sits between universe and chains but carries no export role.
+
+    Hierarchy (depth of leaves = 4):
+        Universe (UNIVERSE)
+          └── Domain  (no role — intermediate grouping)
+                ├── Chain1 (SEGMENT)
+                │     └── Residue1 "He_unit" (RESIDUE)
+                │           ├── He (PARTICLE)
+                │           └── He (PARTICLE)
+                └── Chain2 (SEGMENT)
+                      └── Residue2 "He_unit" (RESIDUE)
+                            └── He (PARTICLE)
+
+    * should have:
+    - 2 segments (Chain1, Chain2)
+    - 2 residues
+    - 3 atoms (He) at position [0, 0, 0]
+    - 0 bonds
+    """
+    # Atoms
+    atom1 = Primitive(label="He", element=elements.He, role=PrimitiveRole.PARTICLE)
+    atom1.shape = Sphere(0.49)
+    atom2 = Primitive(label="He", element=elements.He, role=PrimitiveRole.PARTICLE)
+    atom2.shape = Sphere(0.49)
+    atom3 = Primitive(label="He", element=elements.He, role=PrimitiveRole.PARTICLE)
+    atom3.shape = Sphere(0.49)
+
+    # Residues
+    res1 = Primitive(label="He_unit", role=PrimitiveRole.RESIDUE)
+    res1.attach_child(atom1)
+    res1.attach_child(atom2)
+
+    res2 = Primitive(label="He_unit", role=PrimitiveRole.RESIDUE)
+    res2.attach_child(atom3)
+
+    # Chains (segments in MDAnalysis terms)
+    chain1 = Primitive(label="chain1", role=PrimitiveRole.SEGMENT)
+    chain1.attach_child(res1)
+
+    chain2 = Primitive(label="chain2", role=PrimitiveRole.SEGMENT)
+    chain2.attach_child(res2)
+
+    # Domain — intermediate grouping with no export role
+    domain = Primitive(label="domain")
+    domain.attach_child(chain1)
+    domain.attach_child(chain2)
+
+    # Universe
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(domain)
+
+    return universe
+
+
+@pytest.fixture
+def depth4_bonded_system() -> Primitive:
+    """
+    Non-SAAMR depth-4 hierarchy with bonds and manually assigned roles.
+
+    Built from two polyethylene residues (head and tail) connected at
+    the chain level via ``set_topology()``.  An intermediate "domain"
+    node sits between universe and the chain, creating a depth-4 tree
+    that exercises ``_resolve_to_atom()`` at multiple levels.
+
+    Hierarchy (depth of leaves = 4):
+        Universe (UNIVERSE)
+          └── Domain  (no role — intermediate grouping)
+                └── Chain (SEGMENT)
+                      ├── Head "head" (RESIDUE)  — 4 atoms, 3 intra-residue bonds
+                      └── Tail "tail" (RESIDUE)  — 4 atoms, 3 intra-residue bonds
+                    + 1 inter-residue bond (C–C) at chain level
+
+    * should have:
+    - 1 segment
+    - 2 residues
+    - 8 atoms (4 per residue: 1 C + 3 H)
+    - 7 bonds (6 intra-residue + 1 inter-residue)
+    """
+    with suppress_rdkit_logs():
+        head_prim = primitive_from_smiles(
+            "[H:1]-[CH2:2]-*",
+            ensure_explicit_Hs=True,
+            embed_positions=True,
+            label="head",
+        )
+        tail_prim = primitive_from_smiles(
+            "*-[CH2:1]-[H:2]",
+            ensure_explicit_Hs=True,
+            embed_positions=True,
+            label="tail",
+        )
+
+    # Build chain with inter-residue bond
+    chain = Primitive(label="chain")
+    chain.attach_child(head_prim)
+    chain.attach_child(tail_prim)
+    chain.set_topology(
+        nx.path_graph(
+            chain.children_by_handle.keys(),
+            create_using=TopologicalStructure,
+        ),
+        max_registration_iter=100,
+    )
+
+    # Wrap in domain (no role) then universe — creates depth-4
+    domain = Primitive(label="domain")
+    domain.attach_child(chain)
+
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(domain)
+
+    # Assign export roles manually
+    chain.role = PrimitiveRole.SEGMENT
+    head_prim.role = PrimitiveRole.RESIDUE
+    tail_prim.role = PrimitiveRole.RESIDUE
+    for leaf in universe.leaves:
+        leaf.role = PrimitiveRole.PARTICLE
+
+    return universe

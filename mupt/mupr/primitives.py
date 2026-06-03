@@ -57,6 +57,7 @@ from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
+from ..roles import PrimitiveRole
 
 
 class AtomicityError(AttributeError):
@@ -110,6 +111,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         children : Optional[Iterable['Primitive']]=None,
         label : Optional[PrimitiveLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
+        role : PrimitiveRole=PrimitiveRole.UNASSIGNED,
     ) -> None:
         # essential components
         ## external bounded shape
@@ -138,6 +140,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self._external_connectors : dict[ConnectorHandle, ConnectorReference] = dict()
         
         # additional descriptors
+        self._role = role
         self.label = type(self).DEFAULT_LABEL if (label is None) else label
         self.metadata = metadata or dict()
         
@@ -163,6 +166,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def is_atom(self) -> bool:
         '''Whether the Primitive at hand represents a single atom'''
         return self.is_leaf and (self.element is not None)
+
+    @property
+    def role(self) -> PrimitiveRole:
+        '''Canonical role this Primitive plays in an exportable hierarchy'''
+        return self._role
+
+    @role.setter
+    def role(self, new_role : PrimitiveRole) -> None:
+        if not isinstance(new_role, PrimitiveRole):
+            raise TypeError(f'Invalid role type {type(new_role)}')
+        self._role = new_role
 
     @property
     def num_atoms(self) -> int:

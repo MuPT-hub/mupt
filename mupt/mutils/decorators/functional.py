@@ -101,7 +101,7 @@ def allow_string_paths(funct : Callable[[Concatenate[Path, Params]], T]) -> Call
 
 @extend_to_methods
 def allow_pathlib_paths(funct : Callable[[Concatenate[str, Params]], T]) -> Callable[[Concatenate[Union[Path, str], Params]], T]:
-    '''Modifies a function which expects a string path as its first argument to also accept canonical pathlib Paths'''
+    '''Modifies a function which expects a string path as its first argument to also accept pathlib Paths'''
     # TODO : add assertion that the wrapped function has at least one arg AND that the first arg is of the desired (limited) type
     old_sig = signature(funct) # lookup old type signature
 
