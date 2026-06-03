@@ -82,7 +82,7 @@ def as_n_vector(
     
     Enables permissive ingestion of vector-shaped objects
     '''
-    # N.B.: strins and byte-like are TECHNICALLY also Sequences, but not the kind we want here
+    # N.B.: strings and byte-like are TECHNICALLY also Sequences, but not the kind we want here
     if isinstance(vectorlike, (str, bytes)) \
         or (not isinstance(vectorlike, (np.ndarray, Sequence))):
         raise TypeError(f'Vectorlike must be a numpy array of Sequence of Numerics, not {type(vectorlike).__name__}')

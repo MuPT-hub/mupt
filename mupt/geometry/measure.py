@@ -3,7 +3,7 @@
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Optional, Union
+from typing import Optional
 import numpy as np
 
 from .arraytypes import (
@@ -12,12 +12,12 @@ from .arraytypes import (
     OrderType,
     Shape,
     VectorN,
-    ArrayNxN,
+    ArrayNxM,
 )
 
 
 def normalize(
-    vector : VectorN | ArrayNxN,
+    vector : VectorN | ArrayNxM,
     order : OrderType=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
