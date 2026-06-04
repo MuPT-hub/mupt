@@ -17,7 +17,7 @@ from .arraytypes import (
 
 
 def normalize(
-    vector : VectorN | ArrayNxN,
+    vector : VectorN | ArrayNxM,
     order : OrderType=None,
 ) -> None:
     '''Normalize a vector or array of vectors in-place'''
