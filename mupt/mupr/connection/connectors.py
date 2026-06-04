@@ -18,6 +18,7 @@ from typing import (
     Iterable,
     Literal,
     Optional,
+    TypeAlias,
 )
 
 from dataclasses import dataclass, field
@@ -511,7 +512,19 @@ class Connector(RigidlyTransformable):
     # def __eq__(self, other : 'Connector') -> bool:
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
-    
+
+def canonical_form_connectors(
+    connectors: Iterable[Connector],
+    separator : str=':',
+    joiner : str='-',
+) -> str:
+    '''A hashable string representing a collection of Connectors in canonical form'''
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors),
+        element_repr=Connector.bondtype,
+        separator=separator,
+        joiner=joiner,
+    )
 
 ## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
 ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]

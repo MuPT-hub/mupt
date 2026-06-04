@@ -38,17 +38,19 @@ import networkx as nx
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
 
-from .canonicalize import lex_order_multiset_str
 from .connection import (
     Connector,
     ConnectorLabel,
     ConnectorHandle,
-    ConnectorSelector,
-    select_first,
-    make_second_resemble_first,
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
+)
+from .connection.connectors import(
+    ConnectorSelector,
+    select_first,
+    make_second_resemble_first,
+    canonical_form_connectors
 )
 from .topology import TopologicalStructure, GraphLayout
 from .embedding import infer_connections_from_topology, ConnectorReference, flexible_connector_reference
@@ -1137,14 +1139,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
     ## Canonical forms for core components
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's Connectors'''
-        return lex_order_multiset_str(
-            (
-                self.connectors[connector_handle].canonical_form()
-                    for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
-            ),
-            element_repr=str, #lambda bt : BondType.values[int(bt)]
-            separator=separator,
-            joiner=joiner,
+        return self.canonical_form_connectors(
+            self.connectors[connector_handle]
+                for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
         )
     
     def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shapefor all kinds of Primitive)
