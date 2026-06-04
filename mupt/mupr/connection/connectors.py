@@ -326,7 +326,7 @@ class Connector(RigidlyTransformable):
             metadata=deepcopy(self.metadata),
         )
         if self.has_tangent_position:
-            new_connector.tangent_vector = as_n_vector(self.tangent_vector, 3)
+            new_connector.tangent_vector = as_n_vector(self.tangent_vector, dimension=3)
 
         return new_connector
 
