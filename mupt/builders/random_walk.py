@@ -24,25 +24,26 @@ from networkx import all_simple_paths
 from .base import PlacementGenerator
 from ..mutils.iteration import flexible_iterator, sliding_window
 
-from ..geometry.arraytypes import Shape, Dims
+from ..geometry.arraytypes import Shape, Dims, NumericNP, Vector3
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
-from mupt.geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.transforms.rigid import rigid_vector_coalignment
 
 from ..mupr.topology import TopologicalStructure
-from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.connection.connectors import Connector
+from mupt.mupr.connection.alignment import ConnectorAntialignmentStrategy, ConnectorAntialignmentBallistic
 
 
 def random_walk_jointed_chain(
     step_size : Union[Number, Iterable[Number], Generator[Number, None, None]],
     n_steps_max : Optional[int]=None,
-    initial_point : Optional[np.ndarray[Shape[Dims], float]]=None,
-    initial_direction : Optional[np.ndarray[Shape[Dims], float]]=None,
+    initial_point : Optional[np.ndarray[Shape[Dims], NumericNP]]=None,
+    initial_direction : Optional[np.ndarray[Shape[Dims], NumericNP]]=None,
     clip_angle : float=np.pi/4,
     dimension : Dims=3,
-) -> Generator[np.ndarray[Shape[Dims], float], None, None]:
+) -> Generator[np.ndarray[Shape[Dims], NumericNP], None, None]:
     '''
     Generate consecutive points from a non-self-avoiding random walk in continuous N-dimensional space
     with arbitrary step sizes that are constrained within a prescribed angle between consecutive steps
@@ -125,13 +126,15 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         self,
         bond_length : float=1.0,
         angle_max_rad : float=np.pi/4,
-        initial_point : Optional[np.ndarray[Shape[3], float]]=None,
-        initial_direction : Optional[np.ndarray[Shape[3], float]]=None,
+        initial_point : Optional[Vector3]=None,
+        initial_direction : Optional[Vector3]=None,
+        alignment_strategy : ConnectorAntialignmentStrategy=ConnectorAntialignmentBallistic()
     ) -> None:
         self.bond_length = bond_length
         self.angle_max_rad = angle_max_rad
         self.initial_point = initial_point
         self.initial_direction = initial_direction
+        self.alignment_strategy = alignment_strategy
 
     # optional helper methods (to declutter casework from main logic)
     def get_termini_handles(self, chain : TopologicalStructure) -> tuple[Hashable, Hashable]:
@@ -182,7 +185,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 conn_incoming = primitive.fetch_connector_on_child(prim_handle_incoming, conn_handle_incoming)
                 connection_points[prim_handle_incoming].append(conn_incoming.anchor.position) # will raise Exception is anchor position is unset
                 
-                Connector.mutually_antialign_ballistically(conn_outgoing, conn_incoming) # align linkers w/ other's anchor while leaving anchors themselves undisturbed
+                self.alignment_strategy.mutually_antialign(conn_outgoing, conn_incoming) # align linkers w/ other's anchor while leaving anchors themselves undisturbed
             # NOTE: order is critical here; only placing tail point AFTER its incoming connection point is inserted
             connection_points[tail_handle].append(primitive.children_by_handle[tail_handle].shape.centroid)
             

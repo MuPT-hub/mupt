@@ -36,6 +36,8 @@ from .types import (
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError
+from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
+
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -44,29 +46,6 @@ from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
 from ...geometry.transforms.rigid.rotations import alignment_rotation
 from ...geometry.transforms.rigid.application import RigidlyTransformable
-
-
-# Label typehints
-ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
-ConnectorHandle = tuple[ConnectorLabel, int]
-AttachmentLabel = TypeVar('AttachmentLabel', bound=Hashable) # TODO: narrow down this type as use cases become clearer
-
-# Custom Exceptions
-class ConnectionError(Exception):
-    '''Raised when Connector-related errors as encountered'''
-    pass
-
-class IncompatibleConnectorError(ConnectionError):
-    '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
-    pass
-
-class MissingConnectorError(ConnectionError):
-    '''Raised when a required Connector is missing'''
-    pass
-
-class UnboundConnectorError(ConnectionError):
-    '''Raised when a pair of Connectors are unexpectedly not bound to one another'''
-    pass
 
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable mechanism under-the-hood,
@@ -236,7 +215,7 @@ class Connector(RigidlyTransformable):
         return self.has_bond_vector and self.has_tangent_position
     has_local_orthogonal_basis = has_dihedral_orientation # alias
     
-    def local_orthonormal_basis(self) -> np.ndarray[Shape[Literal[3, 3]], float]:
+    def local_orthonormal_basis(self) -> Array3x3:
         '''
         Return a 3x3 array representing an orthonormal basis for this Connector's local coordinate system
         Columns of the array are the basis vectors, which are all mutually orthogonal and of unit length
@@ -521,7 +500,7 @@ def canonical_form_connectors(
     '''A hashable string representing a collection of Connectors in canonical form'''
     return lex_order_multiset_str(
         map(Connector.canonical_form, connectors),
-        element_repr=Connector.bondtype,
+        element_repr=Connector.canonical_form,
         separator=separator,
         joiner=joiner,
     )

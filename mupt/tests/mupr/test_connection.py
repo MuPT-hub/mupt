@@ -6,7 +6,8 @@ __email__ = 'timotej.bernat@colorado.edu'
 import pytest
 
 from mupt.chemistry.core import BondType
-from mupt.mupr.connection import Connector, AttachmentPoint, AttachmentLabel, TraversalDirection
+from mupt.mupr.connection import Connector, AttachmentPoint
+from mupt.builders.heading import TraversalDirection
 
 
 # bondability tests
