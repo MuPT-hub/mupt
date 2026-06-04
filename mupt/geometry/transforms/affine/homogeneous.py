@@ -1,7 +1,5 @@
 '''For handling array conversions to and from homogeneous coordinates'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import numpy as np
 from ...arraytypes import Shape, N, M, Dims, DimsPlus, Numeric

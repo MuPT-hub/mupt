@@ -3,8 +3,6 @@ Properties of Primitives used to assess compatibility with a particular task
 E.g. checking atomicity, linearity, adherence to a "standard" hierarchy, etc.
 """
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
 
 from .primitives import Primitive
 
