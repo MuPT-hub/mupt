@@ -134,19 +134,6 @@ class Connector(RigidlyTransformable):
     ## preserving relative orientations for local orthogonal basis under general rigid transformations; key observation is that 
     ## a DIFFERENCE between positions is invariant under shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b), 
     
-    ## Attachment site position wrappers - DEV: necessary for backward compatibility with attr reference, though could be deprecated eventually
-    @property
-    def anchor_position(self) -> Vector3:
-        '''The central position that this Connector is anchored to'''
-        warn('Connector.anchor_position is slated for deprecation; use Connector.anchor.position instead', category=DeprecationWarning)
-        return self.anchor.position
-        
-    @property
-    def linker_position(self) -> Vector3:
-        '''The position of the off-body linker point'''
-        warn('Connector.linker_position is slated for deprecatation; use Connector.linker.position instead', category=DeprecationWarning)
-        return self.linker.position
-
     ## Bond vector
     @property
     def has_bond_vector(self) -> bool:
