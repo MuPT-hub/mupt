@@ -1,7 +1,5 @@
 '''Application and construction of common linear transformations from planar normal vectors'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import numpy as np
 from ..arraytypes import Shape, N, Dims, Numeric

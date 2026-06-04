@@ -1,7 +1,5 @@
 '''Reference and utilities for Prop attributes on RDKit objects (i.e. Atom, Bond, and Mol objects)'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Callable, Optional, Union
 

@@ -1,7 +1,5 @@
 '''Calculations to determine if linear bases enjoy certian properties, such as orthogonality'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import numpy as np
 from ..arraytypes import Shape, N, Numeric
