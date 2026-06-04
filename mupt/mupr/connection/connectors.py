@@ -1,4 +1,8 @@
-'''Abstractions of connections between two primitives'''
+'''
+Core components of connections, namely:
+* AttachmentPoints, which define geometric positions and selectivity of attachment sites
+* Connectors, which comprise 2 attachment points (an "anchor" and a "linker") and represent half of a chemical bond
+'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
@@ -8,7 +12,6 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
-    Callable,
     ClassVar,
     Generator,
     Hashable,
@@ -22,20 +25,19 @@ from typing import (
 from warnings import warn
 
 from dataclasses import dataclass, field
-from enum import Enum
 from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector
-from ..geometry.measure import compare_optional_positions
-from ..geometry.coordinates.basis import is_orthonormal
-from ..geometry.transforms.linear import rejector
-from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..geometry.transforms.rigid.application import RigidlyTransformable
+from ...chemistry.core import BondType, BOND_ORDER
+from ...geometry.arraytypes import Shape, Vector3, as_n_vector
+from ...geometry.measure import compare_optional_positions
+from ...geometry.coordinates.basis import is_orthonormal
+from ...geometry.transforms.linear import rejector
+from ...geometry.transforms.rigid.rotations import alignment_rotation
+from ...geometry.transforms.rigid.application import RigidlyTransformable
 
 
 # Label typehints
@@ -115,6 +117,14 @@ class Connector(RigidlyTransformable):
         self.metadata = metadata or dict()
     
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
+
+    @property
+    def bond_order(self) -> float:
+        '''
+        A numerical bond order corresponding to the type of bond this Connector is associated with
+        E.g. UNASSIGNED = 0.0, AROMATIC = 1.5, DOUBLE = 2.0, etc.
+        '''
+        return BOND_ORDER.get(self.bondtype, 0.0)
 
     # Geometric properties
     ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
