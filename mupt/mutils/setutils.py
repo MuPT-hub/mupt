@@ -3,8 +3,6 @@ Utilities related to generic set-theoretic operations,
 including products, relations, and mappings between sets
 '''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Mapping
 from itertools import product as cartesian

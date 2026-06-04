@@ -1,7 +1,5 @@
 '''Utilities for handling proper rotations (i.e. elements of the special orthogonal group SO(3))'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import numpy as np
 from scipy.spatial.transform import Rotation

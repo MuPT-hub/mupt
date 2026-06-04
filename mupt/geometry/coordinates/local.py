@@ -1,7 +1,5 @@
 '''For calculating locally-orthogonal coordinate systems and direction vectors'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import numpy as np
 from ..arraytypes import Shape, N, Dims
