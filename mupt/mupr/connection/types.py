@@ -1,4 +1,4 @@
-'''Typehints, alises, and Protocols relating to how connections are specified'''
+'''Typehints, aliases, and Protocols relating to how connections are specified'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
