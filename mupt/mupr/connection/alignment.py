@@ -121,7 +121,7 @@ class ConnectorAntialignmentStrategy(ABC):
         '''
         align_connector_new = align_connector.copy()
         self.antialign(
-            align_connector,
+            align_connector_new,
             to_connector=to_connector,
             match_bond_length=match_bond_length,
             dihedral_angle_rad=dihedral_angle_rad,
