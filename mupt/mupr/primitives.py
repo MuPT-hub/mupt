@@ -1139,9 +1139,13 @@ class Primitive(NodeMixin, RigidlyTransformable):
     ## Canonical forms for core components
     def canonical_form_connectors(self, separator : str=':', joiner : str='-') -> str:
         '''A canonical string representing this Primitive's Connectors'''
-        return self.canonical_form_connectors(
-            self.connectors[connector_handle]
-                for connector_handle in sorted(self.connectors.keys()) # sort by handle to ensure canonical ordering
+        return canonical_form_connectors(
+            (
+                self.connectors[connector_handle]
+                for connector_handle in sorted(self.connectors.keys())  # sort by handle to ensure canonical ordering
+            ),
+            separator=separator,
+            joiner=joiner,
         )
     
     def canonical_form_shape(self) -> str: # DEVNOTE: for now, this doesn't need to be abstract (just use type of Shapefor all kinds of Primitive)
