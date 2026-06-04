@@ -31,8 +31,14 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
+from .types import (
+    AttachmentLabel,
+    ConnectorLabel,
+    ConnectorHandle,
+    ManagesConnectors,
+)
 from .alignment import are_antialigned
+from .exceptions import IncompatibleConnectorError
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -118,7 +124,10 @@ class Connector(RigidlyTransformable):
         self.query_smarts = query_smarts
         self.label = self.__class__.DEFAULT_LABEL if (label is None) else label
         self.metadata = metadata or dict()
-    
+
+        ## Protected attributes
+        self._neighbor : Optional[Connector] = None
+        self._parents : list[ManagesConnectors] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -332,14 +341,6 @@ class Connector(RigidlyTransformable):
             self._tangent_position = transformation.apply(self._tangent_position)
 
     # Interactions with neighboring Connectors
-    def are_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
-        '''
-        Whether this Connector is anti-aligned with another Connector, i.e. whether 
-        the anchor of this Connector is within some cutoff distance of the linker
-        of the other Connector, and vice-versa (with the same tolerance for both)
-        '''
-        return are_antialigned(self, other, within=within)
-      
     ## Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
@@ -352,7 +353,6 @@ class Connector(RigidlyTransformable):
             (not set.isdisjoint(self.anchor.attachables, other.linker.attachables))
             and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
             and (self.bondtype == other.bondtype)
-            # TODO: also compare positions, if set?
         )
         
     def bondable_with_iter(self, *others : Iterable[Union['Connector', Iterable['Connector']]]) -> Generator[bool, None, None]:
@@ -388,6 +388,72 @@ class Connector(RigidlyTransformable):
     def fungible_with(self, other : 'Connector') -> bool:
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
+
+    ## Neighbor configuration
+    def is_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
+        '''
+        Whether this Connector is anti-aligned with another Connector, i.e. whether 
+        the anchor of this Connector is within some cutoff distance of the linker
+        of the other Connector, and vice-versa (with the same tolerance for both)
+        '''
+        return are_antialigned(self, other, within=within)
+    
+    @property
+    def neighbor(self) -> Optional['Connector']:
+        '''
+        The Connector assigned to be this Connector's nieghbor, if assigned
+        If unassigned, returns None
+        '''
+        return self._neighbor
+
+    @neighbor.setter
+    def neighbor(self, other : 'Connector') -> None:
+        if not self.bondable_with(other):
+            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
+
+        # N.B.: if ALL positions are unset, will evaluate as antialigned
+        if not self.is_antialigned(other): 
+            raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
+        
+        self._neighbor = other
+
+    @neighbor.deleter
+    def neighbor(self) -> None:
+        self._neighbor = None
+
+    ## Copying and attr transfer methods
+    def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
+        '''
+        Expand a Connector into a set of Connectors with identical properties but 
+        distinct, singletons linkables, one for each linkable in the original Connector
+        '''
+        indiv_conn_map = dict()
+        for anchor_label, linker_label in cartesian(self.anchor.attachables, self.linker.attachables):
+            conn_clone = self.copy()
+            conn_clone.anchor.attachment = anchor_label
+            conn_clone.anchor.attachables = {anchor_label}
+            
+            conn_clone.linker.attachment = linker_label
+            conn_clone.linker.attachables = {linker_label}
+
+            indiv_conn_map[(anchor_label, linker_label)] = conn_clone
+        return indiv_conn_map
+    
+    def counterpart(self) -> 'Connector':
+        '''
+        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
+        
+        By construction, the counterpart will always be bondable with this Connector (and vice versa),
+        assuming the attachables set of the anchor and linker point are both non-empty
+        '''
+        counterpart = self.copy()
+        counterpart.anchor, counterpart.linker = self.linker, self.anchor
+        if self.has_tangent_position:
+            # NOTE: since vector if defined by difference to tangent point, updated tangent 
+            # point can be set directly from this difference, since anchor is updated about
+            counterpart.tangent_vector = self.tangent_vector 
+        
+        return counterpart
 
     # Labelling and representation methods
     @property
@@ -437,39 +503,6 @@ class Connector(RigidlyTransformable):
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
     
-    # Copying and attr transfer methods
-    def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
-        '''
-        Expand a Connector into a set of Connectors with identical properties but 
-        distinct, singletons linkables, one for each linkable in the original Connector
-        '''
-        indiv_conn_map = dict()
-        for anchor_label, linker_label in cartesian(self.anchor.attachables, self.linker.attachables):
-            conn_clone = self.copy()
-            conn_clone.anchor.attachment = anchor_label
-            conn_clone.anchor.attachables = {anchor_label}
-            
-            conn_clone.linker.attachment = linker_label
-            conn_clone.linker.attachables = {linker_label}
-
-            indiv_conn_map[(anchor_label, linker_label)] = conn_clone
-        return indiv_conn_map
-    
-    def counterpart(self) -> 'Connector':
-        '''
-        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
-        
-        By construction, the counterpart will always be bondable with this Connector (and vice versa),
-        assuming the attachables set of the anchor and linker point are both non-empty
-        '''
-        counterpart = self.copy()
-        counterpart.anchor, counterpart.linker = self.linker, self.anchor
-        if self.has_tangent_position:
-            # NOTE: since vector if defined by difference to tangent point, updated tangent 
-            # point can be set directly from this difference, since anchor is updated about
-            counterpart.tangent_vector = self.tangent_vector 
-        
-        return counterpart
 
 ## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
 ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
