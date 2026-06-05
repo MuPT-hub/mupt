@@ -44,16 +44,12 @@ from .embedding import infer_connections_from_topology, flexible_connector_refer
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..chemistry.core import ElementLike, isatom, valence_allowed
-
-ConnectionReference = tuple[PrimitiveAddress, ConnectorAddress]
-Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
-Connection = AbstractSet[ConnectionReference] # using set, rather than tuple, to avoid order-dependence
+from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
+from ..roles import PrimitiveRole
 
 
-# Custom Exceptions
-class IrreducibilityError(AttributeError):
-    '''Raised when attempting to perform a composite Primitive operation on a simple one'''
+class AtomicityError(AttributeError):
+    '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
     pass
 
 class AtomicityError(IrreducibilityError):

@@ -13,13 +13,10 @@ LOGGER = logging.getLogger(__name__)
 from typing import (
     Any,
     ClassVar,
-    Generator,
+    Callable,
     Hashable,
     Iterable,
     Optional,
-    Protocol,
-    TypeVar,
-    TypeAlias,
 )
 
 from dataclasses import dataclass, field
@@ -543,19 +540,40 @@ class Connector(RigidlyTransformable):
     # def __eq__(self, other : 'Connector') -> bool:
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
+    
+    # Copying and attr transfer methods
+    def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
+        '''
+        Expand a Connector into a set of Connectors with identical properties but 
+        distinct, singletons linkables, one for each linkable in the original Connector
+        '''
+        indiv_conn_map = dict()
+        for anchor_label, linker_label in cartesian(self.anchor.attachables, self.linker.attachables):
+            conn_clone = self.copy()
+            conn_clone.anchor.attachment = anchor_label
+            conn_clone.anchor.attachables = {anchor_label}
+            
+            conn_clone.linker.attachment = linker_label
+            conn_clone.linker.attachables = {linker_label}
 
-def canonical_form_connectors(
-    connectors: Iterable[Connector],
-    separator : str=':',
-    joiner : str='-',
-) -> str:
-    '''A hashable string representing a collection of Connectors in canonical form'''
-    return lex_order_multiset_str(
-        map(Connector.canonical_form, connectors),
-        element_repr=Connector.canonical_form,
-        separator=separator,
-        joiner=joiner,
-    )
+            indiv_conn_map[(anchor_label, linker_label)] = conn_clone
+        return indiv_conn_map
+    
+    def counterpart(self) -> 'Connector':
+        '''
+        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
+        
+        By construction, the counterpart will always be bondable with this Connector (and vice versa),
+        assuming the attachables set of the anchor and linker point are both non-empty
+        '''
+        counterpart = self.copy()
+        counterpart.anchor, counterpart.linker = self.linker, self.anchor
+        if self.has_tangent_position:
+            # NOTE: since vector if defined by difference to tangent point, updated tangent 
+            # point can be set directly from this difference, since anchor is updated about
+            counterpart.tangent_vector = self.tangent_vector 
+        
+        return counterpart
 
 # Canonicalization
 def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
