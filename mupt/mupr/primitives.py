@@ -38,6 +38,7 @@ from .connection import (
     ManagesConnectors,
     ConnectorAddress,
 )
+type Connection = tuple[Connector, Connector]
 from .topology import GraphLayout, canonical_graph_property
 from .embedding import infer_connections_from_topology, flexible_connector_reference
 
@@ -48,8 +49,8 @@ from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 from ..roles import PrimitiveRole
 
 
-class AtomicityError(AttributeError):
-    '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
+class IrreducibilityError(AttributeError):
+    '''Raised when attempting to perform a composite Primitive operation on a simple one'''
     pass
 
 class AtomicityError(IrreducibilityError):
