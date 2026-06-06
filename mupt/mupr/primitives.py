@@ -147,8 +147,22 @@ class SimplePrimitive(Primitive, NodeMixin):
         self._shape = shape
         self.metadata = metadata or dict()
     
+    # Exposing Connectors
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         return self.connectors_by_address[conn_addr] # NOTE: deliberately avoiding call via dict.get() to raise loud KeyError when missing
+    
+    def register_connector(
+        self,
+        connector : Connector,
+        conn_addr : Optional[ConnectorAddress]=None,
+    ) -> ConnectorAddress:
+        ...
+
+    def deregister_connector(
+        self,
+        conn_addr : ConnectorAddress,
+    ) -> Connector:
+        ...
         
     # Attachment (or lack thereof) of child primitives
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
@@ -217,25 +231,6 @@ class CompositePrimitive(Primitive, NodeMixin):
     
     children_by_address : Mapping[PrimitiveAddress, Primitive]    
     
-    # Managing Connections
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
-
-    @property
-    def connectors_bound(self) -> Collection[Connector]:
-        '''
-        Connectors (originating from children as they must) which are
-        bound and whose neighbor is also a child of this Composite
-        '''
-        ...
-
-    @property
-    def connectors_free(self) -> Collection[Connector]:
-        '''
-        Connectors whose have not yet been assigned a neighbor
-        '''
-        ...
-
     # Inspecting children of Composite
     def child(self, prim_addr : PrimitiveAddress) -> Primitive:
         ... # TODO: provide overload which uses a handle <-> address isomorphism
@@ -308,6 +303,25 @@ class FrozenCompositePrimitive(CompositePrimitive):
             
         self._shape = shape
         self.metadata = metadata or dict()
+
+    # Managing Connections
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
+        ...
+
+    @property
+    def connectors_bound(self) -> Collection[Connector]:
+        '''
+        Connectors (originating from children as they must) which are
+        bound and whose neighbor is also a child of this Composite
+        '''
+        ...
+
+    @property
+    def connectors_free(self) -> Collection[Connector]:
+        '''
+        Connectors whose have not yet been assigned a neighbor
+        '''
+        ...
         
     # cached properties
     ...
@@ -333,8 +347,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     ) -> None:
         # Initialize bookkeeping attrs
         self.connections : set[Connection] = set()
-        self.connector_is_internal : dict[ConnectorAddress, bool] = dict()
-        self.connector_origin_address : dict[ConnectorAddress, PrimitiveAddress] = dict()
         self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
         
         # Bind subprimitives and set connectivity, if possible
@@ -348,14 +360,33 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         self._shape = shape
         self.metadata = metadata or dict()
 
-    # Hierarchy management
-    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        return self.children_by_address[prim_addr] # raise KeyError if not present
+    # Managing Connections
+    ## N.B: deliberately omitted register_connectors/deregister_connectors to enforce the 
+    ## constraint that only Simples can inject/withdraw Connectors from the hierarchy
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         origin_child : Primitive = self.child(self.connector_origin_address[conn_addr])
         return origin_child.connector(conn_addr)
+
+    @property
+    def connectors_bound(self) -> Collection[Connector]:
+        '''
+        Connectors (originating from children as they must) which are
+        bound and whose neighbor is also a child of this Composite
+        '''
+        ...
+
+    @property
+    def connectors_free(self) -> Collection[Connector]:
+        '''
+        Connectors whose have not yet been assigned a neighbor
+        '''
+        ...
     
+    # Hierarchy management
+    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        return self.children_by_address[prim_addr] # raise KeyError if not present
+
     ## Attaching new children
     def _pre_attach(self, parent : 'MutableCompositePrimitive') -> None:
         '''Preconditions prior to attempting attachment of this Primitive to a parent'''
@@ -369,9 +400,9 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         child_address : PrimitiveAddress = child.address()
         self.children_by_address[child_address] = child
         
-        for conn_addr, conn in child.connectors_by_address.items():
-            self.connector_is_internal[conn_addr] = False # all new connectors are external by default until their are paired into a connection
-            self.connector_origin_address[conn_addr] = child_address
+        # for conn_addr, conn in child.connectors_by_address.items():
+        #     self.connector_is_internal[conn_addr] = False # all new connectors are external by default until their are paired into a connection
+        #     self.connector_origin_address[conn_addr] = child_address
     
     def _post_attach(self, parent : 'MutableCompositePrimitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
@@ -388,9 +419,9 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         subprimitive.parent = None
         
         del self.children_by_address[prim_addr]
-        for conn_addr, conn in subprimitive.connectors_by_address.items():
-            del self.connector_is_internal[conn_addr]
-            del self.connector_origin_address[conn_addr]
+        # for conn_addr, conn in subprimitive.connectors_by_address.items():
+        #     del self.connector_is_internal[conn_addr]
+        #     del self.connector_origin_address[conn_addr]
             # TODO: free Connectors at the "other end" of any connections to these Connectors
         
         return subprimitive
@@ -399,23 +430,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         '''Post-actions to take once attachment is verified and parent is bound'''
     
     ## Managing connections
-    def connect_children( # DEV: provide overloads for PrimitiveConnectorAddress bundled args
-        self,
-        prim_addr_1 : PrimitiveAddress,
-        conn_addr_1 : ConnectorAddress,
-        prim_addr_2 : PrimitiveAddress,
-        conn_addr_2 : ConnectorAddress,
-    ) -> None:
-        '''Create a new internal connection between two child Primitives'''
-        raise NotImplementedError
-
-    def disconnect_children(
-        self,
-        prim_addr_1 : PrimitiveAddress,
-        prim_addr_2 : PrimitiveAddress,
-    ) -> None: # TODO: figure out how to distinguish and gracefully handle multiedges here
-        '''Remove an existing internal connection between two child Primitives'''
-        raise NotImplementedError
+    ...
 
     ## Topology editing
     def set_connectivity_from_topology(
