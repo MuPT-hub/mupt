@@ -10,6 +10,7 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 from typing import (
+    AbstractSet,
     Callable,
     Hashable,
     Iterable,
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from .primitives import Primitive, PrimitiveLabel, PrimitiveHandle
 
 from .connection.connectors import Connector, ConnectorHandle
+from .connection.types import Connection
 from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
@@ -108,7 +110,7 @@ def check_primitive_registry_bijective_to_topology_nodes(
 
 def check_connections_bijective_to_topology_edges(
     connections : AbstractSet[Connection],
-    topology : nx.Graph,
+    topology : Graph,
 ) -> None:
     '''
     Verify that a 1:1 correspondence exists between the internal connections
