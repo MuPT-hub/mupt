@@ -5,6 +5,7 @@ from .types import (
     ConnectorLabel,
     ConnectorHandle,
     ConnectorAddress,
+    Connection,
     ManagesConnectors,
 )
 from .exceptions import (

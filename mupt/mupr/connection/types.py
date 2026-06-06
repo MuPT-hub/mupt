@@ -8,6 +8,7 @@ from typing import (
 if TYPE_CHECKING:
     from .connectors import Connector
 
+
 type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
 type ConnectorAddress = Hashable # DEV TB: consider if this type needs to be more specific
 type ConnectorLabel = Hashable

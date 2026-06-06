@@ -29,18 +29,18 @@ from anytree import NodeMixin, findall
 import networkx as nx
 from scipy.spatial.transform import RigidTransform
 
-from .connection import (
-    Connector,
-    canonical_form_connectors,
+from .connection.connectors import Connector, canonical_form_connectors
+from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
+)
+from .connection.types import (
     ManagesConnectors,
     ConnectorAddress,
     ManagesConnectors,
     ConnectorAddress,
 )
-type Connection = tuple[Connector, Connector]
 from .topology import GraphLayout, canonical_graph_property
 from .embedding import (
     infer_connections_from_topology,
@@ -473,18 +473,6 @@ def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
 
 
 # Hashable canonical forms for core components
-def canonical_form_connectors(
-    primitive : Primitive,
-    separator : str=':',
-    joiner : str='-',
-) -> str:
-    '''A canonical string representing this Primitive's Connectors'''
-    return canonical_form_connectors(
-        sorted(primitive.connectors),
-        separator=separator,
-        joiner=joiner,
-    )
-
 def canonical_form_shape(primitive : Primitive) -> str:
     '''A canonical string representing this Primitive's shape'''
     return type(primitive.shape).__name__ # TODO: move this into .shape - should be responsibility of individual Shape subclasses
