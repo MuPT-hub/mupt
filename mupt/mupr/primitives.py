@@ -272,57 +272,68 @@ class FrozenCompositePrimitive(CompositePrimitive):
     def __init__(
         self,
         children : UniqueRegistry[PrimitiveHandle, Primitive],
-        connections : Iterable[Connection],
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ) -> None:
         # Validate and extract connection info
-        check_connections_compatible_with_primitive_registry(children, connections)
-        connectors : dict[ConnectorAddress, Connector] = {
-            conn_addr : connector
-                for child in children
-                    for conn_addr, connector in child.connectors.items()
-        }
-        
-        all_connector_addresses = set(connectors.keys())
-        self._internal_connector_addresses : set[ConnectorAddress] = set(
-            conn_addr
-                for connection in connections
-                    for prim_handle, conn_addr in connection
-        )
-        self._external_connector_addresses : set[ConnectorAddress] = all_connector_addresses - self._internal_connector_addresses # guaranteed valid by above precondition
+        # check_connections_compatible_with_primitive_registry(children, connections)\
+        connectors_all : list[Connector] = [] # TODO: make Registries and set labels procedurally (somehow)
+        connectors_free : list[Connector] = []
+        connectors_bound : list[Connector] = []
+        for child in children:
+            child.parent = self
+            for conn_free in child.connectors_free:
+                connectors_free.append(conn_bound)
+                connectors_all.append(conn_free)
+
+            for conn_bound in child.connectors_free:
+                connectors_bound.append(conn_free)
+                connectors_all.append(conn_bound)
+
+        ## make prvate and force immutable
+        self.__connectors = tuple(connectors_all)
+        self.__connectors_free = tuple(connectors_free)
+        self.__connectors_bound = tuple(connectors_bound)
+
+        # connectors : dict[ConnectorAddress, Connector] = {
+            # ...
+        # }
         
         # Validate and set topology
         # check_primitive_registry_bijective_to_topology_nodes(children, topology)
         # check_connections_bijective_to_topology_edges(connections, topology)
         
-        # Initialization proper
-        self.children_by_handle = children
-        for child in children.values():
-            child.parent = self # TODO: apply readonly trick (https://anytree.readthedocs.io/en/latest/tricks/readonly.html) to add children first, then make immutable forevermore
-            
-        self._shape = shape
-        self.metadata = metadata or dict()
+        self.__shape = shape
+        self.__metadata = metadata or dict()
+    
+    # Protected access properties
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]:
+        return self.__shape
+    
+    @property
+    def metadata(self) -> dict[Hashable, Any]:
+        return self.__metadata # DEV: is it possible (or worth it) to prevent the object handed back from being edited (e.g. a View?)
 
     # Managing Connections
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
-
-    @property
-    def connectors_bound(self) -> Collection[Connector]:
-        '''
-        Connectors (originating from children as they must) which are
-        bound and whose neighbor is also a child of this Composite
-        '''
-        ...
+        return self.__connectors[conn_addr]
 
     @property
     def connectors_free(self) -> Collection[Connector]:
         '''
         Connectors whose have not yet been assigned a neighbor
         '''
-        ...
+        return self.__connectors_free
         
+    @property
+    def connectors_bound(self) -> Collection[Connector]:
+        '''
+        Connectors (originating from children as they must) which are
+        bound and whose neighbor is also a child of this Composite
+        '''
+        return self.__connectors_bound
+
     # cached properties
     ...
         
