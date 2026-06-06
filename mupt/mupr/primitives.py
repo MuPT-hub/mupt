@@ -40,7 +40,13 @@ from .connection import (
 )
 type Connection = tuple[Connector, Connector]
 from .topology import GraphLayout, canonical_graph_property
-from .embedding import infer_connections_from_topology, flexible_connector_reference
+from .embedding import (
+    infer_connections_from_topology,
+    flexible_connector_reference,
+    check_primitive_registry_bijective_to_topology_nodes,
+    check_connections_bijective_to_topology_edges,
+    check_connections_compatible_with_primitive_registry,
+)
 
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import Shaped, BoundedTransformableShape
@@ -59,10 +65,6 @@ class AtomicityError(IrreducibilityError):
 
 class MissingSubprimitiveError(KeyError):
     '''Raised when a child Primitive expected for a call is not present'''
-    pass
-
-class BijectionError(ValueError):
-    '''Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched'''
     pass
 
     
@@ -335,7 +337,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
         
         # Bind subprimitives and set connectivity, if possible
-        self.topology = nx.Graph()
         for subprimitive in children:
             self.attach_child(subprimitive)
 
@@ -365,7 +366,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         child.parent = self
         
         child_address : PrimitiveAddress = child.address()
-        self.topology.add_node(child_address) # this is idempotent, so no need to worry about if the node is already present
         self.children_by_address[child_address] = child
         
         for conn_addr, conn in child.connectors_by_address.items():
@@ -391,7 +391,6 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
             del self.connector_is_internal[conn_addr]
             del self.connector_origin_address[conn_addr]
             # TODO: free Connectors at the "other end" of any connections to these Connectors
-        self.topology.remove_node(prim_addr)
         
         return subprimitive
     
@@ -469,74 +468,6 @@ def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
     
     raise NotImplementedError
 
-
-# Validators
-def check_connections_compatible_with_primitive_registry(
-    primitive_registry : UniqueRegistry[PrimitiveHandle, Primitive],
-    connections : Iterable[Connection], # DEV: weakened type requirement here, even though in practice this will most like be a set or frozenset
-) -> None:
-    '''
-    Check that a collection of connections (i.e. pairs of (PrimitiveHandle, ConnectorAddress) references)
-    is absolutely compatible with a handled registry of Primitives
-    '''
-    for (prim_handle_1, conn_addr_1), (prim_handle_2, conn_addr_2) in connections:
-        if prim_handle_1 == prim_handle_2:
-            raise ValueError(f'Attempted to connect Primitive with handle "{prim_handle_1}" to itself')
-        
-        if conn_addr_1 == conn_addr_2:
-            raise IncompatibleConnectorError(f'Connections must be between distinct pair of Connector instances, not single Connector at address {conn_addr_1}')
-        
-        for prim_handle in (prim_handle_1, prim_handle_2):
-            if prim_handle not in primitive_registry:
-                raise ValueError(f'Primitive with handle "{prim_handle}" referenced in internal connections but does not exist in provided registry of children')
-            
-        if not Connector.bondable_with( # NOTE: fetch also implicitly checks each Connector exists on respective child
-            primitive_registry[prim_handle_1].connector(conn_addr_1),
-            primitive_registry[prim_handle_2].connector(conn_addr_2),
-        ):
-            raise IncompatibleConnectorError(
-                f'Connector {conn_addr_1} on Primitive {prim_handle_1} is not bondable with Connector {conn_addr_2} on Primitive {prim_handle_2}'
-            )
-
-def check_primitive_registry_bijective_to_topology_nodes(
-    primitive_registry : UniqueRegistry[PrimitiveHandle, Primitive],
-    topology : nx.Graph,
-) -> None:
-    '''
-    Verify 1:1 correspondence between the reference handles in a 
-    registry of Primitives and the nodes in an incidence topology
-    '''
-    num_children : int = len(primitive_registry) # perform cheap counting check first to fail faster
-    if topology.number_of_nodes() != num_children:
-        raise BijectionError(f'Cannot bijectively map {num_children} child Primitives onto {topology.number_of_nodes()}-element topology')
-    
-    node_labels = set(topology.nodes)
-    child_handles = set(primitive_registry.keys())
-    if node_labels != child_handles:
-        raise BijectionError(
-            f'Set underlying topology does not correspond to handles on child Primitives; {len(node_labels - child_handles)} element(s)'\
-            f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
-        )
-
-def check_connections_bijective_to_topology_edges(
-    connections : AbstractSet[Connection],
-    topology : nx.Graph,
-) -> None:
-    '''
-    Verify that a 1:1 correspondence exists between the internal connections
-    (Connectors paired between sibling child Primitives) and the edges present in the incidence topology
-    '''
-    num_connections : int = len(connections) # perform cheap counting check first to fail faster
-    if (num_edges := topology.number_of_edges()) != num_connections:
-        raise BijectionError(f'Cannot bijectively map {num_connections} internal connections onto {num_edges}-edge topology')
-
-    edge_labels = set(frozenset(edge) for edge in topology.edges) # cast to frozenset to remove order-dependence
-    if edge_labels != connections:
-        raise BijectionError(
-            f'Incident pairs in associated topology do not correspond to internally-connected pairs of child Primitives;'\
-            f'{len(edge_labels - connections)} edge(s) have no corresponding connection, '\
-            f'and {len(connections - edge_labels)} internal connection(s) are unrepresented in the topology'
-        )
 
 # Hashable canonical forms for core components
 def canonical_form_connectors(
