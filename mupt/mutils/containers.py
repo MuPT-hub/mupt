@@ -9,23 +9,25 @@ from typing import (
     Mapping,
     Optional,
     Protocol,
+    runtime_checkable,
     TypeVar,
 )
 from collections import Counter, UserDict, defaultdict
 from copy import deepcopy
 
 
+T = TypeVar('T')
 LabelT = TypeVar('LabelT', bound=Hashable)
 HandleT = tuple[LabelT, int] # label uniquified with an additional arbitrary index
 
+@runtime_checkable
 class Labelled(Protocol):
     '''Protocol for objects that have a label'''
     @property
     def label(self) -> Hashable: 
         ...
-LabelledT = TypeVar('LabelledT', bound=Labelled)
 
-class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
+class UniqueRegistry(UserDict, Generic[LabelT, T]):
     '''
     A registry of Labelled objects which are each assigned a unique "handle",
     comprising the object's label and a unique integer index determined by its time of insertion
@@ -59,25 +61,31 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         '''Reset the unique index counter for a given label to zero'''
         self.adjust_ticker_count_for(label, 0)
 
-    # Labelled object registration
-    ## Object registration
-    def __setitem__(self, key : LabelT, item : LabelledT) -> None:
+    # Object registration
+    def __setitem__(self, key : LabelT, item : T) -> None:
         raise PermissionError(f"Direct key-value assignment is not allowed; call 'register({item})' method instead")
     
-    def _setitem(self, key : LabelT, item : LabelledT) -> None:
+    def _setitem(self, key : LabelT, item : T) -> None:
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
         super().__setitem__(key, item)
 
-    def register(self, obj: LabelledT, label : Optional[LabelT]=None) -> HandleT:
+    def register(self, obj: T, label : Optional[LabelT]=None) -> HandleT:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
         if label is None:
-            label = obj.label # DEV: opted for behavioral pattern, rather than explicit runtime_checkable Protocol enforcement
+            if isinstance(obj, Labelled):
+                label = obj.label
+            else:
+                raise TypeError(f'Cannot infer label from unlabelled object {obj!r}')
         handle = (label, self._take_connector_number(label))
         super().__setitem__(handle, obj)
 
         return handle
     
-    def register_from(self, collection : Iterable[LabelledT]) -> list[HandleT]:
+    ## Composite registration methods
+    def register_from(
+        self,
+        collection : Iterable[T] | Mapping[LabelT, T],
+    ) -> list[HandleT]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
         handles : list[HandleT] = []
         if isinstance(collection, Mapping):
@@ -89,8 +97,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
 
         return handles
 
-    ## Object deregistration
-    def deregister(self, handle : HandleT) -> LabelledT:
+    # Object deregistration
+    def deregister(self, handle : HandleT) -> T:
         '''
         Unregister the object with the given handle and free the index assigned to that object
         Returns the objects bound to that handle
@@ -109,8 +117,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
             
     ## Object access
     @property
-    def by_labels(self) -> dict[LabelT, tuple[LabelledT, ...]]: 
-        # DEV: eventually would like to make sets (since order is irrelevant), but that relies on assumptions about hashability of LabelledT
+    def by_labels(self) -> dict[LabelT, tuple[T, ...]]: 
+        # DEV: eventually would like to make sets (since order is irrelevant), but that relies on assumptions about hashability of T
         '''
         Mapping from labels (without uniquifying handle index) to classes of objects registered to those labels
         Can be thought of as the equivalence classes of objects under the relation "o1.handle[0] == o2.handle[0]"
@@ -125,7 +133,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, LabelledT]):
         }
           
     # Copying
-    def copy(self, value_copy_method : Callable[[LabelledT], LabelledT]=deepcopy) -> 'UniqueRegistry[HandleT, LabelledT]':
+    def copy(self, value_copy_method : Callable[[T], T]=deepcopy) -> 'UniqueRegistry[HandleT, T]':
         '''
         Create a deep copy of this UniqueRegistry, with the same (key, value) pairs and internal state
         Requires a method for copying values in general, since their complete type is not explicit a priori
