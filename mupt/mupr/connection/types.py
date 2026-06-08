@@ -13,12 +13,12 @@ from typing import (
 if TYPE_CHECKING:
     from .connectors import Connector
 
+
 type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
 type ConnectorLabel = Hashable
-ConnectorHandle = tuple[ConnectorLabel, int]
-
+type ConnectorHandle = tuple[ConnectorLabel, int]
 type ConnectorAddress = int # DEV TB: consider if this type needs to be more specific than just an alias
-
+type Connection = tuple[Connector, Connector]
 
 class ManagesConnectors(Protocol):
     '''Interface for objects which manage Connectors and pairs of Connectors ("connections")'''
