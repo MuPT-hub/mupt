@@ -46,7 +46,7 @@ def test_unique_reg_register_from_explicit() -> None:
     obj1 = DummyRelation(label='p')
     obj2 = DummyRelation(label='q')
     reg = UniqueRegistry()
-    handles = reg.register_from({'first' : obj1, 'second' : obj2})
+    handles = reg.register_from({'first' : (obj1,), 'second' : (obj2,)})
     
     assert set(reg.keys()) == {('first', 0), ('second', 0)}
     

@@ -76,26 +76,42 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
                 label = obj.label
             else:
                 raise TypeError(f'Cannot infer label from unlabelled object {obj!r}')
-        handle = (label, self._take_connector_number(label))
+        handle : HandleT = (label, self._take_connector_number(label))
         super().__setitem__(handle, obj)
 
         return handle
     
     ## Composite registration methods
+    def register_from_mapping(
+        self,
+        collection : Mapping[LabelT, Iterable[T]],
+        # DEV: need to bundle Ts as iterable to allow passing mutiple objects w/
+        # same label part of handle (mapping would be non-injective otherwise)
+    ) -> list[HandleT]:
+        handles : list[HandleT] = []
+        for label, objs in collection.items():
+            for obj in objs:
+                handles.append(self.register(obj, label=label))
+        return handles
+    
+    def register_from_iterable(
+        self,
+        collection : Iterable[T],
+    ) -> list[HandleT]:
+        handles : list[HandleT] = []
+        for obj in collection:
+            handles.append(self.register(obj, label=None))
+        return handles
+
     def register_from(
         self,
-        collection : Iterable[T] | Mapping[LabelT, T],
+        collection : Iterable[T] | Mapping[LabelT, Iterable[T]],
     ) -> list[HandleT]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
-        handles : list[HandleT] = []
         if isinstance(collection, Mapping):
-            for label, obj in collection.items():
-                handles.append(self.register(obj, label=label))
-        else:
-            for obj in collection:
-                handles.append(self.register(obj, label=None))
-
-        return handles
+            return self.register_from_mapping(collection)
+        elif isinstance(collection, Iterable):
+            return self.register_from_iterable(collection)
 
     # Object deregistration
     def deregister(self, handle : HandleT) -> T:
