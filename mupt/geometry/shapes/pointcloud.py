@@ -1,8 +1,5 @@
 '''For representing clusters of positional coordinate, as one might find in a molecular conformer'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Iterable, Literal, Optional
 
 from functools import cached_property

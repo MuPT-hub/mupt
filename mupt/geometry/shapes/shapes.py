@@ -1,8 +1,5 @@
 '''Interfaces for shaped objects and other types which handle them'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Optional, Self
 from typing import Protocol, runtime_checkable
 from abc import abstractmethod
