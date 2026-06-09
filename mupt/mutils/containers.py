@@ -8,8 +8,10 @@ from typing import (
     Iterable,
     Mapping,
     Optional,
+    overload,
     Protocol,
     runtime_checkable,
+    Sequence,
     TypeVar,
 )
 from collections import Counter, UserDict, defaultdict
@@ -69,7 +71,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
         super().__setitem__(key, item)
 
-    def register(self, obj: T, label : Optional[LabelT]=None) -> HandleT:
+    def register(self, obj : T, label : Optional[LabelT]=None) -> HandleT:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
         if label is None:
             if isinstance(obj, Labelled):
@@ -88,30 +90,89 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         # DEV: need to bundle Ts as iterable to allow passing mutiple objects w/
         # same label part of handle (mapping would be non-injective otherwise)
     ) -> list[HandleT]:
+        '''
+        Register objects from a mapping which maps labels to collections of objects
+        
+        All objects under the same label will have matching label parts but
+        distinct IDs within their assigned handles post-registration
+
+        For example, onto a previously-empty UniqueRegistry:
+        >>> reg = UniqueRegistry()
+        >>> reg.register_from_mapping({'foo' : (f1, f2), 'bar' : b1})
+        would produce a registry like:
+        {
+            ('foo', 0) : f1,
+            ('foo', 1) : f2,
+            ('bar', 0) : b1,
+        }
+        '''
         handles : list[HandleT] = []
         for label, objs in collection.items():
             for obj in objs:
                 handles.append(self.register(obj, label=label))
         return handles
     
-    def register_from_iterable(
+    def register_from_sequential(
         self,
-        collection : Iterable[T],
+        collection : Sequence[T],
+        labeller : Optional[Callable[[T], LabelT] | LabelT]=None,
     ) -> list[HandleT]:
+        '''
+        Register all objects from an iterable collection,
+        with labels assigned according to a labeller rule which acts on those objects or,
+        if no rule is provided BUT the objects are Labelled, the label attribute on those objects
+        '''
         handles : list[HandleT] = []
         for obj in collection:
+            # N.B.: all Callables are Hashable, so latter condition CANNOT be replaced
+            # with "isinstance(Hashable)"" without introducing unexpected behavior
+            if (labeller is not None) and (not isinstance(labeller, Callable)):
+                labeller = lambda obj : labeller
             handles.append(self.register(obj, label=None))
         return handles
 
+    @overload
     def register_from(
         self,
-        collection : Iterable[T] | Mapping[LabelT, Iterable[T]],
+        collection : Iterable[Labelled],
+    ) -> list[HandleT]:
+        ...
+
+    @overload
+    def register_from(
+        self,
+        collection : Iterable[T],
+        labeller : Callable[[T], LabelT],
+    ) -> list[HandleT]:
+        ...
+
+    @overload
+    def register_from(
+        self,
+        collection : Mapping[LabelT, Iterable[T]],
+        labeller : LabelT,
+    ) -> list[HandleT]:
+        ...
+
+    @overload
+    def register_from(
+        self,
+        collection : Mapping[LabelT, Iterable[T]],
+    ) -> list[HandleT]:
+        ...
+
+    def register_from(
+        self,
+        collection : Iterable[T],
+        labeller : Optional[Callable[[T], LabelT] | LabelT]=None
     ) -> list[HandleT]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
         if isinstance(collection, Mapping):
+            if labeller is not None:
+                raise ValueError('Registration from mapping received unexpected "labeller" argument')
             return self.register_from_mapping(collection)
         elif isinstance(collection, Iterable):
-            return self.register_from_iterable(collection)
+            return self.register_from_sequential(collection, labeller=labeller)
 
     # Object deregistration
     def deregister(self, handle : HandleT) -> T:
