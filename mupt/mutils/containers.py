@@ -71,13 +71,28 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
         super().__setitem__(key, item)
 
-    def register(self, obj : T, label : Optional[LabelT]=None) -> HandleT:
+    @overload
+    def register(self, obj : Labelled) -> HandleT:
+        ...
+
+    @overload
+    def register(self, obj : T, label : LabelT) -> HandleT:
+        ...
+    
+    @overload
+    def register(self, obj : T, label : Callable[[T], LabelT]) -> HandleT:
+        ...
+
+    def register(self, obj : T | Labelled, label : Optional[Callable[[T], LabelT] | LabelT]=None) -> HandleT:
         '''Generate a new, unique handle for the given object and register it, then return the handle'''
         if label is None:
             if isinstance(obj, Labelled):
                 label = obj.label
             else:
                 raise TypeError(f'Cannot infer label from unlabelled object {obj!r}')
+        elif isinstance(label, Callable): # N.B.: all Callables are Hashable, so order matters in any isinstance checks for the latter
+            label = label(obj)
+
         handle : HandleT = (label, self._take_connector_number(label))
         super().__setitem__(handle, obj)
 
@@ -115,7 +130,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     def register_from_sequential(
         self,
         collection : Sequence[T],
-        labeller : Optional[Callable[[T], LabelT] | LabelT]=None,
+        label : Optional[Callable[[T], LabelT] | LabelT]=None,
     ) -> list[HandleT]:
         '''
         Register all objects from an iterable collection,
@@ -124,11 +139,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         '''
         handles : list[HandleT] = []
         for obj in collection:
-            # N.B.: all Callables are Hashable, so latter condition CANNOT be replaced
-            # with "isinstance(Hashable)"" without introducing unexpected behavior
-            if (labeller is not None) and (not isinstance(labeller, Callable)):
-                labeller = lambda obj : labeller
-            handles.append(self.register(obj, label=None))
+            handles.append(self.register(obj, label=label))
         return handles
 
     @overload
@@ -150,29 +161,21 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     def register_from(
         self,
         collection : Mapping[LabelT, Iterable[T]],
-        labeller : LabelT,
-    ) -> list[HandleT]:
-        ...
-
-    @overload
-    def register_from(
-        self,
-        collection : Mapping[LabelT, Iterable[T]],
     ) -> list[HandleT]:
         ...
 
     def register_from(
         self,
         collection : Iterable[T],
-        labeller : Optional[Callable[[T], LabelT] | LabelT]=None
+        label : Optional[Callable[[T], LabelT] | LabelT]=None
     ) -> list[HandleT]:
         '''Register multiple objects at once, returning a list of their assigned handles'''
         if isinstance(collection, Mapping):
-            if labeller is not None:
+            if label is not None:
                 raise ValueError('Registration from mapping received unexpected "labeller" argument')
             return self.register_from_mapping(collection)
         elif isinstance(collection, Iterable):
-            return self.register_from_sequential(collection, labeller=labeller)
+            return self.register_from_sequential(collection, label=label)
 
     # Object deregistration
     def deregister(self, handle : HandleT) -> T:
