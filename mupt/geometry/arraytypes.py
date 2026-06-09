@@ -1,7 +1,5 @@
 '''Typehints and shape enforcement for numpy arrays'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import (
     Literal,

@@ -1,7 +1,5 @@
 '''Unit tests for Connectors, AttachmentPoints, and connection-related utilities'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import pytest
 
