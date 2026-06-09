@@ -34,7 +34,7 @@ class PointCloud(BoundedTransformableShape):
     def __repr__(self) -> str: 
         return f'{self.__class__.__name__}(shape={self.positions.shape})'
     
-    @classmethod
+    @classmethod # TODO: per DS review, would make sense to eventually move this into dedicated Cubic subtype of BoundedTransformableShape
     def cubic(cls, sidelen : float=1.0, centered : bool=True) -> 'PointCloud':
         '''
         Initialize a PointCloud whose point lie on the
