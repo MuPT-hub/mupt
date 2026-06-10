@@ -306,7 +306,15 @@ def primitive_to_rdkit_mols(
     default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
     strategy: Optional[RDKitExportStrategy] = None,
 ) -> Iterator[Mol]:
-    """Yield one RDKit Mol per segment from a role-annotated Primitive hierarchy."""
+    """
+    Yield one RDKit Mol per segment from a role-annotated Primitive hierarchy.
+
+    The strategy performs topology validation as part of iteration. For the
+    default all-atom strategy, ``iter_mol_data()`` first builds the shared
+    SAAMR role topology index and raises if the hierarchy cannot be exported.
+    This keeps the exporter on the same EAFP path as other MuPT interfaces and
+    avoids a separate preflight traversal.
+    """
     if strategy is None:
         strategy = AllAtomRDKitExportStrategy(default_atom_position=default_atom_position)
 
