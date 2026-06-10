@@ -366,7 +366,7 @@ class AllAtomDPDBuilder:
             box_length,
         )
         simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, parameters)
-        steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_length)
+        steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_length, bonds)
         final_positions = self._unwrap_positions(
             simulation.state.get_snapshot().particles.position[:],
             bonds,
@@ -636,23 +636,30 @@ class AllAtomDPDBuilder:
                 }
         return params
 
-    def _run_until_spaced(self, simulation: Any, freud: Any, box_length: float) -> tuple[int, float, bool]:
+    def _run_until_spaced(
+        self,
+        simulation: Any,
+        freud: Any,
+        box_length: float,
+        excluded_pairs: list[tuple[int, int]],
+    ) -> tuple[int, float, bool]:
         """Run HOOMD intervals until nearest-neighbor spacing converges."""
 
         start = time.perf_counter()
         steps = 0
         simulation.run(1)
-        converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_length)
+        excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
+        converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_length, excluded)
         while not converged and steps < self.settings.n_steps_max:
             simulation.run(self.settings.n_steps_per_interval)
             steps += self.settings.n_steps_per_interval
             if steps % self.settings.report_interval == 0:
                 LOGGER.debug("Integrated %s all-atom DPD steps", steps)
-            converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_length)
+            converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_length, excluded)
         return steps, time.perf_counter() - start, converged
 
-    def _spacing_ok(self, snapshot: Any, freud: Any, box_length: float) -> bool:
-        """Return whether all non-identical particles exceed the spacing threshold."""
+    def _spacing_ok(self, snapshot: Any, freud: Any, box_length: float, excluded: set[tuple[int, int]]) -> bool:
+        """Return whether non-excluded pairs exceed the spacing threshold."""
 
         positions = snapshot.particles.position[:]
         box = freud.box.Box.cube(box_length)
@@ -660,7 +667,13 @@ class AllAtomDPDBuilder:
             positions,
             {"r_min": 0.0, "r_max": self.settings.particle_spacing_a, "exclude_ii": True},
         )
-        return len(query.toNeighborList()) == 0
+        neighbors = query.toNeighborList()
+        if len(neighbors) == 0:
+            return True
+        for i, j in zip(neighbors.query_point_indices, neighbors.point_indices):
+            if tuple(sorted((int(i), int(j)))) not in excluded:
+                return False
+        return True
 
     @staticmethod
     def _unwrap_positions(positions: np.ndarray, bonds: list[tuple[int, int]], box_length: float) -> np.ndarray:
