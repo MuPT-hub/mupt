@@ -158,7 +158,15 @@ MUPT_RDKIT_ATOM_PROPS = (
 
 
 def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
-    """Return PDB-compliant chain/residue identifiers for a global residue index."""
+    """
+    Return PDB-compatible surrogate chain/residue identifiers for export metadata.
+
+    These are not true MuPT segment/chain semantics. Exported segment records are
+    assigned sequentially as A:1 through A:9999, then B:1, and so on for
+    PDB/OpenFF-style metadata fields with limited chain/residue capacity. MuPT
+    provenance is preserved separately on atom props such as
+    mupt_segment_index and mupt_residue_index.
+    """
     chain_idx, resid_offset = divmod(global_residue_idx, PDB_MAX_RESIDUE_NUMBER)
     if chain_idx >= len(PDB_CHAIN_IDS):
         raise ValueError(
@@ -309,10 +317,17 @@ def primitive_to_rdkit_mols(
     default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
     strategy: Optional[RDKitExportStrategy] = None,
 ) -> Iterator[Mol]:
-    """Yield one RDKit Mol per segment from a role-annotated Primitive hierarchy."""
+    """
+    Yield one RDKit Mol per segment from a role-annotated Primitive hierarchy.
+
+    The strategy performs topology validation as part of iteration. For the
+    default all-atom strategy, ``iter_mol_data()`` first builds the shared
+    SAAMR role topology index and raises if the hierarchy cannot be exported.
+    This keeps the exporter on the same EAFP path as other MuPT interfaces and
+    avoids a separate preflight traversal.
+    """
     if strategy is None:
         strategy = AllAtomRDKitExportStrategy(default_atom_position=default_atom_position)
-    strategy.validate(primitive)
 
     first_residue_idx = 0
     for segment_idx, data in enumerate(strategy.iter_mol_data(primitive, resname_map=resname_map)):

@@ -44,10 +44,6 @@ class RDKitExportStrategy(ABC):
     """Abstract strategy for collecting RDKit-exportable topology data."""
 
     @abstractmethod
-    def validate(self, root: Primitive) -> None:
-        """Validate role assignment and hierarchy preconditions for export."""
-
-    @abstractmethod
     def iter_mol_data(self, root: Primitive, resname_map: dict[str, str]) -> Iterator[RDKitMolData]:
         """Yield one topology dataset per RDKit Mol to build."""
 
@@ -73,10 +69,6 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
     def label(self) -> str:
         """Human-readable strategy name."""
         return "All-atom"
-
-    def validate(self, root: Primitive) -> None:
-        """Validate role assignments needed for all-atom RDKit export."""
-        build_saamr_role_topology_index(root)
 
     def iter_mol_data(self, root: Primitive, resname_map: dict[str, str]) -> Iterator[RDKitMolData]:
         """Yield one RDKit topology dataset per SEGMENT-role node."""
