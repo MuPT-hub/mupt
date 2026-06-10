@@ -135,6 +135,8 @@ class _ParameterTables:
     angle_type_by_group: dict[tuple[int, int, int], str] = field(default_factory=dict)
     dihedral_type_by_group: dict[tuple[int, int, int, int], str] = field(default_factory=dict)
     atom_epsilons: dict[int, float] = field(default_factory=dict)
+    atom_types_by_global: dict[int, str] = field(default_factory=dict)
+    epsilon_by_type: dict[str, float] = field(default_factory=dict)
 
 
 class AllAtomDPDParameterProvider(ABC):
@@ -234,9 +236,15 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
 
         for key, parameter in labels.get("vdW", {}).items():
             local_idx = self._atom_indices_from_openff_key(key)[0]
-            tables.atom_epsilons[record.local_to_global[int(local_idx)]] = self._quantity_value(
+            global_idx = record.local_to_global[int(local_idx)]
+            atom = record.atoms[int(local_idx)]
+            atom_type = f"{atom.element.symbol}_{getattr(parameter, 'id', 'vdW')}"
+            epsilon = self._quantity_value(
                 getattr(parameter, "epsilon", None), unit.kilocalorie_per_mole, 1.0
             )
+            tables.atom_types_by_global[global_idx] = atom_type
+            tables.atom_epsilons[global_idx] = epsilon
+            tables.epsilon_by_type[atom_type] = epsilon
 
     def _collect_bonds(
         self, labels: dict[str, dict], record: _SegmentRecord, tables: _ParameterTables, unit: Any, scale: float
@@ -354,6 +362,8 @@ class AllAtomDPDBuilder:
         root.metadata["unit_cell_parameters"] = [box_length, box_length, box_length, 90.0, 90.0, 90.0]
 
         parameters = self.parameter_provider.parameterize(root, records, self.settings)
+        angles = [group for group in angles if group in parameters.angle_type_by_group]
+        dihedrals = [group for group in dihedrals if group in parameters.dihedral_type_by_group]
         frame = self._initial_frame(
             gsd.hoomd.Frame,
             records,
@@ -500,11 +510,17 @@ class AllAtomDPDBuilder:
 
         rng = np.random.default_rng(self.settings.random_seed)
         frame = frame_cls()
-        particle_types = sorted({atom.element.symbol for atom in atoms})
+        missing_types = [idx for idx in range(len(atoms)) if idx not in parameters.atom_types_by_global]
+        if missing_types:
+            raise ValueError(f"AA-DPD parameterization did not assign particle types for atom indices {missing_types}.")
+        particle_types = sorted(set(parameters.atom_types_by_global.values()))
         type_id = {name: idx for idx, name in enumerate(particle_types)}
         frame.particles.N = len(atoms)
         frame.particles.types = particle_types
-        frame.particles.typeid = np.array([type_id[atom.element.symbol] for atom in atoms], dtype=np.uint32)
+        frame.particles.typeid = np.array(
+            [type_id[parameters.atom_types_by_global[idx]] for idx in range(len(atoms))],
+            dtype=np.uint32,
+        )
         frame.particles.mass = masses
         frame.particles.position = self._initial_positions(records, box_length, rng)
         frame.configuration.box = [box_length, box_length, box_length, 0.0, 0.0, 0.0]
@@ -594,7 +610,7 @@ class AllAtomDPDBuilder:
 
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
         dpd = hoomd.md.pair.DPD(nlist, default_r_cut=self.settings.r_cut_a, kT=self.settings.kT)
-        pair_params = self._dpd_pair_params(frame.particles.types, frame.particles.typeid, parameters.atom_epsilons)
+        pair_params = self._dpd_pair_params(frame.particles.types, parameters.epsilon_by_type)
         for pair, param in pair_params.items():
             dpd.params[pair] = param
         integrator.forces.append(dpd)
@@ -615,21 +631,21 @@ class AllAtomDPDBuilder:
             )
         return simulation
 
-    def _dpd_pair_params(
-        self, particle_types: list[str], typeids: np.ndarray, atom_epsilons: dict[int, float]
-    ) -> dict[tuple[str, str], dict[str, float]]:
+    def _dpd_pair_params(self, particle_types: list[str], epsilon_by_type: dict[str, float]) -> dict[tuple[str, str], dict[str, float]]:
         """Return DPD pair parameters scaled by a simple epsilon heuristic."""
 
-        eps_by_type = {name: [] for name in particle_types}
-        for atom_idx, typeid in enumerate(typeids):
-            eps_by_type[particle_types[int(typeid)]].append(atom_epsilons.get(atom_idx, 1.0))
         reducer = max if self.settings.epsilon_reference_mode == "max" else np.mean
-        type_eps = {name: float(reducer(values)) if values else 1.0 for name, values in eps_by_type.items()}
-        reference = max(type_eps.values()) or 1.0
+        if self.settings.epsilon_reference_mode not in {"max", "mean"}:
+            reference = float(self.settings.epsilon_reference_mode)
+        else:
+            type_eps_values = list(epsilon_by_type.values())
+            reference = float(reducer(type_eps_values)) if type_eps_values else 1.0
         params = {}
         for i, type_i in enumerate(particle_types):
             for type_j in particle_types[i:]:
-                scale = np.sqrt(type_eps[type_i] * type_eps[type_j]) / reference
+                epsilon_i = epsilon_by_type.get(type_i, 1.0)
+                epsilon_j = epsilon_by_type.get(type_j, 1.0)
+                scale = np.sqrt(epsilon_i * epsilon_j) / reference if reference > 0 else 1.0
                 params[(type_i, type_j)] = {
                     "A": self.settings.A_base * scale,
                     "gamma": self.settings.gamma_base * scale,
