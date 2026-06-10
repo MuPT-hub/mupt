@@ -140,7 +140,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--particle-spacing-a",
         type=float,
-        default=1.2,
+        default=0.75,
         help="Minimum nonbonded atom spacing required for DPD convergence, in Angstrom.",
     )
     parser.add_argument(
