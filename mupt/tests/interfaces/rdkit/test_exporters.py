@@ -11,6 +11,7 @@ from anytree import PreOrderIter
 from rdkit import Chem
 
 from mupt.chemistry import ELEMENTS
+from mupt.interfaces.rdkit import exporters as rdkit_exporters
 from mupt.interfaces.rdkit import primitive_to_rdkit_mols
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives import Primitive
@@ -48,6 +49,14 @@ def _universe_from_residue(residue: Primitive) -> Primitive:
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(segment)
     return universe
+
+
+def _atoms_by_mupt_residue(mol):
+    atoms_by_residue = {}
+    for atom in mol.GetAtoms():
+        if atom.HasProp("mupt_residue_index"):
+            atoms_by_residue.setdefault(atom.GetIntProp("mupt_residue_index"), []).append(atom)
+    return atoms_by_residue
 
 
 def test_primitive_to_rdkit_mols_returns_one_mol_per_segment(
@@ -92,6 +101,50 @@ def test_primitive_to_rdkit_mols_sets_pdb_residue_info(
         assert pdb_info.GetResidueName().strip() in set(polyethylene_resname_map.values())
         assert atom.GetProp("chain_id") == "A"
         assert atom.GetProp("residue_name") in set(polyethylene_resname_map.values())
+
+
+def test_primitive_to_rdkit_mols_wraps_pdb_surrogate_residue_ids(
+    single_polyethylene_3mer,
+    polyethylene_resname_map,
+    monkeypatch,
+):
+    monkeypatch.setattr(rdkit_exporters, "PDB_MAX_RESIDUE_NUMBER", 2)
+
+    mol = _rdkit_mols(single_polyethylene_3mer, polyethylene_resname_map)[0]
+    atoms_by_residue = _atoms_by_mupt_residue(mol)
+
+    assert set(atoms_by_residue) == {1, 2, 3}
+    for mupt_residue_index, expected_surrogate_id in {
+        1: ("A", 1),
+        2: ("A", 2),
+        3: ("B", 1),
+    }.items():
+        for atom in atoms_by_residue[mupt_residue_index]:
+            pdb_info = atom.GetPDBResidueInfo()
+            assert pdb_info is not None
+            assert (pdb_info.GetChainId(), pdb_info.GetResidueNumber()) == expected_surrogate_id
+            assert (atom.GetProp("chain_id"), atom.GetIntProp("residue_id")) == expected_surrogate_id
+
+
+def test_primitive_to_rdkit_mols_preserves_bond_across_pdb_surrogate_chain_wrap(
+    single_polyethylene_3mer,
+    polyethylene_resname_map,
+    monkeypatch,
+):
+    monkeypatch.setattr(rdkit_exporters, "PDB_MAX_RESIDUE_NUMBER", 2)
+
+    mol = _rdkit_mols(single_polyethylene_3mer, polyethylene_resname_map)[0]
+    boundary_bonds = []
+    for bond in mol.GetBonds():
+        atoms = (bond.GetBeginAtom(), bond.GetEndAtom())
+        if not all(atom.HasProp("mupt_residue_index") for atom in atoms):
+            continue
+        residue_indices = {atom.GetIntProp("mupt_residue_index") for atom in atoms}
+        chain_ids = {atom.GetPDBResidueInfo().GetChainId() for atom in atoms}
+        if residue_indices == {2, 3} and chain_ids == {"A", "B"}:
+            boundary_bonds.append(bond)
+
+    assert len(boundary_bonds) == 1
 
 
 def test_primitive_to_rdkit_mols_rejects_empty_segment():
