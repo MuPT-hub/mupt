@@ -4,6 +4,40 @@ The builder uses OpenFF labels to construct bonded restraints and heuristic DPD
 repulsions for dense coordinate initialization. The HOOMD simulation is not a
 calibrated physical DPD model; its contract is to produce finite all-atom melt
 coordinates suitable for downstream minimization in an MD engine.
+
+Recommended MD handoff
+----------------------
+AA-DPD placement should be treated as an initialization step, not an equilibrated
+production state. A typical handoff is:
+
+1. Export the updated atom coordinates and periodic box to the target atomistic
+   MD engine.
+2. Build an all-atom force-field system with explicit hydrogens, periodic box
+   vectors, and production-quality partial charges. For OpenFF validation of
+   polyethylene, the NAGL/AshGC model ``openff-gnn-am1bcc-1.0.0.pt`` is preferred
+   over debug-only zero/formal charges.
+3. Run unconstrained energy minimization and require finite energies.
+4. Run short NVT dynamics with regular MD settings. For constrained hydrogens,
+   ``2 fs`` and ``1 / ps`` Langevin friction are reasonable smoke-test settings.
+5. Run NPT equilibration at the intended temperature and pressure until density,
+   volume, potential energy, and kinetic energy are bounded and stationary.
+6. Use the equilibrated NPT density for later NVT production if cleaner
+   structural or dynamical statistics are needed.
+
+Do not use the sign of total potential energy as a stability criterion. The
+absolute zero of molecular-mechanics potential energy is force-field-dependent,
+and bonded/torsional terms can make stable systems have positive total potential
+energy. Prefer finite bounded energies, stable density/volume, and structural
+observables such as radius of gyration, end-to-end distance, backbone torsion
+populations, intermolecular RDFs, and mean-squared internal distances.
+
+For polyethylene melt validation, run above the crystalline melting range. A
+practical starting point is ``450 K`` and ``1 atm`` with an initial density near
+``0.77 g / cm^3``. Literature PE melt densities are roughly ``0.76-0.78 g / cm^3``
+near ``450 K`` and ``0.73-0.75 g / cm^3`` near ``500 K``, with exact values
+depending on force field, chain length, equilibration time, and finite-size
+effects. The manual validation harness in ``devtools/scripts`` exercises this
+handoff for polyethylene but is not production sampling.
 """
 
 from __future__ import annotations

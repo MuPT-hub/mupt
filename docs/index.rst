@@ -70,6 +70,5 @@ Welcome to Multiscale Polymer Toolkit's documentation!
 
    getting_started
    user_guide
-   all_atom_dpd
    api
    developer_guide
