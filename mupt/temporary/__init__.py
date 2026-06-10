@@ -1,4 +1,4 @@
-"""File I/O helpers for MuPT representations."""
+"""Temporary helpers pending stable MuPT APIs."""
 
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"

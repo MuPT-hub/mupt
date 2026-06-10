@@ -1,4 +1,4 @@
-"""Tests for MuPT SDF interoperability export."""
+"""Tests for temporary MuPT SDF interoperability export."""
 
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
@@ -6,7 +6,7 @@ __email__ = "jola3134@colorado.edu"
 from rdkit.Chem.rdmolfiles import SDMolSupplier
 
 from mupt.interfaces.rdkit import write_primitive_to_mupt_sdf
-from mupt.muptio.sdf import MUPT_SDF_ATOM_PROPS, write_primitive_to_sdf
+from mupt.temporary.sdf import MUPT_SDF_ATOM_PROPS, write_primitive_to_sdf
 
 
 def _load_sdf(path):
