@@ -5,6 +5,7 @@ import importlib
 import sys
 
 import numpy as np
+import pytest
 from periodictable import elements
 
 from mupt.chemistry.core import BondType
@@ -78,6 +79,27 @@ def test_box_length_uses_mass_density_constants():
     expected = ((total_mass_amu * AMU_TO_G / density_g_cm3) / ANGSTROM3_TO_CM3) ** (1.0 / 3.0)
 
     assert builder._box_length_a(total_mass_amu) == expected
+
+
+def test_rejects_nonpositive_density():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    with pytest.raises(ValueError, match="density_g_cm3"):
+        AllAtomDPDBuilder(settings=AllAtomDPDSettings(density_g_cm3=0.0))
+
+
+def test_openff_key_atom_indices_support_topology_key_shapes():
+    from mupt.builders.all_atom_dpd import OpenFFAllAtomDPDParameterProvider
+
+    class AtomIndicesKey:
+        atom_indices = (1, 2, 3)
+
+    class ThisAtomIndexKey:
+        this_atom_index = 4
+
+    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(AtomIndicesKey()) == (1, 2, 3)
+    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(ThisAtomIndexKey()) == (4,)
+    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key((5, 6)) == (5, 6)
 
 
 def test_segment_records_counts_tiny_saamr_atoms_and_bonds():

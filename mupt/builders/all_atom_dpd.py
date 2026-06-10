@@ -221,7 +221,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         """Collect per-atom vdW epsilon labels for DPD pair scaling."""
 
         for key, parameter in labels.get("vdW", {}).items():
-            local_idx = key[0] if isinstance(key, tuple) else key
+            local_idx = self._atom_indices_from_openff_key(key)[0]
             tables.atom_epsilons[record.local_to_global[int(local_idx)]] = self._quantity_value(
                 getattr(parameter, "epsilon", None), unit.kilocalorie_per_mole, 1.0
             )
@@ -231,7 +231,8 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     ) -> None:
         """Collect harmonic bond parameters from OpenFF labels."""
 
-        for local_pair, parameter in labels.get("Bonds", {}).items():
+        for key, parameter in labels.get("Bonds", {}).items():
+            local_pair = self._atom_indices_from_openff_key(key)
             i, j = (record.local_to_global[int(local_pair[0])], record.local_to_global[int(local_pair[1])])
             name = getattr(parameter, "id", None) or f"b{i}-{j}"
             tables.bond_type_by_group[tuple(sorted((i, j)))] = str(name)
@@ -247,7 +248,8 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     ) -> None:
         """Collect harmonic angle parameters from OpenFF labels."""
 
-        for local_triplet, parameter in labels.get("Angles", {}).items():
+        for key, parameter in labels.get("Angles", {}).items():
+            local_triplet = self._atom_indices_from_openff_key(key)
             name = getattr(parameter, "id", None) or "a-" + "-".join(map(str, local_triplet))
             group = tuple(record.local_to_global[int(idx)] for idx in local_triplet)
             tables.angle_type_by_group[group] = str(name)
@@ -264,7 +266,8 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     ) -> None:
         """Collect periodic torsion parameters from OpenFF labels."""
 
-        for local_quad, parameter in labels.get("ProperTorsions", {}).items():
+        for key, parameter in labels.get("ProperTorsions", {}).items():
+            local_quad = self._atom_indices_from_openff_key(key)
             name = getattr(parameter, "id", None) or "d-" + "-".join(map(str, local_quad))
             group = tuple(record.local_to_global[int(idx)] for idx in local_quad)
             periodicity = getattr(parameter, "periodicity", [1])
@@ -278,6 +281,16 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
                 "n": int(periodicity[0]),
                 "phi0": self._quantity_value(phase[0], unit.radian, 0.0),
             }
+
+    @staticmethod
+    def _atom_indices_from_openff_key(key: Any) -> tuple[int, ...]:
+        """Return atom indices from OpenFF label keys across toolkit versions."""
+
+        if hasattr(key, "atom_indices"):
+            return tuple(int(idx) for idx in key.atom_indices)
+        if hasattr(key, "this_atom_index"):
+            return (int(key.this_atom_index),)
+        return tuple(int(idx) for idx in key)
 
 
 class AllAtomDPDBuilder:
@@ -304,6 +317,8 @@ class AllAtomDPDBuilder:
         self.settings = settings or AllAtomDPDSettings()
         if resname_map is not None:
             self.settings.resname_map = dict(resname_map)
+        if self.settings.density_g_cm3 <= 0.0:
+            raise ValueError("AA-DPD density_g_cm3 must be positive.")
         self.parameter_provider = parameter_provider or OpenFFAllAtomDPDParameterProvider()
 
     def build(self, root: Primitive) -> AllAtomDPDResult:
@@ -493,10 +508,13 @@ class AllAtomDPDBuilder:
         n_atoms = sum(len(record.atoms) for record in records)
         positions = np.zeros((n_atoms, 3), dtype=float)
         for record in records:
-            local = np.array(
-                [atom.shape.centroid if atom.shape is not None else np.zeros(3) for atom in record.atoms],
-                dtype=float,
-            )
+            missing_shapes = [atom.label for atom in record.atoms if atom.shape is None]
+            if missing_shapes:
+                raise ValueError(
+                    "AA-DPD initialization requires atom coordinates; missing shapes for "
+                    f"{missing_shapes}."
+                )
+            local = np.array([atom.shape.centroid for atom in record.atoms], dtype=float)
             local -= local.mean(axis=0)
             center = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
             rotation = Rotation.random(random_state=rng)
