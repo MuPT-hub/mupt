@@ -1,8 +1,14 @@
-"""SDF export helpers for MuPT interoperability workflows.
+"""Temporary SDF export bridge for MuPT interoperability workflows.
 
-This module writes role-aware MuPT hierarchies to RDKit-readable multi-record
-SDF files for downstream tools such as OpenFF. It is intentionally export-only:
-canonical MuPT persistence belongs in a future archive format rather than in SDF.
+This helper writes role-aware MuPT hierarchies to RDKit-readable multi-record
+SDF files for downstream setup and analysis tools such as OpenFF. It is a
+temporary export-only bridge, not canonical MuPT persistence and not a general
+RDKit file-format wrapper. Keep it easy to remove before a stable native MuPT
+persistence format exists.
+
+The writer preserves per-segment records and MuPT/RDKit atom metadata by
+preparing RDKit SDF atom-property lists before writing. It does not deserialize
+SDF, nor attempt to losslessly recover the originating MuPT hierarchy.
 """
 
 __author__ = "Joseph R. Laforet Jr."
