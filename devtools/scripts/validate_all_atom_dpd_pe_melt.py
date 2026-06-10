@@ -138,6 +138,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--density-g-cm3", type=float, default=0.85, help="Target melt density.")
     parser.add_argument("--dpd-max-steps", type=int, default=50000, help="Maximum DPD integration steps.")
     parser.add_argument(
+        "--particle-spacing-a",
+        type=float,
+        default=1.2,
+        help="Minimum nonbonded atom spacing required for DPD convergence, in Angstrom.",
+    )
+    parser.add_argument(
         "--dpd-steps-per-interval",
         type=int,
         default=1000,
@@ -178,6 +184,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--dpd-max-steps must be >= 0")
     if args.dpd_steps_per_interval < 1:
         raise ValueError("--dpd-steps-per-interval must be >= 1")
+    if args.particle_spacing_a <= 0.0:
+        raise ValueError("--particle-spacing-a must be > 0")
     if args.min_distance_a < 0.0:
         raise ValueError("--min-distance-a must be >= 0")
 
@@ -191,6 +199,7 @@ def run_dpd(root: Any, args: argparse.Namespace) -> Any:
         density_g_cm3=args.density_g_cm3,
         n_steps_max=args.dpd_max_steps,
         n_steps_per_interval=args.dpd_steps_per_interval,
+        particle_spacing_a=args.particle_spacing_a,
         report_interval=args.dpd_steps_per_interval,
         random_seed=args.seed,
         write_gsd=False,
