@@ -119,6 +119,7 @@ class _SegmentRecord:
 
     segment: Primitive
     atoms: list[Primitive]
+    residue_atom_indices: list[list[int]]
     local_to_global: dict[int, int]
     bonds: list[tuple[int, int]]
 
@@ -397,8 +398,11 @@ class AllAtomDPDBuilder:
         next_global = 0
         for segment in index.segments:
             atoms = []
+            residue_atom_indices = []
             for residue in index.residues_by_segment[id(segment)]:
-                atoms.extend(index.particles_by_residue[id(residue)])
+                residue_atoms = list(index.particles_by_residue[id(residue)])
+                residue_atom_indices.append(list(range(len(atoms), len(atoms) + len(residue_atoms))))
+                atoms.extend(residue_atoms)
             atom_id_to_local = {id(atom): idx for idx, atom in enumerate(atoms)}
             local_to_global = {idx: next_global + idx for idx in range(len(atoms))}
             bonds = []
@@ -416,6 +420,7 @@ class AllAtomDPDBuilder:
                 _SegmentRecord(
                     segment=segment,
                     atoms=atoms,
+                    residue_atom_indices=residue_atom_indices,
                     local_to_global=local_to_global,
                     bonds=sorted(bonds),
                 )
@@ -514,7 +519,7 @@ class AllAtomDPDBuilder:
         box_length: float,
         rng: np.random.Generator,
     ) -> np.ndarray:
-        """Place intact local segment templates randomly in the target box."""
+        """Place intact residue templates as simple random-orientation chains."""
 
         n_atoms = sum(len(record.atoms) for record in records)
         positions = np.zeros((n_atoms, 3), dtype=float)
@@ -526,12 +531,20 @@ class AllAtomDPDBuilder:
                     f"{missing_shapes}."
                 )
             local = np.array([atom.shape.centroid for atom in record.atoms], dtype=float)
-            local -= local.mean(axis=0)
             center = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
             rotation = Rotation.random(random_state=rng)
-            for local_idx, pos in enumerate(local):
-                global_idx = record.local_to_global[local_idx]
-                positions[global_idx] = self._wrap(center + rotation.apply(pos), box_length)
+            center_offset = 0.5 * (len(record.residue_atom_indices) - 1) * self.settings.initial_chain_step_a
+            for residue_idx, residue_local_indices in enumerate(record.residue_atom_indices):
+                residue_positions = local[residue_local_indices]
+                residue_center = residue_positions.mean(axis=0)
+                chain_offset = np.array(
+                    [residue_idx * self.settings.initial_chain_step_a - center_offset, 0.0, 0.0],
+                    dtype=float,
+                )
+                for local_idx in residue_local_indices:
+                    global_idx = record.local_to_global[local_idx]
+                    local_offset = local[local_idx] - residue_center
+                    positions[global_idx] = self._wrap(center + rotation.apply(chain_offset + local_offset), box_length)
         return positions
 
     @staticmethod
