@@ -61,6 +61,35 @@ def _atoms_by_mupt_residue(mol):
     return atoms_by_residue
 
 
+def _pdb_residue_id(atom):
+    """Return the PDB chain, residue number, and residue name for one atom."""
+    pdb_info = atom.GetPDBResidueInfo()
+    if pdb_info is None:
+        return None
+    return (
+        pdb_info.GetChainId(),
+        pdb_info.GetResidueNumber(),
+        pdb_info.GetResidueName().strip(),
+    )
+
+
+def _pdb_boundary_bonds(mol, residue_ids, resnames):
+    """Find bonds whose endpoints match PDB residue identifiers and names."""
+    boundary_bonds = []
+    for bond in mol.GetBonds():
+        residue_data = tuple(
+            _pdb_residue_id(atom)
+            for atom in (bond.GetBeginAtom(), bond.GetEndAtom())
+        )
+        if None in residue_data:
+            continue
+        bond_residue_ids = {(chain_id, resid) for chain_id, resid, _ in residue_data}
+        bond_resnames = {resname for _, _, resname in residue_data}
+        if bond_residue_ids == residue_ids and bond_resnames == resnames:
+            boundary_bonds.append(bond)
+    return boundary_bonds
+
+
 def test_primitive_to_rdkit_mols_returns_one_mol_per_segment(
     multi_polyethylene_system,
     polyethylene_resname_map,
@@ -165,6 +194,37 @@ def test_primitive_to_rdkit_mols_preserves_bond_across_pdb_surrogate_chain_wrap(
             boundary_bonds.append(bond)
 
     assert len(boundary_bonds) == 1
+
+
+def test_primitive_to_rdkit_mols_pdb_roundtrip_preserves_wrapped_chain_bond(
+    single_polyethylene_3mer,
+    polyethylene_resname_map,
+    monkeypatch,
+):
+    """
+    RDKit PDB output preserves bonds across surrogate chain boundaries.
+
+    PDB output cannot carry MuPT-specific atom properties, so this test checks
+    the bond using RDKit's PDB residue metadata after writing and reloading a
+    PDB block. The wrapped A:2 to B:1 bond corresponds to the second and third
+    MuPT residues in the source chain.
+    """
+    monkeypatch.setattr(rdkit_exporters, "PDB_MAX_RESIDUE_NUMBER", 2)
+
+    mol = _rdkit_mols(single_polyethylene_3mer, polyethylene_resname_map)[0]
+    pdb_block = Chem.MolToPDBBlock(mol)
+    reloaded = Chem.MolFromPDBBlock(pdb_block, sanitize=False, removeHs=False)
+
+    assert reloaded is not None
+    assert reloaded.GetNumAtoms() == mol.GetNumAtoms()
+    assert reloaded.GetNumBonds() == mol.GetNumBonds()
+    assert len(
+        _pdb_boundary_bonds(
+            reloaded,
+            residue_ids={("A", 2), ("B", 1)},
+            resnames={"EAN", "TYL"},
+        )
+    ) == 1
 
 
 def test_primitive_to_rdkit_mols_rejects_empty_segment():
