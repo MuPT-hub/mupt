@@ -11,13 +11,22 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import networkx as nx
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
-from mupt.tests.conftest import build_SAAMR_polymer_system
+from mupt.builders.random_walk import AngleConstrainedRandomWalk
+from mupt.geometry.coordinates.directions import random_unit_vector
+from mupt.geometry.coordinates.reference import origin
+from mupt.geometry.transforms.rigid import rigid_vector_coalignment
+from mupt.interfaces.rdkit import suppress_rdkit_logs
+from mupt.interfaces.smiles import primitive_from_smiles
+from mupt.mupr.primitives import Primitive
+from mupt.mupr.topology import TopologicalStructure
+from mupt.roles import assign_SAAMR_roles
 
 
 AMU_TO_G = 1.66053906660e-24
@@ -28,6 +37,75 @@ PE_SMILES = {
     "tail": "*-[CH2:1]-[H:2]",
 }
 PE_RESNAME_MAP = {"head": "HEA", "ethane": "EAN", "tail": "TYL"}
+
+
+def sequence_repeat_units(chain_len: int) -> list[str]:
+    """Return a deterministic PE chain sequence including terminal caps."""
+
+    return ["head", *("ethane" for _ in range(chain_len - 2)), "tail"]
+
+
+def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
+    """Build oriented PE repeat-unit primitives from the script SMILES table."""
+
+    lexicon = {}
+    with suppress_rdkit_logs():
+        for unit_name, smiles in PE_SMILES.items():
+            unit = primitive_from_smiles(
+                smiles,
+                ensure_explicit_Hs=True,
+                embed_positions=True,
+                label=unit_name,
+            )
+            head_atom, tail_atom = unit.search_hierarchy_by(
+                lambda prim: "molAtomMapNumber" in prim.metadata,
+                min_count=2,
+            )
+            head_pos = head_atom.shape.centroid
+            tail_pos = tail_atom.shape.centroid
+            major_radius = np.linalg.norm(tail_pos - head_pos) / 2.0
+            axis_vec = np.zeros(3, dtype=float)
+            axis_vec[axis] = major_radius
+            unit.rigidly_transform(
+                rigid_vector_coalignment(
+                    vector1_start=head_pos,
+                    vector1_end=tail_pos,
+                    vector2_start=origin(3),
+                    vector2_end=axis_vec,
+                    t1=0.5,
+                    t2=0.0,
+                )
+            )
+            lexicon[unit_name] = unit
+    return lexicon
+
+
+def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
+    """Build a deterministic all-atom PE melt primitive without pytest fixtures."""
+
+    np.random.seed(args.seed)
+    lexicon = build_pe_lexicon()
+    root = Primitive(label="pe_melt")
+    for chain_idx in range(args.n_chains):
+        segment = Primitive(label=f"chain_{chain_idx:04d}")
+        for unit_name in sequence_repeat_units(args.chain_len):
+            segment.attach_child(lexicon[unit_name].copy())
+        segment.set_topology(
+            nx.path_graph(segment.children_by_handle.keys(), create_using=TopologicalStructure),
+            max_registration_iter=100,
+        )
+        direction = random_unit_vector()
+        placement = AngleConstrainedRandomWalk(
+            bond_length=1.5,
+            angle_max_rad=np.pi / 4,
+            initial_point=20.0 * direction,
+            initial_direction=direction,
+        )
+        for handle, transform in placement.generate_placements(segment):
+            segment.children_by_handle[handle].rigidly_transform(transform)
+        root.attach_child(segment)
+    assign_SAAMR_roles(root)
+    return root
 
 
 @dataclass(frozen=True)
@@ -90,14 +168,7 @@ def validate_args(args: argparse.Namespace) -> None:
 
 
 def build_pe_melt(args: argparse.Namespace) -> Any:
-    return build_SAAMR_polymer_system(
-        PE_SMILES,
-        mid_distrib={"ethane": 1.0},
-        n_chains=args.n_chains,
-        chain_len_min=args.chain_len,
-        chain_len_max=args.chain_len,
-        random_seed=args.seed,
-    )
+    return build_pe_melt_primitive(args)
 
 
 def run_dpd(root: Any, args: argparse.Namespace) -> Any:
