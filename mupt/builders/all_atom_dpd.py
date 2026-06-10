@@ -106,6 +106,7 @@ class AllAtomDPDResult:
     bonds: list[tuple[int, int]]
     angles: list[tuple[int, int, int]]
     dihedrals: list[tuple[int, int, int, int]]
+    impropers: list[tuple[int, int, int, int]]
     particle_types: list[str]
     steps: int
     elapsed_s: float
@@ -131,9 +132,11 @@ class _ParameterTables:
     bond_params: dict[str, dict[str, float]] = field(default_factory=dict)
     angle_params: dict[str, dict[str, float]] = field(default_factory=dict)
     dihedral_params: dict[str, dict[str, float]] = field(default_factory=dict)
+    improper_params: dict[str, dict[str, float]] = field(default_factory=dict)
     bond_type_by_group: dict[tuple[int, int], str] = field(default_factory=dict)
     angle_type_by_group: dict[tuple[int, int, int], str] = field(default_factory=dict)
     dihedral_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(default_factory=dict)
+    improper_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(default_factory=dict)
     atom_epsilons: dict[int, float] = field(default_factory=dict)
     atom_types_by_global: dict[int, str] = field(default_factory=dict)
     epsilon_by_type: dict[str, float] = field(default_factory=dict)
@@ -212,6 +215,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             self._collect_bonds(labels, record, tables, unit, settings.bond_scale)
             self._collect_angles(labels, record, tables, unit, settings.angle_scale)
             self._collect_dihedrals(labels, record, tables, unit, settings.dihedral_scale)
+            self._collect_impropers(labels, record, tables, unit, settings.dihedral_scale)
 
         return tables
 
@@ -310,6 +314,34 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
                     "phi0": self._quantity_value(phase[term_idx], unit.radian, 0.0),
                 }
 
+    def _collect_impropers(
+        self, labels: dict[str, dict], record: _SegmentRecord, tables: _ParameterTables, unit: Any, scale: float
+    ) -> None:
+        """Collect periodic improper torsion parameters from OpenFF labels."""
+
+        for key, parameter in labels.get("ImproperTorsions", {}).items():
+            local_quad = self._atom_indices_from_openff_key(key)
+            group = tuple(record.local_to_global[int(idx)] for idx in local_quad)
+            periodicity = getattr(parameter, "periodicity", [1])
+            phase = getattr(parameter, "phase", [0.0])
+            k = getattr(parameter, "k", [1.0])
+            idivf = getattr(parameter, "idivf", [1.0] * len(k))
+            base_name = getattr(parameter, "id", None) or "i-" + "-".join(map(str, local_quad))
+            for term_idx, k_term in enumerate(k):
+                name = f"{base_name}_{term_idx}"
+                k_value = (
+                    scale
+                    * self._quantity_value(k_term, unit.kilocalorie_per_mole, 1.0)
+                    / float(idivf[term_idx])
+                )
+                tables.improper_type_by_group.setdefault(group, []).append(name)
+                tables.improper_params[name] = {
+                    "k": abs(k_value),
+                    "d": 1 if k_value >= 0 else -1,
+                    "n": int(periodicity[term_idx]),
+                    "phi0": self._quantity_value(phase[term_idx], unit.radian, 0.0),
+                }
+
     @staticmethod
     def _atom_indices_from_openff_key(key: Any) -> tuple[int, ...]:
         """Return atom indices from OpenFF label keys across toolkit versions."""
@@ -372,6 +404,7 @@ class AllAtomDPDBuilder:
         parameters = self.parameter_provider.parameterize(root, records, self.settings)
         angles = [group for group in angles if group in parameters.angle_type_by_group]
         dihedrals = [group for group in dihedrals if group in parameters.dihedral_type_by_group]
+        impropers = list(parameters.improper_type_by_group)
         frame = self._initial_frame(
             gsd.hoomd.Frame,
             records,
@@ -379,11 +412,12 @@ class AllAtomDPDBuilder:
             bonds,
             angles,
             dihedrals,
+            impropers,
             masses,
             parameters,
             box_length,
         )
-        simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, parameters)
+        simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, impropers, parameters)
         steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_length, bonds)
         final_positions = self._unwrap_positions(
             simulation.state.get_snapshot().particles.position[:],
@@ -398,6 +432,7 @@ class AllAtomDPDBuilder:
             bonds=bonds,
             angles=angles,
             dihedrals=dihedrals,
+            impropers=impropers,
             particle_types=particle_types,
             steps=steps,
             elapsed_s=elapsed_s,
@@ -510,6 +545,7 @@ class AllAtomDPDBuilder:
         bonds: list[tuple[int, int]],
         angles: list[tuple[int, int, int]],
         dihedrals: list[tuple[int, int, int, int]],
+        impropers: list[tuple[int, int, int, int]],
         masses: np.ndarray,
         parameters: _ParameterTables,
         box_length: float,
@@ -535,6 +571,7 @@ class AllAtomDPDBuilder:
         self._set_bonded_frame_data(frame.bonds, bonds, parameters.bond_type_by_group, width=2)
         self._set_bonded_frame_data(frame.angles, angles, parameters.angle_type_by_group, width=3)
         self._set_bonded_frame_data(frame.dihedrals, dihedrals, parameters.dihedral_type_by_group, width=4)
+        self._set_bonded_frame_data(frame.impropers, impropers, parameters.improper_type_by_group, width=4)
         return frame
 
     def _initial_positions(
@@ -604,6 +641,7 @@ class AllAtomDPDBuilder:
         bonds: list[tuple[int, int]],
         angles: list[tuple[int, int, int]],
         dihedrals: list[tuple[int, int, int, int]],
+        impropers: list[tuple[int, int, int, int]],
         parameters: _ParameterTables,
     ) -> Any:
         """Create and configure a HOOMD simulation from the initial frame."""
@@ -625,6 +663,11 @@ class AllAtomDPDBuilder:
             for name in frame.dihedrals.types:
                 periodic.params[name] = parameters.dihedral_params.get(name, {"k": 1.0, "d": 1, "n": 1, "phi0": 0.0})
             integrator.forces.append(periodic)
+        if impropers:
+            periodic_improper = hoomd.md.improper.Periodic()
+            for name in frame.impropers.types:
+                periodic_improper.params[name] = parameters.improper_params.get(name, {"k": 1.0, "d": 1, "n": 1, "phi0": 0.0})
+            integrator.forces.append(periodic_improper)
 
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
         dpd = hoomd.md.pair.DPD(nlist, default_r_cut=self.settings.r_cut_a, kT=self.settings.kT)
@@ -780,6 +823,7 @@ class AllAtomDPDBuilder:
             "n_bonds": len(result.bonds),
             "n_angles": len(result.angles),
             "n_dihedrals": len(result.dihedrals),
+            "n_impropers": len(result.impropers),
             "particle_types": list(result.particle_types),
             "steps": int(result.steps),
             "elapsed_s": float(result.elapsed_s),
