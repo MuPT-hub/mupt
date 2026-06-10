@@ -1,4 +1,10 @@
-"""All-atom DPD coordinate builder for SAAMR Primitive hierarchies."""
+"""All-atom DPD coordinate builder for SAAMR Primitive hierarchies.
+
+The builder uses OpenFF labels to construct bonded restraints and heuristic DPD
+repulsions for dense coordinate initialization. The HOOMD simulation is not a
+calibrated physical DPD model; its contract is to produce finite all-atom melt
+coordinates suitable for downstream minimization in an MD engine.
+"""
 
 from __future__ import annotations
 
@@ -144,7 +150,12 @@ class AllAtomDPDParameterProvider(ABC):
 
 
 class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
-    """Parameter provider backed by OpenFF ``ForceField.label_molecules``."""
+    """Parameter provider backed by OpenFF ``ForceField.label_molecules``.
+
+    OpenFF bonded terms are converted to numeric kcal/mol-style values and used
+    as initialization restraints in HOOMD. They should not be interpreted as a
+    validated HOOMD/OpenFF unit conversion for production dynamics.
+    """
 
     def __init__(self, force_field: Optional[str] = None, resname_map: Optional[dict[str, str]] = None) -> None:
         """Create an OpenFF-backed parameter provider.
