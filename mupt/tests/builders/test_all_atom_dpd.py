@@ -88,6 +88,26 @@ def test_rejects_nonpositive_density():
         AllAtomDPDBuilder(settings=AllAtomDPDSettings(density_g_cm3=0.0))
 
 
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("r_cut_a", 0.0, "r_cut_a"),
+        ("n_steps_per_interval", 0, "n_steps_per_interval"),
+        ("n_steps_max", -1, "n_steps_max"),
+        ("report_interval", 0, "report_interval"),
+        ("epsilon_reference_mode", "not-a-number", "epsilon_reference_mode"),
+    ],
+)
+def test_rejects_invalid_settings(field, value, match):
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    settings = AllAtomDPDSettings()
+    setattr(settings, field, value)
+
+    with pytest.raises(ValueError, match=match):
+        AllAtomDPDBuilder(settings=settings)
+
+
 def test_openff_key_atom_indices_support_topology_key_shapes():
     from mupt.builders.all_atom_dpd import OpenFFAllAtomDPDParameterProvider
 
@@ -100,6 +120,25 @@ def test_openff_key_atom_indices_support_topology_key_shapes():
     assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(AtomIndicesKey()) == (1, 2, 3)
     assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(ThisAtomIndexKey()) == (4,)
     assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key((5, 6)) == (5, 6)
+
+
+def test_build_rejects_malformed_hierarchy_before_optional_imports(monkeypatch):
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    real_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "hoomd" or name.startswith("hoomd."):
+            raise AssertionError(f"unexpected optional dependency import: {name}")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    root = Primitive(label="empty", role=PrimitiveRole.UNIVERSE)
+    root.attach_child(Primitive(label="orphan_particle", element=elements.C, role=PrimitiveRole.PARTICLE))
+
+    with pytest.raises(ValueError, match="RESIDUE and SEGMENT"):
+        AllAtomDPDBuilder().build(root)
 
 
 def test_segment_records_counts_tiny_saamr_atoms_and_bonds():

@@ -377,19 +377,54 @@ class AllAtomDPDBuilder:
         self.settings = settings or AllAtomDPDSettings()
         if resname_map is not None:
             self.settings.resname_map = dict(resname_map)
-        if self.settings.density_g_cm3 <= 0.0:
-            raise ValueError("AA-DPD density_g_cm3 must be positive.")
+        self._validate_settings()
         self.parameter_provider = parameter_provider or OpenFFAllAtomDPDParameterProvider()
+
+    def _validate_settings(self) -> None:
+        """Reject invalid settings before optional HOOMD/OpenFF work starts."""
+
+        positive_fields = {
+            "density_g_cm3": self.settings.density_g_cm3,
+            "r_cut_a": self.settings.r_cut_a,
+            "kT": self.settings.kT,
+            "A_base": self.settings.A_base,
+            "gamma_base": self.settings.gamma_base,
+            "dt": self.settings.dt,
+            "particle_spacing_a": self.settings.particle_spacing_a,
+            "initial_chain_step_a": self.settings.initial_chain_step_a,
+            "bond_scale": self.settings.bond_scale,
+            "angle_scale": self.settings.angle_scale,
+            "dihedral_scale": self.settings.dihedral_scale,
+        }
+        for name, value in positive_fields.items():
+            if value <= 0.0:
+                raise ValueError(f"AA-DPD {name} must be positive.")
+        if self.settings.n_steps_per_interval < 1:
+            raise ValueError("AA-DPD n_steps_per_interval must be >= 1.")
+        if self.settings.n_steps_max < 0:
+            raise ValueError("AA-DPD n_steps_max must be >= 0.")
+        if self.settings.report_interval < 1:
+            raise ValueError("AA-DPD report_interval must be >= 1.")
+        if self.settings.epsilon_reference_mode not in {"max", "mean"}:
+            try:
+                reference = float(self.settings.epsilon_reference_mode)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("AA-DPD epsilon_reference_mode must be 'max', 'mean', or a positive number.") from exc
+            if reference <= 0.0:
+                raise ValueError("AA-DPD epsilon_reference_mode numeric value must be positive.")
 
     def build(self, root: Primitive) -> AllAtomDPDResult:
         """Mutate atom leaf coordinates in-place using a global all-atom DPD run."""
+
+        records = self._segment_records(root)
+        atoms = [atom for record in records for atom in record.atoms]
+        if not atoms:
+            raise ValueError("AA-DPD build requires at least one SEGMENT with atom PARTICLE leaves.")
 
         import freud
         import gsd.hoomd
         import hoomd
 
-        records = self._segment_records(root)
-        atoms = [atom for record in records for atom in record.atoms]
         bonds = [
             tuple(sorted((record.local_to_global[i], record.local_to_global[j])))
             for record in records
