@@ -116,6 +116,8 @@ class OpenMMDeps:
     ForceField: Any
     Molecule: Any
     Topology: Any
+    ToolkitRegistry: Any
+    NAGLToolkitWrapper: Any
     off_unit: Any
     omm_unit: Any
     LangevinIntegrator: Any
@@ -156,9 +158,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--charge-method",
-        default="gasteiger",
-        choices=("gasteiger", "mmff94", "zeros", "formal_charge"),
-        help="OpenFF partial charge method for the OpenMM minimization smoke test.",
+        default="openff-gnn-am1bcc-1.0.0.pt",
+        help=(
+            "OpenFF partial charge method for the OpenMM minimization smoke test. "
+            "Defaults to the NAGL/AshGC model; use zeros/formal_charge only for debug."
+        ),
     )
     return parser.parse_args()
 
@@ -266,6 +270,8 @@ def import_openmm_deps() -> OpenMMDeps:
         from mupt.interfaces.rdkit import primitive_to_rdkit_mols
         from openff.interchange import Interchange
         from openff.toolkit import ForceField, Molecule, Topology
+        from openff.toolkit.utils import ToolkitRegistry
+        from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
         from openff.units import unit as off_unit
         from openmm import LangevinIntegrator, Vec3
         from openmm import unit as omm_unit
@@ -284,6 +290,8 @@ def import_openmm_deps() -> OpenMMDeps:
         ForceField=ForceField,
         Molecule=Molecule,
         Topology=Topology,
+        ToolkitRegistry=ToolkitRegistry,
+        NAGLToolkitWrapper=NAGLToolkitWrapper,
         off_unit=off_unit,
         omm_unit=omm_unit,
         LangevinIntegrator=LangevinIntegrator,
@@ -328,6 +336,27 @@ def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
     return float(energy)
 
 
+def assign_openff_charges(molecules: list[Any], deps: OpenMMDeps, charge_method: str) -> None:
+    """Assign OpenFF partial charges, using NAGL explicitly for AshGC models."""
+
+    if charge_method.endswith(".pt") or charge_method.startswith("openff-gnn"):
+        if not deps.NAGLToolkitWrapper.is_available():
+            raise RuntimeError(
+                "NAGL charge assignment requested, but OpenFF NAGL is unavailable. "
+                "Install openff-nagl or choose a debug-only method such as zeros."
+            )
+        registry = deps.ToolkitRegistry([deps.NAGLToolkitWrapper()])
+        for molecule in molecules:
+            molecule.assign_partial_charges(
+                partial_charge_method=charge_method,
+                toolkit_registry=registry,
+            )
+        return
+
+    for molecule in molecules:
+        molecule.assign_partial_charges(partial_charge_method=charge_method)
+
+
 def run_openmm_validation(root: Any, box_length_a: float, charge_method: str) -> None:
     deps = import_openmm_deps()
     rdkit_mols = list(
@@ -345,8 +374,7 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str) ->
         )
         for mol in rdkit_mols
     ]
-    for molecule in molecules:
-        molecule.assign_partial_charges(partial_charge_method=charge_method)
+    assign_openff_charges(molecules, deps, charge_method)
 
     topology = deps.Topology.from_molecules(molecules)
     topology.box_vectors = deps.off_unit.Quantity(np.eye(3) * box_length_a, deps.off_unit.angstrom)
