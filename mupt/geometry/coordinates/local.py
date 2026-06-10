@@ -2,14 +2,14 @@
 
 
 import numpy as np
-from ..arraytypes import Shape, N, Dims
+from ..arraytypes import Shape, N, Dims, NumericNP
 
 
-def compute_local_coordinates(positions : np.ndarray[Shape[N, Dims], float]) -> tuple[
-        np.ndarray[Shape[Dims], float],
-        np.ndarray[Shape[Dims, Dims], float],
-        np.ndarray[Shape[Dims], float],
-    ]:
+def compute_local_coordinates(positions : np.ndarray[Shape[N, Dims], NumericNP]) -> tuple[
+    np.ndarray[Shape[Dims], NumericNP],
+    np.ndarray[Shape[Dims, Dims], NumericNP],
+    np.ndarray[Shape[Dims], NumericNP],
+]:
     '''
     Takes a coordinates vector of N D-dimensional points and determines
     the center, axes, and relative lengths of the local principal coordinate systems
