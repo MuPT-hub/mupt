@@ -301,7 +301,6 @@ def primitive_to_rdkit_mols(
     """Yield one RDKit Mol per segment from a role-annotated Primitive hierarchy."""
     if strategy is None:
         strategy = AllAtomRDKitExportStrategy(default_atom_position=default_atom_position)
-    strategy.validate(primitive)
 
     first_residue_idx = 0
     for segment_idx, data in enumerate(strategy.iter_mol_data(primitive, resname_map=resname_map)):

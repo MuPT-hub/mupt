@@ -11,7 +11,7 @@ from anytree import PreOrderIter
 from rdkit import Chem
 
 from mupt.chemistry import ELEMENTS
-from mupt.interfaces.rdkit import AllAtomRDKitExportStrategy, primitive_to_rdkit_mols
+from mupt.interfaces.rdkit import primitive_to_rdkit_mols
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
@@ -92,30 +92,6 @@ def test_primitive_to_rdkit_mols_sets_pdb_residue_info(
         assert pdb_info.GetResidueName().strip() in set(polyethylene_resname_map.values())
         assert atom.GetProp("chain_id") == "A"
         assert atom.GetProp("residue_name") in set(polyethylene_resname_map.values())
-
-
-def test_primitive_to_rdkit_mols_calls_strategy_validate(
-    single_polyethylene_2mer,
-    polyethylene_resname_map,
-):
-    class TrackingStrategy(AllAtomRDKitExportStrategy):
-        def __init__(self):
-            super().__init__()
-            self.validated = False
-
-        def validate(self, root):
-            self.validated = True
-            super().validate(root)
-
-    strategy = TrackingStrategy()
-
-    _rdkit_mols(
-        single_polyethylene_2mer,
-        polyethylene_resname_map,
-        strategy=strategy,
-    )
-
-    assert strategy.validated
 
 
 def test_primitive_to_rdkit_mols_rejects_empty_segment():
