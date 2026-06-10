@@ -133,7 +133,7 @@ class _ParameterTables:
     dihedral_params: dict[str, dict[str, float]] = field(default_factory=dict)
     bond_type_by_group: dict[tuple[int, int], str] = field(default_factory=dict)
     angle_type_by_group: dict[tuple[int, int, int], str] = field(default_factory=dict)
-    dihedral_type_by_group: dict[tuple[int, int, int, int], str] = field(default_factory=dict)
+    dihedral_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(default_factory=dict)
     atom_epsilons: dict[int, float] = field(default_factory=dict)
     atom_types_by_global: dict[int, str] = field(default_factory=dict)
     epsilon_by_type: dict[str, float] = field(default_factory=dict)
@@ -288,19 +288,27 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
 
         for key, parameter in labels.get("ProperTorsions", {}).items():
             local_quad = self._atom_indices_from_openff_key(key)
-            name = getattr(parameter, "id", None) or "d-" + "-".join(map(str, local_quad))
             group = tuple(record.local_to_global[int(idx)] for idx in local_quad)
             periodicity = getattr(parameter, "periodicity", [1])
             phase = getattr(parameter, "phase", [0.0])
             k = getattr(parameter, "k", [1.0])
-            tables.dihedral_type_by_group[group] = str(name)
-            tables.dihedral_type_by_group[tuple(reversed(group))] = str(name)
-            tables.dihedral_params[str(name)] = {
-                "k": scale * self._quantity_value(k[0], unit.kilocalorie_per_mole, 1.0),
-                "d": 1 if self._quantity_value(phase[0], unit.radian, 0.0) < np.pi / 2 else -1,
-                "n": int(periodicity[0]),
-                "phi0": self._quantity_value(phase[0], unit.radian, 0.0),
-            }
+            idivf = getattr(parameter, "idivf", [1.0] * len(k))
+            base_name = getattr(parameter, "id", None) or "d-" + "-".join(map(str, local_quad))
+            for term_idx, k_term in enumerate(k):
+                name = f"{base_name}_{term_idx}"
+                k_value = (
+                    scale
+                    * self._quantity_value(k_term, unit.kilocalorie_per_mole, 1.0)
+                    / float(idivf[term_idx])
+                )
+                tables.dihedral_type_by_group.setdefault(group, []).append(name)
+                tables.dihedral_type_by_group.setdefault(tuple(reversed(group)), []).append(name)
+                tables.dihedral_params[name] = {
+                    "k": abs(k_value),
+                    "d": 1 if k_value >= 0 else -1,
+                    "n": int(periodicity[term_idx]),
+                    "phi0": self._quantity_value(phase[term_idx], unit.radian, 0.0),
+                }
 
     @staticmethod
     def _atom_indices_from_openff_key(key: Any) -> tuple[int, ...]:
@@ -572,11 +580,21 @@ class AllAtomDPDBuilder:
     ) -> None:
         """Populate a GSD bonded container with group and type ids."""
 
-        group_types = [type_by_group.get(tuple(group), "default") for group in groups]
+        expanded_groups = []
+        group_types = []
+        for group in groups:
+            group_type = type_by_group.get(tuple(group), "default")
+            if isinstance(group_type, list):
+                for type_name in group_type:
+                    expanded_groups.append(group)
+                    group_types.append(type_name)
+            else:
+                expanded_groups.append(group)
+                group_types.append(group_type)
         unique_types = sorted(set(group_types)) or ["default"]
-        container.N = len(groups)
+        container.N = len(expanded_groups)
         container.types = unique_types
-        container.group = np.array(groups, dtype=np.uint32) if groups else np.zeros((0, width), dtype=np.uint32)
+        container.group = np.array(expanded_groups, dtype=np.uint32) if expanded_groups else np.zeros((0, width), dtype=np.uint32)
         container.typeid = np.array([unique_types.index(group_type) for group_type in group_types], dtype=np.uint32)
 
     def _simulation(
