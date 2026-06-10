@@ -154,6 +154,12 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Exit nonzero if the distinct atom minimum distance is at or below this Angstrom threshold.",
     )
+    parser.add_argument(
+        "--charge-method",
+        default="gasteiger",
+        choices=("gasteiger", "mmff94", "zeros", "formal_charge"),
+        help="OpenFF partial charge method for the OpenMM minimization smoke test.",
+    )
     return parser.parse_args()
 
 
@@ -322,7 +328,7 @@ def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
     return float(energy)
 
 
-def run_openmm_validation(root: Any, box_length_a: float) -> None:
+def run_openmm_validation(root: Any, box_length_a: float, charge_method: str) -> None:
     deps = import_openmm_deps()
     rdkit_mols = list(
         deps.primitive_to_rdkit_mols(
@@ -340,7 +346,7 @@ def run_openmm_validation(root: Any, box_length_a: float) -> None:
         for mol in rdkit_mols
     ]
     for molecule in molecules:
-        molecule.assign_partial_charges(partial_charge_method="zeros")
+        molecule.assign_partial_charges(partial_charge_method=charge_method)
 
     topology = deps.Topology.from_molecules(molecules)
     topology.box_vectors = deps.off_unit.Quantity(np.eye(3) * box_length_a, deps.off_unit.angstrom)
@@ -382,6 +388,7 @@ def run_openmm_validation(root: Any, box_length_a: float) -> None:
     print("OpenMM diagnostics")
     print(f"  molecule_count: {len(molecules)}")
     print(f"  atom_count: {n_openmm_atoms}")
+    print(f"  charge_method: {charge_method}")
     print(f"  initial_potential_energy_kj_mol: {initial_energy:.6f}")
     print(f"  minimized_potential_energy_kj_mol: {minimized_energy:.6f}")
     print(f"  finite_energies: {bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy))}")
@@ -405,7 +412,7 @@ def main() -> int:
         if args.skip_openmm:
             print("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
-            run_openmm_validation(root, result.box_length_a)
+            run_openmm_validation(root, result.box_length_a, args.charge_method)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
