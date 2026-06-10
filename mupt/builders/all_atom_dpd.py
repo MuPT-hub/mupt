@@ -1,9 +1,9 @@
-"""All-atom DPD coordinate builder for SAAMR Primitive hierarchies.
+"""All-atom DPD coordinate builder for SAAMR-compliant Primitive hierarchies.
 
 The builder uses OpenFF labels to construct bonded restraints and heuristic DPD
-repulsions for dense coordinate initialization. The HOOMD simulation is not a
-calibrated physical DPD model; its contract is to produce finite all-atom melt
-coordinates suitable for downstream minimization in an MD engine.
+repulsions for dense coordinate initialization. The HOOMD simulation is meant to 
+produce finite all-atom melt coordinates suitable for downstream minimization in 
+an MD engine.
 
 Recommended MD handoff
 ----------------------
@@ -14,9 +14,8 @@ production state. A typical handoff is:
    MD engine.
 2. Build an all-atom force-field system with explicit hydrogens, periodic box
    vectors, and production-quality partial charges. For OpenFF validation of
-   polyethylene, the NAGL/AshGC model ``openff-gnn-am1bcc-1.0.0.pt`` is preferred
-   over debug-only zero/formal charges.
-3. Run unconstrained energy minimization and require finite energies.
+   polyethylene, the NAGL/AshGC model ``openff-gnn-am1bcc-1.0.0.pt`` was used/
+3. Run energy minimization and require finite energies.
 4. Run short NVT dynamics with regular MD settings. For constrained hydrogens,
    ``2 fs`` and ``1 / ps`` Langevin friction are reasonable smoke-test settings.
 5. Run NPT equilibration at the intended temperature and pressure until density,
@@ -24,20 +23,6 @@ production state. A typical handoff is:
 6. Use the equilibrated NPT density for later NVT production if cleaner
    structural or dynamical statistics are needed.
 
-Do not use the sign of total potential energy as a stability criterion. The
-absolute zero of molecular-mechanics potential energy is force-field-dependent,
-and bonded/torsional terms can make stable systems have positive total potential
-energy. Prefer finite bounded energies, stable density/volume, and structural
-observables such as radius of gyration, end-to-end distance, backbone torsion
-populations, intermolecular RDFs, and mean-squared internal distances.
-
-For polyethylene melt validation, run above the crystalline melting range. A
-practical starting point is ``450 K`` and ``1 atm`` with an initial density near
-``0.77 g / cm^3``. Literature PE melt densities are roughly ``0.76-0.78 g / cm^3``
-near ``450 K`` and ``0.73-0.75 g / cm^3`` near ``500 K``, with exact values
-depending on force field, chain length, equilibration time, and finite-size
-effects. The manual validation harness in ``devtools/scripts`` exercises this
-handoff for polyethylene but is not production sampling.
 """
 
 from __future__ import annotations
@@ -193,8 +178,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     """Parameter provider backed by OpenFF ``ForceField.label_molecules``.
 
     OpenFF bonded terms are converted to numeric kcal/mol-style values and used
-    as initialization restraints in HOOMD. They should not be interpreted as a
-    validated HOOMD/OpenFF unit conversion for production dynamics.
+    as initialization restraints in HOOMD. 
     """
 
     def __init__(self, force_field: Optional[str] = None, resname_map: Optional[dict[str, str]] = None) -> None:
@@ -388,7 +372,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
 
 
 class AllAtomDPDBuilder:
-    """Global all-atom DPD builder for SAAMR Primitive hierarchies."""
+    """All-atom DPD builder for SAAMR Primitive hierarchies."""
 
     def __init__(
         self,
@@ -448,7 +432,7 @@ class AllAtomDPDBuilder:
                 raise ValueError("AA-DPD epsilon_reference_mode numeric value must be positive.")
 
     def build(self, root: Primitive) -> AllAtomDPDResult:
-        """Mutate atom leaf coordinates in-place using a global all-atom DPD run."""
+        """Mutate atom leaf coordinates in-place using an all-atom DPD run."""
 
         records = self._segment_records(root)
         atoms = [atom for record in records for atom in record.atoms]
@@ -619,7 +603,7 @@ class AllAtomDPDBuilder:
         parameters: _ParameterTables,
         box_length: float,
     ) -> Any:
-        """Build a GSD frame with atom particles and bonded groups."""
+        """Build a HOOMD frame with atom particles and bonded groups."""
 
         rng = np.random.default_rng(self.settings.random_seed)
         frame = frame_cls()
@@ -684,7 +668,7 @@ class AllAtomDPDBuilder:
         type_by_group: dict[tuple, str],
         width: int,
     ) -> None:
-        """Populate a GSD bonded container with group and type ids."""
+        """Populate a HOOMD bonded container with group and type ids."""
 
         expanded_groups = []
         group_types = []
@@ -852,7 +836,7 @@ class AllAtomDPDBuilder:
 
     @staticmethod
     def _write_positions(root: Primitive, atoms: list[Primitive], positions: np.ndarray) -> None:
-        """Write atom PointCloud shapes and recompute composite PointClouds."""
+        """Write atom PointCloud positions and recompute composite PointClouds."""
 
         for atom, position in zip(atoms, positions):
             atom.shape = PointCloud(positions=np.asarray(position, dtype=float))
