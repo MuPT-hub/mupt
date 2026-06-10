@@ -3,6 +3,9 @@
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
+import subprocess
+import sys
+
 from rdkit.Chem.rdmolfiles import SDMolSupplier
 
 import mupt.interfaces.rdkit.exporters as rdkit_exporters
@@ -39,6 +42,23 @@ def _sdf_boundary_bonds(mol):
         if residue_indices == {2, 3} and chain_ids == {"A", "B"}:
             boundary_bonds.append(bond)
     return boundary_bonds
+
+
+def test_sdf_canonical_import_path_works_first_in_clean_interpreter():
+    """Importing mupt.temporary.sdf first must not circular-import RDKit helpers."""
+    code = """
+from mupt.temporary.sdf import write_primitive_to_sdf
+from mupt.interfaces.rdkit import write_primitive_to_sdf as compat_write
+assert callable(write_primitive_to_sdf)
+assert callable(compat_write)
+"""
+
+    subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_write_primitive_to_sdf_writes_one_record_per_segment(
