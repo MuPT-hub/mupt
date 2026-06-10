@@ -31,6 +31,7 @@ from mupt.roles import assign_SAAMR_roles
 
 AMU_TO_G = 1.66053906660e-24
 ANGSTROM3_TO_CM3 = 1.0e-24
+DA_PER_NM3_TO_G_CM3 = 0.00166053906660
 PE_SMILES = {
     "head": "[H:1]-[CH2:2]-*",
     "ethane": "*-[CH2:1][CH2:2]-*",
@@ -121,6 +122,7 @@ class OpenMMDeps:
     off_unit: Any
     omm_unit: Any
     LangevinMiddleIntegrator: Any
+    MonteCarloBarostat: Any
     Vec3: Any
     Simulation: Any
     primitive_to_rdkit_mols: Any
@@ -175,6 +177,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--md-friction-ps", type=float, default=1.0, help="Langevin friction coefficient in 1/ps.")
     parser.add_argument("--md-temperature-k", type=float, default=300.0, help="NVT MD temperature in kelvin.")
     parser.add_argument("--md-report-interval", type=int, default=500, help="NVT MD diagnostic interval in steps.")
+    parser.add_argument("--npt-steps", type=int, default=0, help="Optional post-NVT NPT MD steps.")
+    parser.add_argument("--pressure-atm", type=float, default=1.0, help="NPT pressure in atmospheres.")
+    parser.add_argument("--barostat-frequency", type=int, default=25, help="Monte Carlo barostat frequency in steps.")
     return parser.parse_args()
 
 
@@ -203,6 +208,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--md-temperature-k must be > 0")
     if args.md_report_interval < 1:
         raise ValueError("--md-report-interval must be >= 1")
+    if args.npt_steps < 0:
+        raise ValueError("--npt-steps must be >= 0")
+    if args.pressure_atm <= 0.0:
+        raise ValueError("--pressure-atm must be > 0")
+    if args.barostat_frequency < 1:
+        raise ValueError("--barostat-frequency must be >= 1")
 
 
 def build_pe_melt(args: argparse.Namespace) -> Any:
@@ -297,7 +308,7 @@ def import_openmm_deps() -> OpenMMDeps:
         from openff.toolkit.utils import ToolkitRegistry
         from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
         from openff.units import unit as off_unit
-        from openmm import LangevinMiddleIntegrator, Vec3
+        from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, Vec3
         from openmm import unit as omm_unit
         from openmm.app import Simulation
     except ModuleNotFoundError as exc:
@@ -319,6 +330,7 @@ def import_openmm_deps() -> OpenMMDeps:
         off_unit=off_unit,
         omm_unit=omm_unit,
         LangevinMiddleIntegrator=LangevinMiddleIntegrator,
+        MonteCarloBarostat=MonteCarloBarostat,
         Vec3=Vec3,
         Simulation=Simulation,
         primitive_to_rdkit_mols=primitive_to_rdkit_mols,
@@ -358,6 +370,19 @@ def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
     state = simulation.context.getState(getEnergy=True)
     energy = state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole)
     return float(energy)
+
+
+def system_mass_da(system: Any, omm_unit: Any) -> float:
+    """Return total OpenMM system mass in daltons."""
+
+    return float(sum(system.getParticleMass(i).value_in_unit(omm_unit.dalton) for i in range(system.getNumParticles())))
+
+
+def box_density_g_cm3(box_vectors_nm: np.ndarray, mass_da: float) -> float:
+    """Return mass density from OpenMM box vectors in nm."""
+
+    volume_nm3 = abs(float(np.linalg.det(box_vectors_nm)))
+    return mass_da * DA_PER_NM3_TO_G_CM3 / volume_nm3
 
 
 def assign_openff_charges(molecules: list[Any], deps: OpenMMDeps, charge_method: str) -> None:
@@ -448,6 +473,7 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
         raise RuntimeError("OpenMM validation produced nonfinite energies.")
     run_nvt_smoke(simulation, system, deps.omm_unit, args)
+    run_npt_smoke(simulation, interchange, openmm_topology, deps, args)
 
 
 def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace) -> None:
@@ -479,6 +505,64 @@ def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Na
         )
         if not finite:
             raise RuntimeError("NVT stability check produced nonfinite energy.")
+
+
+def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps: OpenMMDeps, args: argparse.Namespace) -> None:
+    """Continue from the NVT state under regular NPT conditions."""
+
+    if args.npt_steps == 0:
+        print("NPT diagnostics: skipped (--npt-steps 0)")
+        return
+
+    state = simulation.context.getState(getPositions=True, getVelocities=True, enforcePeriodicBox=True)
+    positions = state.getPositions(asNumpy=True)
+    velocities = state.getVelocities(asNumpy=True)
+    box_vectors = state.getPeriodicBoxVectors()
+    system = openmm_system_from_interchange(interchange)
+    system.setDefaultPeriodicBoxVectors(*box_vectors)
+    system.addForce(
+        deps.MonteCarloBarostat(
+            args.pressure_atm * deps.omm_unit.atmosphere,
+            args.md_temperature_k * deps.omm_unit.kelvin,
+            args.barostat_frequency,
+        )
+    )
+    if hasattr(openmm_topology, "setPeriodicBoxVectors"):
+        openmm_topology.setPeriodicBoxVectors(box_vectors)
+
+    integrator = deps.LangevinMiddleIntegrator(
+        args.md_temperature_k * deps.omm_unit.kelvin,
+        args.md_friction_ps / deps.omm_unit.picosecond,
+        args.md_timestep_fs * deps.omm_unit.femtosecond,
+    )
+    npt = deps.Simulation(openmm_topology, system, integrator)
+    npt.context.setPositions(positions)
+    npt.context.setVelocities(velocities)
+    mass_da = system_mass_da(system, deps.omm_unit)
+
+    print("NPT diagnostics")
+    print(f"  pressure_atm: {args.pressure_atm:.6f}")
+    print(f"  barostat_frequency: {args.barostat_frequency}")
+    print(f"  requested_steps: {args.npt_steps}")
+    steps_run = 0
+    while steps_run < args.npt_steps:
+        steps = min(args.md_report_interval, args.npt_steps - steps_run)
+        npt.step(steps)
+        steps_run += steps
+        state = npt.context.getState(getEnergy=True, enforcePeriodicBox=True)
+        potential = float(state.getPotentialEnergy().value_in_unit(deps.omm_unit.kilojoule_per_mole))
+        kinetic = float(state.getKineticEnergy().value_in_unit(deps.omm_unit.kilojoule_per_mole))
+        box_nm = state.getPeriodicBoxVectors(asNumpy=True).value_in_unit(deps.omm_unit.nanometer)
+        density = box_density_g_cm3(box_nm, mass_da)
+        finite = bool(np.isfinite(potential) and np.isfinite(kinetic) and np.isfinite(density))
+        time_ps = steps_run * args.md_timestep_fs / 1000.0
+        print(
+            f"  step {steps_run:8d} time_ps {time_ps:10.4f} "
+            f"potential_kj_mol {potential:14.6f} kinetic_kj_mol {kinetic:14.6f} "
+            f"density_g_cm3 {density:10.6f} finite {finite}"
+        )
+        if not finite:
+            raise RuntimeError("NPT stability check produced nonfinite energy or density.")
 
 
 def main() -> int:
