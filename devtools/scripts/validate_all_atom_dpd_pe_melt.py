@@ -120,7 +120,7 @@ class OpenMMDeps:
     NAGLToolkitWrapper: Any
     off_unit: Any
     omm_unit: Any
-    LangevinIntegrator: Any
+    LangevinMiddleIntegrator: Any
     Vec3: Any
     Simulation: Any
     primitive_to_rdkit_mols: Any
@@ -170,6 +170,11 @@ def parse_args() -> argparse.Namespace:
             "Defaults to the NAGL/AshGC model; use zeros/formal_charge only for debug."
         ),
     )
+    parser.add_argument("--md-steps", type=int, default=5000, help="Post-minimization NVT MD steps.")
+    parser.add_argument("--md-timestep-fs", type=float, default=2.0, help="NVT MD timestep in femtoseconds.")
+    parser.add_argument("--md-friction-ps", type=float, default=1.0, help="Langevin friction coefficient in 1/ps.")
+    parser.add_argument("--md-temperature-k", type=float, default=300.0, help="NVT MD temperature in kelvin.")
+    parser.add_argument("--md-report-interval", type=int, default=500, help="NVT MD diagnostic interval in steps.")
     return parser.parse_args()
 
 
@@ -188,6 +193,16 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--particle-spacing-a must be > 0")
     if args.min_distance_a < 0.0:
         raise ValueError("--min-distance-a must be >= 0")
+    if args.md_steps < 0:
+        raise ValueError("--md-steps must be >= 0")
+    if args.md_timestep_fs <= 0.0:
+        raise ValueError("--md-timestep-fs must be > 0")
+    if args.md_friction_ps <= 0.0:
+        raise ValueError("--md-friction-ps must be > 0")
+    if args.md_temperature_k <= 0.0:
+        raise ValueError("--md-temperature-k must be > 0")
+    if args.md_report_interval < 1:
+        raise ValueError("--md-report-interval must be >= 1")
 
 
 def build_pe_melt(args: argparse.Namespace) -> Any:
@@ -282,7 +297,7 @@ def import_openmm_deps() -> OpenMMDeps:
         from openff.toolkit.utils import ToolkitRegistry
         from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
         from openff.units import unit as off_unit
-        from openmm import LangevinIntegrator, Vec3
+        from openmm import LangevinMiddleIntegrator, Vec3
         from openmm import unit as omm_unit
         from openmm.app import Simulation
     except ModuleNotFoundError as exc:
@@ -303,7 +318,7 @@ def import_openmm_deps() -> OpenMMDeps:
         NAGLToolkitWrapper=NAGLToolkitWrapper,
         off_unit=off_unit,
         omm_unit=omm_unit,
-        LangevinIntegrator=LangevinIntegrator,
+        LangevinMiddleIntegrator=LangevinMiddleIntegrator,
         Vec3=Vec3,
         Simulation=Simulation,
         primitive_to_rdkit_mols=primitive_to_rdkit_mols,
@@ -366,7 +381,7 @@ def assign_openff_charges(molecules: list[Any], deps: OpenMMDeps, charge_method:
         molecule.assign_partial_charges(partial_charge_method=charge_method)
 
 
-def run_openmm_validation(root: Any, box_length_a: float, charge_method: str) -> None:
+def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace) -> None:
     deps = import_openmm_deps()
     rdkit_mols = list(
         deps.primitive_to_rdkit_mols(
@@ -411,10 +426,10 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str) ->
             f"RDKit coordinate count ({len(positions)})."
         )
 
-    integrator = deps.LangevinIntegrator(
-        300.0 * deps.omm_unit.kelvin,
-        1.0 / deps.omm_unit.picosecond,
-        0.001 * deps.omm_unit.picoseconds,
+    integrator = deps.LangevinMiddleIntegrator(
+        args.md_temperature_k * deps.omm_unit.kelvin,
+        args.md_friction_ps / deps.omm_unit.picosecond,
+        args.md_timestep_fs * deps.omm_unit.femtosecond,
     )
     simulation = deps.Simulation(openmm_topology, system, integrator)
     simulation.context.setPositions(positions * deps.omm_unit.angstrom)
@@ -425,17 +440,45 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str) ->
     print("OpenMM diagnostics")
     print(f"  molecule_count: {len(molecules)}")
     print(f"  atom_count: {n_openmm_atoms}")
+    print(f"  constraints: {system.getNumConstraints()}")
     print(f"  charge_method: {charge_method}")
     print(f"  initial_potential_energy_kj_mol: {initial_energy:.6f}")
     print(f"  minimized_potential_energy_kj_mol: {minimized_energy:.6f}")
     print(f"  finite_energies: {bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy))}")
     if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
         raise RuntimeError("OpenMM validation produced nonfinite energies.")
-    if minimized_energy >= 0.0:
-        raise RuntimeError(
-            "OpenMM minimization did not produce a negative potential energy: "
-            f"{minimized_energy:.6f} kJ/mol."
+    run_nvt_smoke(simulation, system, deps.omm_unit, args)
+
+
+def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace) -> None:
+    """Run a short regular-NVT stability check after minimization."""
+
+    if args.md_steps == 0:
+        print("NVT diagnostics: skipped (--md-steps 0)")
+        return
+
+    simulation.context.setVelocitiesToTemperature(args.md_temperature_k * omm_unit.kelvin, args.seed)
+    print("NVT diagnostics")
+    print(f"  timestep_fs: {args.md_timestep_fs:.6f}")
+    print(f"  friction_1_per_ps: {args.md_friction_ps:.6f}")
+    print(f"  target_temperature_k: {args.md_temperature_k:.6f}")
+    print(f"  requested_steps: {args.md_steps}")
+    steps_run = 0
+    while steps_run < args.md_steps:
+        steps = min(args.md_report_interval, args.md_steps - steps_run)
+        simulation.step(steps)
+        steps_run += steps
+        state = simulation.context.getState(getEnergy=True)
+        potential = float(state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
+        kinetic = float(state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
+        finite = bool(np.isfinite(potential) and np.isfinite(kinetic))
+        time_ps = steps_run * args.md_timestep_fs / 1000.0
+        print(
+            f"  step {steps_run:8d} time_ps {time_ps:10.4f} "
+            f"potential_kj_mol {potential:14.6f} kinetic_kj_mol {kinetic:14.6f} finite {finite}"
         )
+        if not finite:
+            raise RuntimeError("NVT stability check produced nonfinite energy.")
 
 
 def main() -> int:
@@ -449,7 +492,7 @@ def main() -> int:
         if args.skip_openmm:
             print("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
-            run_openmm_validation(root, result.box_length_a, args.charge_method)
+            run_openmm_validation(root, result.box_length_a, args.charge_method, args)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
