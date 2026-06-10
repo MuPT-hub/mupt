@@ -40,6 +40,9 @@ def test_unique_reg_register_implicit() -> None:
     reg.register(obj)
     
     assert set(reg.keys()) == {('p', 0)}
+
+def test_unique_reg_register_callable() -> None:
+    ...
     
 def test_unique_reg_register_from_explicit() -> None:
     '''Test that registering multiple objects with explicit labels works as expected'''
