@@ -71,7 +71,7 @@ def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
 def test_box_length_uses_mass_density_constants():
     from mupt.builders.all_atom_dpd import AMU_TO_G, ANGSTROM3_TO_CM3, AllAtomDPDBuilder, AllAtomDPDSettings
 
-    total_mass_amu = 64.0
+    total_mass_amu = 64000.0
     density_g_cm3 = 2.0
     builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(density_g_cm3=density_g_cm3))
 

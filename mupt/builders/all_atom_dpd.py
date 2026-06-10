@@ -410,7 +410,16 @@ class AllAtomDPDBuilder:
         """Return cubic box length in Angstrom from total mass and target density."""
 
         volume_cm3 = total_mass_amu * AMU_TO_G / self.settings.density_g_cm3
-        return float((volume_cm3 / ANGSTROM3_TO_CM3) ** (1.0 / 3.0))
+        density_length = float((volume_cm3 / ANGSTROM3_TO_CM3) ** (1.0 / 3.0))
+        minimum_length = 3.0 * self.settings.r_cut_a
+        if density_length < minimum_length:
+            LOGGER.warning(
+                "Density-derived AA-DPD box %.3f A is smaller than %.3f A; "
+                "expanding small-system box for HOOMD neighbor-list safety.",
+                density_length,
+                minimum_length,
+            )
+        return max(density_length, minimum_length)
 
     @staticmethod
     def _angles_from_bonds(n_atoms: int, bonds: list[tuple[int, int]]) -> list[tuple[int, int, int]]:
