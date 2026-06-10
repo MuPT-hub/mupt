@@ -147,7 +147,15 @@ PDB_MAX_RESIDUE_NUMBER = 9999
 
 
 def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
-    """Return PDB-compliant chain/residue identifiers for a global residue index."""
+    """
+    Return PDB-compatible surrogate chain/residue identifiers for export metadata.
+
+    These are not true MuPT segment/chain semantics. Exported segment records are
+    assigned sequentially as A:1 through A:9999, then B:1, and so on for
+    PDB/OpenFF-style metadata fields with limited chain/residue capacity. MuPT
+    provenance is preserved separately on atom props such as
+    mupt_segment_index and mupt_residue_index.
+    """
     chain_idx, resid_offset = divmod(global_residue_idx, PDB_MAX_RESIDUE_NUMBER)
     if chain_idx >= len(PDB_CHAIN_IDS):
         raise ValueError(
