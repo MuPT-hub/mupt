@@ -324,7 +324,7 @@ def run_openmm_validation(root: Any, box_length_a: float, max_iterations: int) -
     topology.box_vectors = deps.off_unit.Quantity(np.eye(3) * box_length_a, deps.off_unit.angstrom)
     interchange = deps.ForceField("openff-2.2.1.offxml").create_interchange(
         topology,
-        charge_from_molecules=molecules,
+        charge_from_molecules=[molecules[0]],
     )
     system = openmm_system_from_interchange(interchange)
     openmm_topology = openmm_topology_from_interchange(interchange, topology)
