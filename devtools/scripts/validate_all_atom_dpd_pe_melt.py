@@ -144,6 +144,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="Deterministic build and DPD seed.")
     parser.add_argument("--skip-openmm", action="store_true", help="Skip OpenMM minimization smoke test.")
     parser.add_argument(
+        "--require-dpd-convergence",
+        action="store_true",
+        help="Exit nonzero if the DPD spacing criterion is not reached.",
+    )
+    parser.add_argument(
+        "--min-distance-a",
+        type=float,
+        default=0.0,
+        help="Exit nonzero if the distinct atom minimum distance is at or below this Angstrom threshold.",
+    )
+    parser.add_argument(
         "--openmm-max-iterations",
         type=int,
         default=100,
@@ -165,6 +176,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--dpd-steps-per-interval must be >= 1")
     if args.openmm_max_iterations < 0:
         raise ValueError("--openmm-max-iterations must be >= 0")
+    if args.min_distance_a < 0.0:
+        raise ValueError("--min-distance-a must be >= 0")
 
 
 def build_pe_melt(args: argparse.Namespace) -> Any:
@@ -220,17 +233,34 @@ def min_distinct_distance_a(positions: np.ndarray) -> float:
     return float(np.min(distances))
 
 
-def print_dpd_diagnostics(result: Any) -> None:
+def print_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     positions = atom_positions(result.atoms)
     mass_amu = total_mass_amu(result.atoms)
+    finite_coords = bool(np.all(np.isfinite(positions)))
+    minimum_distance = min_distinct_distance_a(positions)
     print("AA-DPD diagnostics")
     print(f"  atom_count: {len(result.atoms)}")
     print(f"  density_g_cm3: {density_g_cm3(mass_amu, result.box_length_a):.6f}")
     print(f"  box_length_a: {result.box_length_a:.6f}")
     print(f"  converged: {result.converged}")
     print(f"  dpd_steps: {result.steps}")
-    print(f"  finite_coords: {bool(np.all(np.isfinite(positions)))}")
-    print(f"  min_distinct_atom_distance_a: {min_distinct_distance_a(positions):.6f}")
+    print(f"  finite_coords: {finite_coords}")
+    print(f"  min_distinct_atom_distance_a: {minimum_distance:.6f}")
+    return finite_coords, minimum_distance
+
+
+def validate_dpd_diagnostics(result: Any, finite_coords: bool, minimum_distance: float, args: argparse.Namespace) -> None:
+    if not finite_coords:
+        raise RuntimeError("AA-DPD produced nonfinite atom coordinates.")
+    if not np.isfinite(minimum_distance):
+        raise RuntimeError("AA-DPD minimum atom distance is not finite.")
+    if minimum_distance <= args.min_distance_a:
+        raise RuntimeError(
+            f"AA-DPD minimum atom distance {minimum_distance:.6f} A is not above "
+            f"the requested threshold {args.min_distance_a:.6f} A."
+        )
+    if args.require_dpd_convergence and not result.converged:
+        raise RuntimeError("AA-DPD did not satisfy the requested DPD convergence criterion.")
 
 
 def import_openmm_deps() -> OpenMMDeps:
@@ -363,6 +393,8 @@ def run_openmm_validation(root: Any, box_length_a: float, max_iterations: int) -
     print(f"  initial_potential_energy_kj_mol: {initial_energy:.6f}")
     print(f"  minimized_potential_energy_kj_mol: {minimized_energy:.6f}")
     print(f"  finite_energies: {bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy))}")
+    if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
+        raise RuntimeError("OpenMM validation produced nonfinite energies.")
 
 
 def main() -> int:
@@ -371,7 +403,8 @@ def main() -> int:
         validate_args(args)
         root = build_pe_melt(args)
         result = run_dpd(root, args)
-        print_dpd_diagnostics(result)
+        finite_coords, minimum_distance = print_dpd_diagnostics(result)
+        validate_dpd_diagnostics(result, finite_coords, minimum_distance, args)
         if args.skip_openmm:
             print("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
