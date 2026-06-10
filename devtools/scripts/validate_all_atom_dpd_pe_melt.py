@@ -134,31 +134,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-chains", type=int, default=10, help="Number of PE chains to build.")
     parser.add_argument("--chain-len", type=int, default=15, help="Repeat units per PE chain.")
     parser.add_argument("--density-g-cm3", type=float, default=0.85, help="Target melt density.")
-    parser.add_argument("--dpd-max-steps", type=int, default=2000, help="Maximum DPD integration steps.")
+    parser.add_argument("--dpd-max-steps", type=int, default=50000, help="Maximum DPD integration steps.")
     parser.add_argument(
         "--dpd-steps-per-interval",
         type=int,
-        default=250,
+        default=1000,
         help="DPD steps between convergence checks.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Deterministic build and DPD seed.")
     parser.add_argument("--skip-openmm", action="store_true", help="Skip OpenMM minimization smoke test.")
     parser.add_argument(
-        "--require-dpd-convergence",
+        "--allow-unconverged-dpd",
         action="store_true",
-        help="Exit nonzero if the DPD spacing criterion is not reached.",
+        help="Do not exit nonzero if the DPD spacing criterion is not reached.",
     )
     parser.add_argument(
         "--min-distance-a",
         type=float,
         default=0.0,
         help="Exit nonzero if the distinct atom minimum distance is at or below this Angstrom threshold.",
-    )
-    parser.add_argument(
-        "--openmm-max-iterations",
-        type=int,
-        default=100,
-        help="Maximum OpenMM minimization iterations.",
     )
     return parser.parse_args()
 
@@ -174,8 +168,6 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--dpd-max-steps must be >= 0")
     if args.dpd_steps_per_interval < 1:
         raise ValueError("--dpd-steps-per-interval must be >= 1")
-    if args.openmm_max_iterations < 0:
-        raise ValueError("--openmm-max-iterations must be >= 0")
     if args.min_distance_a < 0.0:
         raise ValueError("--min-distance-a must be >= 0")
 
@@ -259,8 +251,8 @@ def validate_dpd_diagnostics(result: Any, finite_coords: bool, minimum_distance:
             f"AA-DPD minimum atom distance {minimum_distance:.6f} A is not above "
             f"the requested threshold {args.min_distance_a:.6f} A."
         )
-    if args.require_dpd_convergence and not result.converged:
-        raise RuntimeError("AA-DPD did not satisfy the requested DPD convergence criterion.")
+    if not args.allow_unconverged_dpd and not result.converged:
+        raise RuntimeError("AA-DPD did not satisfy the DPD convergence criterion.")
 
 
 def import_openmm_deps() -> OpenMMDeps:
@@ -330,7 +322,7 @@ def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
     return float(energy)
 
 
-def run_openmm_validation(root: Any, box_length_a: float, max_iterations: int) -> None:
+def run_openmm_validation(root: Any, box_length_a: float) -> None:
     deps = import_openmm_deps()
     rdkit_mols = list(
         deps.primitive_to_rdkit_mols(
@@ -385,7 +377,7 @@ def run_openmm_validation(root: Any, box_length_a: float, max_iterations: int) -
     simulation.context.setPositions(positions * deps.omm_unit.angstrom)
 
     initial_energy = energy_kj_mol(simulation, deps.omm_unit)
-    simulation.minimizeEnergy(maxIterations=max_iterations)
+    simulation.minimizeEnergy()
     minimized_energy = energy_kj_mol(simulation, deps.omm_unit)
     print("OpenMM diagnostics")
     print(f"  molecule_count: {len(molecules)}")
@@ -395,6 +387,11 @@ def run_openmm_validation(root: Any, box_length_a: float, max_iterations: int) -
     print(f"  finite_energies: {bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy))}")
     if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
         raise RuntimeError("OpenMM validation produced nonfinite energies.")
+    if minimized_energy >= 0.0:
+        raise RuntimeError(
+            "OpenMM minimization did not produce a negative potential energy: "
+            f"{minimized_energy:.6f} kJ/mol."
+        )
 
 
 def main() -> int:
@@ -408,7 +405,7 @@ def main() -> int:
         if args.skip_openmm:
             print("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
-            run_openmm_validation(root, result.box_length_a, args.openmm_max_iterations)
+            run_openmm_validation(root, result.box_length_a)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
