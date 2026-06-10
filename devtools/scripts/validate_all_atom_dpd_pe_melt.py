@@ -7,9 +7,14 @@ import argparse
 import math
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 from mupt.tests.conftest import build_SAAMR_polymer_system
