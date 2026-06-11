@@ -410,6 +410,7 @@ class AllAtomDPDBuilder:
             self.settings.resname_map = dict(resname_map)
         self._validate_settings()
         self.parameter_provider = parameter_provider or OpenFFAllAtomDPDParameterProvider()
+        self._uses_default_placement_generator = placement_generator_factory is None
         self.placement_generator_factory = placement_generator_factory or self._default_placement_generator
 
     def _validate_settings(self) -> None:
@@ -690,11 +691,10 @@ class AllAtomDPDBuilder:
             ]
             if invalid_children or len(residue_handles) != len(record.residues) or len(residue_handles) != len(segment_template.children):
                 raise ValueError(
-                    "AA-DPD frame-0 PlacementGenerator initialization requires every "
-                    "immediate child of each SEGMENT to be a RESIDUE-role Primitive. "
+                    "AA-DPD frame-0 initialization currently requires immediate "
+                    "SEGMENT -> RESIDUE children unconditionally. "
                     "PlacementGenerator places direct children only; move transparent "
-                    "grouping nodes above SEGMENT or provide a custom "
-                    "placement_generator_factory for nested layouts. "
+                    "grouping nodes above SEGMENT. "
                     f"Invalid immediate SEGMENT children: {invalid_children}."
                 )
 
@@ -708,6 +708,17 @@ class AllAtomDPDBuilder:
                 residue_template.shape = PointCloud(
                     positions=np.array([atom.shape.centroid for atom in residue_atoms], dtype=float)
                 )
+
+            if self._uses_default_placement_generator and len(residue_handles) == 1:
+                residue_handle = residue_handles[0]
+                residue_template = segment_template.children_by_handle[residue_handle]
+                target_centroid = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
+                translation = target_centroid - np.asarray(residue_template.shape.centroid, dtype=float)
+                residue_atoms = self._particle_leaves(residue_template)
+                for local_idx, atom in zip(record.residue_atom_indices[0], residue_atoms):
+                    global_idx = record.local_to_global[local_idx]
+                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float) + translation, box_length)
+                continue
 
             placement_generator = self.placement_generator_factory(rng, box_length)
             placements_by_handle = {}
