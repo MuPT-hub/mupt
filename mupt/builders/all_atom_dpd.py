@@ -32,11 +32,12 @@ import time
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
-from scipy.spatial.transform import Rotation
 
+from .base import PlacementGenerator
+from .random_walk import AngleConstrainedRandomWalk
 from ..geometry.shapes import PointCloud
 from ..interfaces._shared.topology import (
     build_saamr_role_topology_index,
@@ -71,8 +72,10 @@ class AllAtomDPDSettings:
         HOOMD integration timestep.
     particle_spacing_a
         Minimum nearest-neighbor spacing required for convergence.
-    initial_chain_step_a
-        Distance between segment template centers during initialization.
+    initial_bond_length_a
+        Target spacing between residue placements during frame-0 initialization.
+    initial_angle_max_rad
+        Maximum turn angle for the default random-walk residue placement.
     n_steps_per_interval
         Number of HOOMD steps between convergence checks.
     n_steps_max
@@ -102,7 +105,8 @@ class AllAtomDPDSettings:
     gamma_base: float = 800.0
     dt: float = 0.001
     particle_spacing_a: float = 0.75
-    initial_chain_step_a: float = 5.0
+    initial_bond_length_a: float = 5.0
+    initial_angle_max_rad: float = np.pi / 4.0
     n_steps_per_interval: int = 1000
     n_steps_max: int = 10000
     report_interval: int = 1000
@@ -138,6 +142,7 @@ class _SegmentRecord:
     """Topology and atom-index mapping for one SEGMENT-role Primitive."""
 
     segment: Primitive
+    residues: list[Primitive]
     atoms: list[Primitive]
     residue_atom_indices: list[list[int]]
     local_to_global: dict[int, int]
@@ -378,6 +383,7 @@ class AllAtomDPDBuilder:
         self,
         settings: Optional[AllAtomDPDSettings] = None,
         parameter_provider: Optional[AllAtomDPDParameterProvider] = None,
+        placement_generator_factory: Callable[[np.random.Generator, float], PlacementGenerator] | None = None,
         resname_map: Optional[dict[str, str]] = None,
     ) -> None:
         """Create an all-atom DPD builder.
@@ -388,6 +394,12 @@ class AllAtomDPDBuilder:
             Builder settings. Defaults mirror the Issue #77 notebook values.
         parameter_provider
             Provider for OpenFF/HOOMD parameter tables.
+        placement_generator_factory
+            Factory returning a ``PlacementGenerator`` for frame-0 residue
+            placement from the AA-DPD RNG and box length. AA-DPD delegates this
+            construction step to the repository placement abstraction to avoid a
+            duplicate chain initializer; AA-DPD remains responsible for dense
+            all-atom relaxation, not residue-chain construction.
         resname_map
             Optional residue-name map overriding ``settings.resname_map``.
         """
@@ -397,6 +409,7 @@ class AllAtomDPDBuilder:
             self.settings.resname_map = dict(resname_map)
         self._validate_settings()
         self.parameter_provider = parameter_provider or OpenFFAllAtomDPDParameterProvider()
+        self.placement_generator_factory = placement_generator_factory or self._default_placement_generator
 
     def _validate_settings(self) -> None:
         """Reject invalid settings before optional HOOMD/OpenFF work starts."""
@@ -409,7 +422,8 @@ class AllAtomDPDBuilder:
             "gamma_base": self.settings.gamma_base,
             "dt": self.settings.dt,
             "particle_spacing_a": self.settings.particle_spacing_a,
-            "initial_chain_step_a": self.settings.initial_chain_step_a,
+            "initial_bond_length_a": self.settings.initial_bond_length_a,
+            "initial_angle_max_rad": self.settings.initial_angle_max_rad,
             "bond_scale": self.settings.bond_scale,
             "angle_scale": self.settings.angle_scale,
             "dihedral_scale": self.settings.dihedral_scale,
@@ -417,6 +431,8 @@ class AllAtomDPDBuilder:
         for name, value in positive_fields.items():
             if value <= 0.0:
                 raise ValueError(f"AA-DPD {name} must be positive.")
+        if self.settings.initial_angle_max_rad > np.pi:
+            raise ValueError("AA-DPD initial_angle_max_rad must be <= pi radians.")
         if self.settings.n_steps_per_interval < 1:
             raise ValueError("AA-DPD n_steps_per_interval must be >= 1.")
         if self.settings.n_steps_max < 0:
@@ -430,6 +446,17 @@ class AllAtomDPDBuilder:
                 raise ValueError("AA-DPD epsilon_reference_mode must be 'max', 'mean', or a positive number.") from exc
             if reference <= 0.0:
                 raise ValueError("AA-DPD epsilon_reference_mode numeric value must be positive.")
+
+    def _default_placement_generator(self, rng: np.random.Generator, box_length: float) -> PlacementGenerator:
+        """Return the default frame-0 residue placement generator."""
+
+        initial_point = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
+        return AngleConstrainedRandomWalk(
+            bond_length=self.settings.initial_bond_length_a,
+            angle_max_rad=self.settings.initial_angle_max_rad,
+            initial_point=initial_point,
+            initial_direction=self._random_unit_vector(rng),
+        )
 
     def build(self, root: Primitive) -> AllAtomDPDResult:
         """Mutate atom leaf coordinates in-place using an all-atom DPD run."""
@@ -525,6 +552,7 @@ class AllAtomDPDBuilder:
             records.append(
                 _SegmentRecord(
                     segment=segment,
+                    residues=list(index.residues_by_segment[id(segment)]),
                     atoms=atoms,
                     residue_atom_indices=residue_atom_indices,
                     local_to_global=local_to_global,
@@ -633,7 +661,13 @@ class AllAtomDPDBuilder:
         box_length: float,
         rng: np.random.Generator,
     ) -> np.ndarray:
-        """Place intact residue templates as simple random-orientation chains."""
+        """Place residue templates with the shared PlacementGenerator abstraction.
+
+        AA-DPD only needs pre-HOOMD frame-0 coordinates before its dense
+        relaxation stage. Delegating residue-chain construction keeps this
+        builder cohesive with the repository placement APIs and avoids a second,
+        AA-DPD-specific placement abstraction.
+        """
 
         n_atoms = sum(len(record.atoms) for record in records)
         positions = np.zeros((n_atoms, 3), dtype=float)
@@ -644,22 +678,54 @@ class AllAtomDPDBuilder:
                     "AA-DPD initialization requires atom coordinates; missing shapes for "
                     f"{missing_shapes}."
                 )
-            local = np.array([atom.shape.centroid for atom in record.atoms], dtype=float)
-            center = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
-            rotation = Rotation.random(random_state=rng)
-            center_offset = 0.5 * (len(record.residue_atom_indices) - 1) * self.settings.initial_chain_step_a
-            for residue_idx, residue_local_indices in enumerate(record.residue_atom_indices):
-                residue_positions = local[residue_local_indices]
-                residue_center = residue_positions.mean(axis=0)
-                chain_offset = np.array(
-                    [residue_idx * self.settings.initial_chain_step_a - center_offset, 0.0, 0.0],
-                    dtype=float,
+            segment_template = record.segment._copy_untransformed()
+            residue_handles = [
+                handle
+                for handle, residue in segment_template.children_by_handle.items()
+                if residue.role == PrimitiveRole.RESIDUE
+            ]
+            if len(residue_handles) != len(record.residue_atom_indices) or len(residue_handles) != len(segment_template.children):
+                raise ValueError(
+                    "AA-DPD PlacementGenerator initialization requires each SEGMENT child "
+                    "to be an immediate RESIDUE-role Primitive."
                 )
-                for local_idx in residue_local_indices:
+
+            for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
+                residue_template = segment_template.children_by_handle[residue_handle]
+                residue_atoms = self._particle_leaves(residue_template)
+                if len(residue_atoms) != len(residue_local_indices):
+                    raise ValueError(
+                        "AA-DPD residue template atom count changed while preparing PlacementGenerator input."
+                    )
+                residue_template.shape = PointCloud(
+                    positions=np.array([atom.shape.centroid for atom in residue_atoms], dtype=float)
+                )
+
+            # AngleConstrainedRandomWalk still uses module-level NumPy randomness
+            # internally. Seed it from the AA-DPD RNG per segment so AA-DPD builds
+            # remain deterministic until PlacementGenerator accepts an RNG directly.
+            np.random.seed(int(rng.integers(0, np.iinfo(np.uint32).max, dtype=np.uint32)))
+            placement_generator = self.placement_generator_factory(rng, box_length)
+            for residue_handle, placement in placement_generator.generate_placements(segment_template):
+                segment_template.children_by_handle[residue_handle].rigidly_transform(placement)
+
+            for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
+                residue_atoms = self._particle_leaves(segment_template.children_by_handle[residue_handle])
+                for local_idx, atom in zip(residue_local_indices, residue_atoms):
                     global_idx = record.local_to_global[local_idx]
-                    local_offset = local[local_idx] - residue_center
-                    positions[global_idx] = self._wrap(center + rotation.apply(chain_offset + local_offset), box_length)
+                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float), box_length)
         return positions
+
+    @staticmethod
+    def _particle_leaves(node: Primitive) -> list[Primitive]:
+        """Return PARTICLE leaves below ``node`` in deterministic child order."""
+
+        if node.is_leaf:
+            return [node] if node.role == PrimitiveRole.PARTICLE else []
+        atoms = []
+        for child in node.children:
+            atoms.extend(AllAtomDPDBuilder._particle_leaves(child))
+        return atoms
 
     @staticmethod
     def _set_bonded_frame_data(
