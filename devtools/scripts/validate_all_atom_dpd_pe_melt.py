@@ -18,8 +18,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
-from mupt.builders.random_walk import AngleConstrainedRandomWalk
-from mupt.geometry.coordinates.directions import random_unit_vector
 from mupt.geometry.coordinates.reference import origin
 from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 from mupt.interfaces.rdkit import suppress_rdkit_logs
@@ -82,7 +80,12 @@ def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
 
 
 def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
-    """Build a deterministic all-atom PE melt primitive without pytest fixtures."""
+    """Build a deterministic all-atom PE primitive without pytest fixtures.
+
+    This function intentionally constructs local residue templates and chain
+    topology only. ``AllAtomDPDBuilder`` owns frame-0 chain placement through the
+    shared PlacementGenerator abstraction before running HOOMD relaxation.
+    """
 
     np.random.seed(args.seed)
     lexicon = build_pe_lexicon()
@@ -95,15 +98,6 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
             nx.path_graph(segment.children_by_handle.keys(), create_using=TopologicalStructure),
             max_registration_iter=100,
         )
-        direction = random_unit_vector()
-        placement = AngleConstrainedRandomWalk(
-            bond_length=1.5,
-            angle_max_rad=np.pi / 4,
-            initial_point=20.0 * direction,
-            initial_direction=direction,
-        )
-        for handle, transform in placement.generate_placements(segment):
-            segment.children_by_handle[handle].rigidly_transform(transform)
         root.attach_child(segment)
     assign_SAAMR_roles(root)
     return root
