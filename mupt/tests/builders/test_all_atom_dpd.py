@@ -7,8 +7,10 @@ import sys
 import numpy as np
 import pytest
 from periodictable import elements
+from scipy.spatial.transform import RigidTransform
 
 from mupt.chemistry.core import BondType
+from mupt.geometry.shapes import PointCloud
 from mupt.mupr.connection import AttachmentPoint, Connector
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
@@ -26,9 +28,24 @@ def _bond_connector(anchor: str, linker: str, label: str) -> Connector:
 def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     """Return universe -> segment -> residue -> H-C-H with two bonds."""
 
-    h1 = Primitive(label="H1", element=elements.H, role=PrimitiveRole.PARTICLE)
-    c = Primitive(label="C", element=elements.C, role=PrimitiveRole.PARTICLE)
-    h2 = Primitive(label="H2", element=elements.H, role=PrimitiveRole.PARTICLE)
+    h1 = Primitive(
+        label="H1",
+        shape=PointCloud(np.array([0.0, 0.0, 0.0])),
+        element=elements.H,
+        role=PrimitiveRole.PARTICLE,
+    )
+    c = Primitive(
+        label="C",
+        shape=PointCloud(np.array([1.0, 0.0, 0.0])),
+        element=elements.C,
+        role=PrimitiveRole.PARTICLE,
+    )
+    h2 = Primitive(
+        label="H2",
+        shape=PointCloud(np.array([2.0, 0.0, 0.0])),
+        element=elements.H,
+        role=PrimitiveRole.PARTICLE,
+    )
 
     h1_conn = h1.register_connector(_bond_connector("H", "C", "h"))
     c_left_conn = c.register_connector(_bond_connector("C", "H", "left"))
@@ -92,6 +109,9 @@ def test_rejects_nonpositive_density():
     "field,value,match",
     [
         ("r_cut_a", 0.0, "r_cut_a"),
+        ("initial_bond_length_a", 0.0, "initial_bond_length_a"),
+        ("initial_angle_max_rad", 0.0, "initial_angle_max_rad"),
+        ("initial_angle_max_rad", np.pi + 0.1, "initial_angle_max_rad"),
         ("n_steps_per_interval", 0, "n_steps_per_interval"),
         ("n_steps_max", -1, "n_steps_max"),
         ("report_interval", 0, "report_interval"),
@@ -151,6 +171,49 @@ def test_segment_records_counts_tiny_saamr_atoms_and_bonds():
     assert len(records) == 1
     assert len(records[0].atoms) == 3
     assert records[0].bonds == [(0, 1), (1, 2)]
+
+
+def test_initial_positions_consumes_placement_generator_factory():
+    from mupt.builders.base import PlacementGenerator
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    class FakePlacementGenerator(PlacementGenerator):
+        def __init__(self) -> None:
+            self.seen_labels = []
+
+        def _generate_placements(self, primitive):
+            self.seen_labels.append(primitive.label)
+            for handle in primitive.children_by_handle:
+                yield handle, RigidTransform.from_translation([10.0, 2.0, 3.0])
+
+    fake_generator = FakePlacementGenerator()
+    factory_calls = []
+
+    def factory(rng, box_length):
+        factory_calls.append(box_length)
+        return fake_generator
+
+    root, _atoms = _tiny_saamr_hierarchy()
+    builder = AllAtomDPDBuilder(
+        settings=AllAtomDPDSettings(random_seed=123),
+        placement_generator_factory=factory,
+    )
+    records = builder._segment_records(root)
+
+    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+
+    assert factory_calls == [100.0]
+    assert fake_generator.seen_labels == ["seg"]
+    np.testing.assert_allclose(
+        positions,
+        np.array(
+            [
+                [10.0, 2.0, 3.0],
+                [11.0, 2.0, 3.0],
+                [12.0, 2.0, 3.0],
+            ]
+        ),
+    )
 
 
 def test_write_positions_updates_atoms_and_parent_shapes():

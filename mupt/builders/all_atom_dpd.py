@@ -681,10 +681,10 @@ class AllAtomDPDBuilder:
             segment_template = record.segment._copy_untransformed()
             residue_handles = [
                 handle
-                for handle, residue in segment_template.children_by_handle.items()
-                if residue.role == PrimitiveRole.RESIDUE
+                for handle, residue in record.segment.children_by_handle.items()
+                if residue in record.residues
             ]
-            if len(residue_handles) != len(record.residue_atom_indices) or len(residue_handles) != len(segment_template.children):
+            if len(residue_handles) != len(record.residues) or len(residue_handles) != len(segment_template.children):
                 raise ValueError(
                     "AA-DPD PlacementGenerator initialization requires each SEGMENT child "
                     "to be an immediate RESIDUE-role Primitive."
@@ -721,7 +721,7 @@ class AllAtomDPDBuilder:
         """Return PARTICLE leaves below ``node`` in deterministic child order."""
 
         if node.is_leaf:
-            return [node] if node.role == PrimitiveRole.PARTICLE else []
+            return [node]
         atoms = []
         for child in node.children:
             atoms.extend(AllAtomDPDBuilder._particle_leaves(child))
