@@ -14,7 +14,7 @@ production state. A typical handoff is:
    MD engine.
 2. Build an all-atom force-field system with explicit hydrogens, periodic box
    vectors, and production-quality partial charges. For OpenFF validation of
-   polyethylene, the NAGL/AshGC model ``openff-gnn-am1bcc-1.0.0.pt`` was used/
+   polyethylene, the NAGL/AshGC model ``openff-gnn-am1bcc-1.0.0.pt`` was used.
 3. Run energy minimization and require finite energies.
 4. Run short NVT dynamics with regular MD settings. For constrained hydrogens,
    ``2 fs`` and ``1 / ps`` Langevin friction are reasonable smoke-test settings.
