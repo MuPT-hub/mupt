@@ -45,6 +45,7 @@ from ..interfaces._shared.topology import (
     resolve_to_atom_cached,
 )
 from ..mupr.primitives import Primitive
+from ..roles import PrimitiveRole
 
 LOGGER = logging.getLogger(__name__)
 
@@ -680,18 +681,21 @@ class AllAtomDPDBuilder:
                     f"{missing_shapes}."
                 )
             segment_template = record.segment._copy_untransformed()
+            segment_child_items = list(record.segment.children_by_handle.items())
+            invalid_children = [child.label for _handle, child in segment_child_items if child.role != PrimitiveRole.RESIDUE]
             residue_handles = [
                 handle
-                for handle, residue in record.segment.children_by_handle.items()
-                if residue in record.residues
+                for handle, residue in segment_child_items
+                if any(residue is expected_residue for expected_residue in record.residues)
             ]
-            if len(residue_handles) != len(record.residues) or len(residue_handles) != len(segment_template.children):
+            if invalid_children or len(residue_handles) != len(record.residues) or len(residue_handles) != len(segment_template.children):
                 raise ValueError(
                     "AA-DPD frame-0 PlacementGenerator initialization requires every "
                     "immediate child of each SEGMENT to be a RESIDUE-role Primitive. "
                     "PlacementGenerator places direct children only; move transparent "
                     "grouping nodes above SEGMENT or provide a custom "
-                    "placement_generator_factory for nested layouts."
+                    "placement_generator_factory for nested layouts. "
+                    f"Invalid immediate SEGMENT children: {invalid_children}."
                 )
 
             for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
