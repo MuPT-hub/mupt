@@ -171,7 +171,7 @@ def test_rejects_nonpositive_density():
     "field,value,match",
     [
         ("r_cut_a", 0.0, "r_cut_a"),
-        ("initial_bond_length_a", 0.0, "initial_bond_length_a"),
+        ("initial_residue_spacing_a", 0.0, "initial_residue_spacing_a"),
         ("initial_angle_max_rad", 0.0, "initial_angle_max_rad"),
         ("initial_angle_max_rad", np.pi + 0.1, "initial_angle_max_rad"),
         ("n_steps_per_interval", 0, "n_steps_per_interval"),
@@ -333,7 +333,7 @@ def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
     records = [_multi_residue_chain_record()]
-    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(initial_bond_length_a=1.5))
+    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(initial_residue_spacing_a=1.5))
 
     positions1 = builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(2468))
     positions2 = builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(2468))

@@ -73,7 +73,7 @@ class AllAtomDPDSettings:
         HOOMD integration timestep.
     particle_spacing_a
         Minimum nearest-neighbor spacing required for convergence.
-    initial_bond_length_a
+    initial_residue_spacing_a
         Target spacing between residue placements during frame-0 initialization.
     initial_angle_max_rad
         Maximum turn angle for the default random-walk residue placement.
@@ -106,7 +106,7 @@ class AllAtomDPDSettings:
     gamma_base: float = 800.0
     dt: float = 0.001
     particle_spacing_a: float = 0.75
-    initial_bond_length_a: float = 5.0
+    initial_residue_spacing_a: float = 5.0
     initial_angle_max_rad: float = np.pi / 4.0
     n_steps_per_interval: int = 1000
     n_steps_max: int = 10000
@@ -424,7 +424,7 @@ class AllAtomDPDBuilder:
             "gamma_base": self.settings.gamma_base,
             "dt": self.settings.dt,
             "particle_spacing_a": self.settings.particle_spacing_a,
-            "initial_bond_length_a": self.settings.initial_bond_length_a,
+            "initial_residue_spacing_a": self.settings.initial_residue_spacing_a,
             "initial_angle_max_rad": self.settings.initial_angle_max_rad,
             "bond_scale": self.settings.bond_scale,
             "angle_scale": self.settings.angle_scale,
@@ -454,7 +454,7 @@ class AllAtomDPDBuilder:
 
         initial_point = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
         return AngleConstrainedRandomWalk(
-            bond_length=self.settings.initial_bond_length_a,
+            bond_length=self.settings.initial_residue_spacing_a,
             angle_max_rad=self.settings.initial_angle_max_rad,
             initial_point=initial_point,
             initial_direction=self._random_unit_vector(rng),
