@@ -255,10 +255,12 @@ def density_g_cm3(total_mass: float, box_length_a: float) -> float:
     return total_mass * AMU_TO_G / volume_cm3
 
 
-def min_distinct_distance_a(positions: np.ndarray) -> float:
+def min_distinct_distance_a(positions: np.ndarray, box_length_a: float | None = None) -> float:
     if len(positions) < 2 or not np.all(np.isfinite(positions)):
         return math.nan
     deltas = positions[:, None, :] - positions[None, :, :]
+    if box_length_a is not None:
+        deltas -= box_length_a * np.round(deltas / box_length_a)
     distances = np.linalg.norm(deltas, axis=-1)
     distances[np.tril_indices(len(positions))] = np.inf
     return float(np.min(distances))
@@ -268,7 +270,7 @@ def print_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     positions = atom_positions(result.atoms)
     mass_amu = total_mass_amu(result.atoms)
     finite_coords = bool(np.all(np.isfinite(positions)))
-    minimum_distance = min_distinct_distance_a(positions)
+    minimum_distance = min_distinct_distance_a(positions, result.box_length_a)
     print("AA-DPD diagnostics")
     print(f"  atom_count: {len(result.atoms)}")
     print(f"  density_g_cm3: {density_g_cm3(mass_amu, result.box_length_a):.6f}")
@@ -276,7 +278,7 @@ def print_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     print(f"  converged: {result.converged}")
     print(f"  dpd_steps: {result.steps}")
     print(f"  finite_coords: {finite_coords}")
-    print(f"  min_distinct_atom_distance_a: {minimum_distance:.6f}")
+    print(f"  min_periodic_distinct_atom_distance_a: {minimum_distance:.6f}")
     return finite_coords, minimum_distance
 
 
