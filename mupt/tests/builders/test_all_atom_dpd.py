@@ -25,6 +25,68 @@ def _bond_connector(anchor: str, linker: str, label: str) -> Connector:
     )
 
 
+def _chain_connector(anchor_position, linker_position, label: str) -> Connector:
+    return Connector(
+        anchor=AttachmentPoint({"X"}, position=np.array(anchor_position, dtype=float)),
+        linker=AttachmentPoint({"X"}, position=np.array(linker_position, dtype=float)),
+        bondtype=BondType.SINGLE,
+        label=label,
+    )
+
+
+def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
+    atom = Primitive(
+        label=f"{label}_C",
+        shape=PointCloud(np.array([0.0, 0.0, 0.0])),
+        element=elements.C,
+        role=PrimitiveRole.PARTICLE,
+    )
+    residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
+    residue.attach_child(atom)
+    return residue, atom
+
+
+def _multi_residue_chain_record(n_residues: int = 3):
+    from mupt.builders.all_atom_dpd import _SegmentRecord
+
+    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    residues = []
+    atoms = []
+    residue_handles = []
+    left_connectors = []
+    right_connectors = []
+    for idx in range(n_residues):
+        residue, atom = _one_atom_residue(f"res{idx}")
+        left = None
+        right = None
+        if idx > 0:
+            left = residue.register_connector(_chain_connector([-0.5, 0.0, 0.0], [-0.5, -1.0, 0.0], "left"))
+        if idx < n_residues - 1:
+            right = residue.register_connector(_chain_connector([0.5, 0.0, 0.0], [0.5, 1.0, 0.0], "right"))
+        residue_handles.append(segment.attach_child(residue))
+        residues.append(residue)
+        atoms.append(atom)
+        left_connectors.append(left)
+        right_connectors.append(right)
+
+    for idx in range(n_residues - 1):
+        segment.connect_children(
+            residue_handles[idx],
+            right_connectors[idx],
+            residue_handles[idx + 1],
+            left_connectors[idx + 1],
+        )
+
+    return _SegmentRecord(
+        segment=segment,
+        residues=residues,
+        atoms=atoms,
+        residue_atom_indices=[[idx] for idx in range(n_residues)],
+        local_to_global={idx: idx for idx in range(n_residues)},
+        bonds=[],
+    )
+
+
 def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     """Return universe -> segment -> residue -> H-C-H with two bonds."""
 
@@ -211,6 +273,118 @@ def test_initial_positions_consumes_placement_generator_factory():
                 [10.0, 2.0, 3.0],
                 [11.0, 2.0, 3.0],
                 [12.0, 2.0, 3.0],
+            ]
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "mode,match",
+    [
+        ("missing", "missing="),
+        ("duplicate", "duplicates="),
+        ("unknown", "unknown="),
+    ],
+)
+def test_initial_positions_validates_placement_generator_handles(mode, match):
+    from mupt.builders.base import PlacementGenerator
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    class InvalidPlacementGenerator(PlacementGenerator):
+        def __init__(self):
+            pass
+
+        def _generate_placements(self, primitive):
+            handles = list(primitive.children_by_handle)
+            transform = RigidTransform.from_translation([0.0, 0.0, 0.0])
+            if mode == "duplicate":
+                yield handles[0], transform
+                yield handles[0], transform
+            elif mode == "unknown":
+                yield "unknown", transform
+
+    root, _atoms = _tiny_saamr_hierarchy()
+    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: InvalidPlacementGenerator())
+    records = builder._segment_records(root)
+
+    with pytest.raises(ValueError, match=match):
+        builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+
+
+def test_initial_positions_rejects_nested_residue_layout_for_default_placement():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    residue, _atom = _one_atom_residue("res")
+    group = Primitive(label="group")
+    group.attach_child(residue)
+    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(group)
+    root = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    root.attach_child(segment)
+
+    builder = AllAtomDPDBuilder()
+    records = builder._segment_records(root)
+
+    with pytest.raises(ValueError, match="immediate child.*RESIDUE-role"):
+        builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+
+
+def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    records = [_multi_residue_chain_record()]
+    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(initial_bond_length_a=1.5))
+
+    positions1 = builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(2468))
+    positions2 = builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(2468))
+
+    np.testing.assert_allclose(positions1, positions2)
+    assert positions1.shape == (3, 3)
+    assert np.all(positions1 >= -25.0)
+    assert np.all(positions1 < 25.0)
+    assert np.all(np.linalg.norm(np.diff(positions1, axis=0), axis=1) > 0.0)
+
+
+def test_default_initial_positions_do_not_mutate_global_numpy_rng():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    records = [_multi_residue_chain_record()]
+    builder = AllAtomDPDBuilder()
+
+    np.random.seed(13579)
+    expected = np.random.random(4)
+    np.random.seed(13579)
+
+    builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(1234))
+
+    np.testing.assert_allclose(np.random.random(4), expected)
+
+
+def test_initial_positions_wraps_atoms_for_periodic_snapshot():
+    from mupt.builders.base import PlacementGenerator
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    class OffsetPlacementGenerator(PlacementGenerator):
+        def __init__(self):
+            pass
+
+        def _generate_placements(self, primitive):
+            for handle in primitive.children_by_handle:
+                yield handle, RigidTransform.from_translation([8.0, 0.0, 0.0])
+
+    root, _atoms = _tiny_saamr_hierarchy()
+    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: OffsetPlacementGenerator())
+    records = builder._segment_records(root)
+
+    positions = builder._initial_positions(records, box_length=10.0, rng=np.random.default_rng(123))
+
+    np.testing.assert_allclose(
+        positions,
+        np.array(
+            [
+                [-2.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
             ]
         ),
     )
