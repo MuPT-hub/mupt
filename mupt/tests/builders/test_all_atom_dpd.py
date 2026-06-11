@@ -325,7 +325,7 @@ def test_initial_positions_rejects_nested_residue_layout_for_default_placement()
     builder = AllAtomDPDBuilder()
     records = builder._segment_records(root)
 
-    with pytest.raises(ValueError, match="immediate child.*RESIDUE-role"):
+    with pytest.raises(ValueError, match="SEGMENT -> RESIDUE"):
         builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
 
 
@@ -343,6 +343,27 @@ def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
     assert np.all(positions1 >= -25.0)
     assert np.all(positions1 < 25.0)
     assert np.all(np.linalg.norm(np.diff(positions1, axis=0), axis=1) > 0.0)
+
+
+def test_default_initial_positions_support_single_residue_segment():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    root, _atoms = _tiny_saamr_hierarchy()
+    builder = AllAtomDPDBuilder()
+    records = builder._segment_records(root)
+    seed = 123
+
+    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(seed))
+
+    target_centroid = np.random.default_rng(seed).uniform(-50.0, 50.0, size=3)
+    expected = target_centroid + np.array(
+        [
+            [-1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+        ]
+    )
+    np.testing.assert_allclose(positions, expected)
 
 
 def test_default_initial_positions_do_not_mutate_global_numpy_rng():
