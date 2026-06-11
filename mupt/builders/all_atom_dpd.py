@@ -753,6 +753,16 @@ class AllAtomDPDBuilder:
         """
 
         placement_segment = self._copy_untransformed_preserving_roles(record.segment)
+        # Preserve the role-aware residue traversal order from _segment_records().
+        # Primitive.expand() can reparent transparent-node children in registry
+        # order that differs from DFS order when direct RESIDUE children and
+        # transparent grouping nodes are mixed under the same SEGMENT.
+        residue_templates = self._role_descendants(placement_segment, PrimitiveRole.RESIDUE)
+        if len(residue_templates) != len(record.residues):
+            raise ValueError(
+                "AA-DPD could not mirror role-aware RESIDUE traversal in the "
+                "temporary PlacementGenerator segment."
+            )
         while True:
             transparent_handles = [
                 handle
@@ -770,11 +780,8 @@ class AllAtomDPDBuilder:
                     )
                 placement_segment.expand(handle)
 
-        residue_handles = [
-            handle
-            for handle, child in placement_segment.children_by_handle.items()
-            if child.role == PrimitiveRole.RESIDUE
-        ]
+        handle_by_child_id = {id(child): handle for handle, child in placement_segment.children_by_handle.items()}
+        residue_handles = [handle_by_child_id[id(residue)] for residue in residue_templates if id(residue) in handle_by_child_id]
         if len(residue_handles) != len(record.residues):
             raise ValueError(
                 "AA-DPD could not adapt role-aware residues into a direct-child "
@@ -803,6 +810,17 @@ class AllAtomDPDBuilder:
 
         copy_roles(node, clone)
         return clone
+
+    @staticmethod
+    def _role_descendants(node: Primitive, role: PrimitiveRole) -> list[Primitive]:
+        """Return descendants with ``role`` in deterministic child traversal order."""
+
+        matches = []
+        for child in node.children:
+            if child.role == role:
+                matches.append(child)
+            matches.extend(AllAtomDPDBuilder._role_descendants(child, role))
+        return matches
 
     @staticmethod
     def _particle_leaves(node: Primitive) -> list[Primitive]:

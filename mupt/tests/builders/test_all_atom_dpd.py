@@ -364,6 +364,40 @@ def test_initial_positions_adapts_nested_residue_layout_to_placement_generator()
     assert records[0].atoms == [atom1, atom2]
 
 
+def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
+    from mupt.builders.base import PlacementGenerator
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    class LabelPlacementGenerator(PlacementGenerator):
+        def __init__(self):
+            pass
+
+        def _generate_placements(self, primitive):
+            translations = {"res1": 10.0, "res2": 20.0, "res3": 30.0}
+            for handle, child in primitive.children_by_handle.items():
+                yield handle, RigidTransform.from_translation([translations[child.label], 0.0, 0.0])
+
+    res1, atom1 = _one_atom_residue("res1")
+    res2, atom2 = _one_atom_residue("res2")
+    res3, atom3 = _one_atom_residue("res3")
+    group = Primitive(label="group")
+    group.attach_child(res1)
+    group.attach_child(res2)
+    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(group)
+    segment.attach_child(res3)
+    root = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    root.attach_child(segment)
+
+    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: LabelPlacementGenerator())
+    records = builder._segment_records(root)
+
+    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+
+    assert records[0].atoms == [atom1, atom2, atom3]
+    np.testing.assert_allclose(positions, np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]]))
+
+
 def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
