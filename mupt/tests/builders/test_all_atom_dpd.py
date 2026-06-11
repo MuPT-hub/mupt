@@ -46,6 +46,19 @@ def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
     return residue, atom
 
 
+def _one_atom_residue_with_connector(label: str, connector_label: str, anchor_position, linker_position):
+    atom = Primitive(
+        label=f"{label}_C",
+        shape=PointCloud(np.array([0.0, 0.0, 0.0])),
+        element=elements.C,
+        role=PrimitiveRole.PARTICLE,
+    )
+    connector_handle = atom.register_connector(_chain_connector(anchor_position, linker_position, connector_label))
+    residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
+    residue.attach_child(atom)
+    return residue, atom, connector_handle
+
+
 def _multi_residue_chain_record(n_residues: int = 3):
     from mupt.builders.all_atom_dpd import _SegmentRecord
 
@@ -83,7 +96,7 @@ def _multi_residue_chain_record(n_residues: int = 3):
         atoms=atoms,
         residue_atom_indices=[[idx] for idx in range(n_residues)],
         local_to_global={idx: idx for idx in range(n_residues)},
-        bonds=[],
+        bonds=[(idx, idx + 1) for idx in range(n_residues - 1)],
     )
 
 
@@ -311,22 +324,44 @@ def test_initial_positions_validates_placement_generator_handles(mode, match):
         builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
 
 
-def test_initial_positions_rejects_nested_residue_layout_for_default_placement():
+def test_initial_positions_adapts_nested_residue_layout_to_placement_generator():
+    from mupt.builders.base import PlacementGenerator
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
-    residue, _atom = _one_atom_residue("res")
+    class FakePlacementGenerator(PlacementGenerator):
+        def __init__(self):
+            self.child_roles = []
+
+        def _generate_placements(self, primitive):
+            for idx, (handle, child) in enumerate(primitive.children_by_handle.items()):
+                self.child_roles.append(child.role)
+                yield handle, RigidTransform.from_translation([10.0 + idx, 0.0, 0.0])
+
+    res1, atom1, res1_right = _one_atom_residue_with_connector(
+        "res1", "right", [0.5, 0.0, 0.0], [0.5, 1.0, 0.0]
+    )
+    res2, atom2, res2_left = _one_atom_residue_with_connector(
+        "res2", "left", [-0.5, 0.0, 0.0], [-0.5, -1.0, 0.0]
+    )
+
     group = Primitive(label="group")
-    group.attach_child(residue)
+    res1_handle = group.attach_child(res1)
+    res2_handle = group.attach_child(res2)
+    group.connect_children(res1_handle, res1_right, res2_handle, res2_left)
     segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
     segment.attach_child(group)
     root = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     root.attach_child(segment)
 
-    builder = AllAtomDPDBuilder()
+    fake_generator = FakePlacementGenerator()
+    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: fake_generator)
     records = builder._segment_records(root)
 
-    with pytest.raises(ValueError, match="SEGMENT -> RESIDUE"):
-        builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+
+    assert fake_generator.child_roles == [PrimitiveRole.RESIDUE, PrimitiveRole.RESIDUE]
+    np.testing.assert_allclose(positions, np.array([[10.0, 0.0, 0.0], [11.0, 0.0, 0.0]]))
+    assert records[0].atoms == [atom1, atom2]
 
 
 def test_default_initial_positions_are_repeatable_for_multi_residue_chain():

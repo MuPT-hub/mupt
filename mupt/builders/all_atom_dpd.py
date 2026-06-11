@@ -681,25 +681,10 @@ class AllAtomDPDBuilder:
                     "AA-DPD initialization requires atom coordinates; missing shapes for "
                     f"{missing_shapes}."
                 )
-            segment_template = record.segment._copy_untransformed()
-            segment_child_items = list(record.segment.children_by_handle.items())
-            invalid_children = [child.label for _handle, child in segment_child_items if child.role != PrimitiveRole.RESIDUE]
-            residue_handles = [
-                handle
-                for handle, residue in segment_child_items
-                if any(residue is expected_residue for expected_residue in record.residues)
-            ]
-            if invalid_children or len(residue_handles) != len(record.residues) or len(residue_handles) != len(segment_template.children):
-                raise ValueError(
-                    "AA-DPD frame-0 initialization currently requires immediate "
-                    "SEGMENT -> RESIDUE children unconditionally. "
-                    "PlacementGenerator places direct children only; move transparent "
-                    "grouping nodes above SEGMENT. "
-                    f"Invalid immediate SEGMENT children: {invalid_children}."
-                )
+            placement_segment, residue_handles = self._placement_segment(record)
 
             for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
-                residue_template = segment_template.children_by_handle[residue_handle]
+                residue_template = placement_segment.children_by_handle[residue_handle]
                 residue_atoms = self._particle_leaves(residue_template)
                 if len(residue_atoms) != len(residue_local_indices):
                     raise ValueError(
@@ -711,7 +696,7 @@ class AllAtomDPDBuilder:
 
             if self._uses_default_placement_generator and len(residue_handles) == 1:
                 residue_handle = residue_handles[0]
-                residue_template = segment_template.children_by_handle[residue_handle]
+                residue_template = placement_segment.children_by_handle[residue_handle]
                 target_centroid = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
                 translation = target_centroid - np.asarray(residue_template.shape.centroid, dtype=float)
                 residue_atoms = self._particle_leaves(residue_template)
@@ -725,7 +710,7 @@ class AllAtomDPDBuilder:
             duplicate_handles = []
             unknown_handles = []
             expected_handles = set(residue_handles)
-            for residue_handle, placement in placement_generator.generate_placements(segment_template):
+            for residue_handle, placement in placement_generator.generate_placements(placement_segment):
                 if residue_handle not in expected_handles:
                     unknown_handles.append(residue_handle)
                     continue
@@ -744,16 +729,80 @@ class AllAtomDPDBuilder:
                 )
 
             for residue_handle in residue_handles:
-                segment_template.children_by_handle[residue_handle].rigidly_transform(placements_by_handle[residue_handle])
+                placement_segment.children_by_handle[residue_handle].rigidly_transform(placements_by_handle[residue_handle])
 
             for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
-                residue_atoms = self._particle_leaves(segment_template.children_by_handle[residue_handle])
+                residue_atoms = self._particle_leaves(placement_segment.children_by_handle[residue_handle])
                 for local_idx, atom in zip(residue_local_indices, residue_atoms):
                     global_idx = record.local_to_global[local_idx]
                     # HOOMD periodic snapshots require wrapped particle positions;
                     # bonded molecules are unwrapped again after relaxation.
                     positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float), box_length)
         return positions
+
+    def _placement_segment(self, record: _SegmentRecord) -> tuple[Primitive, list[object]]:
+        """Return a direct-residue segment adapted for ``PlacementGenerator``.
+
+        PlacementGenerator intentionally knows nothing about SAAMR roles: it
+        places the immediate children of the Primitive it receives. AA-DPD is the
+        role-aware layer, so it adapts arbitrary transparent hierarchy levels
+        between SEGMENT and RESIDUE into a temporary direct-child segment. The
+        temporary segment is only frame-0 scaffolding; final coordinates are read
+        from its residue atom templates and written back to the original atom
+        leaves after DPD relaxation.
+        """
+
+        placement_segment = self._copy_untransformed_preserving_roles(record.segment)
+        while True:
+            transparent_handles = [
+                handle
+                for handle, child in placement_segment.children_by_handle.items()
+                if child.role != PrimitiveRole.RESIDUE
+            ]
+            if not transparent_handles:
+                break
+            for handle in transparent_handles:
+                child = placement_segment.children_by_handle[handle]
+                if child.is_leaf or child.role in {PrimitiveRole.SEGMENT, PrimitiveRole.PARTICLE}:
+                    raise ValueError(
+                        "AA-DPD frame-0 PlacementGenerator adaptation expects only "
+                        "transparent grouping nodes between SEGMENT and RESIDUE roles."
+                    )
+                placement_segment.expand(handle)
+
+        residue_handles = [
+            handle
+            for handle, child in placement_segment.children_by_handle.items()
+            if child.role == PrimitiveRole.RESIDUE
+        ]
+        if len(residue_handles) != len(record.residues):
+            raise ValueError(
+                "AA-DPD could not adapt role-aware residues into a direct-child "
+                "PlacementGenerator segment. Check that every RESIDUE role under "
+                "the SEGMENT survived transparent-node expansion."
+            )
+        return placement_segment, residue_handles
+
+    @staticmethod
+    def _copy_untransformed_preserving_roles(node: Primitive) -> Primitive:
+        """Copy a placement scaffold without dropping SAAMR roles.
+
+        ``Primitive._copy_untransformed()`` intentionally focuses on geometry,
+        connectors, children, and topology. The AA-DPD adapter also needs role
+        labels on the temporary scaffold so it can distinguish transparent
+        grouping nodes from RESIDUE templates before handing direct children to a
+        role-agnostic PlacementGenerator.
+        """
+
+        clone = node._copy_untransformed()
+
+        def copy_roles(source: Primitive, target: Primitive) -> None:
+            target.role = source.role
+            for source_child, target_child in zip(source.children, target.children):
+                copy_roles(source_child, target_child)
+
+        copy_roles(node, clone)
+        return clone
 
     @staticmethod
     def _particle_leaves(node: Primitive) -> list[Primitive]:
