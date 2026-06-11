@@ -456,6 +456,7 @@ class AllAtomDPDBuilder:
             angle_max_rad=self.settings.initial_angle_max_rad,
             initial_point=initial_point,
             initial_direction=self._random_unit_vector(rng),
+            rng=rng,
         )
 
     def build(self, root: Primitive) -> AllAtomDPDResult:
@@ -686,8 +687,11 @@ class AllAtomDPDBuilder:
             ]
             if len(residue_handles) != len(record.residues) or len(residue_handles) != len(segment_template.children):
                 raise ValueError(
-                    "AA-DPD PlacementGenerator initialization requires each SEGMENT child "
-                    "to be an immediate RESIDUE-role Primitive."
+                    "AA-DPD frame-0 PlacementGenerator initialization requires every "
+                    "immediate child of each SEGMENT to be a RESIDUE-role Primitive. "
+                    "PlacementGenerator places direct children only; move transparent "
+                    "grouping nodes above SEGMENT or provide a custom "
+                    "placement_generator_factory for nested layouts."
                 )
 
             for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
@@ -701,18 +705,38 @@ class AllAtomDPDBuilder:
                     positions=np.array([atom.shape.centroid for atom in residue_atoms], dtype=float)
                 )
 
-            # AngleConstrainedRandomWalk still uses module-level NumPy randomness
-            # internally. Seed it from the AA-DPD RNG per segment so AA-DPD builds
-            # remain deterministic until PlacementGenerator accepts an RNG directly.
-            np.random.seed(int(rng.integers(0, np.iinfo(np.uint32).max, dtype=np.uint32)))
             placement_generator = self.placement_generator_factory(rng, box_length)
+            placements_by_handle = {}
+            duplicate_handles = []
+            unknown_handles = []
+            expected_handles = set(residue_handles)
             for residue_handle, placement in placement_generator.generate_placements(segment_template):
-                segment_template.children_by_handle[residue_handle].rigidly_transform(placement)
+                if residue_handle not in expected_handles:
+                    unknown_handles.append(residue_handle)
+                    continue
+                if residue_handle in placements_by_handle:
+                    duplicate_handles.append(residue_handle)
+                    continue
+                placements_by_handle[residue_handle] = placement
+
+            missing_handles = [handle for handle in residue_handles if handle not in placements_by_handle]
+            if missing_handles or duplicate_handles or unknown_handles:
+                raise ValueError(
+                    "AA-DPD PlacementGenerator output must yield exactly one placement "
+                    "for each immediate RESIDUE child handle; "
+                    f"missing={missing_handles}, duplicates={duplicate_handles}, "
+                    f"unknown={unknown_handles}."
+                )
+
+            for residue_handle in residue_handles:
+                segment_template.children_by_handle[residue_handle].rigidly_transform(placements_by_handle[residue_handle])
 
             for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
                 residue_atoms = self._particle_leaves(segment_template.children_by_handle[residue_handle])
                 for local_idx, atom in zip(residue_local_indices, residue_atoms):
                     global_idx = record.local_to_global[local_idx]
+                    # HOOMD periodic snapshots require wrapped particle positions;
+                    # bonded molecules are unwrapped again after relaxation.
                     positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float), box_length)
         return positions
 
