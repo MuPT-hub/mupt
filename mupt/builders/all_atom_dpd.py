@@ -60,7 +60,13 @@ class AllAtomDPDSettings:
     Parameters
     ----------
     density_g_cm3
-        Target mass density used to size the cubic simulation box.
+        Target mass density used to size the cubic simulation box unless
+        ``box_lengths_a`` is supplied.
+    box_lengths_a
+        Optional explicit orthorhombic box lengths in Angstrom. Supplying these
+        selects the finite-geometry call path: the caller owns chain selection
+        and system construction, and AA-DPD relaxes the supplied hierarchy in
+        the requested box.
     r_cut_a
         DPD pair cutoff in Angstrom.
     kT
@@ -100,6 +106,7 @@ class AllAtomDPDSettings:
     """
 
     density_g_cm3: float = 0.85
+    box_lengths_a: Optional[tuple[float, float, float]] = None
     r_cut_a: float = 3.5
     kT: float = 1.0
     A_base: float = 5000.0
@@ -135,7 +142,25 @@ class AllAtomDPDResult:
     steps: int
     elapsed_s: float
     box_length_a: float
+    box_lengths_a: tuple[float, float, float]
     converged: bool
+
+
+@dataclass(frozen=True)
+class AllAtomDPDBoxFillPlan:
+    """Simple uniform chain-length plan for filling an explicit AA-DPD box.
+
+    This is intentionally a planning utility, not a chemistry builder: callers
+    still construct the MuPT hierarchy from their residue templates. A later
+    extension can replace the uniform min/max sampling with a PDI-aware chain
+    length distribution.
+    """
+
+    chain_lengths: list[int]
+    target_mass_amu: float
+    planned_mass_amu: float
+    box_lengths_a: tuple[float, float, float]
+    density_g_cm3: float
 
 
 @dataclass
@@ -320,7 +345,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             periodicity = getattr(parameter, "periodicity", [1])
             phase = getattr(parameter, "phase", [0.0])
             k = getattr(parameter, "k", [1.0])
-            idivf = getattr(parameter, "idivf", [1.0] * len(k))
+            idivf = self._periodic_idivf(parameter, len(k))
             base_name = getattr(parameter, "id", None) or "d-" + "-".join(map(str, local_quad))
             for term_idx, k_term in enumerate(k):
                 name = f"{base_name}_{term_idx}"
@@ -349,7 +374,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             periodicity = getattr(parameter, "periodicity", [1])
             phase = getattr(parameter, "phase", [0.0])
             k = getattr(parameter, "k", [1.0])
-            idivf = getattr(parameter, "idivf", [1.0] * len(k))
+            idivf = self._periodic_idivf(parameter, len(k))
             base_name = getattr(parameter, "id", None) or "i-" + "-".join(map(str, local_quad))
             for term_idx, k_term in enumerate(k):
                 name = f"{base_name}_{term_idx}"
@@ -363,8 +388,17 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
                     "k": abs(k_value),
                     "d": 1 if k_value >= 0 else -1,
                     "n": int(periodicity[term_idx]),
-                    "phi0": self._quantity_value(phase[term_idx], unit.radian, 0.0),
+                    "chi0": self._quantity_value(phase[term_idx], unit.radian, 0.0),
                 }
+
+    @staticmethod
+    def _periodic_idivf(parameter: Any, n_terms: int) -> list[float]:
+        """Return OpenFF periodic torsion idivf values, defaulting missing values."""
+
+        idivf = getattr(parameter, "idivf", None)
+        if idivf is None:
+            return [1.0] * n_terms
+        return list(idivf)
 
     @staticmethod
     def _atom_indices_from_openff_key(key: Any) -> tuple[int, ...]:
@@ -435,6 +469,20 @@ class AllAtomDPDBuilder:
                 raise ValueError(f"AA-DPD {name} must be positive.")
         if self.settings.initial_angle_max_rad > np.pi:
             raise ValueError("AA-DPD initial_angle_max_rad must be <= pi radians.")
+        if self.settings.box_lengths_a is not None:
+            try:
+                box_lengths = tuple(float(length) for length in self.settings.box_lengths_a)
+            except TypeError as exc:
+                raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.") from exc
+            if len(box_lengths) != 3 or any(length <= 0.0 for length in box_lengths):
+                raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.")
+            minimum_length = 3.0 * self.settings.r_cut_a
+            if min(box_lengths) < minimum_length:
+                raise ValueError(
+                    "AA-DPD explicit box_lengths_a values must each be at least "
+                    f"3 * r_cut_a ({minimum_length:.3f} A) for HOOMD neighbor-list safety."
+                )
+            self.settings.box_lengths_a = box_lengths
         if self.settings.n_steps_per_interval < 1:
             raise ValueError("AA-DPD n_steps_per_interval must be >= 1.")
         if self.settings.n_steps_max < 0:
@@ -449,10 +497,11 @@ class AllAtomDPDBuilder:
             if reference <= 0.0:
                 raise ValueError("AA-DPD epsilon_reference_mode numeric value must be positive.")
 
-    def _default_placement_generator(self, rng: np.random.Generator, box_length: float) -> PlacementGenerator:
+    def _default_placement_generator(self, rng: np.random.Generator, box_length: float | np.ndarray) -> PlacementGenerator:
         """Return the default frame-0 residue placement generator."""
 
-        initial_point = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
+        box_lengths = self._as_box_lengths(box_length)
+        initial_point = rng.uniform(-box_lengths / 2.0, box_lengths / 2.0, size=3)
         return AngleConstrainedRandomWalk(
             bond_length=self.settings.initial_residue_spacing_a,
             angle_max_rad=self.settings.initial_angle_max_rad,
@@ -481,8 +530,9 @@ class AllAtomDPDBuilder:
         angles = self._angles_from_bonds(len(atoms), bonds)
         dihedrals = self._dihedrals_from_bonds(len(atoms), bonds)
         masses = np.array([self._atom_mass_amu(atom) for atom in atoms], dtype=float)
-        box_length = self._box_length_a(float(masses.sum()))
-        root.metadata["unit_cell_parameters"] = [box_length, box_length, box_length, 90.0, 90.0, 90.0]
+        box_lengths = self._box_lengths_a(float(masses.sum()))
+        box_length = self._effective_box_length_a(box_lengths)
+        root.metadata["unit_cell_parameters"] = [float(length) for length in box_lengths] + [90.0, 90.0, 90.0]
 
         parameters = self.parameter_provider.parameterize(root, records, self.settings)
         angles = [group for group in angles if group in parameters.angle_type_by_group]
@@ -498,14 +548,14 @@ class AllAtomDPDBuilder:
             impropers,
             masses,
             parameters,
-            box_length,
+            box_lengths,
         )
         simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, impropers, parameters)
-        steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_length, bonds)
+        steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_lengths, bonds)
         final_positions = self._unwrap_positions(
             simulation.state.get_snapshot().particles.position[:],
             bonds,
-            box_length,
+            box_lengths,
         )
         self._write_positions(root, atoms, final_positions)
 
@@ -520,6 +570,7 @@ class AllAtomDPDBuilder:
             steps=steps,
             elapsed_s=elapsed_s,
             box_length_a=box_length,
+            box_lengths_a=tuple(float(length) for length in box_lengths),
             converged=converged,
         )
         root.metadata["all_atom_dpd_summary"] = self._serializable_summary(result)
@@ -589,6 +640,70 @@ class AllAtomDPDBuilder:
             )
         return max(density_length, minimum_length)
 
+    def _box_lengths_a(self, total_mass_amu: float) -> np.ndarray:
+        """Return orthorhombic box lengths in Angstrom for the active path."""
+
+        if self.settings.box_lengths_a is not None:
+            return np.asarray(self.settings.box_lengths_a, dtype=float)
+        box_length = self._box_length_a(total_mass_amu)
+        return np.array([box_length, box_length, box_length], dtype=float)
+
+    @staticmethod
+    def _effective_box_length_a(box_lengths: np.ndarray) -> float:
+        """Return a volume-equivalent cubic length for legacy summary fields."""
+
+        return float(np.prod(box_lengths) ** (1.0 / 3.0))
+
+    @staticmethod
+    def target_mass_for_box(density_g_cm3: float, box_lengths_a: tuple[float, float, float]) -> float:
+        """Return target mass in amu for a density and orthorhombic AA-DPD box."""
+
+        if density_g_cm3 <= 0.0:
+            raise ValueError("AA-DPD target density_g_cm3 must be positive.")
+        box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths_a)
+        if np.any(box_lengths <= 0.0):
+            raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.")
+        volume_a3 = float(np.prod(box_lengths))
+        return density_g_cm3 * volume_a3 * ANGSTROM3_TO_CM3 / AMU_TO_G
+
+    @staticmethod
+    def plan_uniform_chain_lengths_for_box(
+        density_g_cm3: float,
+        box_lengths_a: tuple[float, float, float],
+        repeat_unit_mass_amu: float,
+        chain_length_min: int,
+        chain_length_max: int,
+        random_seed: Optional[int] = None,
+    ) -> AllAtomDPDBoxFillPlan:
+        """Plan uniform min/max chain lengths to approximately fill a box.
+
+        The returned lengths are repeat-unit counts. Callers can then construct
+        chemically explicit chains using their own head/mid/tail templates. This
+        can later be extended to sample from a PDI-driven molecular-weight
+        distribution instead of a uniform integer range.
+        """
+
+        if repeat_unit_mass_amu <= 0.0:
+            raise ValueError("AA-DPD repeat_unit_mass_amu must be positive.")
+        if chain_length_min < 1 or chain_length_max < chain_length_min:
+            raise ValueError("AA-DPD chain length bounds must satisfy 1 <= min <= max.")
+        box_lengths = tuple(float(length) for length in AllAtomDPDBuilder._as_box_lengths(box_lengths_a))
+        target_mass = AllAtomDPDBuilder.target_mass_for_box(density_g_cm3, box_lengths)
+        rng = np.random.default_rng(random_seed)
+        chain_lengths: list[int] = []
+        planned_mass = 0.0
+        while planned_mass < target_mass:
+            length = int(rng.integers(chain_length_min, chain_length_max + 1))
+            chain_lengths.append(length)
+            planned_mass += length * repeat_unit_mass_amu
+        return AllAtomDPDBoxFillPlan(
+            chain_lengths=chain_lengths,
+            target_mass_amu=float(target_mass),
+            planned_mass_amu=float(planned_mass),
+            box_lengths_a=box_lengths,
+            density_g_cm3=float(density_g_cm3),
+        )
+
     @staticmethod
     def _angles_from_bonds(n_atoms: int, bonds: list[tuple[int, int]]) -> list[tuple[int, int, int]]:
         """Enumerate unique graph angles from bond pairs."""
@@ -632,7 +747,7 @@ class AllAtomDPDBuilder:
         impropers: list[tuple[int, int, int, int]],
         masses: np.ndarray,
         parameters: _ParameterTables,
-        box_length: float,
+        box_lengths: np.ndarray,
     ) -> Any:
         """Build a HOOMD frame with atom particles and bonded groups."""
 
@@ -650,8 +765,8 @@ class AllAtomDPDBuilder:
             dtype=np.uint32,
         )
         frame.particles.mass = masses
-        frame.particles.position = self._initial_positions(records, box_length, rng)
-        frame.configuration.box = [box_length, box_length, box_length, 0.0, 0.0, 0.0]
+        frame.particles.position = self._initial_positions(records, box_lengths, rng)
+        frame.configuration.box = [float(length) for length in box_lengths] + [0.0, 0.0, 0.0]
         self._set_bonded_frame_data(frame.bonds, bonds, parameters.bond_type_by_group, width=2)
         self._set_bonded_frame_data(frame.angles, angles, parameters.angle_type_by_group, width=3)
         self._set_bonded_frame_data(frame.dihedrals, dihedrals, parameters.dihedral_type_by_group, width=4)
@@ -661,8 +776,10 @@ class AllAtomDPDBuilder:
     def _initial_positions(
         self,
         records: list[_SegmentRecord],
-        box_length: float,
-        rng: np.random.Generator,
+        box_lengths: float | np.ndarray | None = None,
+        rng: Optional[np.random.Generator] = None,
+        *,
+        box_length: Optional[float] = None,
     ) -> np.ndarray:
         """Place residue templates with the shared PlacementGenerator abstraction.
 
@@ -672,6 +789,15 @@ class AllAtomDPDBuilder:
         AA-DPD-specific placement abstraction.
         """
 
+        if box_lengths is None:
+            if box_length is None:
+                raise TypeError("AA-DPD _initial_positions requires box_lengths or box_length.")
+            box_lengths = box_length
+        elif box_length is not None:
+            raise TypeError("AA-DPD _initial_positions accepts only one of box_lengths or box_length.")
+        if rng is None:
+            raise TypeError("AA-DPD _initial_positions requires rng.")
+        box_lengths = self._as_box_lengths(box_lengths)
         n_atoms = sum(len(record.atoms) for record in records)
         positions = np.zeros((n_atoms, 3), dtype=float)
         for record in records:
@@ -697,15 +823,18 @@ class AllAtomDPDBuilder:
             if self._uses_default_placement_generator and len(residue_handles) == 1:
                 residue_handle = residue_handles[0]
                 residue_template = placement_segment.children_by_handle[residue_handle]
-                target_centroid = rng.uniform(-box_length / 2.0, box_length / 2.0, size=3)
+                target_centroid = rng.uniform(-box_lengths / 2.0, box_lengths / 2.0, size=3)
                 translation = target_centroid - np.asarray(residue_template.shape.centroid, dtype=float)
                 residue_atoms = self._particle_leaves(residue_template)
                 for local_idx, atom in zip(record.residue_atom_indices[0], residue_atoms):
                     global_idx = record.local_to_global[local_idx]
-                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float) + translation, box_length)
+                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float) + translation, box_lengths)
                 continue
 
-            placement_generator = self.placement_generator_factory(rng, box_length)
+            if self._uses_default_placement_generator:
+                placement_generator = self._default_placement_generator(rng, box_lengths)
+            else:
+                placement_generator = self.placement_generator_factory(rng, float(np.min(box_lengths)))
             placements_by_handle = {}
             duplicate_handles = []
             unknown_handles = []
@@ -737,7 +866,7 @@ class AllAtomDPDBuilder:
                     global_idx = record.local_to_global[local_idx]
                     # HOOMD periodic snapshots require wrapped particle positions;
                     # bonded molecules are unwrapped again after relaxation.
-                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float), box_length)
+                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float), box_lengths)
         return positions
 
     def _placement_segment(self, record: _SegmentRecord) -> tuple[Primitive, list[object]]:
@@ -891,7 +1020,7 @@ class AllAtomDPDBuilder:
         if impropers:
             periodic_improper = hoomd.md.improper.Periodic()
             for name in frame.impropers.types:
-                periodic_improper.params[name] = parameters.improper_params.get(name, {"k": 1.0, "d": 1, "n": 1, "phi0": 0.0})
+                periodic_improper.params[name] = parameters.improper_params.get(name, {"k": 1.0, "d": 1, "n": 1, "chi0": 0.0})
             integrator.forces.append(periodic_improper)
 
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
@@ -942,29 +1071,31 @@ class AllAtomDPDBuilder:
         self,
         simulation: Any,
         freud: Any,
-        box_length: float,
+        box_lengths: np.ndarray,
         excluded_pairs: list[tuple[int, int]],
     ) -> tuple[int, float, bool]:
         """Run HOOMD intervals until nearest-neighbor spacing converges."""
 
+        box_lengths = self._as_box_lengths(box_lengths)
         start = time.perf_counter()
         steps = 0
         simulation.run(1)
         excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
-        converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_length, excluded)
+        converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
         while not converged and steps < self.settings.n_steps_max:
             simulation.run(self.settings.n_steps_per_interval)
             steps += self.settings.n_steps_per_interval
             if steps % self.settings.report_interval == 0:
                 LOGGER.debug("Integrated %s all-atom DPD steps", steps)
-            converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_length, excluded)
+            converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
         return steps, time.perf_counter() - start, converged
 
-    def _spacing_ok(self, snapshot: Any, freud: Any, box_length: float, excluded: set[tuple[int, int]]) -> bool:
+    def _spacing_ok(self, snapshot: Any, freud: Any, box_lengths: np.ndarray, excluded: set[tuple[int, int]]) -> bool:
         """Return whether non-excluded pairs exceed the spacing threshold."""
 
         positions = snapshot.particles.position[:]
-        box = freud.box.Box.cube(box_length)
+        box_lengths = self._as_box_lengths(box_lengths)
+        box = freud.box.Box(float(box_lengths[0]), float(box_lengths[1]), float(box_lengths[2]))
         query = freud.locality.AABBQuery(box, positions).query(
             positions,
             {"r_min": 0.0, "r_max": self.settings.particle_spacing_a, "exclude_ii": True},
@@ -978,11 +1109,12 @@ class AllAtomDPDBuilder:
         return True
 
     @staticmethod
-    def _unwrap_positions(positions: np.ndarray, bonds: list[tuple[int, int]], box_length: float) -> np.ndarray:
+    def _unwrap_positions(positions: np.ndarray, bonds: list[tuple[int, int]], box_lengths: float | np.ndarray) -> np.ndarray:
         """Unwrap coordinates along the bond graph using minimum-image edges."""
 
         if len(positions) == 0:
             return positions
+        box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths)
         neighbors = [[] for _ in range(len(positions))]
         for i, j in bonds:
             neighbors[i].append(j)
@@ -1000,7 +1132,7 @@ class AllAtomDPDBuilder:
                     if j in seen:
                         continue
                     delta = positions[j] - positions[i]
-                    delta -= box_length * np.round(delta / box_length)
+                    delta -= box_lengths * np.round(delta / box_lengths)
                     unwrapped[j] = unwrapped[i] + delta
                     seen.add(j)
                     queue.append(j)
@@ -1034,10 +1166,22 @@ class AllAtomDPDBuilder:
         return vector / norm if norm else np.array([1.0, 0.0, 0.0])
 
     @staticmethod
-    def _wrap(position: np.ndarray, box_length: float) -> np.ndarray:
-        """Wrap one position into a centered cubic periodic box."""
+    def _wrap(position: np.ndarray, box_lengths: float | np.ndarray) -> np.ndarray:
+        """Wrap one position into a centered orthorhombic periodic box."""
 
-        return position - box_length * np.floor((position + box_length / 2.0) / box_length)
+        box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths)
+        return position - box_lengths * np.floor((position + box_lengths / 2.0) / box_lengths)
+
+    @staticmethod
+    def _as_box_lengths(box_lengths: float | np.ndarray | tuple[float, float, float]) -> np.ndarray:
+        """Return a length-3 box vector from a scalar or orthorhombic lengths."""
+
+        array = np.asarray(box_lengths, dtype=float)
+        if array.ndim == 0:
+            return np.repeat(float(array), 3)
+        if array.shape != (3,):
+            raise ValueError("AA-DPD box lengths must be a scalar or a length-3 vector.")
+        return array
 
     @staticmethod
     def _serializable_summary(result: AllAtomDPDResult) -> dict[str, Any]:
@@ -1053,5 +1197,6 @@ class AllAtomDPDBuilder:
             "steps": int(result.steps),
             "elapsed_s": float(result.elapsed_s),
             "box_length_a": float(result.box_length_a),
+            "box_lengths_a": [float(length) for length in result.box_lengths_a],
             "converged": bool(result.converged),
         }

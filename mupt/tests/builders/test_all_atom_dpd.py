@@ -142,6 +142,47 @@ def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     return universe, [h1, c, h2]
 
 
+def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
+    import networkx as nx
+
+    from mupt.interfaces.rdkit import suppress_rdkit_logs
+    from mupt.interfaces.smiles import primitive_from_smiles
+    from mupt.mupr.topology import TopologicalStructure
+
+    smiles = {
+        "head": "[H]O[CH2][CH2]OC(=O)c1ccc([C:2](=O)-*)cc1",
+        "tail": "*-[O:1][CH2][CH2]OC(=O)c1ccc([C:2](=O)O[H])cc1",
+    }
+    resname_map = {"head": "PTH", "tail": "PTT"}
+    lexicon = {}
+    with suppress_rdkit_logs():
+        for name, residue_smiles in smiles.items():
+            residue = primitive_from_smiles(
+                residue_smiles,
+                ensure_explicit_Hs=True,
+                embed_positions=True,
+                label=name,
+            )
+            residue.role = PrimitiveRole.RESIDUE
+            residue.metadata["residue_name"] = resname_map[name]
+            for atom in residue.children:
+                atom.role = PrimitiveRole.PARTICLE
+            lexicon[name] = residue
+
+    root = Primitive(label="pet_tiny", role=PrimitiveRole.UNIVERSE)
+    segment = Primitive(label="pet_chain_0000", role=PrimitiveRole.SEGMENT)
+    handles = []
+    for residue_name in ("head", "tail"):
+        residue = lexicon[residue_name].copy()
+        residue.role = PrimitiveRole.RESIDUE
+        for atom in residue.children:
+            atom.role = PrimitiveRole.PARTICLE
+        handles.append(segment.attach_child(residue))
+    segment.set_topology(nx.path_graph(handles, create_using=TopologicalStructure), max_registration_iter=100)
+    root.attach_child(segment)
+    return root, resname_map
+
+
 def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
     real_import = builtins.__import__
 
@@ -173,11 +214,59 @@ def test_box_length_uses_mass_density_constants():
     assert builder._box_length_a(total_mass_amu) == expected
 
 
+def test_explicit_box_lengths_select_orthorhombic_path():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    settings = AllAtomDPDSettings(box_lengths_a=(12.0, 18.0, 24.0), r_cut_a=3.0)
+    builder = AllAtomDPDBuilder(settings=settings)
+
+    np.testing.assert_allclose(builder._box_lengths_a(total_mass_amu=1000.0), np.array([12.0, 18.0, 24.0]))
+    assert builder._effective_box_length_a(np.array([12.0, 18.0, 24.0])) == pytest.approx(
+        (12.0 * 18.0 * 24.0) ** (1.0 / 3.0)
+    )
+
+
+def test_explicit_box_lengths_wrap_orthorhombic_positions():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    np.testing.assert_allclose(
+        AllAtomDPDBuilder._wrap(np.array([7.0, 11.0, -14.0]), np.array([10.0, 20.0, 30.0])),
+        np.array([-3.0, -9.0, -14.0]),
+    )
+
+
 def test_rejects_nonpositive_density():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
     with pytest.raises(ValueError, match="density_g_cm3"):
         AllAtomDPDBuilder(settings=AllAtomDPDSettings(density_g_cm3=0.0))
+
+
+def test_rejects_too_small_explicit_box_lengths():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    with pytest.raises(ValueError, match="box_lengths_a"):
+        AllAtomDPDBuilder(
+            settings=AllAtomDPDSettings(box_lengths_a=(12.0, 12.0, 5.0), r_cut_a=3.0)
+        )
+
+
+def test_uniform_chain_length_plan_uses_density_and_explicit_box():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    plan = AllAtomDPDBuilder.plan_uniform_chain_lengths_for_box(
+        density_g_cm3=1.0,
+        box_lengths_a=(10.0, 20.0, 30.0),
+        repeat_unit_mass_amu=50.0,
+        chain_length_min=2,
+        chain_length_max=5,
+        random_seed=123,
+    )
+
+    assert plan.box_lengths_a == (10.0, 20.0, 30.0)
+    assert all(2 <= length <= 5 for length in plan.chain_lengths)
+    assert plan.planned_mass_amu >= plan.target_mass_amu
+    assert plan.planned_mass_amu - plan.target_mass_amu < 5 * 50.0
 
 
 @pytest.mark.parametrize(
@@ -215,6 +304,35 @@ def test_openff_key_atom_indices_support_topology_key_shapes():
     assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(AtomIndicesKey()) == (1, 2, 3)
     assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(ThisAtomIndexKey()) == (4,)
     assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key((5, 6)) == (5, 6)
+
+
+def test_periodic_idivf_defaults_when_openff_returns_none():
+    from mupt.builders.all_atom_dpd import OpenFFAllAtomDPDParameterProvider
+
+    class Parameter:
+        idivf = None
+
+    assert OpenFFAllAtomDPDParameterProvider._periodic_idivf(Parameter(), 2) == [1.0, 1.0]
+
+
+@pytest.mark.skipif(importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed")
+def test_openff_parameter_provider_handles_pet_improper_idivf_none():
+    from mupt.builders.all_atom_dpd import (
+        AllAtomDPDBuilder,
+        AllAtomDPDSettings,
+        OpenFFAllAtomDPDParameterProvider,
+    )
+
+    root, resname_map = _tiny_pet_hierarchy()
+    provider = OpenFFAllAtomDPDParameterProvider(resname_map=resname_map)
+    settings = AllAtomDPDSettings(resname_map=resname_map)
+    builder = AllAtomDPDBuilder(settings=settings)
+
+    tables = provider.parameterize(root, builder._segment_records(root), settings)
+
+    assert tables.atom_types_by_global
+    assert tables.bond_params
+    assert tables.improper_params
 
 
 def test_build_rejects_malformed_hierarchy_before_optional_imports(monkeypatch):
