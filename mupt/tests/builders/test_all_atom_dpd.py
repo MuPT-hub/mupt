@@ -251,6 +251,45 @@ def test_rejects_too_small_explicit_box_lengths():
         )
 
 
+def test_rejects_invalid_hoomd_device_setting():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    with pytest.raises(ValueError, match="device"):
+        AllAtomDPDBuilder(settings=AllAtomDPDSettings(device="TPU"))
+
+
+@pytest.mark.parametrize(
+    "setting,expected",
+    [
+        ("auto", "auto"),
+        ("CPU", "cpu"),
+        ("gpu", "gpu"),
+    ],
+)
+def test_hoomd_device_setting_dispatches_requested_device(setting, expected):
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    class FakeDevice:
+        @staticmethod
+        def auto_select():
+            return "auto"
+
+        @staticmethod
+        def CPU():
+            return "cpu"
+
+        @staticmethod
+        def GPU():
+            return "gpu"
+
+    class FakeHoomd:
+        device = FakeDevice
+
+    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(device=setting))
+
+    assert builder._hoomd_device(FakeHoomd) == expected
+
+
 def test_uniform_chain_length_plan_uses_density_and_explicit_box():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 

@@ -89,6 +89,8 @@ class AllAtomDPDSettings:
         Maximum number of HOOMD steps.
     report_interval
         Interval for debug logging and optional trajectory writes.
+    device
+        HOOMD device selection: ``"auto"``, ``"CPU"``, or ``"GPU"``.
     force_field
         OpenFF force field identifier passed to ``ForceField``.
     bond_scale, angle_scale, dihedral_scale
@@ -118,6 +120,7 @@ class AllAtomDPDSettings:
     n_steps_per_interval: int = 1000
     n_steps_max: int = 10000
     report_interval: int = 1000
+    device: str = "auto"
     force_field: str = "openff-2.2.1.offxml"
     bond_scale: float = 1.0
     angle_scale: float = 1.0
@@ -489,6 +492,10 @@ class AllAtomDPDBuilder:
             raise ValueError("AA-DPD n_steps_max must be >= 0.")
         if self.settings.report_interval < 1:
             raise ValueError("AA-DPD report_interval must be >= 1.")
+        device = str(self.settings.device).lower()
+        if device not in {"auto", "cpu", "gpu"}:
+            raise ValueError("AA-DPD device must be 'auto', 'CPU', or 'GPU'.")
+        self.settings.device = {"auto": "auto", "cpu": "CPU", "gpu": "GPU"}[device]
         if self.settings.epsilon_reference_mode not in {"max", "mean"}:
             try:
                 reference = float(self.settings.epsilon_reference_mode)
@@ -1030,7 +1037,7 @@ class AllAtomDPDBuilder:
             dpd.params[pair] = param
         integrator.forces.append(dpd)
 
-        simulation = hoomd.Simulation(device=hoomd.device.auto_select(), seed=self.settings.random_seed or 1)
+        simulation = hoomd.Simulation(device=self._hoomd_device(hoomd), seed=self.settings.random_seed or 1)
         simulation.operations.integrator = integrator
         simulation.create_state_from_snapshot(frame)
         if self.settings.write_gsd and self.settings.output_name:
@@ -1045,6 +1052,15 @@ class AllAtomDPDBuilder:
                 )
             )
         return simulation
+
+    def _hoomd_device(self, hoomd: Any) -> Any:
+        """Return the requested HOOMD device object."""
+
+        if self.settings.device == "CPU":
+            return hoomd.device.CPU()
+        if self.settings.device == "GPU":
+            return hoomd.device.GPU()
+        return hoomd.device.auto_select()
 
     def _dpd_pair_params(self, particle_types: list[str], epsilon_by_type: dict[str, float]) -> dict[tuple[str, str], dict[str, float]]:
         """Return DPD pair parameters scaled by a simple epsilon heuristic."""
