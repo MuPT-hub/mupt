@@ -38,7 +38,7 @@ from .connection.exceptions import (
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .connection.types import ConnectorAddress
+from .connection.types import ConnectorAddress, ConnectorLabel, ConnectorHandle
 from connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,
@@ -142,12 +142,38 @@ class SimplePrimitive(Primitive, NodeMixin):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        self.connections = connections # TODO: add mechanism unique to Simples for inserting and removing connectors
+        self.connections = connections
         self._shape = shape
         self.metadata = metadata or dict()
     
     # Exposing Connectors
-    ...
+    def inject_connector(
+        self,
+        connector : Connector,
+        label : Optional[ConnectorLabel]=None,
+    ) -> ConnectorHandle:
+        '''Introduce a new Connector into circulation throught the hierarchy'''
+        if label is None:
+            label = Connector.DEFAULT_LABEL
+
+        conn_handle = self.connections._register_connector(connector, label=label)
+        if self.parent:
+            for anc in self.ancestors:
+                _ = anc.connections._register_connector(connector, label=label)
+
+        return conn_handle
+
+    def withdraw_connector(self, connector : Connector | ConnectorHandle) -> Connector:
+        '''Remove a Connector from all levels of a hierarchy'''
+        if not isinstance(connector, Connector):
+            connector = self.connections.connector(connector)
+
+        self.connections._remove_connector(connector)
+        if self.parent:
+            for anc in self.ancestors:
+                _ = anc.connections._remove_connector(connector)
+        
+        return connector
 
     # Attachment (or lack thereof) of child primitives
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
