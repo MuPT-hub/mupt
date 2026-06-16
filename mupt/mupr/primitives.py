@@ -29,17 +29,22 @@ from anytree import NodeMixin, findall
 import networkx as nx
 from scipy.spatial.transform import RigidTransform
 
-from .connection.connectors import Connector, canonical_form_connectors
+from .connection.connectors import (
+    Connector,
+    canonical_form_connectors,
+)
 from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .connection.types import (
-    ManagesConnectors,
-    ConnectorAddress,
-    Connection,
+from .connection.types import ConnectorAddress
+from connection.management import (
+    ConnectorManager,
+    ConnectorManagerFrozen,
+    ConnectorManagerMutable,
 )
+
 from .topology import GraphLayout, canonical_graph_property
 from .embedding import (
     infer_connections_from_topology,
@@ -49,13 +54,14 @@ from .embedding import (
     check_connections_compatible_with_primitive_registry,
 )
 
-from ..mutils.containers import UniqueRegistry
+from ..mutils.containers import UniqueRegistry, Labelled
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
+from ..chemistry.core import ElementLike, isatom, valence_allowed
 from ..roles import PrimitiveRole
 
 
+# Custom Exceptions
 class IrreducibilityError(AttributeError):
     '''Raised when attempting to perform a composite Primitive operation on a simple one'''
     pass
@@ -68,13 +74,8 @@ class MissingSubprimitiveError(KeyError):
     '''Raised when a child Primitive expected for a call is not present'''
     pass
 
-    
 # Primitive types        
-class Primitive(
-    Shaped,
-    RigidlyTransformable,
-    ManagesConnectors,
-):
+class Primitive(Labelled, Shaped, RigidlyTransformable):
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
     '''
@@ -83,6 +84,8 @@ class Primitive(
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'PRIM'
 
     # Expected instance attributes
+    shape : BoundedTransformableShape
+    connections : ConnectorManager
     metadata : dict[Hashable, Any]
 
     # Derived properties
@@ -103,7 +106,7 @@ class Primitive(
         if isinstance(self.shape, RigidlyTransformable):
             self.shape.rigidly_transform(transformation)
             
-        for connector in self.connectors:
+        for connector in self.connections.connectors:
             connector.rigidly_transform(transformation)
             
     def _copy_untransformed(self) -> Self:
@@ -135,35 +138,17 @@ class SimplePrimitive(Primitive, NodeMixin):
     
     def __init__(
         self,
-        connectors : Optional[Iterable[Connector]]=None, # only entry point into hierarchy (i.e. can't add or remove Connectors to Composites)
+        connections : ConnectorManager,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        self.connectors = tuple(connectors) if connectors is not None else tuple()
-        self.connectors_by_address : dict[ConnectorAddress, Connector] = {
-            hash(conn) : conn
-                for conn in self.connectors # NOTE: not iterating over connectors directly in case it was an Iterator which was exhausted during self.connectors assignment
-        }
+        self.connections = connections # TODO: add mechanism unique to Simples for inserting and removing connectors
         self._shape = shape
         self.metadata = metadata or dict()
     
     # Exposing Connectors
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        return self.connectors_by_address[conn_addr] # NOTE: deliberately avoiding call via dict.get() to raise loud KeyError when missing
-    
-    def register_connector(
-        self,
-        connector : Connector,
-        conn_addr : Optional[ConnectorAddress]=None,
-    ) -> ConnectorAddress:
-        ...
+    ...
 
-    def deregister_connector(
-        self,
-        conn_addr : ConnectorAddress,
-    ) -> Connector:
-        ...
-        
     # Attachment (or lack thereof) of child primitives
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
@@ -176,7 +161,7 @@ class SimplePrimitive(Primitive, NodeMixin):
     def _copy_untransformed(self) -> 'SimplePrimitive':
         '''Return a new Primitive with the same information and children as this one, but which has no parent'''
         return self.__class__( # DEV: needs augmentation when called on subtypes to get additional info to transfer correctly
-            connectors=(connector.copy() for connector in self.connectors), # copy to avoid cross-reference
+            connections=self.connections.copy(), # TODO: implement this
             shape=(None if self.shape is None else self.shape.copy()),
             metadata=deepcopy(self.metadata),
         )
@@ -191,7 +176,7 @@ class AtomicPrimitive(SimplePrimitive):
     def __init__(
         self,
         element : ElementLike,
-        connectors : Optional[Iterable[Connector]]=None,
+        connections : ConnectorManager,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None,
     ) -> None:
@@ -200,7 +185,7 @@ class AtomicPrimitive(SimplePrimitive):
         self._element = element
         
         super().__init__(
-            connectors=connectors,
+            connections=connections,
             shape=shape,
             metadata=metadata,
         )
@@ -212,9 +197,14 @@ class AtomicPrimitive(SimplePrimitive):
     
     def check_valence(self) -> None:
         '''Check that element assigned to atomic Primitives and bond orders of Connectors are chemically-compatible'''
-        if not valence_allowed(self.element.number, self.element.charge, self.valence):
+        valence = self.connections.valence
+        if not valence_allowed(
+            self.element.number,
+            self.element.charge,
+            valence,
+        ):
             # raise ValueError(f'Atomic {self._repr_brief(include_functionality=True)} with total valence {self.valence} incompatible with assigned element {self.element!r}')
-            raise ValueError(f'Atomic {self!r} with total valence {self.valence} incompatible with assigned element {self.element!r}')
+            raise ValueError(f'Atomic {self!r} with total valence {valence} incompatible with assigned element {self.element!r}')
     
     def canonical_form(self) -> str:
         return f'{self.element.symbol}{canonical_form_primitive(self)}'
@@ -276,28 +266,16 @@ class FrozenCompositePrimitive(CompositePrimitive):
         metadata : Optional[dict]=None, 
     ) -> None:
         # Validate and extract connection info
-        # check_connections_compatible_with_primitive_registry(children, connections)\
-        connectors_all : list[Connector] = [] # TODO: make Registries and set labels procedurally (somehow)
-        connectors_free : list[Connector] = []
-        connectors_bound : list[Connector] = []
+        connections : ConnectorManager = ConnectorManagerFrozen() # TODO: specify this subtype
         for child in children:
             child.parent = self
-            for conn_free in child.connectors_free:
-                connectors_free.append(conn_bound)
-                connectors_all.append(conn_free)
-
-            for conn_bound in child.connectors_free:
-                connectors_bound.append(conn_free)
-                connectors_all.append(conn_bound)
+            connections.register_connectors(
+                free=child.connections.connectors_free,
+                bound=child.connections.connectors_bound,
+            )
 
         ## make prvate and force immutable
-        self.__connectors = tuple(connectors_all)
-        self.__connectors_free = tuple(connectors_free)
-        self.__connectors_bound = tuple(connectors_bound)
-
-        # connectors : dict[ConnectorAddress, Connector] = {
-            # ...
-        # }
+        self.__connections = connections
         
         # Validate and set topology
         # check_primitive_registry_bijective_to_topology_nodes(children, topology)
@@ -316,23 +294,7 @@ class FrozenCompositePrimitive(CompositePrimitive):
         return self.__metadata # DEV: is it possible (or worth it) to prevent the object handed back from being edited (e.g. a View?)
 
     # Managing Connections
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        return self.__connectors[conn_addr]
-
-    @property
-    def connectors_free(self) -> Collection[Connector]:
-        '''
-        Connectors whose have not yet been assigned a neighbor
-        '''
-        return self.__connectors_free
-        
-    @property
-    def connectors_bound(self) -> Collection[Connector]:
-        '''
-        Connectors (originating from children as they must) which are
-        bound and whose neighbor is also a child of this Composite
-        '''
-        return self.__connectors_bound
+    ...
 
     # cached properties
     ...
@@ -357,7 +319,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         metadata : Optional[dict]=None, 
     ) -> None:
         # Initialize bookkeeping attrs
-        self.connections : set[Connection] = set()
+        self.connections : ConnectorManager = ConnectorManagerMutable()
         self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
         
         # Bind subprimitives and set connectivity, if possible
@@ -372,27 +334,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
         self.metadata = metadata or dict()
 
     # Managing Connections
-    ## N.B: deliberately omitted register_connectors/deregister_connectors to enforce the 
-    ## constraint that only Simples can inject/withdraw Connectors from the hierarchy
-
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        origin_child : Primitive = self.child(self.connector_origin_address[conn_addr])
-        return origin_child.connector(conn_addr)
-
-    @property
-    def connectors_bound(self) -> Collection[Connector]:
-        '''
-        Connectors (originating from children as they must) which are
-        bound and whose neighbor is also a child of this Composite
-        '''
-        ...
-
-    @property
-    def connectors_free(self) -> Collection[Connector]:
-        '''
-        Connectors whose have not yet been assigned a neighbor
-        '''
-        ...
+    ...
     
     # Hierarchy management
     def child(self, prim_addr : PrimitiveAddress) -> Primitive:
