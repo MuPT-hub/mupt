@@ -4,8 +4,6 @@ Core components of connections, namely:
 * Connectors, which comprise 2 attachment points (an "anchor" and a "linker") and represent half of a chemical bond
 '''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)

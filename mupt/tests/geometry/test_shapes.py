@@ -1,8 +1,5 @@
 """Unit tests for BoundedShape classes"""
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import pytest
 from itertools import product as cartesian
 
