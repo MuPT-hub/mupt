@@ -101,7 +101,7 @@ class Connector(RigidlyTransformable):
 
         ## Protected attributes
         self._neighbor : Optional[Connector] = None
-        self._managers : list[ConnectorManager] = list()
+        self._managers : list['ConnectorManager'] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -316,14 +316,14 @@ class Connector(RigidlyTransformable):
 
     # Parents
     @property
-    def managers(self) -> list[ConnectorManager]:
+    def managers(self) -> list['ConnectorManager']:
         return self._managers
     # N.B.: deliberately excluded managers.setter; moderated thru add_manager and remove_manager methods instead
 
     def add_manager(
         self,
-        manager : ConnectorManager,
-        ranking : Optional[Callable[[ConnectorManager], int]]=None,
+        manager : 'ConnectorManager',
+        ranking : Optional[Callable[['ConnectorManager'], int]]=None,
     ) -> None:
         '''
         Insert new manager into registry of manager connector managers
@@ -336,7 +336,7 @@ class Connector(RigidlyTransformable):
         if ranking:
             self._managers.sort(key=ranking, reverse=False)
 
-    def remove_manager(self, manager : ConnectorManager) -> None:
+    def remove_manager(self, manager : 'ConnectorManager') -> None:
         self._managers.remove(manager) # no need to check membership - already raises ValueError if not present
 
     # Interactions with neighboring Connectors
