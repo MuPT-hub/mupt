@@ -4,9 +4,6 @@ from .types import (
     AttachmentLabel,
     ConnectorLabel,
     ConnectorHandle,
-    ConnectorAddress,
-    Connection,
-    ManagesConnectors,
 )
 from .exceptions import (
     ConnectionError,

@@ -3,12 +3,6 @@ Core components of connections, namely:
 * AttachmentPoints, which define geometric positions and selectivity of attachment sites
 * Connectors, which comprise 2 attachment points (an "anchor" and a "linker") and represent half of a chemical bond
 '''
-<<<<<<< HEAD
-=======
-
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
->>>>>>> df90fdb (Broke apart mupr.connection into more cohesive submodules)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -20,28 +14,18 @@ from typing import (
     Hashable,
     Iterable,
     Optional,
-<<<<<<< HEAD
     Protocol,
     TypeVar,
     TypeAlias,
     TYPE_CHECKING,
-=======
-    Union,
->>>>>>> df90fdb (Broke apart mupr.connection into more cohesive submodules)
 )
 from dataclasses import dataclass, field
-<<<<<<< HEAD
-
-=======
->>>>>>> df90fdb (Broke apart mupr.connection into more cohesive submodules)
 from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
@@ -53,32 +37,17 @@ from .types import (
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError, ConnectorLockedError
+from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
 
-from ..canonicalize import lex_order_multiset_str
 from ...mutils.referencing import Addressed
+from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
-=======
-from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
-from ..canonicalize import lex_order_multiset_str
-from ...chemistry.core import BondType, BOND_ORDER
-from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector, compare_optional_positions
-from ...geometry.measure import within_ball
->>>>>>> df90fdb (Broke apart mupr.connection into more cohesive submodules)
 from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
 from ...geometry.transforms.rigid.rotations import alignment_rotation
 from ...geometry.transforms.rigid.application import RigidlyTransformable
-=======
-from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector
-from ..geometry.measure import compare_optional_positions
-from ..geometry.coordinates.basis import is_orthonormal
-from ..geometry.transforms.linear import rejector
-from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..geometry.transforms.rigid.application import RigidlyTransformable
-
 
 # Label typehints
 type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
@@ -693,7 +662,6 @@ class Connector(
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
 
-<<<<<<< HEAD
 def canonical_form_connectors(
     connectors: Iterable[Connector],
     separator : str=':',
@@ -705,26 +673,6 @@ def canonical_form_connectors(
         separator=separator,
         joiner=joiner,
     )
-=======
-            indiv_conn_map[(anchor_label, linker_label)] = conn_clone
-        return indiv_conn_map
-    
-    def counterpart(self) -> 'Connector':
-        '''
-        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
-        
-        By construction, the counterpart will always be bondable with this Connector (and vice versa),
-        assuming the attachables set of the anchor and linker point are both non-empty
-        '''
-        counterpart = self.copy()
-        counterpart.anchor, counterpart.linker = self.linker, self.anchor
-        if self.has_tangent_position:
-            # NOTE: since vector if defined by difference to tangent point, updated tangent 
-            # point can be set directly from this difference, since anchor is updated about
-            counterpart.tangent_vector = self.tangent_vector 
-        
-        return counterpart
->>>>>>> df90fdb (Broke apart mupr.connection into more cohesive submodules)
 
 # Canonicalization
 def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
