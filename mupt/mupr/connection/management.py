@@ -1,5 +1,11 @@
 '''Managed collection of Connectors - used to outsource business logic from Primitive'''
 
+from .connectors import Connector
+from .types import (
+    ConnectorLabel,
+    ConnectorHandle,
+    ConnectorAddress,
+)
 from typing import (
     Collection,
     Hashable,
@@ -8,38 +14,30 @@ from typing import (
     Optional,
     Protocol,
 )
-from types import MappingProxyType
-
-from .connectors import Connector
-from .types import (
-    ConnectorAddress,
-    ConnectorLabel,
-    ConnectorLabeller,
-)
+from mupt.mutils.containers import (
+    UniqueRegistry,
+    Labelled,
+    LabelledT,
+    HandleT,
+) 
 
 
 class ConnectorManager(Protocol):
     '''Interface for generic connector managment object'''
-    connectors : Collection[Connector]
-    connectors_free : Collection[Connector]
-    connectors_bound : Collection[Connector]
-    connectors_by_addr : Mapping[ConnectorAddress, Connector]
+    connectors : Collection['Connector']
+    connectors_by_handle : Mapping[ConnectorAddress, 'Connector']
 
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        '''Retrieve a particular Connector by its unique address'''
-        return self.connectors_by_addr[conn_addr] # not using .get() to make KeyErrors explicit
-
-    def add_connector(
-        self,
-        conn : Connector,
-        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
-    ) -> None:
+    def connector(self, conn_addr : ConnectorAddress) -> 'Connector':
         ...
 
-    def remove_connector(
-        self,
-        conn_addr : ConnectorAddress | Connector,
-    ) -> Connector:
+    @property
+    def connectors_free(self) -> Collection['Connector']:
+        '''Connectors which are currently unbound'''
+        ...
+
+    @property
+    def connectors_bound(self) -> Collection['Connector']:
+        '''Connectors which have a neighbor'''
         ...
 
     # default implementations, for when explicitly inherited
@@ -54,14 +52,6 @@ class ConnectorManager(Protocol):
         return round(total_bond_order)
     chemical_valence = electronic_valence = valence # aliases for convenience
 
-class HoldsConnectors(Protocol):
-    '''
-    Type indicator for another class which is in some sense a 'proprietor' of
-    a collection of Connectors, but employs a ConnectorManager to manage them
-    '''
-    connections : ConnectorManager
-
-# Concrete ConnectorManager types
 class ConnectorManagerFrozen(ConnectorManager):
     '''
     ConnectorManager which does not permit mutation to connectivity after creation
@@ -69,69 +59,56 @@ class ConnectorManagerFrozen(ConnectorManager):
     _connectors_all : tuple[Connector, ...]
     _connectors_free : tuple[Connector, ...]
     _connectors_bound : tuple[Connector, ...]
-    _connectors_by_addr : MappingProxyType[ConnectorAddress, Connector]
 
     def __new__(
         cls,
-        *connectors : Connector,
-        # TODO: provide optimization short-circuit to allow making use of known free/bound designations
+        connectors : Iterable[Connector],
         connectors_free  : Optional[Iterable[Connector]]=None,
         connectors_bound : Optional[Iterable[Connector]]=None,
-    ) -> 'ConnectorManagerFrozen':
+    ) -> object:
          # TODO: make Registries and set labels procedurally (somehow)
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
         obj._connectors_all = tuple(connectors)
-        obj._connectors_by_addr = MappingProxyType({conn.address : conn for conn in connectors})
 
-        connectors_free_accum : list[Connector] = [] 
-        connectors_bound_accum : list[Connector] = [] 
-        for conn in connectors:
-            # TB DEV: lock here is not secure as yet, since one could manually unlock after init
-            conn.lock() # ensure not mutations allowed subsequently
-            if conn.has_neighbor:
-                connectors_bound_accum.append(conn)
-            else:
-                connectors_free_accum.append(conn)
-        obj._connectors_free  = tuple(connectors_free_accum)
-        obj._connectors_bound = tuple(connectors_bound_accum)
+        if connectors_free is None:
+            connectors_free = tuple(
+                conn
+                    for conn in connectors
+                        if conn.neighbor is None
+            )
+        obj._connectors_free = tuple(connectors_free) # will take caller's word for it
+
+        if connectors_bound is None:
+            connectors_bound = tuple(
+                conn
+                    for conn in connectors
+                        if conn.neighbor is not None
+            )
+        obj._connectors_bound = tuple(connectors_bound) # will take caller's word for it
 
         return obj
-    
-    @property
-    def connectors_by_addr(self) -> Mapping[ConnectorAddress, Connector]:
-        return self._connectors_by_addr
+
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
+        return self._connectors_all[conn_addr]
 
     @property
     def connectors(self) -> tuple[Connector, ...]:
         return self._connectors_all
 
     @property
-    def connectors_free(self) -> tuple[Connector, ...]:
+    def connectors_free(self) -> Collection[Connector]:
         '''
         Connectors whose have not yet been assigned a neighbor
         '''
         return self._connectors_free
         
     @property
-    def connectors_bound(self) -> tuple[Connector, ...]:
+    def connectors_bound(self) -> Collection[Connector]:
         '''
         Connectors (originating from children as they must) which are
         bound and whose neighbor is also a child of this Composite
         '''
         return self._connectors_bound
-
-    def add_connector(
-        self,
-        conn : Connector,
-        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
-    ) -> None:
-        raise AttributeError(f'Cannot add Connector to immutable {type(self).__name__} object')
-
-    def remove_connector(
-        self,
-        conn_addr : ConnectorAddress | Connector,
-    ) -> Connector:
-        raise AttributeError(f'Cannot remove Connector from immutable {type(self).__name__} object')
 
 class ConnectorManagerMutable(ConnectorManager):
     '''
@@ -140,45 +117,7 @@ class ConnectorManagerMutable(ConnectorManager):
     '''
     def __init__(
         self,
-        *connectors : Connector,
+        connectors : Iterable[Connector],
         default_label : Hashable='CONN',
     ) -> None:
-        self.connectors_by_addr : dict[ConnectorAddress, Connector] = {}
-        for conn in connectors:
-            conn.unlock()
-            self.add_connector(conn)
-
-    def add_connector(
-        self,
-        conn : Connector,
-        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
-    ) -> None:
-        '''Register a new Connector to be managed here'''
-        # TODO: label to be used for UniqueRegistry registration to give human-readable handle
-        self.connectors_by_addr[conn.addr] = conn
-
-    def remove_connector(
-        self,
-        conn_addr : ConnectorAddress | Connector,
-    ) -> Connector:
-        '''Declare a Connector to be no longer managed here'''
-        if isinstance(conn_addr, Connector):
-            conn_addr = conn_addr.address
-        
-        return self.connectors_by_addr.pop(conn_addr)
-
-    @property
-    def connectors(self) -> tuple[Connector, ...]:
-        return tuple(self.connectors_by_addr.values())
-    
-    # DEV: opting for linear search each time (rather than dynamically-updating list)
-    # since connectors might change neighbor status during bond linking (checks when called)
-    @property
-    def connectors_free(self) -> tuple[Connector, ...]:
-        '''Managed Connectors which have no assigned neighbor'''
-        return tuple(conn for conn in self.connectors if not conn.has_neighbor)
-
-    @property
-    def connectors_bound(self) -> tuple[Connector, ...]:
-        '''Managed Connectors which have no assigned neighbor'''
-        return tuple(conn for conn in self.connectors if conn.has_neighbor)
+        ...
