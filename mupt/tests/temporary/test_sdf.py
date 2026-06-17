@@ -438,6 +438,33 @@ def test_streamed_segment_attached_to_universe_reexports_mupt_props(
     assert _atom_mupt_props(second_mol) == _atom_mupt_props(first_mol)
 
 
+def test_iter_primitives_from_mupt_sdf_sanitizes_with_mupt_helper(
+    tmp_path,
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+    monkeypatch,
+):
+    """sanitize=True uses MuPT's sanitizer, not RDKit supplier sanitization."""
+    sdf_path = tmp_path / "sanitize-path.mupt.sdf"
+    sanitizer_calls = []
+
+    def sanitize_spy(mol):
+        sanitizer_calls.append(mol.GetNumAtoms())
+        return mol
+
+    write_primitive_to_sdf(
+        single_polyethylene_2mer,
+        sdf_path,
+        resname_map=polyethylene_resname_map,
+    )
+    monkeypatch.setattr(temporary_sdf, "sanitized_mol", sanitize_spy)
+
+    segments = list(iter_primitives_from_mupt_sdf(sdf_path, sanitize=True))
+
+    assert len(segments) == 1
+    assert sanitizer_calls == [segments[0].num_atoms]
+
+
 def test_primitive_from_mupt_sdf_rejects_invalid_records(tmp_path):
     """Invalid SDF records should fail instead of returning a partial hierarchy."""
     sdf_path = tmp_path / "invalid.mupt.sdf"

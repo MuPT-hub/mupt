@@ -32,6 +32,7 @@ from rdkit.Chem.rdmolfiles import (
 )
 
 from ..chemistry.conversion import rdkit_atom_to_element
+from ..chemistry.sanitization import sanitized_mol
 from ..geometry.arraytypes import Shape
 from ..geometry.shapes import PointCloud
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
@@ -377,7 +378,10 @@ def iter_primitives_from_mupt_sdf(
     path : str or pathlib.Path
         Path to a ``.mupt.sdf`` file written by :func:`write_primitive_to_sdf`.
     sanitize : bool, default=False
-        Whether RDKit should sanitize records while reading.
+        Whether MuPT should sanitize records before rebuilding them. Records are
+        always read from RDKit unsanitized first; when requested, sanitization is
+        applied with :func:`mupt.chemistry.sanitization.sanitized_mol`, including
+        MuPT's default MDL aromaticity convention.
         Coordinates are imported directly from RDKit conformers using the same
         distance convention as the source SDF records, conventionally angstroms.
 
@@ -399,11 +403,13 @@ def iter_primitives_from_mupt_sdf(
     supplier = SDMolSupplier(
         asstrpath(path),
         removeHs=False,
-        sanitize=sanitize,
+        sanitize=False,
     )
     for record_idx, mol in enumerate(supplier):
         if mol is None:
             raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
+        if sanitize:
+            mol = sanitized_mol(mol)
         yield _build_segment_from_mol(mol)
 
 
@@ -415,7 +421,10 @@ def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primiti
     path : str or pathlib.Path
         Path to a ``.mupt.sdf`` file written by :func:`write_primitive_to_sdf`.
     sanitize : bool, default=False
-        Whether RDKit should sanitize records while reading.
+        Whether MuPT should sanitize records before rebuilding them. Records are
+        always read from RDKit unsanitized first; when requested, sanitization is
+        applied with :func:`mupt.chemistry.sanitization.sanitized_mol`, including
+        MuPT's default MDL aromaticity convention.
         Coordinates are imported directly from RDKit conformers using the same
         distance convention as the source SDF records, conventionally angstroms.
 
