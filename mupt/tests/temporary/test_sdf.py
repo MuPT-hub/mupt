@@ -13,9 +13,11 @@ from rdkit.Chem.rdmolfiles import SDMolSupplier, SDWriter
 
 import mupt.interfaces.rdkit.exporters as rdkit_exporters
 from mupt.interfaces.rdkit import write_primitive_to_mupt_sdf
+from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.temporary.sdf import (
     MUPT_SDF_ATOM_PROPS,
+    iter_primitives_from_mupt_sdf,
     primitive_from_mupt_sdf,
     prepare_mupt_sdf_atom_props,
     write_primitive_to_sdf,
@@ -325,6 +327,88 @@ def test_primitive_from_mupt_sdf_roundtrips_multi_record_system(
     assert [_atom_mupt_props(mol) for mol in first_mols] == [
         _atom_mupt_props(mol) for mol in second_mols
     ]
+
+
+def test_iter_primitives_from_mupt_sdf_yields_one_segment_per_record(
+    tmp_path,
+    multi_polyethylene_system,
+    polyethylene_resname_map,
+):
+    """The streaming importer yields SEGMENT roots without building a UNIVERSE."""
+    sdf_path = tmp_path / "streaming-multi.mupt.sdf"
+    records = write_primitive_to_sdf(
+        multi_polyethylene_system,
+        sdf_path,
+        resname_map=polyethylene_resname_map,
+    )
+
+    segments = list(iter_primitives_from_mupt_sdf(sdf_path))
+
+    assert len(segments) == records == len(multi_polyethylene_system.children)
+    assert [segment.role for segment in segments] == [PrimitiveRole.SEGMENT] * records
+    assert all(segment.parent is None for segment in segments)
+
+
+def test_iter_primitives_from_mupt_sdf_streaming_discard_preserves_counts(
+    tmp_path,
+    multi_polyethylene_system,
+    polyethylene_resname_map,
+):
+    """Streaming consumers can aggregate segment data without a materialized root."""
+    sdf_path = tmp_path / "streaming-discard.mupt.sdf"
+    first_records = write_primitive_to_sdf(
+        multi_polyethylene_system,
+        sdf_path,
+        resname_map=polyethylene_resname_map,
+    )
+    source_mols = _load_sdf(sdf_path)
+
+    streamed_atom_counts = []
+    streamed_bond_counts = []
+    streamed_segment_labels = []
+    for segment in iter_primitives_from_mupt_sdf(sdf_path):
+        assert segment.role is PrimitiveRole.SEGMENT
+        assert segment.parent is None
+        streamed_atom_counts.append(segment.num_atoms)
+        streamed_bond_counts.append(_total_internal_bonds(segment))
+        streamed_segment_labels.append(segment.label)
+        del segment
+
+    assert len(streamed_atom_counts) == first_records
+    assert streamed_atom_counts == [mol.GetNumAtoms() for mol in source_mols]
+    assert streamed_bond_counts == [mol.GetNumBonds() for mol in source_mols]
+    assert streamed_segment_labels == [segment.label for segment in multi_polyethylene_system.children]
+
+
+def test_streamed_segment_attached_to_universe_reexports_mupt_props(
+    tmp_path,
+    single_polyethylene_3mer,
+    polyethylene_resname_map,
+):
+    """A streamed segment remains exportable after attachment to a new root."""
+    first_path = tmp_path / "streamed-first.mupt.sdf"
+    second_path = tmp_path / "streamed-second.mupt.sdf"
+    write_primitive_to_sdf(
+        single_polyethylene_3mer,
+        first_path,
+        resname_map=polyethylene_resname_map,
+    )
+    first_mol = _load_sdf(first_path)[0]
+    streamed_segment = next(iter_primitives_from_mupt_sdf(first_path))
+    universe = Primitive(label="temporary", role=PrimitiveRole.UNIVERSE)
+
+    universe.attach_child(streamed_segment)
+    second_records = write_primitive_to_sdf(
+        universe,
+        second_path,
+        resname_map=polyethylene_resname_map,
+    )
+    second_mol = _load_sdf(second_path)[0]
+
+    assert second_records == 1
+    assert second_mol.GetNumAtoms() == first_mol.GetNumAtoms()
+    assert second_mol.GetNumBonds() == first_mol.GetNumBonds()
+    assert _atom_mupt_props(second_mol) == _atom_mupt_props(first_mol)
 
 
 def test_primitive_from_mupt_sdf_rejects_invalid_records(tmp_path):

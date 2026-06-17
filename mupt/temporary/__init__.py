@@ -3,6 +3,16 @@
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
-from .sdf import primitive_from_mupt_sdf, write_primitive_to_mupt_sdf, write_primitive_to_sdf
+from .sdf import (
+    iter_primitives_from_mupt_sdf,
+    primitive_from_mupt_sdf,
+    write_primitive_to_mupt_sdf,
+    write_primitive_to_sdf,
+)
 
-__all__ = ["primitive_from_mupt_sdf", "write_primitive_to_mupt_sdf", "write_primitive_to_sdf"]
+__all__ = [
+    "iter_primitives_from_mupt_sdf",
+    "primitive_from_mupt_sdf",
+    "write_primitive_to_mupt_sdf",
+    "write_primitive_to_sdf",
+]

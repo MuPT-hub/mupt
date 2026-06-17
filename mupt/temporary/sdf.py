@@ -16,6 +16,7 @@ so imported record metadata is stored on rebuilt SEGMENT nodes.
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
@@ -31,10 +32,10 @@ from rdkit.Chem.rdmolfiles import (
 from ..chemistry.conversion import rdkit_atom_to_element
 from ..geometry.arraytypes import Shape
 from ..geometry.shapes import PointCloud
-from ..interfaces.rdkit.components import connector_between_rdatoms
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
 from ..mutils.filepaths.pathutils import asstrpath
+from ..mupr.connection import AttachmentPoint, Connector
 from ..mupr.primitives import Primitive
 from ..roles import PrimitiveRole
 
@@ -134,6 +135,64 @@ def _particle_from_sdf_atom(
     return particle
 
 
+def _attachment_from_sdf_atom(atom) -> AttachmentPoint:
+    """Return the lightweight attachment identity used for MuPT SDF bonds.
+
+    The temporary importer only needs connector data sufficient to re-export the
+    same per-record SDF topology. Matching the RDKit component helper's atom
+    index/symbol identity keeps round-trip connector labels stable without
+    paying to rebuild SMARTS queries.
+    """
+    atom_idx = atom.GetIdx()
+    atom_symbol = atom.GetSymbol()
+    return AttachmentPoint(
+        attachables={atom_idx, atom_symbol},
+        attachment=atom_idx,
+    )
+
+
+def _sdf_bond_metadata(bond) -> dict:
+    """Return bond metadata preserved by temporary MuPT SDF import."""
+    return {
+        "bond_stereo": bond.GetStereo(),
+        "bond_stereo_atoms": tuple(bond.GetStereoAtoms()),
+        **bond.GetPropsAsDict(includePrivate=True, includeComputed=False),
+    }
+
+
+def _connector_from_sdf_bond(
+    mol: Mol,
+    from_atom_idx: int,
+    to_atom_idx: int,
+    conformer_idx: Optional[int],
+) -> Connector:
+    """Build one directed connector from an SDF bond for round-trip export.
+
+    This is deliberately narrower than ``connector_between_rdatoms``. The
+    temporary MuPT SDF reader only rebuilds enough connector state to emit the
+    same segment records again, so it preserves bond type, bond metadata, and
+    anchor/linker coordinates while skipping SMARTS generation and tangent-vector
+    reconstruction. Those skipped fields are expensive and are not consumed by
+    the temporary SDF round-trip exporter.
+    """
+    bond = mol.GetBondBetweenAtoms(from_atom_idx, to_atom_idx)
+    if bond is None:
+        raise ValueError(
+            f"MuPT SDF atoms {from_atom_idx} and {to_atom_idx} are not bonded"
+        )
+
+    connector = Connector(
+        anchor=_attachment_from_sdf_atom(mol.GetAtomWithIdx(from_atom_idx)),
+        linker=_attachment_from_sdf_atom(mol.GetAtomWithIdx(to_atom_idx)),
+        bondtype=bond.GetBondType(),
+        metadata=_sdf_bond_metadata(bond),
+    )
+    if conformer_idx is not None:
+        connector.anchor.position = _atom_position(mol, from_atom_idx, conformer_idx)
+        connector.linker.position = _atom_position(mol, to_atom_idx, conformer_idx)
+    return connector
+
+
 def _has_particle_props(atom) -> bool:
     """Return whether an SDF atom carries MuPT particle identity props."""
     return atom.HasProp("mupt_particle_index") and atom.HasProp("mupt_particle_label")
@@ -214,7 +273,7 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
         ):
             particle = _particle_from_sdf_atom(mol, atom_idx, conformer_idx)
             for nb_atom in mol.GetAtomWithIdx(atom_idx).GetNeighbors():
-                conn = connector_between_rdatoms(
+                conn = _connector_from_sdf_bond(
                     mol,
                     atom_idx,
                     nb_atom.GetIdx(),
@@ -289,6 +348,47 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
     return segment
 
 
+def iter_primitives_from_mupt_sdf(
+    path: str | Path,
+    sanitize: bool = False,
+) -> Iterator[Primitive]:
+    """Yield one rebuilt SEGMENT primitive per temporary MuPT SDF record.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a ``.mupt.sdf`` file written by :func:`write_primitive_to_sdf`.
+    sanitize : bool, default=False
+        Whether RDKit should sanitize records while reading.
+        Coordinates are imported directly from RDKit conformers using the same
+        distance convention as the source SDF records, conventionally angstroms.
+
+    Yields
+    -------
+    Primitive
+        Rebuilt ``SEGMENT -> RESIDUE -> PARTICLE`` hierarchy for one SDF record.
+        Per-record SDF metadata is preserved on rebuilt SEGMENT nodes. Bonds
+        between records are unsupported because this temporary format writes one
+        segment per SDF record and has no cross-record bond representation.
+
+    Raises
+    ------
+    ValueError
+        If RDKit cannot parse a record or if MuPT SDF identity metadata is
+        missing or inconsistent.
+    """
+    path = _mupt_sdf_path(path)
+    supplier = SDMolSupplier(
+        asstrpath(path),
+        removeHs=False,
+        sanitize=sanitize,
+    )
+    for record_idx, mol in enumerate(supplier):
+        if mol is None:
+            raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
+        yield _build_segment_from_mol(mol)
+
+
 def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primitive:
     """Read a temporary MuPT SDF file into a role-aware Primitive hierarchy.
 
@@ -308,17 +408,9 @@ def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primiti
         Per-record SDF metadata is preserved on rebuilt SEGMENT nodes because
         SDF has no file-level metadata scope for reconstructing root metadata.
     """
-    path = _mupt_sdf_path(path)
     universe = Primitive(label="MuPT SDF", role=PrimitiveRole.UNIVERSE)
-    supplier = SDMolSupplier(
-        asstrpath(path),
-        removeHs=False,
-        sanitize=sanitize,
-    )
-    for record_idx, mol in enumerate(supplier):
-        if mol is None:
-            raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
-        universe.attach_child(_build_segment_from_mol(mol))
+    for segment in iter_primitives_from_mupt_sdf(path, sanitize=sanitize):
+        universe.attach_child(segment)
     return universe
 
 
