@@ -125,21 +125,27 @@ def _required_atom_prop(atom, prop_name: str) -> str:
     return atom.GetProp(prop_name)
 
 
-def _atom_position(
-    mol: Mol,
-    atom_idx: int,
-    conformer_idx: Optional[int],
-) -> Optional[np.ndarray]:
-    """Return one atom position from an RDKit conformer, if present."""
-    if conformer_idx is None:
+def _atom_positions_by_index(mol: Mol) -> Optional[dict[int, np.ndarray]]:
+    """Return all conformer positions once for one SDF record, if present.
+
+    Import reconstruction uses atom coordinates both for particle shapes and for
+    every directed connector endpoint. Caching the per-record positions avoids
+    repeated RDKit point extraction and NumPy array construction for the same
+    atom while preserving the same coordinate objects used by the previous path.
+    """
+    if not mol.GetNumConformers():
         return None
-    return np.array(mol.GetConformer(conformer_idx).GetAtomPosition(atom_idx), dtype=float)
+    conformer = mol.GetConformer(0)
+    return {
+        atom_idx: np.array(conformer.GetAtomPosition(atom_idx), dtype=float)
+        for atom_idx in range(mol.GetNumAtoms())
+    }
 
 
 def _particle_from_sdf_atom(
     mol: Mol,
     atom_idx: int,
-    conformer_idx: Optional[int],
+    atom_positions: Optional[dict[int, np.ndarray]],
 ) -> Primitive:
     """Build a PARTICLE primitive from one MuPT SDF atom."""
     atom = mol.GetAtomWithIdx(atom_idx)
@@ -149,7 +155,8 @@ def _particle_from_sdf_atom(
         metadata=atom.GetPropsAsDict(includePrivate=True, includeComputed=False),
         role=PrimitiveRole.PARTICLE,
     )
-    if (position := _atom_position(mol, atom_idx, conformer_idx)) is not None:
+    if atom_positions is not None:
+        position = atom_positions[atom_idx]
         particle.shape = PointCloud(positions=position)
     return particle
 
@@ -183,7 +190,7 @@ def _connector_from_sdf_bond(
     mol: Mol,
     from_atom_idx: int,
     to_atom_idx: int,
-    conformer_idx: Optional[int],
+    atom_positions: Optional[dict[int, np.ndarray]],
 ) -> Connector:
     """Build one directed connector from an SDF bond for round-trip export.
 
@@ -206,9 +213,9 @@ def _connector_from_sdf_bond(
         bondtype=bond.GetBondType(),
         metadata=_sdf_bond_metadata(bond),
     )
-    if conformer_idx is not None:
-        connector.anchor.position = _atom_position(mol, from_atom_idx, conformer_idx)
-        connector.linker.position = _atom_position(mol, to_atom_idx, conformer_idx)
+    if atom_positions is not None:
+        connector.anchor.position = atom_positions[from_atom_idx]
+        connector.linker.position = atom_positions[to_atom_idx]
     return connector
 
 
@@ -233,7 +240,7 @@ def _record_metadata(mol: Mol) -> dict:
 
 def _build_segment_from_mol(mol: Mol) -> Primitive:
     """Rebuild one SEGMENT hierarchy from one MuPT SDF record."""
-    conformer_idx = 0 if mol.GetNumConformers() else None
+    atom_positions = _atom_positions_by_index(mol)
     for atom in mol.GetAtoms():
         if not (_has_particle_props(atom) or _is_external_linker_atom(atom)):
             raise ValueError(
@@ -290,13 +297,13 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
                 _required_atom_prop(mol.GetAtomWithIdx(idx), "mupt_particle_index")
             ),
         ):
-            particle = _particle_from_sdf_atom(mol, atom_idx, conformer_idx)
+            particle = _particle_from_sdf_atom(mol, atom_idx, atom_positions)
             for nb_atom in mol.GetAtomWithIdx(atom_idx).GetNeighbors():
                 conn = _connector_from_sdf_bond(
                     mol,
                     atom_idx,
                     nb_atom.GetIdx(),
-                    conformer_idx=conformer_idx,
+                    atom_positions=atom_positions,
                 )
                 atom_connector_handles[(atom_idx, nb_atom.GetIdx())] = (
                     particle.register_connector(conn)
