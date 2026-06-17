@@ -2,13 +2,15 @@
 
 This helper writes role-aware MuPT hierarchies to RDKit-readable multi-record
 SDF files for downstream setup and analysis tools such as OpenFF. It is a
-temporary export-only bridge, not canonical MuPT persistence and not a general
-RDKit file-format wrapper. Keep it easy to remove before a stable native MuPT
+temporary bridge, not canonical MuPT persistence and not a general RDKit
+file-format wrapper. Keep it easy to remove before a stable native MuPT
 persistence format exists.
 
 The writer preserves per-segment records and MuPT/RDKit atom metadata by
-preparing RDKit SDF atom-property lists before writing. It does not deserialize
-SDF, nor attempt to losslessly recover the originating MuPT hierarchy.
+preparing RDKit SDF atom-property lists before writing. The reader rebuilds
+one SEGMENT hierarchy per SDF record; covalent bonds between records are not
+representable in this temporary per-segment format. SDF metadata is record-level,
+so imported record metadata is stored on rebuilt SEGMENT nodes.
 """
 
 __author__ = "Joseph R. Laforet Jr."
@@ -20,22 +22,48 @@ from typing import Optional
 import numpy as np
 
 from rdkit.Chem.rdchem import Mol
-from rdkit.Chem.rdmolfiles import CreateAtomStringPropertyList, SDWriter
+from rdkit.Chem.rdmolfiles import (
+    CreateAtomStringPropertyList,
+    SDMolSupplier,
+    SDWriter,
+)
 
+from ..chemistry.conversion import rdkit_atom_to_element
 from ..geometry.arraytypes import Shape
+from ..geometry.shapes import PointCloud
+from ..interfaces.rdkit.components import connector_between_rdatoms
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
 from ..mutils.filepaths.pathutils import asstrpath
 from ..mupr.primitives import Primitive
+from ..roles import PrimitiveRole
 
 
 MUPT_SDF_ATOM_PROPS = MUPT_RDKIT_ATOM_PROPS
+MUPT_SDF_SUFFIX = ".mupt.sdf"
+MUPT_SDF_ATOM_PROP_PREFIX = "atom.prop."
 
 
 def prepare_mupt_sdf_atom_props(mol: Mol) -> None:
     """Store MuPT atom props as SDF atom-property lists before writing."""
     for prop_name in MUPT_SDF_ATOM_PROPS:
-        CreateAtomStringPropertyList(mol, prop_name, missingValueMarker="NA", lineSize=10000)
+        CreateAtomStringPropertyList(
+            mol,
+            prop_name,
+            missingValueMarker="NA",
+            lineSize=10000,
+        )
+
+
+def _mupt_sdf_path(path: str | Path) -> Path:
+    """Return ``path`` normalized to the temporary MuPT SDF suffix."""
+    path = Path(path)
+    path_str = asstrpath(path)
+    if path_str.endswith(MUPT_SDF_SUFFIX):
+        return path
+    if path.suffix == ".sdf":
+        return path.with_suffix(MUPT_SDF_SUFFIX)
+    return Path(f"{path_str}{MUPT_SDF_SUFFIX}")
 
 
 def write_primitive_to_sdf(
@@ -52,7 +80,7 @@ def write_primitive_to_sdf(
     molecule in memory.
     """
     records = 0
-    writer = SDWriter(asstrpath(path))
+    writer = SDWriter(asstrpath(_mupt_sdf_path(path)))
     try:
         for mol in primitive_to_rdkit_mols(
             primitive,
@@ -66,6 +94,232 @@ def write_primitive_to_sdf(
     finally:
         writer.close()
     return records
+
+
+def _required_atom_prop(atom, prop_name: str) -> str:
+    """Fetch a required MuPT atom property from an RDKit atom."""
+    if not atom.HasProp(prop_name):
+        raise ValueError(
+            f"MuPT SDF atom {atom.GetIdx()} lacks required property '{prop_name}'"
+        )
+    return atom.GetProp(prop_name)
+
+
+def _atom_position(
+    mol: Mol,
+    atom_idx: int,
+    conformer_idx: Optional[int],
+) -> Optional[np.ndarray]:
+    """Return one atom position from an RDKit conformer, if present."""
+    if conformer_idx is None:
+        return None
+    return np.array(mol.GetConformer(conformer_idx).GetAtomPosition(atom_idx), dtype=float)
+
+
+def _particle_from_sdf_atom(
+    mol: Mol,
+    atom_idx: int,
+    conformer_idx: Optional[int],
+) -> Primitive:
+    """Build a PARTICLE primitive from one MuPT SDF atom."""
+    atom = mol.GetAtomWithIdx(atom_idx)
+    particle = Primitive(
+        element=rdkit_atom_to_element(atom),
+        label=_required_atom_prop(atom, "mupt_particle_label"),
+        metadata=atom.GetPropsAsDict(includePrivate=True, includeComputed=False),
+        role=PrimitiveRole.PARTICLE,
+    )
+    if (position := _atom_position(mol, atom_idx, conformer_idx)) is not None:
+        particle.shape = PointCloud(positions=position)
+    return particle
+
+
+def _has_particle_props(atom) -> bool:
+    """Return whether an SDF atom carries MuPT particle identity props."""
+    return atom.HasProp("mupt_particle_index") and atom.HasProp("mupt_particle_label")
+
+
+def _is_external_linker_atom(atom) -> bool:
+    """Return whether an atom is an exported MuPT external connector linker."""
+    return atom.GetAtomicNum() == 0 and not _has_particle_props(atom)
+
+
+def _record_metadata(mol: Mol) -> dict:
+    """Return non-atom-list SDF record metadata for segment-level preservation."""
+    return {
+        key: value
+        for key, value in mol.GetPropsAsDict(includePrivate=True, includeComputed=False).items()
+        if not key.startswith(MUPT_SDF_ATOM_PROP_PREFIX)
+    }
+
+
+def _build_segment_from_mol(mol: Mol) -> Primitive:
+    """Rebuild one SEGMENT hierarchy from one MuPT SDF record."""
+    conformer_idx = 0 if mol.GetNumConformers() else None
+    for atom in mol.GetAtoms():
+        if not (_has_particle_props(atom) or _is_external_linker_atom(atom)):
+            raise ValueError(
+                f"MuPT SDF atom {atom.GetIdx()} lacks required MuPT particle props"
+            )
+    particle_atoms = [atom for atom in mol.GetAtoms() if _has_particle_props(atom)]
+    if not particle_atoms:
+        raise ValueError("MuPT SDF record contains no PARTICLE atoms")
+
+    segment_label = _required_atom_prop(particle_atoms[0], "mupt_segment_label")
+    segment_index = _required_atom_prop(particle_atoms[0], "mupt_segment_index")
+    for atom in particle_atoms[1:]:
+        if (
+            _required_atom_prop(atom, "mupt_segment_label") != segment_label
+            or _required_atom_prop(atom, "mupt_segment_index") != segment_index
+        ):
+            raise ValueError("MuPT SDF record has inconsistent SEGMENT identity")
+    segment = Primitive(
+        label=segment_label,
+        metadata=_record_metadata(mol),
+        role=PrimitiveRole.SEGMENT,
+    )
+
+    residue_data = {}
+    atom_to_residue_index = {}
+    for atom in particle_atoms:
+        atom_idx = atom.GetIdx()
+        residue_index = int(_required_atom_prop(atom, "mupt_residue_index"))
+        atom_to_residue_index[atom_idx] = residue_index
+        residue_label = _required_atom_prop(atom, "mupt_residue_label")
+        if residue_index in residue_data:
+            if residue_data[residue_index]["label"] != residue_label:
+                raise ValueError(
+                    "MuPT SDF record has conflicting RESIDUE labels for "
+                    f"index {residue_index}"
+                )
+        else:
+            residue_data[residue_index] = {"label": residue_label, "atoms": []}
+        residue_data[residue_index]["atoms"].append(atom_idx)
+
+    residue_primitives = {}
+    atom_handles = {}
+    atom_connector_handles = {}
+    for residue_index in sorted(residue_data):
+        data = residue_data[residue_index]
+        residue = Primitive(
+            label=data["label"],
+            metadata={"mupt_residue_index": residue_index},
+            role=PrimitiveRole.RESIDUE,
+        )
+        for atom_idx in sorted(
+            data["atoms"],
+            key=lambda idx: int(
+                _required_atom_prop(mol.GetAtomWithIdx(idx), "mupt_particle_index")
+            ),
+        ):
+            particle = _particle_from_sdf_atom(mol, atom_idx, conformer_idx)
+            for nb_atom in mol.GetAtomWithIdx(atom_idx).GetNeighbors():
+                conn = connector_between_rdatoms(
+                    mol,
+                    atom_idx,
+                    nb_atom.GetIdx(),
+                    conformer_idx=conformer_idx,
+                )
+                atom_connector_handles[(atom_idx, nb_atom.GetIdx())] = (
+                    particle.register_connector(conn)
+                )
+            atom_handles[atom_idx] = residue.attach_child(particle)
+        residue_primitives[residue_index] = residue
+
+    for bond in mol.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+        if begin_idx not in atom_to_residue_index or end_idx not in atom_to_residue_index:
+            if not (
+                _is_external_linker_atom(mol.GetAtomWithIdx(begin_idx))
+                or _is_external_linker_atom(mol.GetAtomWithIdx(end_idx))
+            ):
+                raise ValueError("MuPT SDF bond references an atom without particle props")
+            continue
+        begin_residue_index = atom_to_residue_index[begin_idx]
+        end_residue_index = atom_to_residue_index[end_idx]
+        if begin_residue_index == end_residue_index:
+            residue_primitives[begin_residue_index].connect_children(
+                atom_handles[begin_idx],
+                atom_connector_handles[(begin_idx, end_idx)],
+                atom_handles[end_idx],
+                atom_connector_handles[(end_idx, begin_idx)],
+            )
+
+    residue_handles = {}
+    for residue_index in sorted(residue_primitives):
+        residue_handles[residue_index] = segment.attach_child(residue_primitives[residue_index])
+
+    for bond in mol.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+        if begin_idx not in atom_to_residue_index or end_idx not in atom_to_residue_index:
+            if not (
+                _is_external_linker_atom(mol.GetAtomWithIdx(begin_idx))
+                or _is_external_linker_atom(mol.GetAtomWithIdx(end_idx))
+            ):
+                raise ValueError("MuPT SDF bond references an atom without particle props")
+            continue
+        begin_residue_index = atom_to_residue_index[begin_idx]
+        end_residue_index = atom_to_residue_index[end_idx]
+        if begin_residue_index == end_residue_index:
+            continue
+        begin_atom = mol.GetAtomWithIdx(begin_idx)
+        end_atom = mol.GetAtomWithIdx(end_idx)
+        if _required_atom_prop(begin_atom, "mupt_segment_index") != _required_atom_prop(
+            end_atom,
+            "mupt_segment_index",
+        ):
+            raise ValueError("MuPT SDF bond crosses SEGMENT records")
+        begin_residue = residue_primitives[begin_residue_index]
+        end_residue = residue_primitives[end_residue_index]
+        begin_residue_conn = begin_residue.external_connectors_on_child(atom_handles[begin_idx])[
+            atom_connector_handles[(begin_idx, end_idx)]
+        ]
+        end_residue_conn = end_residue.external_connectors_on_child(atom_handles[end_idx])[
+            atom_connector_handles[(end_idx, begin_idx)]
+        ]
+        segment.connect_children(
+            residue_handles[begin_residue_index],
+            begin_residue_conn,
+            residue_handles[end_residue_index],
+            end_residue_conn,
+        )
+
+    return segment
+
+
+def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primitive:
+    """Read a temporary MuPT SDF file into a role-aware Primitive hierarchy.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a ``.mupt.sdf`` file written by :func:`write_primitive_to_sdf`.
+    sanitize : bool, default=False
+        Whether RDKit should sanitize records while reading.
+        Coordinates are imported directly from RDKit conformers using the same
+        distance convention as the source SDF records, conventionally angstroms.
+
+    Returns
+    -------
+    Primitive
+        Rebuilt ``UNIVERSE -> SEGMENT -> RESIDUE -> PARTICLE`` hierarchy.
+        Per-record SDF metadata is preserved on rebuilt SEGMENT nodes because
+        SDF has no file-level metadata scope for reconstructing root metadata.
+    """
+    path = _mupt_sdf_path(path)
+    universe = Primitive(label="MuPT SDF", role=PrimitiveRole.UNIVERSE)
+    supplier = SDMolSupplier(
+        asstrpath(path),
+        removeHs=False,
+        sanitize=sanitize,
+    )
+    for record_idx, mol in enumerate(supplier):
+        if mol is None:
+            raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
+        universe.attach_child(_build_segment_from_mol(mol))
+    return universe
 
 
 write_primitive_to_mupt_sdf = write_primitive_to_sdf
