@@ -17,7 +17,9 @@ __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
 from collections.abc import Iterator
+import os
 from pathlib import Path
+import tempfile
 from typing import Optional
 
 import numpy as np
@@ -80,20 +82,36 @@ def write_primitive_to_sdf(
     generated RDKit Mol at a time so large systems do not retain every segment
     molecule in memory.
     """
+    target_path = _mupt_sdf_path(path)
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{target_path.name}.",
+        suffix=".tmp",
+        dir=asstrpath(target_path.parent),
+    )
+    os.close(temp_fd)
+
     records = 0
-    writer = SDWriter(asstrpath(_mupt_sdf_path(path)))
+    completed = False
+    temp_path = Path(temp_name)
     try:
-        for mol in primitive_to_rdkit_mols(
-            primitive,
-            resname_map=resname_map,
-            default_atom_position=default_atom_position,
-            strategy=strategy,
-        ):
-            prepare_mupt_sdf_atom_props(mol)
-            writer.write(mol)
-            records += 1
+        writer = SDWriter(asstrpath(temp_path))
+        try:
+            for mol in primitive_to_rdkit_mols(
+                primitive,
+                resname_map=resname_map,
+                default_atom_position=default_atom_position,
+                strategy=strategy,
+            ):
+                prepare_mupt_sdf_atom_props(mol)
+                writer.write(mol)
+                records += 1
+        finally:
+            writer.close()
+        temp_path.replace(target_path)
+        completed = True
     finally:
-        writer.close()
+        if not completed and temp_path.exists():
+            temp_path.unlink()
     return records
 
 

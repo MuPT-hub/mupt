@@ -9,9 +9,11 @@ import sys
 import numpy as np
 import pytest
 from anytree import PreOrderIter
+from rdkit import Chem
 from rdkit.Chem.rdmolfiles import SDMolSupplier, SDWriter
 
 import mupt.interfaces.rdkit.exporters as rdkit_exporters
+import mupt.temporary.sdf as temporary_sdf
 from mupt.interfaces.rdkit import write_primitive_to_mupt_sdf
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
@@ -191,6 +193,31 @@ def test_write_primitive_to_sdf_normalizes_mupt_sdf_paths(
 
         assert records == 1
         assert _mupt_sdf_path(path).exists()
+
+
+def test_write_primitive_to_sdf_preserves_existing_file_after_stream_failure(
+    tmp_path,
+    monkeypatch,
+):
+    """Failed streaming exports must not replace a complete existing SDF."""
+    final_path = tmp_path / "partial.mupt.sdf"
+    existing_contents = "existing complete file\n"
+    final_path.write_text(existing_contents)
+
+    def failing_mols(*args, **kwargs):
+        yield Chem.MolFromSmiles("C")
+        raise RuntimeError("export failed")
+
+    monkeypatch.setattr(temporary_sdf, "primitive_to_rdkit_mols", failing_mols)
+
+    with pytest.raises(RuntimeError, match="export failed"):
+        write_primitive_to_sdf(
+            Primitive(label="temporary", role=PrimitiveRole.UNIVERSE),
+            tmp_path / "partial.sdf",
+            resname_map={},
+        )
+
+    assert final_path.read_text() == existing_contents
 
 
 def test_write_primitive_to_sdf_roundtrip_wraps_pdb_residue_atom_props(
