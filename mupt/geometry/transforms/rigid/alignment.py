@@ -1,23 +1,22 @@
 '''For calculation of rigid transforms which force two bodies to be spatially coincident in some way'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
-import numpy as np
+from typing import Optional
+
 from scipy.spatial.transform import RigidTransform
 
 from .rotations import alignment_rotation
-from ...arraytypes import Shape, N, Numeric
+from ...arraytypes import Vector3
 
 
 def rigid_vector_coalignment(
-    vector1_start : np.ndarray[Shape[3], Numeric],
-    vector1_end : np.ndarray[Shape[3], Numeric],
-    vector2_start : np.ndarray[Shape[3], Numeric],
-    vector2_end : np.ndarray[Shape[3], Numeric],
+    vector1_start : Vector3,
+    vector1_end : Vector3,
+    vector2_start : Vector3,
+    vector2_end : Vector3,
     *,
     t1 : float=0.5,
-    t2 : float=None,
+    t2 : Optional[float]=None,
 ) -> RigidTransform:
     '''
     Compute a rigid transformation that forces "vector1" (defined by its end points and not necessarily emanating from the origin)

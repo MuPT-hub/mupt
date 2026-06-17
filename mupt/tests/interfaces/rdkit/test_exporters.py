@@ -3,8 +3,6 @@ Tests for ensuring export from MuPT to RDKit preserves chemical information and 
 and does not export systems which cannot be interpreted as all-atom molecules
 '''
 
-__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
-__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import pytest
 from anytree import PreOrderIter

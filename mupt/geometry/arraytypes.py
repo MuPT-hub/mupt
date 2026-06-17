@@ -1,86 +1,97 @@
 '''Typehints and shape enforcement for numpy arrays'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import (
-    Annotated,
-    Generic,
     Literal,
     Optional,
+    Sequence,
     TypeVar,
+    Union,
 )
-S = TypeVar('S') # pure generics
-T = TypeVar('T') # pure generics
+# pure generics
+S = TypeVar('S')
+T = TypeVar('T')
 
 import numpy as np
 import numpy.typing as npt
-from numpy import ndarray
-from numbers import Number, Real
+from numbers import Number#, Real
 
 
 # Numeric typehints
-Numeric = TypeVar('Numeric', bound=Number) # typehint a number-like generic type
-RealValued = TypeVar('RealValued', bound=Real)
+NumberLike = Union[np.number, Number, float] # DEV: stupidly, but "float" does not typehint as Number in static type checkers, so have to add it manually
+Numeric = TypeVar('Numeric', bound=Number)
+NumericNP = TypeVar('NumericNP', bound=np.dtype[np.number])
+BoolNP = TypeVar('BoolNP', bound=np.dtype[np.bool_])
+
+# RealValued = TypeVar('RealValued', bound=Real)
+# RealValuedNP = TypeVar('RealValuedNP', bound=np.dtype[np.floating])
 
 # Numpy array type annotations
-Shape = tuple # the shape field of a numpy array
-DType = TypeVar('DType', bound=np.generic) # the data type of a numpy array
+Shape = tuple
+DType = TypeVar('DType', bound=np.dtype)
 
+## types accepted by 'order' arg of np.linalg.norm()
+OrderType = Optional[Union[int, Literal['fro'], Literal['nuc']]] 
+
+## Typehints for indeterminate size of a given array dimension
+M = TypeVar('M', bound=int) 
+N = TypeVar('N', bound=int)
+P = TypeVar('P', bound=int)
 Dims = TypeVar('Dims', bound=int) # intended to typehint the number of dimensions
 DimsPlus = TypeVar('DimsPlus', bound=int) # intended to typehint the number of dimensions +1 (no easy way to do arithmetic to generic types yet)
-M = TypeVar('M', bound=int) # typehint the size of a given dimension
-N = TypeVar('N', bound=int) # typehint the size of a given dimension
-P = TypeVar('P', bound=int) # typehint the size of a given dimension
 
 # Fixed-size vector and array type annotations - consider deprecating, since they're not currently being used anywhere
-## DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
-Vector2  = np.ndarray[Shape[Literal[2]], Numeric]
-Vector3  = np.ndarray[Shape[Literal[3]], Numeric]
-Vector4  = np.ndarray[Shape[Literal[4]], Numeric]
-VectorN  = np.ndarray[Shape[N], Numeric]
+## TB DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
+Vector2  = np.ndarray[Shape[Literal[2]], NumericNP]
+Vector3  = np.ndarray[Shape[Literal[3]], NumericNP]
+Vector4  = np.ndarray[Shape[Literal[4]], NumericNP]
+VectorN  = np.ndarray[Shape[N], NumericNP]
 
-Array2x2 = np.ndarray[Shape[Literal[2], Literal[2]], Numeric]
-Array3x3 = np.ndarray[Shape[Literal[3], Literal[3]], Numeric]
-Array4x4 = np.ndarray[Shape[Literal[4], Literal[4]], Numeric]
+Array2x2 = np.ndarray[Shape[Literal[2], Literal[2]], NumericNP]
+Array3x3 = np.ndarray[Shape[Literal[3], Literal[3]], NumericNP]
+Array4x4 = np.ndarray[Shape[Literal[4], Literal[4]], NumericNP]
 
-ArrayNx2 = np.ndarray[Shape[N, Literal[2]], Numeric]
-ArrayNx3 = np.ndarray[Shape[N, Literal[3]], Numeric]
-ArrayNx4 = np.ndarray[Shape[N, Literal[4]], Numeric]
+ArrayNx1 = np.ndarray[Shape[N, Literal[1]], NumericNP]
+ArrayNx2 = np.ndarray[Shape[N, Literal[2]], NumericNP]
+ArrayNx3 = np.ndarray[Shape[N, Literal[3]], NumericNP]
+ArrayNx4 = np.ndarray[Shape[N, Literal[4]], NumericNP]
 
-Array2xN = np.ndarray[Shape[Literal[2], N], Numeric]
-Array3xN = np.ndarray[Shape[Literal[3], N], Numeric]
-Array4xN = np.ndarray[Shape[Literal[4], N], Numeric]
+Array1xN = np.ndarray[Shape[Literal[1], N], NumericNP]
+Array2xN = np.ndarray[Shape[Literal[2], N], NumericNP]
+Array3xN = np.ndarray[Shape[Literal[3], N], NumericNP]
+Array4xN = np.ndarray[Shape[Literal[4], N], NumericNP]
 
-ArrayNxN = np.ndarray[Shape[N, N], Numeric]
-ArrayNxM = np.ndarray[Shape[N, M], Numeric]
-ArrayMxN = np.ndarray[Shape[M, N], Numeric]
+ArrayNxN = np.ndarray[Shape[N, N], NumericNP]
+ArrayNxM = np.ndarray[Shape[N, M], NumericNP]
+ArrayMxN = np.ndarray[Shape[M, N], NumericNP]
 
+TriangulationIndices = np.ndarray[Shape[N, Literal[3]], np.dtype[np.integer]]
+BitVectorN = np.ndarray[Shape[N], BoolNP]
 
 # vector comparison
-def as_n_vector(vectorlike : np.ndarray[Shape[N], DType], n : N=3) -> np.ndarray[Shape[N], DType]:
-    '''Interpret array as a 1D n-element vector''' 
-    if not isinstance(vectorlike, np.ndarray): # TODO: include support for list/tuple-like WITHOUT including sets, str, etc
-        raise TypeError(f'Vectorlike must be a numpy array, not {type(vectorlike)}')
-    if len(vectorlike) != n:
-        raise ValueError(f'Expected {n}-element vectorlike, received {len(vectorlike)}-element array instead')
+def as_n_vector(
+    vectorlike : VectorN | Array1xN | ArrayNx1 | Sequence[NumberLike],
+    dimension : Optional[int]=None,
+    dtype : Optional[npt.DTypeLike]=None,
+) -> VectorN:
+    '''
+    Convert row vector, column vector, Nx1 array, or 1xN array into
+    1D column vector with appropriate dimension and data type
     
-    return vectorlike.reshape(n)
-
-def compare_optional_positions(
-    position_1 : Optional[np.ndarray[Shape[N], float]],
-    position_2 : Optional[np.ndarray[Shape[N], float]],
-    **kwargs,
-) -> bool:
-    '''Check that two positional values are either 1) both undefined, or 2) both defined and equal'''
-    # DEV: replace with monadic interface down the line ("Maybe" pattern?)
-    if type(position_1) != type(position_2):
-        return False
+    Enables permissive ingestion of vector-shaped objects
+    '''
+    # N.B.: strings and byte-like are TECHNICALLY also Sequences, but not the kind we want here
+    if isinstance(vectorlike, (str, bytes)) \
+        or (not isinstance(vectorlike, (np.ndarray, Sequence))):
+        raise TypeError(f'Vectorlike must be a numpy array of Sequence of Numerics, not {type(vectorlike).__name__}')
     
-    if position_1 is None: # both are None
-        return True
-    elif isinstance(position_1, np.ndarray):
-        return np.allclose(position_1, position_2, **kwargs)
-    else:
-        raise TypeError(f'Expected positions to be either None or numpy.ndarray, got {type(position_1)} and {type(position_2)}')
+    vector_column = np.atleast_2d(vectorlike).reshape(-1) # permits transposed and nested vector inputs
+    if (dimension is not None) and (vector_column.shape != (dimension,)):
+        raise ValueError(
+            f'Expected vector with shape {(dimension,)}, got {vector_column.shape}'
+        )
     
+    if dtype is not None:
+        vector_column = vector_column.astype(dtype)
+        
+    return vector_column

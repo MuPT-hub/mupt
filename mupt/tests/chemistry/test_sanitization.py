@@ -1,7 +1,5 @@
 '''Unit tests for Mol saniitization wrappers and utilities'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import pytest
 

@@ -1,7 +1,5 @@
 '''Writers which convert the MuPT molecular representation out to RDKit Mols'''
 
-__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
-__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 
 from collections.abc import Iterator
