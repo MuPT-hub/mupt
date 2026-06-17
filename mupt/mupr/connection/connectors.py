@@ -101,6 +101,7 @@ class Connector(RigidlyTransformable):
 
         ## Protected attributes
         self._neighbor : Optional[Connector] = None
+        self._locked : bool = False
         self._managers : list['ConnectorManager'] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
@@ -386,6 +387,20 @@ class Connector(RigidlyTransformable):
         return are_antialigned(self, other, within=within)
     
     @property
+    def locked(self) -> bool:
+        '''Whether editing of neighbors is allowed'''
+        return self._locked
+
+    def lock(self) -> None:
+        '''Block editing of neighbors'''
+        self._locked = True
+
+    @property
+    def unlock(self) -> None:
+        '''Allow editing of neighbors'''
+        self._locked = False
+    
+    @property
     def neighbor(self) -> Optional['Connector']:
         '''
         The Connector assigned to be this Connector's nieghbor, if assigned
@@ -395,11 +410,14 @@ class Connector(RigidlyTransformable):
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
+        if self._locked:
+            raise PermissionError('Neighbor of this Connector is read-only')
+
         if not self.bondable_with(other):
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
-        if not self.is_antialigned(other): 
+        if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
         
         self._neighbor = other
