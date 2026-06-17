@@ -1,7 +1,5 @@
 '''Abstractions of connections between two primitives'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -30,8 +28,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector, compare_optional_positions
-from ..geometry.measure import within_ball
+from ..geometry.arraytypes import Shape, Vector3, as_n_vector
+from ..geometry.measure import compare_optional_positions
 from ..geometry.coordinates.basis import is_orthonormal
 from ..geometry.transforms.linear import rejector
 from ..geometry.transforms.rigid.rotations import alignment_rotation
@@ -109,7 +107,7 @@ class AttachmentPoint(RigidlyTransformable):
             if (value is not None) and (value not in self.attachables):
                 raise ValueError(f'Attachment "{value!s}" not designated as one of attachable labels {self.attachables}')
         if key == 'position':
-            value = as_n_vector(value, 3)
+            value = as_n_vector(value, dimension=3)
         return super().__setattr__(key, value)
         
     # Implementing RigidTransformable contracts
@@ -182,7 +180,7 @@ class Connector(RigidlyTransformable):
     @bond_vector.setter
     def bond_vector(self, new_bond_vector : Vector3) -> None:
         # TODO: cast this as a rigid transformation of linker to track cumulative transform? (would enable reset of bond length history)
-        self.linker.position = as_n_vector(new_bond_vector, 3) + self.anchor.position
+        self.linker.position = as_n_vector(new_bond_vector, dimension=3) + self.anchor.position
         
     @property
     def bond_length(self) -> float:
@@ -219,7 +217,7 @@ class Connector(RigidlyTransformable):
     @tangent_vector.setter
     def tangent_vector(self, new_tangent_vector : Vector3) -> None:
         '''Update tangent positions given a new tangent vector'''
-        new_tangent_vector = as_n_vector(new_tangent_vector, 3)
+        new_tangent_vector = as_n_vector(new_tangent_vector, dimension=3)
         if not np.isclose(
             np.dot( # DEV: opting not to normalize here in case either vector has small magnitude - revisit if that becomes an issue
                 self.bond_vector,
@@ -289,7 +287,7 @@ class Connector(RigidlyTransformable):
             metadata=deepcopy(self.metadata),
         )
         if self.has_tangent_position:
-            new_connector.tangent_vector = as_n_vector(self.tangent_vector, 3)
+            new_connector.tangent_vector = as_n_vector(self.tangent_vector, dimension=3)
 
         return new_connector
 
@@ -310,12 +308,12 @@ class Connector(RigidlyTransformable):
         of the other Connector, and vice-versa (with the same tolerance for both)
         '''
         return (
-            within_ball(
+            compare_optional_positions(
                 self.anchor.position,
                 other.linker.position,
                 radius=within,
             )
-            and within_ball(
+            and compare_optional_positions(
                 self.linker.position,
                 other.anchor.position,
                 radius=within,

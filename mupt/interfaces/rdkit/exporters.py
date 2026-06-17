@@ -1,11 +1,10 @@
 '''Writers which convert the MuPT molecular representation out to RDKit Mols'''
 
-__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
-__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 
 from collections.abc import Iterator
 from typing import Optional
+import warnings
 
 import numpy as np
 
@@ -55,6 +54,12 @@ def primitive_to_rdkit(
 
     Will set spatial positions for each atom ("default_atom_position" if not assigned per atom) to a Conformer bound to the returned Mol
     '''
+    warnings.warn(
+        "primitive_to_rdkit() is deprecated; use the role-aware "
+        "primitive_to_rdkit_mols() exporter instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if default_atom_position is None:
         # DEV: opted to not make this a call to geometry.reference.origin() to decrease coupling and allow choice for differently-determined default down the line
         default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float) 

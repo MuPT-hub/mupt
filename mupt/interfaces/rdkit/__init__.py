@@ -1,7 +1,5 @@
 '''Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects'''
 
-__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
-__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 
 from .selection import (

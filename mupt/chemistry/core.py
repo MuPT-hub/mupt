@@ -1,7 +1,5 @@
 '''Reference for fundamental chemical units, namely elements, ions, isotopes, and bond types'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)

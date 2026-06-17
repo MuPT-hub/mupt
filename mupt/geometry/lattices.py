@@ -1,15 +1,13 @@
 '''Representations and calculation methods for crystallographic unit cells, lattice parameters, and lattice coordinates'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
-from typing import Generic, Literal
+from typing import Generic
 from dataclasses import dataclass, field
 from numbers import Real
 
 import numpy as np
 
-from .arraytypes import ndarray, Shape, Numeric
+from .arraytypes import Numeric, Array3x3
 
 
 class Coordinates(Generic[Numeric]):
@@ -28,10 +26,10 @@ class LatticeParameters: # TODO : incorporate unit-awareness
     gamma : float = field(default=np.pi / 2) # make cell orthorhombic by default
     
     @classmethod
-    def from_lattice_vectors(cls, lattice_vectors : ndarray[Shape[3, 3], float]) -> 'LatticeParameters':
+    def from_lattice_vectors(cls, lattice_vectors : Array3x3) -> 'LatticeParameters':
         raise NotImplemented
     
-    def to_lattice_vectors(self) -> ndarray[Shape[3, 3], float]:
+    def to_lattice_vectors(self) -> Array3x3:
         raise NotImplemented
     
 # Coordinate subclasses

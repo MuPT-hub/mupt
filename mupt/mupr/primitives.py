@@ -1,7 +1,5 @@
 '''Fundamental data structures for multiscale molecular representation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -54,7 +52,7 @@ from .topology import TopologicalStructure, GraphLayout
 from .embedding import infer_connections_from_topology, ConnectorReference, flexible_connector_reference
 
 from ..mutils.containers import UniqueRegistry
-from ..geometry.shapes import BoundedShape
+from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 from ..roles import PrimitiveRole
@@ -85,7 +83,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     Parameters
     ----------
-    shape : Optional[BoundedShape]
+    shape : Optional[BoundedTransformableShape]
         A rigid shape which approximates and abstracts the behavior of the primitive in space
     element : Optional[Union[Element, Ion, Isotope]]
         The chemical element associated with this Primitive, IFF the Primitive represents an atom
@@ -105,7 +103,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Initializers
     def __init__(
         self, # DEV: force all args to be KW-only?
-        shape : Optional[BoundedShape]=None,
+        shape : Optional[BoundedTransformableShape]=None,
         element : Optional[ElementLike]=None,
         connectors : Optional[Iterable[Connector]]=None,
         children : Optional[Iterable['Primitive']]=None,
@@ -911,7 +909,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         target_labels : set[PrimitiveHandle],
         master_label : PrimitiveHandle,
-        new_shape : Optional[BoundedShape]=None,
+        new_shape : Optional[BoundedTransformableShape]=None,
     ) -> None:
         '''
         Insert a new level into the hierarchy and group the selected
@@ -1041,15 +1039,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     # Geometry (info about Shape and transformations)
     @property
-    def shape(self) -> Optional[BoundedShape]:
+    def shape(self) -> Optional[BoundedTransformableShape]:
         '''The external shape of this Primitive'''
         return self._shape
     
     @shape.setter
-    def shape(self, new_shape : BoundedShape) -> None:
+    def shape(self, new_shape : BoundedTransformableShape) -> None:
         '''Set the external shape of this Primitive'''
-        if not isinstance(new_shape, BoundedShape):
-            raise TypeError(f'Primitive shape must be BoundedShape instance, not object of type {type(new_shape.__name__)}')
+        if not isinstance(new_shape, BoundedTransformableShape):
+            raise TypeError(f'Primitive shape must be BoundedTransformableShape instance, not object of type {type(new_shape).__name__}')
 
         new_shape_clone = new_shape.copy() # NOTE: make copy to avoid mutating original (per Principle of Least Astonishment)
         if self._shape is not None:
@@ -1061,7 +1059,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def _copy_untransformed(self) -> 'Primitive':
         '''Return a new Primitive with the same information and children as this one, but which has no parent'''
         clone_primitive = self.__class__(
-            shape=(None if self.shape is None else self.shape.copy()),
+            shape=self.shape, # handles unset NoneType case natively
             element=self.element,
             # NOTE: connectors and children transferred verbatim below - no need to set in init here
             connectors=None, 
@@ -1098,7 +1096,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     
     def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
-        if isinstance(self.shape, BoundedShape):
+        if isinstance(self.shape, BoundedTransformableShape):
             self.shape.rigidly_transform(transformation)
         
         for connector in self.connectors.values():

@@ -3,8 +3,6 @@ Tests for ensuring export from MuPT to RDKit preserves chemical information and 
 and does not export systems which cannot be interpreted as all-atom molecules
 '''
 
-__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
-__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
 
 import pytest
 from anytree import PreOrderIter
@@ -88,6 +86,14 @@ def _pdb_boundary_bonds(mol, residue_ids, resnames):
         if bond_residue_ids == residue_ids and bond_resnames == resnames:
             boundary_bonds.append(bond)
     return boundary_bonds
+
+
+def test_primitive_to_rdkit_warns_deprecated_legacy_exporter():
+    """Legacy flattened RDKit export warns users to migrate."""
+    primitive = primitive_from_smiles("C", ensure_explicit_Hs=True)
+
+    with pytest.warns(DeprecationWarning, match="primitive_to_rdkit_mols"):
+        rdkit_exporters.primitive_to_rdkit(primitive)
 
 
 def test_primitive_to_rdkit_mols_returns_one_mol_per_segment(
