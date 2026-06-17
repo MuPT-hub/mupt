@@ -376,6 +376,36 @@ def test_iter_primitives_from_mupt_sdf_yields_one_segment_per_record(
     assert all(segment.parent is None for segment in segments)
 
 
+def test_iter_primitives_from_mupt_sdf_uses_forward_supplier(
+    tmp_path,
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+    monkeypatch,
+):
+    """The streaming importer uses RDKit's forward-only SDF supplier."""
+    sdf_path = tmp_path / "forward-supplier.mupt.sdf"
+    supplier_calls = []
+    original_supplier = temporary_sdf.ForwardSDMolSupplier
+
+    def supplier_spy(*args, **kwargs):
+        supplier_calls.append((args, kwargs))
+        return original_supplier(*args, **kwargs)
+
+    write_primitive_to_sdf(
+        single_polyethylene_2mer,
+        sdf_path,
+        resname_map=polyethylene_resname_map,
+    )
+    monkeypatch.setattr(temporary_sdf, "ForwardSDMolSupplier", supplier_spy)
+
+    segments = list(iter_primitives_from_mupt_sdf(sdf_path))
+
+    assert len(segments) == 1
+    assert len(supplier_calls) == 1
+    assert supplier_calls[0][1]["sanitize"] is False
+    assert supplier_calls[0][1]["removeHs"] is False
+
+
 def test_iter_primitives_from_mupt_sdf_streaming_discard_preserves_counts(
     tmp_path,
     multi_polyethylene_system,

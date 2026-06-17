@@ -27,7 +27,7 @@ import numpy as np
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import (
     CreateAtomStringPropertyList,
-    SDMolSupplier,
+    ForwardSDMolSupplier,
     SDWriter,
 )
 
@@ -400,17 +400,18 @@ def iter_primitives_from_mupt_sdf(
         missing or inconsistent.
     """
     path = _mupt_sdf_path(path)
-    supplier = SDMolSupplier(
-        asstrpath(path),
-        removeHs=False,
-        sanitize=False,
-    )
-    for record_idx, mol in enumerate(supplier):
-        if mol is None:
-            raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
-        if sanitize:
-            mol = sanitized_mol(mol)
-        yield _build_segment_from_mol(mol)
+    with path.open("rb") as sdf_stream:
+        supplier = ForwardSDMolSupplier(
+            sdf_stream,
+            removeHs=False,
+            sanitize=False,
+        )
+        for record_idx, mol in enumerate(supplier):
+            if mol is None:
+                raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
+            if sanitize:
+                mol = sanitized_mol(mol)
+            yield _build_segment_from_mol(mol)
 
 
 def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primitive:
