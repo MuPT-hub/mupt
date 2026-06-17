@@ -90,6 +90,14 @@ def _pdb_boundary_bonds(mol, residue_ids, resnames):
     return boundary_bonds
 
 
+def test_primitive_to_rdkit_warns_deprecated_legacy_exporter():
+    """Legacy flattened RDKit export warns users to migrate."""
+    primitive = primitive_from_smiles("C", ensure_explicit_Hs=True)
+
+    with pytest.warns(DeprecationWarning, match="primitive_to_rdkit_mols"):
+        rdkit_exporters.primitive_to_rdkit(primitive)
+
+
 def test_primitive_to_rdkit_mols_returns_one_mol_per_segment(
     multi_polyethylene_system,
     polyethylene_resname_map,
