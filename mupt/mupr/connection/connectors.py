@@ -26,7 +26,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 if TYPE_CHECKING:
-    from .management import ConnectorManager
+    from .management import HoldsConnectors
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
@@ -102,7 +102,7 @@ class Connector(RigidlyTransformable):
         ## Protected attributes
         self._neighbor : Optional[Connector] = None
         self._locked : bool = False
-        self._managers : list['ConnectorManager'] = list()
+        self._holders : list['HoldsConnectors'] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -317,28 +317,30 @@ class Connector(RigidlyTransformable):
 
     # Parents
     @property
-    def managers(self) -> list['ConnectorManager']:
-        return self._managers
-    # N.B.: deliberately excluded managers.setter; moderated thru add_manager and remove_manager methods instead
+    def holders(self) -> list['HoldsConnectors']:
+        return self._holders
+    # N.B.: deliberately excluded holders.setter; moderated thru add_holder and remove_holder methods instead
 
-    def add_manager(
+    def add_holder(
         self,
-        manager : 'ConnectorManager',
-        ranking : Optional[Callable[['ConnectorManager'], int]]=None,
+        holder : 'HoldsConnectors',
+        ranking : Optional[Callable[['HoldsConnectors'], int]]=None, 
+        # DEV: eventually generalize to have ranking return be some kind
+        # of "Sortable" ABC (supports comparisons and equality checks)
     ) -> None:
         '''
-        Insert new manager into registry of manager connector managers
-        If ranking Callable is given, will apply to sort managers in-place post-insertion
+        Insert new holder into registry of holder connector holders
+        If ranking Callable is given, will apply to sort holders in-place post-insertion
         '''
-        if manager in self._managers:
-            raise IndexError(f'The Connector manager {manager!r} is already present in the registry of Connector {self!r}')
-        self._managers.append(manager)
+        if holder in self._holders:
+            raise IndexError(f'The Connector holder {holder!r} is already present in the registry of Connector {self!r}')
+        self._holders.append(holder)
 
         if ranking:
-            self._managers.sort(key=ranking, reverse=False)
+            self._holders.sort(key=ranking, reverse=False)
 
-    def remove_manager(self, manager : 'ConnectorManager') -> None:
-        self._managers.remove(manager) # no need to check membership - already raises ValueError if not present
+    def remove_holder(self, holder : 'HoldsConnectors') -> None:
+        self._holders.remove(holder) # no need to check membership - already raises ValueError if not present
 
     # Interactions with neighboring Connectors
     ## Comparison methods

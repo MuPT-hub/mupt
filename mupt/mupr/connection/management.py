@@ -1,11 +1,5 @@
 '''Managed collection of Connectors - used to outsource business logic from Primitive'''
 
-from .connectors import Connector
-from .types import (
-    ConnectorLabel,
-    ConnectorHandle,
-    ConnectorAddress,
-)
 from typing import (
     Collection,
     Hashable,
@@ -13,6 +7,14 @@ from typing import (
     Mapping,
     Optional,
     Protocol,
+)
+from abc import abstractmethod
+
+from .connectors import Connector
+from .types import (
+    ConnectorLabel,
+    ConnectorHandle,
+    ConnectorAddress,
 )
 from mupt.mutils.containers import (
     UniqueRegistry,
@@ -22,20 +24,30 @@ from mupt.mutils.containers import (
 ) 
 
 
+class HoldsConnectors(Protocol):
+    '''
+    Type indicator for another class which is in some sense a 'proprietor' of
+    a collection of Connectors, but employs a ConnectorManager to manage them
+    '''
+    connections : ConnectorManager
+
 class ConnectorManager(Protocol):
     '''Interface for generic connector managment object'''
     connectors : Collection['Connector']
     connectors_by_handle : Mapping[ConnectorAddress, 'Connector']
 
+    @abstractmethod
     def connector(self, conn_addr : ConnectorAddress) -> 'Connector':
         ...
 
     @property
+    @abstractmethod
     def connectors_free(self) -> Collection['Connector']:
         '''Connectors which are currently unbound'''
         ...
 
     @property
+    @abstractmethod
     def connectors_bound(self) -> Collection['Connector']:
         '''Connectors which have a neighbor'''
         ...
@@ -120,4 +132,17 @@ class ConnectorManagerMutable(ConnectorManager):
         connectors : Iterable[Connector],
         default_label : Hashable='CONN',
     ) -> None:
+        ...
+
+    def connector(self, conn_addr : ConnectorAddress) -> 'Connector':
+        ...
+
+    @property
+    def connectors_free(self) -> Collection['Connector']:
+        '''Connectors which are currently unbound'''
+        ...
+
+    @property
+    def connectors_bound(self) -> Collection['Connector']:
+        '''Connectors which have a neighbor'''
         ...
