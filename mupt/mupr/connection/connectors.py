@@ -9,8 +9,8 @@ LOGGER = logging.getLogger(__name__)
 
 from typing import (
     Any,
-    ClassVar,
     Callable,
+    ClassVar,
     Hashable,
     Iterable,
     Optional,
@@ -101,7 +101,8 @@ class Connector(RigidlyTransformable):
 
         ## Protected attributes
         self._neighbor : Optional[Connector] = None
-        self._managers : list[ConnectorManager] = list()
+        self._locked : bool = False
+        self._managers : list['ConnectorManager'] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -360,14 +361,14 @@ class Connector(RigidlyTransformable):
 
     # Parents
     @property
-    def managers(self) -> list[ConnectorManager]:
+    def managers(self) -> list['ConnectorManager']:
         return self._managers
     # N.B.: deliberately excluded managers.setter; moderated thru add_manager and remove_manager methods instead
 
     def add_manager(
         self,
-        manager : ConnectorManager,
-        ranking : Optional[Callable[[ConnectorManager], int]]=None,
+        manager : 'ConnectorManager',
+        ranking : Optional[Callable[['ConnectorManager'], int]]=None,
     ) -> None:
         '''
         Insert new manager into registry of manager connector managers
@@ -380,7 +381,7 @@ class Connector(RigidlyTransformable):
         if ranking:
             self._managers.sort(key=ranking, reverse=False)
 
-    def remove_manager(self, manager : ConnectorManager) -> None:
+    def remove_manager(self, manager : 'ConnectorManager') -> None:
         self._managers.remove(manager) # no need to check membership - already raises ValueError if not present
 
     # Interactions with neighboring Connectors
@@ -430,6 +431,23 @@ class Connector(RigidlyTransformable):
         return are_antialigned(self, other, within=within)
     
     @property
+    def is_locked(self) -> bool:
+        '''Whether editing of neighbors is allowed'''
+        return self._locked
+
+    def lock(self) -> None:
+        '''Block editing of neighbors'''
+        self._locked = True
+
+    def unlock(self) -> None:
+        '''Allow editing of neighbors'''
+        self._locked = False
+    
+    @property
+    def has_neighbor(self) -> bool:
+        return self._neighbor is not None
+
+    @property
     def neighbor(self) -> Optional['Connector']:
         '''
         The Connector assigned to be this Connector's nieghbor, if assigned
@@ -439,17 +457,22 @@ class Connector(RigidlyTransformable):
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
+        if self.is_locked:
+            raise PermissionError('Neighbor of this Connector is locked and cannot be modified')
+
         if not self.bondable_with(other):
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
-        if not self.is_antialigned(other): 
+        if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
         
         self._neighbor = other
 
     @neighbor.deleter
     def neighbor(self) -> None:
+        if self.has_neighbor and self.is_locked:
+            raise PermissionError('Neighbor of this Connector is locked and cannot be cleared')
         self._neighbor = None
 
     ## Copying and attr transfer methods
@@ -498,13 +521,6 @@ class Connector(RigidlyTransformable):
         if not isinstance(new_label, Hashable):
             raise TypeError(f'Connector label must be a Hashable type, not {type(new_label)}')
         self._label = new_label
-        
-    def address(self) -> int:
-        '''
-        Unique identifier used to identify this Connector instances,
-        irrespective of similarity to other Connectors
-        '''
-        return id(self)
     
     def canonical_form(self) -> BondType:
         '''Return a canonical form used to distinguish equivalent Connectors'''
