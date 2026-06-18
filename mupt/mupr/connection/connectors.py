@@ -73,7 +73,6 @@ class MissingConnectorError(ConnectionError):
 class UnboundConnectorError(ConnectionError):
     '''Raised when a pair of Connectors are unexpectedly not bound to one another'''
     pass
->>>>>>> a771186 (Merge from upstream)
 
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable mechanism under-the-hood,
@@ -135,11 +134,7 @@ class Connector(
         ## Protected attributes
         self._neighbor : Optional[Connector] = None
         self._locked : bool = False
-<<<<<<< HEAD
         self._holder : Optional['HoldsConnectors'] = None
-=======
-        self._managers : list['ConnectorManager'] = list()
->>>>>>> 453099e (Pulled lock changes from connector-improvements)
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -402,7 +397,6 @@ class Connector(
         return self._holder is not None
     
     @property
-<<<<<<< HEAD
     def holder(self) -> Optional['HoldsConnectors']:
         return self._holder
     
@@ -418,34 +412,8 @@ class Connector(
             raise ConnectorLockedError(f'Cannot remove holder of locked Connector {self}')
         self._holder = None
 
-    # Comparison methods
-=======
-    def managers(self) -> list['ConnectorManager']:
-        return self._managers
-    # N.B.: deliberately excluded managers.setter; moderated thru add_manager and remove_manager methods instead
-
-    def add_manager(
-        self,
-        manager : 'ConnectorManager',
-        ranking : Optional[Callable[['ConnectorManager'], int]]=None,
-    ) -> None:
-        '''
-        Insert new manager into registry of manager connector managers
-        If ranking Callable is given, will apply to sort managers in-place post-insertion
-        '''
-        if manager in self._managers:
-            raise IndexError(f'The Connector manager {manager!r} is already present in the registry of Connector {self!r}')
-        self._managers.append(manager)
-
-        if ranking:
-            self._managers.sort(key=ranking, reverse=False)
-
-    def remove_manager(self, manager : 'ConnectorManager') -> None:
-        self._managers.remove(manager) # no need to check membership - already raises ValueError if not present
-
     # Interactions with neighboring Connectors
     ## Comparison methods
->>>>>>> 453099e (Pulled lock changes from connector-improvements)
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
@@ -599,13 +567,6 @@ class Connector(
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
         self._precondition_mutable_neighbor()
         other._precondition_mutable_neighbor()
-=======
-        if self.is_locked:
-            raise PermissionError('Neighbor of this Connector is locked and cannot be modified')
-
-        if not self.bondable_with(other):
-            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
->>>>>>> 453099e (Pulled lock changes from connector-improvements)
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
@@ -622,11 +583,6 @@ class Connector(
        
         if not self.has_neighbor:
             return
-=======
-        if self.has_neighbor and self.is_locked:
-            raise PermissionError('Neighbor of this Connector is locked and cannot be cleared')
-        self._neighbor = None
->>>>>>> 453099e (Pulled lock changes from connector-improvements)
 
         self._precondition_mutable_neighbor()
         self.neighbor._precondition_mutable_neighbor()
