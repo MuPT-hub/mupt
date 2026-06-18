@@ -28,6 +28,8 @@ from copy import deepcopy
 
 from anytree import NodeMixin, findall
 import networkx as nx
+
+import numpy as np
 from scipy.spatial.transform import RigidTransform
 
 from .connection.connectors import (
@@ -55,15 +57,27 @@ from .embedding import (
     check_connections_compatible_with_primitive_registry,
 )
 
-from ..mutils.containers import UniqueRegistry, Labelled
+from ..geometry.arraytypes import Array3x3
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
+from ..mutils.containers import UniqueRegistry, Labelled
 from ..chemistry.core import ElementLike, isatom, valence_allowed
 from ..roles import PrimitiveRole
 
 
 # Custom Exceptions
-class IrreducibilityError(AttributeError):
+class ImproperHierarchyError(AttributeError):
+    '''
+    Raised when attempting to use a sybtype of Primtiive in a
+    place where it can't be used in a hierarchical representation
+    '''
+    pass
+
+class ArborescenceError(ImproperHierarchyError):
+    '''Raised when trying to use a Root as the child of another Primitive'''
+    pass
+
+class IrreducibilityError(ImproperHierarchyError):
     '''Raised when attempting to perform a composite Primitive operation on a simple one'''
     pass
 
@@ -202,7 +216,7 @@ class SimplePrimitive(Primitive):
         
         return connector
 
-    # Attachment (or lack thereof) of child primitives
+    # Explicit ban on attachment of children (already simple)
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
 
@@ -488,6 +502,44 @@ def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
     
     raise NotImplementedError
 
+# Tree roots
+class RootPrimitive(Primitive):
+    '''
+    Base of a hierarchy tree - no Primitives can exist above (i.e. own) this one
+    Used to store system-wide metadata, as well as provide hand-off point for interfaces
+    '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'ROOT'
+
+    def __init__(
+        self,
+        box_vectors : Optional[Array3x3]-None,
+        shape : Optional[BoundedTransformableShape]=None,
+        metadata : Optional[dict[Hashable, Any]]=None,
+    ) -> None:
+        
+        self.connections = ConnectorManagerMutable()
+        self._shape = shape
+        self.metadata = metadata or dict()
+
+        if box_vectors is None:
+            box_vectors = np.zeros(3, 3, dtype=float)
+        self.box_vectors = box_vectors
+
+    # Managing hierarchy
+    ## 
+    def _pre_attach(self, parent : Primitive) -> None:
+        raise ArborescenceError('Cannot make Root of hierarchy the child of another Primitive')
+
+    def _pre_detach(self, parent : Primitive) -> None:
+        raise ArborescenceError('Invalid state: Root is somehow the child of another Primitive')
+
+    ## TB DEV: find way to consolidate logic for these with Composites?
+    def attach_child(self, child : Primitive) -> PrimitiveHandle:
+        ...
+
+    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        ...
+    
 
 # Hashable canonical forms for core components
 def canonical_form_shape(primitive : Primitive) -> str:
