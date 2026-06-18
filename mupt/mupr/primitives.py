@@ -12,6 +12,7 @@ from typing import (
     Callable,
     ClassVar,
     Collection,
+    Generator,
     Hashable,
     Iterable,
     Optional,
@@ -19,8 +20,8 @@ from typing import (
     Self,
     TypeVar,
 )
-PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
-PrimitiveAddress = Hashable
+type PrimitiveLabel =Hashable
+type PrimitiveAddress = Hashable
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
 from copy import deepcopy
@@ -74,14 +75,36 @@ class MissingSubprimitiveError(KeyError):
     '''Raised when a child Primitive expected for a call is not present'''
     pass
 
-# Primitive types        
-class Primitive(Labelled, Shaped, RigidlyTransformable):
+# Selection strategies
+PrimitiveSelector = Callable[['Primitive'], bool]
+
+def indiscriminate_selector(prim : 'Primitive') -> bool:
+    '''
+    Selector which always greenlights the passed Primitive no matter what
+    Useful for avoiding lamba overhead
+    '''
+    return True
+
+def select_primitives(
+    choices : Iterable['Primitive'],
+    criterion : Optional[PrimitiveSelector]=None,
+) -> Generator['Primitive', None, None]:
+    '''Boilerplate for choosing Primitives out of an iterable by some rule'''
+    if criterion is None:
+        criterion = indiscriminate_selector
+
+    for prim in choices:
+        if criterion(prim):
+            yield prim
+
+# Primitive types
+class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     '''
     A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
     '''
     # Attributes
-    ## Classwide defaults
-    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'PRIM'
+    ## Expected classwide attributes
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel]
 
     # Expected instance attributes
     shape : BoundedTransformableShape
@@ -113,13 +136,17 @@ class Primitive(Labelled, Shaped, RigidlyTransformable):
         return NotImplemented
 
     # Topology
-    def neighbors(self) -> Iterable['Primitive']:
-        ...
+    def neighbors(self, criterion : Optional[PrimitiveSelector]=None) -> Generator['Primitive', None, None]:
+        '''Primitives whose share a Connection with this one'''
+        yield from select_primitives(
+            (conn.manager.owner for conn in self.connections.connectors_bound),
+            criterion=criterion,
+        )
 
+    # Depiction
     def __hash__(self) -> int: # Needs to be implemented for Primitives to be used as nodes in networkx graphs
         ...
-        
-    # Depiction
+
     ## Stdout printing
     # def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
     #     return self.canonical_form() # self.canonical_form_salted()
@@ -129,7 +156,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable):
     
     
 ## Simples
-class SimplePrimitive(Primitive, NodeMixin):
+class SimplePrimitive(Primitive):
     '''
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
     Used to explicitly demarcate "leaf" Primitives in a representation hierarchy
@@ -181,8 +208,6 @@ class SimplePrimitive(Primitive, NodeMixin):
 
     def _pre_detach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
-    
-    # TODO: introduce AttributeError on __getitem__ when requesting .children
     
     def _copy_untransformed(self) -> 'SimplePrimitive':
         '''Return a new Primitive with the same information and children as this one, but which has no parent'''
@@ -236,14 +261,14 @@ class AtomicPrimitive(SimplePrimitive):
         return f'{self.element.symbol}{canonical_form_primitive(self)}'
     
 ## Composites
-class CompositePrimitive(Primitive, NodeMixin):
+class CompositePrimitive(Primitive):
     '''
     A Primitive with an internal structure of "child" Primitives within it
     Internal attributes about children, their Connectors, and the Topology connecting are immutable after instantiation
 
     CompositePrimitives form the branches of the a representation hierarchy tree
     '''
-    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'TREE'
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE'
     
     children_by_address : Mapping[PrimitiveAddress, Primitive]    
     
@@ -473,6 +498,6 @@ def canonical_form_primitive(primitive : Primitive) -> str: # NOTE: deliberately
     '''A canonical representation of a Primitive's core parts; induces a natural equivalence relation on Primitives
     I.e. two Primitives having the same canonical form are to be considered interchangable within a polymer system
     '''
-    return f'(connectors={canonical_form_connectors(primitive)})' \
+    return f'(connectors={canonical_form_connectors(primitive.connections.connectors)})' \
         f'[shape={canonical_form_shape(primitive)}]' \
         # f'<graph_hash={self.canonical_form_topology()}>'

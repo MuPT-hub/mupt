@@ -34,12 +34,12 @@ if TYPE_CHECKING:
     from .primitives import Primitive, PrimitiveLabel, PrimitiveHandle
 
 from .connection.connectors import Connector, ConnectorHandle
-from .connection.types import Connection
 from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
+Connection = tuple[Connector, Connector]
 from ..mutils.containers import UniqueRegistry
 
 
