@@ -229,7 +229,7 @@ def test_mda_export_reject_non_SAAMR(primitive_fixture, resname_map, request):
     The AllAtomExportStrategy requires Primitives to have canonical
     SAAMR roles (UNIVERSE, SEGMENT, RESIDUE, PARTICLE) assigned.
     Primitives without roles default to PrimitiveRole.UNASSIGNED and
-    are rejected by the strategy's validate() method.
+    are rejected during topology collection.
     """
     univprim = request.getfixturevalue(primitive_fixture)
     with pytest.raises(ValueError):
@@ -302,7 +302,7 @@ def test_explicit_strategy_produces_same_result(primitive_fixture, resname_fixtu
 
 def test_strategy_rejects_no_role_primitives():
     """
-    AllAtomExportStrategy.validate() must raise ValueError when
+    AllAtomExportStrategy.collect_topology() must raise ValueError when
     Primitives have no_role status, with a message pointing to
     assign_SAAMR_roles() or manual role assignment.
     """
@@ -316,12 +316,12 @@ def test_strategy_rejects_no_role_primitives():
 
     strategy = AllAtomExportStrategy()
     with pytest.raises(ValueError, match="assign_SAAMR_roles"):
-        strategy.validate(universe)
+        strategy.collect_topology(universe, resname_map={"unit": "UNT"})
 
 
 def test_strategy_rejects_missing_segment_role():
     """
-    AllAtomExportStrategy.validate() must raise ValueError when
+    AllAtomExportStrategy.collect_topology() must raise ValueError when
     no SEGMENT-role nodes exist, even if root has UNIVERSE role.
     """
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
@@ -334,12 +334,12 @@ def test_strategy_rejects_missing_segment_role():
 
     strategy = AllAtomExportStrategy()
     with pytest.raises(ValueError, match="SEGMENT"):
-        strategy.validate(universe)
+        strategy.collect_topology(universe, resname_map={"unit": "UNT"})
 
 
 def test_strategy_rejects_no_role_leaves():
     """
-    AllAtomExportStrategy.validate() must raise ValueError when
+    AllAtomExportStrategy.collect_topology() must raise ValueError when
     leaf Primitives are without roles, even if upper levels are set.
     """
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
@@ -352,12 +352,12 @@ def test_strategy_rejects_no_role_leaves():
 
     strategy = AllAtomExportStrategy()
     with pytest.raises(ValueError, match="PARTICLE"):
-        strategy.validate(universe)
+        strategy.collect_topology(universe, resname_map={"unit": "UNT"})
 
 
 def test_strategy_rejects_nested_segments():
     """
-    AllAtomExportStrategy.validate() must reject a hierarchy where
+    AllAtomExportStrategy.collect_topology() must reject a hierarchy where
     a SEGMENT contains a descendant SEGMENT, which would cause
     double-counting during collect_topology().
     """
@@ -373,12 +373,12 @@ def test_strategy_rejects_nested_segments():
 
     strategy = AllAtomExportStrategy()
     with pytest.raises(ValueError, match="nested SEGMENT"):
-        strategy.validate(universe)
+        strategy.collect_topology(universe, resname_map={"res": "RES"})
 
 
 def test_strategy_rejects_nested_residues():
     """
-    AllAtomExportStrategy.validate() must reject a hierarchy where
+    AllAtomExportStrategy.collect_topology() must reject a hierarchy where
     a RESIDUE contains a descendant RESIDUE, which would cause
     double-counting of atoms during collect_topology().
     """
@@ -394,7 +394,10 @@ def test_strategy_rejects_nested_residues():
 
     strategy = AllAtomExportStrategy()
     with pytest.raises(ValueError, match="nested RESIDUE"):
-        strategy.validate(universe)
+        strategy.collect_topology(
+            universe,
+            resname_map={"outer_res": "ORS", "inner_res": "IRS"},
+        )
 
 
 @pytest.mark.parametrize(
