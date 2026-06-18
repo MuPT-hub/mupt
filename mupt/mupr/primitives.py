@@ -454,10 +454,19 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     def set_connectivity_from_topology(
         self,
         topology : nx.Graph,
+        criterion : PrimitiveSelector,
     ) -> None:
+        '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
+        prim_subselection.items() = select_primitives(self.ancestors, criterion=criterion)
+        assert len(prim_subselection.items()) == topology.number_of_nodes()
+        assert set(prim_subselection.items().keys()) == set(topology.nodes) # TODO: make return include labels for indication
+        
         infer_connections_from_topology(
             topology,
-            mapped_connectors=dict(),
+            mapped_connectors={
+                prim_label : set(prim.connections.connectors)
+                    for prim_label, prim in prim_subselection.items()
+            },
             n_iter_max=10*len(topology), # TB TODO: fill in actual llogic fordecisidng this - 10 is a number I made up for now
         )
 
@@ -512,7 +521,7 @@ class RootPrimitive(Primitive):
 
     def __init__(
         self,
-        box_vectors : Optional[Array3x3]-None,
+        box_vectors : Optional[Array3x3]=None,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
