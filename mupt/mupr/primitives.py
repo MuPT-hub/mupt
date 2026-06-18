@@ -525,17 +525,42 @@ class RootPrimitive(Primitive):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        
-        self.connections = ConnectorManagerMutable()
-        self._shape = shape
-        self.metadata = metadata or dict()
-
         if box_vectors is None:
             box_vectors = np.zeros(3, 3, dtype=float)
         self.box_vectors = box_vectors
 
+        self.connections = ConnectorManagerMutable()
+        self._shape = shape
+        self.metadata = metadata or dict()
+
+        self._frozen : bool = False
+
+    # Hierarchy freezing/unfreezing
+    @property
+    def is_frozen(self) -> bool:
+        '''Whether or not the hierarchy tree is open to Connector modification'''
+        return self._frozen
+    
+    def freeze(self) -> None:
+        '''Prevent any connection within the hierarchy from being mutated'''
+        # TB: also freeze child/parents?
+        for child in self.ancestors:
+            new_connections = ConnectorManagerFrozen(vars(child.connections)) # TODO: this handoff need works 
+            child.connections = new_connections
+        self._frozen = True
+
+    def unfreeze(self) -> None:
+        '''Enable mutation of connectivity throughout the hierarchy'''
+        # TB: also unfreeze child/parents?
+        for child in self.ancestors:
+            new_connections = ConnectorManagerMutable(vars(child.connections)) # TODO: this handoff need works 
+            child.connections = new_connections
+        self._frozen = False
+    
+    # DEV: deliverately excluded public setter for is_frozen; this should never be tampered with externally
+
     # Managing hierarchy
-    ## 
+    ## Explicitly banning parents
     def _pre_attach(self, parent : Primitive) -> None:
         raise ArborescenceError('Cannot make Root of hierarchy the child of another Primitive')
 
