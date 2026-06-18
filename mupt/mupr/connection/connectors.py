@@ -387,7 +387,7 @@ class Connector(RigidlyTransformable):
         return are_antialigned(self, other, within=within)
     
     @property
-    def locked(self) -> bool:
+    def is_locked(self) -> bool:
         '''Whether editing of neighbors is allowed'''
         return self._locked
 
@@ -395,11 +395,14 @@ class Connector(RigidlyTransformable):
         '''Block editing of neighbors'''
         self._locked = True
 
-    @property
     def unlock(self) -> None:
         '''Allow editing of neighbors'''
         self._locked = False
     
+    @property
+    def has_neighbor(self) -> bool:
+        return self._neighbor is not None
+
     @property
     def neighbor(self) -> Optional['Connector']:
         '''
@@ -410,8 +413,8 @@ class Connector(RigidlyTransformable):
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
-        if self._locked:
-            raise PermissionError('Neighbor of this Connector is read-only')
+        if self.is_locked:
+            raise PermissionError('Neighbor of this Connector is locked and cannot be modified')
 
         if not self.bondable_with(other):
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
@@ -424,6 +427,8 @@ class Connector(RigidlyTransformable):
 
     @neighbor.deleter
     def neighbor(self) -> None:
+        if self.has_neighbor and self.is_locked:
+            raise PermissionError('Neighbor of this Connector is locked and cannot be cleared')
         self._neighbor = None
 
     ## Copying and attr transfer methods
