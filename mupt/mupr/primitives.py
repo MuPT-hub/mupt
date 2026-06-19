@@ -111,7 +111,7 @@ def select_primitives(
         if criterion(prim):
             yield prim
 
-# Primitive types
+# Primitive base types
 class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     '''
     A fundamental, scale-agnostic building block of a molecular system
@@ -158,6 +158,30 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
                 criterion=criterion,
             )
 
+    # Hierarchy
+    def search_hierarchy_by(
+        self,
+        criterion : PrimitiveSelector,
+        halt_when : Optional[PrimitiveSelector]=None,
+        to_depth : Optional[int]=None,
+        min_count : Optional[int]=None,
+        max_count : Optional[int]=None,
+    ) -> tuple['Primitive']:
+        '''
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+        
+        Matching descendant Primitives are returned in traversal preorder from the root
+        '''
+        return findall(
+            self,
+            filter_=criterion,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
+
     # Depiction
     def __hash__(self) -> int: # Needs to be implemented for Primitives to be used as nodes in networkx graphs
         ...
@@ -180,6 +204,7 @@ class SupportsChildren(Primitive):
     def child(self, prim_addr : PrimitiveAddress) -> Primitive:
         ... # TODO: provide overload which uses a handle <-> address isomorphism
 
+    ## Freezing
     @property
     def is_frozen(self) -> bool:
         '''Whether or not the hierarchy tree is open to Connector modification'''
@@ -202,9 +227,27 @@ class SupportsChildren(Primitive):
         self._frozen = False
 
     # Topology
+    def set_connectivity_from_topology(
+        self,
+        topology : nx.Graph,
+        criterion : PrimitiveSelector,
+    ) -> None:
+        '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
+        prim_subselection = select_primitives(self.ancestors, criterion=criterion)
+        assert len(prim_subselection) == topology.number_of_nodes()
+        assert set(prim_subselection.keys()) == set(topology.nodes) # TODO: make return include labels for indication
+        
+        infer_connections_from_topology(
+            topology,
+            mapped_connectors={
+                prim_label : set(prim.connections.connectors)
+                    for prim_label, prim in prim_subselection.items()
+            },
+            n_iter_max=10*len(topology), # TB TODO: fill in actual llogic fordecisidng this - 10 is a number I made up for now
+        )
+
     def export_cross_section(self, criterion : PrimitiveSelector) -> nx.Graph:
         '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
-
         raise NotImplementedError
 
 class SupportsParents(Primitive):
@@ -218,7 +261,220 @@ class SupportsParents(Primitive):
     def _pre_detach(self, parent : Primitive) -> None:
         ...
 
+# Concrete primitive types
+## Tree root
+class RootPrimitive(SupportsChildren):
+    '''
+    Base of a hierarchy tree - no Primitives can exist above (i.e. own) this one
+    Used to store system-wide metadata, as well as provide hand-off point for interfaces
+    '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'ROOT'
 
+    def __init__(
+        self,
+        box_vectors : Optional[Array3x3]=None,
+        shape : Optional[BoundedTransformableShape]=None,
+        metadata : Optional[dict[Hashable, Any]]=None,
+    ) -> None:
+        if box_vectors is None:
+            box_vectors = np.zeros(3, 3, dtype=float)
+        self.box_vectors = box_vectors
+
+        self.connections = ConnectorManagerMutable()
+        self._shape = shape
+        self.metadata = metadata or dict()
+
+        self._frozen : bool = False
+
+    # DEV: deliverately excluded public setter for is_frozen; this should never be tampered with externally
+
+    # Managing hierarchy
+    ## Explicitly banning parents
+    def _pre_attach(self, parent : Primitive) -> None:
+        raise ArborescenceError('Cannot make Root of hierarchy the child of another Primitive')
+
+    def _pre_detach(self, parent : Primitive) -> None:
+        raise ArborescenceError('Invalid state: Root is somehow the child of another Primitive')
+
+    ## TB DEV: find way to consolidate logic for these with Composites?
+    def attach_child(self, child : Primitive) -> PrimitiveHandle:
+        ...
+
+    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        ...
+   
+## Composites
+class FrozenCompositePrimitive(SupportsChildren, SupportsParents):
+    '''
+    Primitive representing intermediate levels of chemical organization which is Immutable after instantiation
+    Validation checks are front-loaded and property lookups are cached at initialization time
+    '''
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE_FROZEN'
+
+    def __init__(
+        self,
+        children : UniqueRegistry[PrimitiveHandle, Primitive],
+        shape : Optional[BoundedTransformableShape]=None,
+        metadata : Optional[dict]=None, 
+    ) -> None:
+        # Validate and extract connection info
+        connections : ConnectorManager = ConnectorManagerFrozen() # TODO: specify this subtype
+        for child in children:
+            child.parent = self
+            connections.register_connectors(
+                free=child.connections.connectors_free,
+                bound=child.connections.connectors_bound,
+            )
+
+        ## make prvate and force immutable
+        self.__connections = connections
+        
+        # Validate and set topology
+        # check_primitive_registry_bijective_to_topology_nodes(children, topology)
+        # check_connections_bijective_to_topology_edges(connections, topology)
+        
+        self.__shape = shape
+        self.__metadata = metadata or dict()
+    
+    # Protected access properties
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]:
+        return self.__shape
+    
+    @property
+    def metadata(self) -> dict[Hashable, Any]:
+        return self.__metadata # DEV: is it possible (or worth it) to prevent the object handed back from being edited (e.g. a View?)
+
+    # Managing Connections
+    ...
+
+    # cached properties
+    ...
+        
+    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def _copy_untransformed(self) -> 'Primitive':
+        raise NotImplementedError
+        
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
+        # TB DEV: shouldn't even be possible, if truly immutable
+        raise NotImplementedError
+        
+class MutableCompositePrimitive(SupportsChildren, SupportsParents):
+    '''
+    Primitive representing intermediate levels of chemical organization which allows for dynamic modification 
+    of its internal structure (i.e. adding/removing children and connections at will)
+    '''
+    def __init__(
+        self,
+        children : Optional[Iterable[Primitive]]=None,
+        shape : Optional[BoundedTransformableShape]=None,
+        metadata : Optional[dict]=None, 
+    ) -> None:
+        self.connections : ConnectorManager = ConnectorManagerMutable()
+        self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
+        
+        # Bind subprimitives and set connectivity, if possible
+        for subprimitive in children:
+            self.attach_child(subprimitive)
+
+        if children is None:
+            children = tuple()
+        self.children = children
+        
+        self._shape = shape
+        self.metadata = metadata or dict()
+    
+    # Hierarchy management
+    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        return self.children_by_address[prim_addr] # raise KeyError if not present
+
+    ## Attaching new children
+    def _pre_attach(self, parent : 'MutableCompositePrimitive') -> None:
+        '''Preconditions prior to attempting attachment of this Primitive to a parent'''
+        if not isinstance(parent, MutableCompositePrimitive):
+            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Primitive instances')
+    
+    def attach_child(self, child : Primitive) -> PrimitiveHandle:
+        '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
+        child.parent = self
+        
+        child_address : PrimitiveAddress = child.address()
+        self.children_by_address[child_address] = child
+        
+        # for conn_addr, conn in child.connectors_by_address.items():
+        #     self.connector_is_internal[conn_addr] = False # all new connectors are external by default until their are paired into a connection
+        #     self.connector_origin_address[conn_addr] = child_address
+    
+    def _post_attach(self, parent : 'MutableCompositePrimitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        ...
+
+    ## Detaching extant children
+    def _pre_detach(self, parent : 'Primitive') -> None:
+        '''Preconditions prior to attempting detachment of this Primitive from a parent'''
+        if not isinstance(parent, MutableCompositePrimitive):
+            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Prmitive instances')
+        
+    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        subprimitive = self.child(prim_addr)
+        subprimitive.parent = None
+        
+        del self.children_by_address[prim_addr]
+        # for conn_addr, conn in subprimitive.connectors_by_address.items():
+        #     del self.connector_is_internal[conn_addr]
+        #     del self.connector_origin_address[conn_addr]
+            # TODO: free Connectors at the "other end" of any connections to these Connectors
+        
+        return subprimitive
+    
+    def _post_detach(self, parent : 'Primitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        ...
+    
+    ## Topology
+    ...
+
+    # Resolution shift operations
+    def expand(self) -> None:
+        '''Replace this Primitive with its children, preserving connections and traces'''
+        raise NotImplementedError
+
+    def flatten(self) -> None:
+        '''Recursively expand until all childless subprimitives are depth 1 below this one'''
+        raise NotImplementedError
+
+    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
+        '''
+        Insert a new level of Primitive between this Composite and its children,
+        with each part of the provided partition forming a new child Primitive
+        
+        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts")
+        can be specified via the "implicit_parts" argument
+        ''' # DEV: eventually, make enum for implicit_parts behavior
+        raise NotImplementedError
+
+    def truncate(self) -> None:
+        '''
+        Replace this MutableComposite with an analogous MutableSimple,
+        disconnecting all children from the rest of the hierarchy tree
+        '''
+        raise NotImplementedError
+        
+    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def _copy_untransformed(self) -> 'Primitive':
+        raise NotImplementedError
+
+# DEV: chose deliberately to not make this a method of any composite subtype
+# to avoid requiring subtypes to have awareness of one another in their impl
+def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
+    '''
+    Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
+    '''
+    if isinstance(composite, FrozenCompositePrimitive):
+        return composite
+    
+    raise NotImplementedError
+  
 ## Simples
 class SimplePrimitive(SupportsParents):
     '''
@@ -315,278 +571,7 @@ class AtomicPrimitive(SimplePrimitive):
     
     def canonical_form(self) -> str:
         return f'{self.element.symbol}{canonical_form_primitive(self)}'
-    
-## Composites
-class CompositePrimitive(SupportsChildren, SupportsParents):
-    '''
-    A Primitive with an internal structure of "child" Primitives within it
-    Internal attributes about children, their Connectors, and the Topology connecting are immutable after instantiation
 
-    CompositePrimitives form the branches of the a representation hierarchy tree
-    '''
-    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE'
-               
-    # Hierarchy
-    def search_hierarchy_by(
-        self,
-        criterion : PrimitiveSelector,
-        halt_when : Optional[PrimitiveSelector]=None,
-        to_depth : Optional[int]=None,
-        min_count : Optional[int]=None,
-        max_count : Optional[int]=None,
-    ) -> tuple['Primitive']:
-        '''
-        Return all Primitives below this one in the hierarchy (not just children,
-        but anything below them as well!) which match the provided condition.
-        
-        Matching descendant Primitives are returned in traversal preorder from the root
-        '''
-        return findall(
-            self,
-            filter_=criterion,
-            stop=halt_when,
-            maxlevel=to_depth,
-            mincount=min_count,
-            maxcount=max_count,
-        )
-        
-    # Topology
-    ...
-
-class FrozenCompositePrimitive(CompositePrimitive):
-    '''
-    Composite which is Immutable after instantiation
-    Validation checks are front-loaded and property lookups are cached at initialization time
-    '''
-    def __init__(
-        self,
-        children : UniqueRegistry[PrimitiveHandle, Primitive],
-        shape : Optional[BoundedTransformableShape]=None,
-        metadata : Optional[dict]=None, 
-    ) -> None:
-        # Validate and extract connection info
-        connections : ConnectorManager = ConnectorManagerFrozen() # TODO: specify this subtype
-        for child in children:
-            child.parent = self
-            connections.register_connectors(
-                free=child.connections.connectors_free,
-                bound=child.connections.connectors_bound,
-            )
-
-        ## make prvate and force immutable
-        self.__connections = connections
-        
-        # Validate and set topology
-        # check_primitive_registry_bijective_to_topology_nodes(children, topology)
-        # check_connections_bijective_to_topology_edges(connections, topology)
-        
-        self.__shape = shape
-        self.__metadata = metadata or dict()
-    
-    # Protected access properties
-    @property
-    def shape(self) -> Optional[BoundedTransformableShape]:
-        return self.__shape
-    
-    @property
-    def metadata(self) -> dict[Hashable, Any]:
-        return self.__metadata # DEV: is it possible (or worth it) to prevent the object handed back from being edited (e.g. a View?)
-
-    # Managing Connections
-    ...
-
-    # cached properties
-    ...
-        
-    # Overriding RigidlyTransformable contracts to apply recursively to children as well
-    def _copy_untransformed(self) -> 'Primitive':
-        raise NotImplementedError
-        
-    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
-        # TB DEV: shouldn't even be possible, if truly immutable
-        raise NotImplementedError
-        
-class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by far the closest to the current Primitive impl
-    '''
-    A CompositePrimitive which allows for dynamic modification of its internal structure
-    (i.e. adding/removing children and connections at will)
-    '''
-    def __init__( # DEV: could omit entirely; repeated for documentation purposes, and in case extra init config needs to be addeds
-        self,
-        children : Optional[Iterable[Primitive]]=None,
-        shape : Optional[BoundedTransformableShape]=None,
-        metadata : Optional[dict]=None, 
-    ) -> None:
-        # Initialize bookkeeping attrs
-        self.connections : ConnectorManager = ConnectorManagerMutable()
-        self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
-        
-        # Bind subprimitives and set connectivity, if possible
-        for subprimitive in children:
-            self.attach_child(subprimitive)
-
-        if children is None:
-            children = tuple()
-        self.children = children
-        
-        self._shape = shape
-        self.metadata = metadata or dict()
-
-    # Managing Connections
-    ...
-    
-    # Hierarchy management
-    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        return self.children_by_address[prim_addr] # raise KeyError if not present
-
-    ## Attaching new children
-    def _pre_attach(self, parent : 'MutableCompositePrimitive') -> None:
-        '''Preconditions prior to attempting attachment of this Primitive to a parent'''
-        if not isinstance(parent, MutableCompositePrimitive):
-            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Primitive instances')
-    
-    def attach_child(self, child : Primitive) -> PrimitiveHandle:
-        '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
-        child.parent = self
-        
-        child_address : PrimitiveAddress = child.address()
-        self.children_by_address[child_address] = child
-        
-        # for conn_addr, conn in child.connectors_by_address.items():
-        #     self.connector_is_internal[conn_addr] = False # all new connectors are external by default until their are paired into a connection
-        #     self.connector_origin_address[conn_addr] = child_address
-    
-    def _post_attach(self, parent : 'MutableCompositePrimitive') -> None:
-        '''Post-actions to take once attachment is verified and parent is bound'''
-        ...
-
-    ## Detaching extant children
-    def _pre_detach(self, parent : 'Primitive') -> None:
-        '''Preconditions prior to attempting detachment of this Primitive from a parent'''
-        if not isinstance(parent, MutableCompositePrimitive):
-            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Prmitive instances')
-        
-    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        subprimitive = self.child(prim_addr)
-        subprimitive.parent = None
-        
-        del self.children_by_address[prim_addr]
-        # for conn_addr, conn in subprimitive.connectors_by_address.items():
-        #     del self.connector_is_internal[conn_addr]
-        #     del self.connector_origin_address[conn_addr]
-            # TODO: free Connectors at the "other end" of any connections to these Connectors
-        
-        return subprimitive
-    
-    def _post_detach(self, parent : 'Primitive') -> None:
-        '''Post-actions to take once attachment is verified and parent is bound'''
-        ...
-    
-    ## Managing connections
-    ...
-
-    ## Topology editing
-    def set_connectivity_from_topology(
-        self,
-        topology : nx.Graph,
-        criterion : PrimitiveSelector,
-    ) -> None:
-        '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
-        prim_subselection.items() = select_primitives(self.ancestors, criterion=criterion)
-        assert len(prim_subselection.items()) == topology.number_of_nodes()
-        assert set(prim_subselection.items().keys()) == set(topology.nodes) # TODO: make return include labels for indication
-        
-        infer_connections_from_topology(
-            topology,
-            mapped_connectors={
-                prim_label : set(prim.connections.connectors)
-                    for prim_label, prim in prim_subselection.items()
-            },
-            n_iter_max=10*len(topology), # TB TODO: fill in actual llogic fordecisidng this - 10 is a number I made up for now
-        )
-
-    # Resolution shift operations
-    def expand(self) -> None:
-        '''Replace this Primitive with its children, preserving connections and traces'''
-        raise NotImplementedError
-
-    def flatten(self) -> None:
-        '''Recursively expand until all childless subprimitives are depth 1 below this one'''
-        raise NotImplementedError
-
-    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
-        '''
-        Insert a new level of Primitive between this Composite and its children,
-        with each part of the provided partition forming a new child Primitive
-        
-        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts")
-        can be specified via the "implicit_parts" argument
-        ''' # DEV: eventually, make enum for implicit_parts behavior
-        raise NotImplementedError
-
-    def truncate(self) -> None:
-        '''
-        Replace this MutableComposite with an analogous MutableSimple,
-        disconnecting all children from the rest of the hierarchy tree
-        '''
-        raise NotImplementedError
-        
-    # Overriding RigidlyTransformable contracts to apply recursively to children as well
-    def _copy_untransformed(self) -> 'Primitive':
-        raise NotImplementedError
-
-# DEV: chose deliberately to not make this a method of any composite subtype
-# to avoid requiring subtypes to have awareness of one another in their impl
-def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
-    '''
-    Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
-    '''
-    if isinstance(composite, FrozenCompositePrimitive):
-        return composite
-    
-    raise NotImplementedError
-
-# Tree roots
-class RootPrimitive(SupportsChildren):
-    '''
-    Base of a hierarchy tree - no Primitives can exist above (i.e. own) this one
-    Used to store system-wide metadata, as well as provide hand-off point for interfaces
-    '''
-    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'ROOT'
-
-    def __init__(
-        self,
-        box_vectors : Optional[Array3x3]=None,
-        shape : Optional[BoundedTransformableShape]=None,
-        metadata : Optional[dict[Hashable, Any]]=None,
-    ) -> None:
-        if box_vectors is None:
-            box_vectors = np.zeros(3, 3, dtype=float)
-        self.box_vectors = box_vectors
-
-        self.connections = ConnectorManagerMutable()
-        self._shape = shape
-        self.metadata = metadata or dict()
-
-        self._frozen : bool = False
-
-    # DEV: deliverately excluded public setter for is_frozen; this should never be tampered with externally
-
-    # Managing hierarchy
-    ## Explicitly banning parents
-    def _pre_attach(self, parent : Primitive) -> None:
-        raise ArborescenceError('Cannot make Root of hierarchy the child of another Primitive')
-
-    def _pre_detach(self, parent : Primitive) -> None:
-        raise ArborescenceError('Invalid state: Root is somehow the child of another Primitive')
-
-    ## TB DEV: find way to consolidate logic for these with Composites?
-    def attach_child(self, child : Primitive) -> PrimitiveHandle:
-        ...
-
-    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        ...
-    
 
 # Hashable canonical forms for core components
 def canonical_form_shape(primitive : Primitive) -> str:
