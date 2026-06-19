@@ -49,7 +49,7 @@ from connection.management import (
 )
 
 from .topology import GraphLayout, canonical_graph_property
-from .embedding import (
+from .linking import (
     infer_connections_from_topology,
     flexible_connector_reference,
     check_primitive_registry_bijective_to_topology_nodes,
