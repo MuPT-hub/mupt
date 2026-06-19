@@ -114,7 +114,7 @@ def select_primitives(
 # Primitive types
 class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     '''
-    A fundamental, scale-agnostic building block of a molecular system, as represented my MuPT
+    A fundamental, scale-agnostic building block of a molecular system
     '''
     # Attributes
     ## Expected classwide attributes
@@ -152,10 +152,11 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     # Topology
     def neighbors(self, criterion : Optional[PrimitiveSelector]=None) -> Generator['Primitive', None, None]:
         '''Primitives whose share a Connection with this one'''
-        yield from select_primitives(
-            (conn.manager.owner for conn in self.connections.connectors_bound),
-            criterion=criterion,
-        )
+        for conn in self.connections.connectors_bound:
+            yield from select_primitives(
+                conn.holders,
+                criterion=criterion,
+            )
 
     # Depiction
     def __hash__(self) -> int: # Needs to be implemented for Primitives to be used as nodes in networkx graphs
@@ -168,9 +169,58 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     # def __repr__(self) -> str:
     #     raise NotImplementedError # TODO - will likely have to change for subtypes
     
+class SupportsChildren(Primitive):
+    '''
+    Type of Primitive which is allowed to have other Primitives "beneath" it in a hierarchy
+    I.e. in a rooted tree, these Primitives are nodes which allow OUTGOING directed edges
+    '''
+    # Hierarchy
+    children_by_address : Mapping[PrimitiveAddress, Primitive]    
     
+    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        ... # TODO: provide overload which uses a handle <-> address isomorphism
+
+    @property
+    def is_frozen(self) -> bool:
+        '''Whether or not the hierarchy tree is open to Connector modification'''
+        return self._frozen
+    
+    def freeze(self) -> None:
+        '''Prevent any connection within the hierarchy from being mutated'''
+        # TB: also freeze child/parents?
+        for child in self.ancestors:
+            new_connections = ConnectorManagerFrozen(vars(child.connections)) # TODO: this handoff need works 
+            child.connections = new_connections
+        self._frozen = True
+
+    def unfreeze(self) -> None:
+        '''Enable mutation of connectivity throughout the hierarchy'''
+        # TB: also unfreeze child/parents?
+        for child in self.ancestors:
+            new_connections = ConnectorManagerMutable(vars(child.connections)) # TODO: this handoff need works 
+            child.connections = new_connections
+        self._frozen = False
+
+    # Topology
+    def export_cross_section(self, criterion : PrimitiveSelector) -> nx.Graph:
+        '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
+
+        raise NotImplementedError
+
+class SupportsParents(Primitive):
+    '''
+    Type of Primitive which is allowed to have other Primitives "above" it in a hierarchy
+    I.e. in a rooted tree, these Primitives are nodes which allow INCOMING directed edges
+    '''
+    def _pre_attach(self, parent : Primitive) -> None:
+        ...
+
+    def _pre_detach(self, parent : Primitive) -> None:
+        ...
+
+
 ## Simples
-class SimplePrimitive(Primitive):
+class SimplePrimitive(SupportsParents):
     '''
     A Primitive with no internal structure (i.e. no children, topology, or internal connections)
     Used to explicitly demarcate "leaf" Primitives in a representation hierarchy
@@ -223,14 +273,6 @@ class SimplePrimitive(Primitive):
     def _pre_detach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
     
-    def _copy_untransformed(self) -> 'SimplePrimitive':
-        '''Return a new Primitive with the same information and children as this one, but which has no parent'''
-        return self.__class__( # DEV: needs augmentation when called on subtypes to get additional info to transfer correctly
-            connections=self.connections.copy(), # TODO: implement this
-            shape=(None if self.shape is None else self.shape.copy()),
-            metadata=deepcopy(self.metadata),
-        )
-    
 class AtomicPrimitive(SimplePrimitive):
     '''
     A Primitive representing a single atom from the periodic table
@@ -262,7 +304,7 @@ class AtomicPrimitive(SimplePrimitive):
     
     def check_valence(self) -> None:
         '''Check that element assigned to atomic Primitives and bond orders of Connectors are chemically-compatible'''
-        valence = self.connections.valence
+        valence : float = self.connections.valence
         if not valence_allowed(
             self.element.number,
             self.element.charge,
@@ -275,7 +317,7 @@ class AtomicPrimitive(SimplePrimitive):
         return f'{self.element.symbol}{canonical_form_primitive(self)}'
     
 ## Composites
-class CompositePrimitive(Primitive):
+class CompositePrimitive(SupportsChildren, SupportsParents):
     '''
     A Primitive with an internal structure of "child" Primitives within it
     Internal attributes about children, their Connectors, and the Topology connecting are immutable after instantiation
@@ -283,18 +325,12 @@ class CompositePrimitive(Primitive):
     CompositePrimitives form the branches of the a representation hierarchy tree
     '''
     DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE'
-    
-    children_by_address : Mapping[PrimitiveAddress, Primitive]    
-    
-    # Inspecting children of Composite
-    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        ... # TODO: provide overload which uses a handle <-> address isomorphism
-            
-    # Search
+               
+    # Hierarchy
     def search_hierarchy_by(
         self,
-        condition : Callable[['Primitive'], bool],
-        halt_when : Optional[Callable[['Primitive'], bool]]=None,
+        criterion : PrimitiveSelector,
+        halt_when : Optional[PrimitiveSelector]=None,
         to_depth : Optional[int]=None,
         min_count : Optional[int]=None,
         max_count : Optional[int]=None,
@@ -307,7 +343,7 @@ class CompositePrimitive(Primitive):
         '''
         return findall(
             self,
-            filter_=condition,
+            filter_=criterion,
             stop=halt_when,
             maxlevel=to_depth,
             mincount=min_count,
@@ -315,9 +351,7 @@ class CompositePrimitive(Primitive):
         )
         
     # Topology
-    def export_cross_section(self, criterion : Callable[[Primitive], bool]) -> nx.Graph:
-        '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
-        raise NotImplementedError
+    ...
 
 class FrozenCompositePrimitive(CompositePrimitive):
     '''
@@ -446,6 +480,7 @@ class MutableCompositePrimitive(CompositePrimitive): # DEV: this will behave by 
     
     def _post_detach(self, parent : 'Primitive') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
+        ...
     
     ## Managing connections
     ...
@@ -512,7 +547,7 @@ def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
     raise NotImplementedError
 
 # Tree roots
-class RootPrimitive(Primitive):
+class RootPrimitive(SupportsChildren):
     '''
     Base of a hierarchy tree - no Primitives can exist above (i.e. own) this one
     Used to store system-wide metadata, as well as provide hand-off point for interfaces
@@ -535,28 +570,6 @@ class RootPrimitive(Primitive):
 
         self._frozen : bool = False
 
-    # Hierarchy freezing/unfreezing
-    @property
-    def is_frozen(self) -> bool:
-        '''Whether or not the hierarchy tree is open to Connector modification'''
-        return self._frozen
-    
-    def freeze(self) -> None:
-        '''Prevent any connection within the hierarchy from being mutated'''
-        # TB: also freeze child/parents?
-        for child in self.ancestors:
-            new_connections = ConnectorManagerFrozen(vars(child.connections)) # TODO: this handoff need works 
-            child.connections = new_connections
-        self._frozen = True
-
-    def unfreeze(self) -> None:
-        '''Enable mutation of connectivity throughout the hierarchy'''
-        # TB: also unfreeze child/parents?
-        for child in self.ancestors:
-            new_connections = ConnectorManagerMutable(vars(child.connections)) # TODO: this handoff need works 
-            child.connections = new_connections
-        self._frozen = False
-    
     # DEV: deliverately excluded public setter for is_frozen; this should never be tampered with externally
 
     # Managing hierarchy
