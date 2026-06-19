@@ -125,6 +125,8 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     connections : ConnectorManager
     metadata : dict[Hashable, Any]
 
+    _frozen_connections : bool
+
     # Derived properties
     @property
     def label(self) -> PrimitiveLabel:
@@ -157,6 +159,34 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
                 conn.holders,
                 criterion=criterion,
             )
+
+    ## Freezing
+    @property
+    def frozen_connections(self) -> bool:
+        '''Whether or not the hierarchy tree is open to Connector modification'''
+        return self._frozen_connections
+    
+    def _freeze_connections_local(self) -> None:
+        '''Force Connectors on this Primitive to be immutable and cached (without recursive calls)'''
+        self.connections = ConnectorManagerFrozen(vars(self.connections)) # TODO: this handoff need work
+
+    def freeze_connections(self) -> None:
+        '''Prevent any connection within the hierarchy from being mutated'''
+        self._freeze_connections_local()
+        for subprimitive in self.children:
+            subprimitive._freeze_connections_local()
+        self._frozen_connections = True # don't update flag until recursive call completes
+
+    def _unfreeze_connections_local(self) -> None:
+        '''Allow Connectors on this Primitive to be mutated (without recursive calls)'''
+        self.connections = ConnectorManagerMutable(vars(self.connections)) # TODO: this handoff need work
+
+    def unfreeze_connections(self) -> None:
+        '''Enable mutation of connectivity throughout the hierarchy'''
+        self._unfreeze_connections_local()
+        for subprimitive in self.ancestors:
+            subprimitive._unfreeze_connections_local()
+        self._frozen_connections = False # don't update flag until recursive call completes
 
     # Hierarchy
     def search_hierarchy_by(
@@ -202,29 +232,15 @@ class SupportsChildren(Primitive):
     children_by_address : Mapping[PrimitiveAddress, Primitive]    
     
     def child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        ... # TODO: provide overload which uses a handle <-> address isomorphism
+        # TODO: provide overload which uses a handle <-> address isomorphism
+        return self.children_by_address[prim_addr] # raise KeyError if not present
 
-    ## Freezing
-    @property
-    def is_frozen(self) -> bool:
-        '''Whether or not the hierarchy tree is open to Connector modification'''
-        return self._frozen
-    
-    def freeze(self) -> None:
-        '''Prevent any connection within the hierarchy from being mutated'''
-        # TB: also freeze child/parents?
-        for child in self.ancestors:
-            new_connections = ConnectorManagerFrozen(vars(child.connections)) # TODO: this handoff need works 
-            child.connections = new_connections
-        self._frozen = True
-
-    def unfreeze(self) -> None:
-        '''Enable mutation of connectivity throughout the hierarchy'''
-        # TB: also unfreeze child/parents?
-        for child in self.ancestors:
-            new_connections = ConnectorManagerMutable(vars(child.connections)) # TODO: this handoff need works 
-            child.connections = new_connections
-        self._frozen = False
+    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def _copy_untransformed(self) -> 'Primitive':
+        raise NotImplementedError
+        
+    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
+        raise NotImplementedError
 
     # Topology
     def set_connectivity_from_topology(
@@ -284,8 +300,6 @@ class RootPrimitive(SupportsChildren):
         self._shape = shape
         self.metadata = metadata or dict()
 
-        self._frozen : bool = False
-
     # DEV: deliverately excluded public setter for is_frozen; this should never be tampered with externally
 
     # Managing hierarchy
@@ -319,14 +333,9 @@ class FrozenCompositePrimitive(SupportsChildren, SupportsParents):
     ) -> None:
         # Validate and extract connection info
         connections : ConnectorManager = ConnectorManagerFrozen() # TODO: specify this subtype
-        for child in children:
-            child.parent = self
-            connections.register_connectors(
-                free=child.connections.connectors_free,
-                bound=child.connections.connectors_bound,
-            )
 
-        ## make prvate and force immutable
+
+        ## make private and force immutable
         self.__connections = connections
         
         # Validate and set topology
@@ -345,19 +354,8 @@ class FrozenCompositePrimitive(SupportsChildren, SupportsParents):
     def metadata(self) -> dict[Hashable, Any]:
         return self.__metadata # DEV: is it possible (or worth it) to prevent the object handed back from being edited (e.g. a View?)
 
-    # Managing Connections
-    ...
-
     # cached properties
     ...
-        
-    # Overriding RigidlyTransformable contracts to apply recursively to children as well
-    def _copy_untransformed(self) -> 'Primitive':
-        raise NotImplementedError
-        
-    def _rigidly_transform(self, transformation : RigidTransform) -> None: 
-        # TB DEV: shouldn't even be possible, if truly immutable
-        raise NotImplementedError
         
 class MutableCompositePrimitive(SupportsChildren, SupportsParents):
     '''
@@ -370,24 +368,26 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ) -> None:
-        self.connections : ConnectorManager = ConnectorManagerMutable()
-        self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
         
         # Bind subprimitives and set connectivity, if possible
-        for subprimitive in children:
-            self.attach_child(subprimitive)
-
+        self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
         if children is None:
             children = tuple()
         self.children = children
-        
+
+        connections : ConnectorManager = ConnectorManagerMutable()
+        for subprimitive in children:
+            self.attach_child(subprimitive)
+            connections.register_connectors(
+                free=subprimitive.connections.connectors_free,
+                bound=subprimitive.connections.connectors_bound,
+            )
+
         self._shape = shape
         self.metadata = metadata or dict()
+        self.connections = connections
     
     # Hierarchy management
-    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        return self.children_by_address[prim_addr] # raise KeyError if not present
-
     ## Attaching new children
     def _pre_attach(self, parent : 'MutableCompositePrimitive') -> None:
         '''Preconditions prior to attempting attachment of this Primitive to a parent'''
