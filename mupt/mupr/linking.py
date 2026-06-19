@@ -1,10 +1,7 @@
-'''Utilities for verifying (and producing) relationships between Topologies and other MuPT core components'''
-
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
-# DEVNOTE: this is not a submodule under topology to avoid circular imports
-# and to shelter MID Graphs from needing to know about HOW they're embedded
+'''
+Utilities for linking Connectors to form two-way bonded connections
+in a MuPT representation based on global topology specification
+'''
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -43,22 +40,21 @@ Connection = tuple[Connector, Connector]
 from ..mutils.containers import UniqueRegistry
 
 
-class GraphEmbeddingError(ValueError):
+class BijectionError(ValueError):
+    '''Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched'''
+    ...
+
+class GraphLinkingError(ValueError):
     '''Raised when an invalid mapping to a graph is encountered'''
     ...
 
-class NodeEmbeddingError(GraphEmbeddingError):
+class NodeMappingError(GraphLinkingError):
     '''Raised when an invalid mapping between an object and a graph node is encountered'''
     ...
 
-class EdgeEmbeddingError(GraphEmbeddingError):
+class EdgeMissingError(GraphLinkingError):
     '''Raised when an invalid mapping between a pair of objects and a graph edge is encountered'''
     ...
-
-class BijectionError(ValueError):
-    '''Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched'''
-    pass
-
 
 # Validators
 def check_connections_compatible_with_primitive_registry(
@@ -221,7 +217,7 @@ def infer_connections_from_topology(
     """
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
         # weaker requirement of containing (rather than being equal) to vertex set suffices
-        raise NodeEmbeddingError('Connector collection labels do not match topology node labels')
+        raise NodeMappingError('Connector collection labels do not match topology node labels')
 
     # Initialize containers for tracking pairing progress
     num_total_edges : int = topology.number_of_edges()
@@ -274,7 +270,7 @@ def infer_connections_from_topology(
                 unpaired_updated.add(edge_labels) # "try again next time!"
                 continue
             elif (compatible_class_labels is None):
-                raise EdgeEmbeddingError(f'No compatible Connector pairs found for edge {edge_labels}')
+                raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
             ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
             chosen_representatives : set[ConnectorReference] = set()
@@ -302,7 +298,7 @@ def infer_connections_from_topology(
         # TODO: log exceedance of max number of loops?
         
     if any(unpaired_edges):
-        raise EdgeEmbeddingError(f'Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors')
+        raise EdgeMissingError(f'Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors')
         
     ## DEV: with the refactor to have all Child Connectors be external by default in Primitive...
     ## ...it's no longer necessary to compute which are external here (though we have enough info to do so, as shown)

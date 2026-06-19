@@ -12,7 +12,7 @@ from anytree import PreOrderIter
 import numpy as np
 
 from ...chemistry.core import BOND_ORDER
-from ...mupr.embedding import ConnectorReference
+from ...mupr.linking import ConnectorReference
 from ...mupr.primitives import Primitive
 from ...roles import PrimitiveRole
 
