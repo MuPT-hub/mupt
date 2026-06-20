@@ -1,6 +1,5 @@
 '''Defines interfaces and Protocols for types of object comparison among MuPT core objects'''
 
-
 from typing import Callable, Hashable, Iterable, Protocol, Self, TypeVar
 T = TypeVar('T')
 

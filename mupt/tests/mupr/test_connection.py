@@ -1,6 +1,5 @@
 '''Unit tests for Connectors, AttachmentPoints, and connection-related utilities'''
 
-
 import pytest
 
 from mupt.chemistry.core import BondType

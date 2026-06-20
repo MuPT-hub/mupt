@@ -1,6 +1,5 @@
 '''Reference and utilities for Prop attributes on RDKit objects (i.e. Atom, Bond, and Mol objects)'''
 
-
 from typing import Any, Callable, Optional, Union
 
 from rdkit.Chem.rdchem import Atom, Bond, Mol, RWMol

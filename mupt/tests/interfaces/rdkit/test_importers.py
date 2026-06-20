@@ -1,6 +1,5 @@
 '''Test that no information is lost when converting from and then back to RDKit Mols'''
 
-
 import pytest
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles

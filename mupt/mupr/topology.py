@@ -1,6 +1,5 @@
 '''Monomer Interconnectivity and Degree (MID) graphs, for encoding the topological connectivity of a polymer system'''
 
-
 from typing import (
     Callable,
     Generator,

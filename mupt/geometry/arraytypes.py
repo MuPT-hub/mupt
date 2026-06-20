@@ -1,6 +1,5 @@
 '''Typehints and shape enforcement for numpy arrays'''
 
-
 from typing import (
     Literal,
     Optional,

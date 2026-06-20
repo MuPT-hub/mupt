@@ -1,6 +1,5 @@
 '''Perception and manipulation of wild-type "linker" atoms in an RDKit molecule'''
 
-
 from typing import Generator
 
 from rdkit import Chem

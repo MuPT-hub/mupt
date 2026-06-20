@@ -1,6 +1,5 @@
 '''Utilities for handling proper rotations (i.e. elements of the special orthogonal group SO(3))'''
 
-
 import numpy as np
 from scipy.spatial.transform import Rotation
 

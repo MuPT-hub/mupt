@@ -2,7 +2,6 @@
 File to house various fixtures that are used by multiple tests.
 """
 
-
 import logging
 logger = logging.getLogger(__name__)
 

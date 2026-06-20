@@ -1,6 +1,5 @@
 '''Representations and calculation methods for crystallographic unit cells, lattice parameters, and lattice coordinates'''
 
-
 from typing import Generic
 from dataclasses import dataclass, field
 from numbers import Real

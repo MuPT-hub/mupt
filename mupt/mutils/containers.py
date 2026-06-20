@@ -1,6 +1,5 @@
 '''Custom data containers with useful properties'''
 
-
 from typing import (
     Callable,
     Generic,

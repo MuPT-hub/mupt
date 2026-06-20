@@ -3,7 +3,6 @@ Properties of Primitives used to assess compatibility with a particular task
 E.g. checking atomicity, linearity, adherence to a "standard" hierarchy, etc.
 """
 
-
 from .primitives import Primitive
 
 

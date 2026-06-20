@@ -1,6 +1,5 @@
 '''Markers for indicating the direction of connections, paths, and other oriented traversable objects'''
 
-
 from enum import Enum, StrEnum, auto
 
 

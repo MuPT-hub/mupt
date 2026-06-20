@@ -1,6 +1,5 @@
 '''Unit tests for homogeneous coordinate conversion and affine transforms'''
 
-
 import pytest
 from typing import Any
 import numpy as np

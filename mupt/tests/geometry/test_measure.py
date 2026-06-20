@@ -1,6 +1,5 @@
 '''Unit tests for vector measure operations'''
 
-
 import pytest
 
 import numpy as np

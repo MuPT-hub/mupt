@@ -1,6 +1,5 @@
 '''Calculations to determine if linear bases enjoy certian properties, such as orthogonality'''
 
-
 import numpy as np
 from ..arraytypes import Shape, N, NumericNP
 

@@ -1,6 +1,5 @@
 '''Unit tests for basis coordinate operations'''
 
-
 import pytest
 import numpy as np
 

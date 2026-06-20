@@ -1,6 +1,5 @@
 '''For determining and adjusting the sizes (measures) of geometric objects'''
 
-
 from typing import Optional
 import numpy as np
 

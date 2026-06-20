@@ -1,6 +1,5 @@
 '''For calculating locally-orthogonal coordinate systems and direction vectors'''
 
-
 import numpy as np
 from ..arraytypes import Shape, N, Dims, NumericNP
 

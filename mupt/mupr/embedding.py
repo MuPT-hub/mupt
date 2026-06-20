@@ -1,9 +1,7 @@
 '''Utilities for verifying (and producing) relationships between Topologies and other MuPT core components'''
 
-
 # DEVNOTE: this is not a submodule under topology to avoid circular imports
 # and to shelter MID Graphs from needing to know about HOW they're embedded
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

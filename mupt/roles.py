@@ -7,7 +7,6 @@ for export to external toolkits (e.g., MDAnalysis) without
 hard-coding assumptions about tree depth or structure.
 """
 
-
 from enum import Enum
 from anytree import PreOrderIter
 from typing import TYPE_CHECKING

@@ -1,6 +1,5 @@
 '''Utilities for applying rigid transformations to other objects (not necessarily just points!)'''
 
-
 from typing import Any, Mapping, Self, Sequence, Union
 from typing import Protocol, runtime_checkable
 

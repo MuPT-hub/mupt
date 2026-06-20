@@ -1,6 +1,5 @@
 '''Implementations of graph canonicalization, given a graph with an ordered coloring'''
 
-
 from typing import Callable, Hashable, Iterable, Protocol, runtime_checkable
 from collections import Counter
 

@@ -1,6 +1,5 @@
 '''Application and construction of common linear transformations from planar normal vectors'''
 
-
 import numpy as np
 from ..arraytypes import Shape, Dims, NumericNP, Vector3, Array3x3
 
