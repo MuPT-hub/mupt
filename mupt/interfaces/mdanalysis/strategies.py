@@ -39,10 +39,6 @@ class MDAExportStrategy(ABC):
     """Abstract strategy for collecting MDAnalysis-exportable topology data."""
 
     @abstractmethod
-    def validate(self, root: Primitive) -> None:
-        """Validate role assignment and hierarchy preconditions for export."""
-
-    @abstractmethod
     def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
         """Collect topology attributes from a Primitive hierarchy."""
 
@@ -78,10 +74,6 @@ class AllAtomExportStrategy(MDAExportStrategy):
     def label(self) -> str:
         """Human-readable strategy name."""
         return "All-atom"
-
-    def validate(self, root: Primitive) -> None:
-        """Validate role assignments needed for all-atom export."""
-        build_saamr_role_topology_index(root)
 
     def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
         """Walk the hierarchy once and gather MDAnalysis topology arrays/lists."""
@@ -165,10 +157,6 @@ class CoarseGrainedExportStrategy(MDAExportStrategy):
     @property
     def label(self) -> str:
         """Human-readable strategy name."""
-        raise NotImplementedError("Coarse-grained export is not yet implemented")
-
-    def validate(self, root: Primitive) -> None:
-        """Validate hierarchy for coarse-grained export."""
         raise NotImplementedError("Coarse-grained export is not yet implemented")
 
     def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
