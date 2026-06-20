@@ -111,6 +111,7 @@ def select_primitives(
         if criterion(prim):
             yield prim
 
+
 # Primitive base types
 class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     '''
@@ -236,15 +237,17 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         )
 
     # Depiction
-    def __hash__(self) -> int: # Needs to be implemented for Primitives to be used as nodes in networkx graphs
-        ...
+    def __hash__(self) -> int:
+        # NOTE: !CRITICAL! this be implemented if Primitives are to be used as nodes in networkx graphs
+        raise NotImplementedError
 
-    ## Stdout printing
-    # def __str__(self) -> str: # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
-    #     return self.canonical_form() # self.canonical_form_salted()
+    def __str__(self) -> str:
+        # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
+        # return self.canonical_form() # self.canonical_form_salted()
+        raise NotImplementedError
     
-    # def __repr__(self) -> str:
-    #     raise NotImplementedError # TODO - will likely have to change for subtypes
+    def __repr__(self) -> str:
+        raise NotImplementedError # TODO - will likely have to change for subtypes
     
 class SupportsChildren(Primitive):
     '''
@@ -465,7 +468,7 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
         self.metadata = metadata or dict()
         self.connections = connections
     
-    # Hierarchy management
+    # Hierarchy
     ...
 
     ## Resolution shift operations
@@ -588,7 +591,6 @@ class AtomicPrimitive(SimplePrimitive):
             self.element.charge,
             valence,
         ):
-            # raise ValueError(f'Atomic {self._repr_brief(include_functionality=True)} with total valence {self.valence} incompatible with assigned element {self.element!r}')
             raise ValueError(f'Atomic {self!r} with total valence {valence} incompatible with assigned element {self.element!r}')
     
     def canonical_form(self) -> str:
