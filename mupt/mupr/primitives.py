@@ -89,6 +89,7 @@ class MissingSubprimitiveError(KeyError):
     '''Raised when a child Primitive expected for a call is not present'''
     pass
 
+
 # Selection strategies
 PrimitiveSelector = Callable[['Primitive'], bool]
 
@@ -217,7 +218,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         self,
         criterion : PrimitiveSelector,
         halt_when : Optional[PrimitiveSelector]=None,
-        to_depth : Optional[int]=None,
+        to_depth  : Optional[int]=None,
         min_count : Optional[int]=None,
         max_count : Optional[int]=None,
     ) -> tuple['Primitive']:
@@ -283,13 +284,13 @@ class SupportsChildren(Primitive):
         self.children_by_address[child_address] = child
 
     ## Detachment
-    def _pre_detach_children(self, parent : 'Primitive') -> None:
+    def _pre_detach_children(self, parent : SupportsChildren) -> None:
         '''Preconditions prior to attempting detachment of this Primitive from a parent'''
         self._precondition_mutable_hierarchy(
             msg='Hierarchy modification is frozen on this Primitive; cannot detach extant outgoing node(s)'
         )
     
-    def _post_detach(self, parent : 'Primitive') -> None:
+    def _post_detach(self, parent : SupportsChildren) -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         ...
 
@@ -344,18 +345,18 @@ class SupportsParents(Primitive):
     # Hierarchy 
     ## TB: you might be thinking it would be more natural to have checks on Parents in SupportParent instead
     ## the reason for doing this instead is that setting children always calls `child.parent = new_parent_value` under the hood
-    def _pre_attach(self, parent : Primitive) -> None:
+    def _pre_attach(self, parent : SupportsChildren) -> None:
         self._precondition_mutable_hierarchy()
         parent._precondition_mutable_hierarchy()
 
-    def _post_attach(self, parent : Primitive) -> None:
+    def _post_attach(self, parent : SupportsChildren) -> None:
         ...
 
-    def _pre_detach(self, parent : Primitive) -> None:
+    def _pre_detach(self, parent : SupportsChildren) -> None:
         self._precondition_mutable_hierarchy()
         parent._precondition_mutable_hierarchy()
 
-    def _post_detach(self, parent : Primitive) -> None:
+    def _post_detach(self, parent : SupportsChildren) -> None:
         ...
 
 # Concrete primitive types
@@ -385,64 +386,20 @@ class RootPrimitive(SupportsChildren):
 
     # Managing hierarchy
     ## Explicitly banning parents
-    def _pre_attach(self, parent : Primitive) -> None:
+    def _pre_attach(self, parent : SupportsChildren) -> None:
         raise ArborescenceError('Cannot make Root of hierarchy the child of another Primitive')
 
-    def _pre_detach(self, parent : Primitive) -> None:
+    def _pre_detach(self, parent : SupportsChildren) -> None:
         raise ArborescenceError('Invalid state: Root is somehow the child of another Primitive')
-
-    ## TB DEV: find way to consolidate logic for these with Composites?
-    def attach_child(self, child : Primitive) -> PrimitiveHandle:
-        ...
-
-    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        ...
-   
+  
 ## Composites
-class FrozenCompositePrimitive(SupportsChildren, SupportsParents):
+class CompositePrimitive(SupportsChildren, SupportsParents):
     '''
-    Primitive representing intermediate levels of chemical organization which is Immutable after instantiation
-    Validation checks are front-loaded and property lookups are cached at initialization time
+    Primitive representing intermediate levels of organization in a chemical system;
+    In a representation hierarchy, always lives between Roots and Simples
     '''
-    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE_FROZEN'
+    DEFAULT_LABEL : ClassVar[PrimitiveLabel] = 'COMPOSITE'
 
-    def __init__(
-        self,
-        children : UniqueRegistry[PrimitiveHandle, Primitive],
-        shape : Optional[BoundedTransformableShape]=None,
-        metadata : Optional[dict]=None, 
-    ) -> None:
-        # Validate and extract connection info
-        connections : ConnectorManager = ConnectorManagerFrozen() # TODO: specify this subtype
-
-
-        ## make private and force immutable
-        self.__connections = connections
-        
-        # Validate and set topology
-        # check_primitive_registry_bijective_to_topology_nodes(children, topology)
-        # check_connections_bijective_to_topology_edges(connections, topology)
-        
-        self.__shape = shape
-        self.__metadata = metadata or dict()
-    
-    # Protected access properties
-    @property
-    def shape(self) -> Optional[BoundedTransformableShape]:
-        return self.__shape
-    
-    @property
-    def metadata(self) -> dict[Hashable, Any]:
-        return self.__metadata # DEV: is it possible (or worth it) to prevent the object handed back from being edited (e.g. a View?)
-
-    # cached properties
-    ...
-        
-class MutableCompositePrimitive(SupportsChildren, SupportsParents):
-    '''
-    Primitive representing intermediate levels of chemical organization which allows for dynamic modification 
-    of its internal structure (i.e. adding/removing children and connections at will)
-    '''
     def __init__(
         self,
         children : Optional[Iterable[Primitive]]=None,
@@ -474,10 +431,12 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
     ## Resolution shift operations
     def expand(self) -> None:
         '''Replace this Primitive with its children, preserving connections and traces'''
+        self._precondition_mutable_hierarchy()
         raise NotImplementedError
 
     def flatten(self) -> None:
         '''Recursively expand until all childless subprimitives are depth 1 below this one'''
+        self._precondition_mutable_hierarchy()
         raise NotImplementedError
 
     def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
@@ -488,6 +447,7 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
         Behavior of implicit parts (i.e. any not explicitly mentioned in "parts")
         can be specified via the "implicit_parts" argument
         ''' # DEV: eventually, make enum for implicit_parts behavior
+        self._precondition_mutable_hierarchy()
         raise NotImplementedError
 
     def truncate(self) -> None:
@@ -495,6 +455,7 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
         Replace this MutableComposite with an analogous MutableSimple,
         disconnecting all children from the rest of the hierarchy tree
         '''
+        self._precondition_mutable_hierarchy()
         raise NotImplementedError
         
     ## Topology
