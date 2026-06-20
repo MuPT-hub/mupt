@@ -1,8 +1,5 @@
 '''Decorators for modifying functions'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Callable, Concatenate, Iterable, Iterator, Optional, ParamSpec, TypeVar, Union
 
 T = TypeVar('T')

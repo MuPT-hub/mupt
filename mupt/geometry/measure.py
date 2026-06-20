@@ -1,8 +1,5 @@
 '''For determining and adjusting the sizes (measures) of geometric objects'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Optional
 import numpy as np
 

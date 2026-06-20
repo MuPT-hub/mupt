@@ -3,9 +3,6 @@ Properties of Primitives used to assess compatibility with a particular task
 E.g. checking atomicity, linearity, topology, neighbor valence, etc.
 '''
 
-__author__ = 'Timotej Bernat, Joseph R. Laforet Jr.'
-__email__ = 'timotej.bernat@colorado.edu, jola3134@colorado.edu'
-
 from .primitives import (
     Primitive,
     SimplePrimitive,

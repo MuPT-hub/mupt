@@ -11,9 +11,6 @@ the same entry point to support all-atom, coarse-grained, or
 custom export schemes.
 """
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 import logging
 
 LOGGER = logging.getLogger(__name__)

@@ -1,8 +1,5 @@
 '''Markers for indicating the direction of connections, paths, and other oriented traversable objects'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from enum import Enum, StrEnum, auto
 
 

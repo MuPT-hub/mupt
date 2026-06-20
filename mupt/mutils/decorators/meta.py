@@ -1,8 +1,5 @@
 '''Decorators for modifying other decorators'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Concatenate, Callable, ParamSpec, TypeAlias, TypeVar
 from functools import update_wrapper, wraps
 

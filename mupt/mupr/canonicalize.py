@@ -1,8 +1,5 @@
 '''Implementations of graph canonicalization, given a graph with an ordered coloring'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Callable, Hashable, Iterable, Protocol, runtime_checkable
 from collections import Counter
 

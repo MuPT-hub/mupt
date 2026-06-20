@@ -1,8 +1,5 @@
 '''Test that no information is lost when converting from and then back to RDKit Mols'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import pytest
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles

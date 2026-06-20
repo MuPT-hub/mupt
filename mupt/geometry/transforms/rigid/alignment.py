@@ -1,8 +1,5 @@
 '''For calculation of rigid transforms which force two bodies to be spatially coincident in some way'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Optional
 
 from scipy.spatial.transform import RigidTransform

@@ -1,8 +1,5 @@
 '''For representing cylindrical, rodlike bodies'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Literal, Optional
 
 import numpy as np

@@ -1,8 +1,5 @@
 '''Unit tests for containers module'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import pytest
 
 from typing import ClassVar, Hashable

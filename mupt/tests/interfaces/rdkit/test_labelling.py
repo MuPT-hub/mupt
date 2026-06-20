@@ -1,8 +1,5 @@
 '''Testing assignment of labels to RDKit objects'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import pytest
 
 from rdkit import Chem

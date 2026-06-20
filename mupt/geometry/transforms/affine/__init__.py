@@ -3,9 +3,6 @@ Transformations from the more general affine group, which allows scaling, origin
 as well as utilities from converting to and from homogeneous coordinates.
 '''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from .matrices import (
     AffineMatrix4x4,
     affine_matrix_from_linear_and_center,

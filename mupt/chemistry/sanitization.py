@@ -3,9 +3,6 @@ Wrappers and reference for RDKit Mol sanitization operations, aromaticity handli
 Intended to ensure consistent rules are applied when sanitizing within MuPT
 '''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Optional, Union
 
 from rdkit.Chem.rdchem import Mol

@@ -1,8 +1,5 @@
 '''Unit tests for basis coordinate operations'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import pytest
 import numpy as np
 

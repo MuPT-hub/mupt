@@ -1,8 +1,5 @@
 '''Utilities for interfacing with the anytree library (https://anytree.readthedocs.io/en/latest/)'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Union, Type
 
 from anytree import Node, NodeMixin

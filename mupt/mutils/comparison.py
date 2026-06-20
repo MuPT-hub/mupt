@@ -1,8 +1,5 @@
 '''Defines interfaces and Protocols for types of object comparison among MuPT core objects'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Callable, Hashable, Iterable, Protocol, Self, TypeVar
 T = TypeVar('T')
 

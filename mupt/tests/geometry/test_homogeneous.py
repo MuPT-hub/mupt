@@ -1,8 +1,5 @@
 '''Unit tests for homogeneous coordinate conversion and affine transforms'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import pytest
 from typing import Any
 import numpy as np

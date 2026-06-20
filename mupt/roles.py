@@ -7,9 +7,6 @@ for export to external toolkits (e.g., MDAnalysis) without
 hard-coding assumptions about tree depth or structure.
 """
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 from enum import Enum
 from anytree import PreOrderIter
 from typing import TYPE_CHECKING

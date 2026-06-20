@@ -1,8 +1,5 @@
 '''Exceptions specific to Connectors and related operations'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 
 class ConnectionError(Exception):
     '''Raised when Connector-related errors as encountered'''

@@ -1,8 +1,5 @@
 '''Fundamental, resolution-agnostic building blocks of chemical systems in the MuPT representation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

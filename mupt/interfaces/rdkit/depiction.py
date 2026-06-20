@@ -1,8 +1,5 @@
 '''Drawing config for RDKit molecule depiction'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.Draw import IPythonConsole
 

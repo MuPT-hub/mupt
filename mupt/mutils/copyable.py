@@ -1,8 +1,5 @@
 '''Generic Protocols for copyable objects'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
-
 from typing import Protocol, Self, runtime_checkable
 from functools import cached_property
 

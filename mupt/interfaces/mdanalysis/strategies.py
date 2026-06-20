@@ -1,8 +1,5 @@
 """Strategy implementations for MuPT -> MDAnalysis export."""
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from collections.abc import Hashable
