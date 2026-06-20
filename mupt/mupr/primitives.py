@@ -126,6 +126,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     metadata : dict[Hashable, Any]
 
     _frozen_connections : bool
+    _frozen_hierarchy : bool
 
     # Derived properties
     @property
@@ -139,6 +140,33 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
         ...
 
+    ## Mutability flags
+    @property
+    def frozen_connections(self) -> bool:
+        '''Whether or not the hierarchy tree is open to Connector modification'''
+        return self._frozen_connections
+    
+    def _precondition_mutable_connectors(
+        self,
+        msg : str='Connectors of this Primitive are read-only accessible',
+    ) -> None:
+        '''Boilerplate for checking if permission exists to modify connectivity of this Primitive'''
+        if self.frozen_connections:
+            raise PermissionError(msg)
+        
+    @property
+    def frozen_hierarchy(self) -> bool:
+        '''Whether or not editing incoming or outgoing nodes of this hierarchy is allowed'''
+        return self._frozen_hierarchy  
+
+    def _precondition_mutable_hierarchy(
+        self,
+        msg : str='Hierarchy of this Primitive is read-only accessible; no new incoming or outgoing relationships allowed',
+    ) -> None:
+        '''Boilerplate for checking if permission exists to modify hierarchical relationships to this Primitive'''
+        if self.frozen_hierarchy:
+            raise PermissionError(msg)
+
     # Geometry
     def _rigidly_transform(self, transformation : RigidTransform) -> None: 
         '''Apply a rigid transformation to all parts of a Primitive which support it'''
@@ -151,21 +179,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     def _copy_untransformed(self) -> Self:
         return NotImplemented
 
-    # Topology
-    def neighbors(self, criterion : Optional[PrimitiveSelector]=None) -> Generator['Primitive', None, None]:
-        '''Primitives whose share a Connection with this one'''
-        for conn in self.connections.connectors_bound:
-            yield from select_primitives(
-                conn.holders,
-                criterion=criterion,
-            )
-
-    ## Freezing
-    @property
-    def frozen_connections(self) -> bool:
-        '''Whether or not the hierarchy tree is open to Connector modification'''
-        return self._frozen_connections
-    
+    # Topology  
     def _freeze_connections_local(self) -> None:
         '''Force Connectors on this Primitive to be immutable and cached (without recursive calls)'''
         self.connections = ConnectorManagerFrozen(vars(self.connections)) # TODO: this handoff need work
@@ -187,6 +201,15 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         for subprimitive in self.ancestors:
             subprimitive._unfreeze_connections_local()
         self._frozen_connections = False # don't update flag until recursive call completes
+
+    ## Adjacency
+    def neighbors(self, criterion : Optional[PrimitiveSelector]=None) -> Generator['Primitive', None, None]:
+        '''Primitives whose share a Connection with this one'''
+        for conn in self.connections.connectors_bound:
+            yield from select_primitives(
+                conn.holders,
+                criterion=criterion,
+            )
 
     # Hierarchy
     def search_hierarchy_by(
@@ -229,13 +252,57 @@ class SupportsChildren(Primitive):
     I.e. in a rooted tree, these Primitives are nodes which allow OUTGOING directed edges
     '''
     # Hierarchy
-    children_by_address : Mapping[PrimitiveAddress, Primitive]    
-    
-    def child(self, prim_addr : PrimitiveAddress) -> Primitive:
+    ## Lookup
+    children_by_address : UniqueRegistry[PrimitiveAddress, Primitive]
+   
+    def child(self, prim_addr : PrimitiveAddress) -> SupportsParents:
         # TODO: provide overload which uses a handle <-> address isomorphism
         return self.children_by_address[prim_addr] # raise KeyError if not present
+    
+    ## Attachment
+    def _pre_attach_children(self, children : Iterable[SupportsParents]) -> None:
+        '''Preconditions prior to attempting attachment of this Primitive to a parent'''
+        ...
+        self._precondition_mutable_hierarchy(
+            msg='Hierarchy modification is frozen on this Primitive; cannot attach new outgoing nodes'
+        )
+    
+    def _post_attach_children(self, children : Iterable[SupportsParents]) -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        # TODO: remap connection info
+        ...
 
-    # Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def attach_child(self, child : Primitive, label : Optional[PrimitiveLabel]=None) -> PrimitiveHandle:
+        '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
+        child.parent = self
+        
+        child_address : PrimitiveAddress = child.address()
+        self.children_by_address[child_address] = child
+
+    ## Detachment
+    def _pre_detach_children(self, parent : 'Primitive') -> None:
+        '''Preconditions prior to attempting detachment of this Primitive from a parent'''
+        self._precondition_mutable_hierarchy(
+            msg='Hierarchy modification is frozen on this Primitive; cannot detach extant outgoing node(s)'
+        )
+    
+    def _post_detach(self, parent : 'Primitive') -> None:
+        '''Post-actions to take once attachment is verified and parent is bound'''
+        ...
+
+    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
+        subprimitive = self.child(prim_addr)
+        subprimitive.parent = None
+        
+        del self.children_by_address[prim_addr]
+        # for conn_addr, conn in subprimitive.connectors_by_address.items():
+        #     del self.connector_is_internal[conn_addr]
+        #     del self.connector_origin_address[conn_addr]
+            # TODO: free Connectors at the "other end" of any connections to these Connectors
+        
+        return subprimitive
+
+    ## Overriding RigidlyTransformable contracts to apply recursively to children as well
     def _copy_untransformed(self) -> 'Primitive':
         raise NotImplementedError
         
@@ -271,10 +338,21 @@ class SupportsParents(Primitive):
     Type of Primitive which is allowed to have other Primitives "above" it in a hierarchy
     I.e. in a rooted tree, these Primitives are nodes which allow INCOMING directed edges
     '''
+    # Hierarchy 
+    ## TB: you might be thinking it would be more natural to have checks on Parents in SupportParent instead
+    ## the reason for doing this instead is that setting children always calls `child.parent = new_parent_value` under the hood
     def _pre_attach(self, parent : Primitive) -> None:
+        self._precondition_mutable_hierarchy()
+        parent._precondition_mutable_hierarchy()
+
+    def _post_attach(self, parent : Primitive) -> None:
         ...
 
     def _pre_detach(self, parent : Primitive) -> None:
+        self._precondition_mutable_hierarchy()
+        parent._precondition_mutable_hierarchy()
+
+    def _post_detach(self, parent : Primitive) -> None:
         ...
 
 # Concrete primitive types
@@ -388,53 +466,9 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
         self.connections = connections
     
     # Hierarchy management
-    ## Attaching new children
-    def _pre_attach(self, parent : 'MutableCompositePrimitive') -> None:
-        '''Preconditions prior to attempting attachment of this Primitive to a parent'''
-        if not isinstance(parent, MutableCompositePrimitive):
-            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Primitive instances')
-    
-    def attach_child(self, child : Primitive) -> PrimitiveHandle:
-        '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
-        child.parent = self
-        
-        child_address : PrimitiveAddress = child.address()
-        self.children_by_address[child_address] = child
-        
-        # for conn_addr, conn in child.connectors_by_address.items():
-        #     self.connector_is_internal[conn_addr] = False # all new connectors are external by default until their are paired into a connection
-        #     self.connector_origin_address[conn_addr] = child_address
-    
-    def _post_attach(self, parent : 'MutableCompositePrimitive') -> None:
-        '''Post-actions to take once attachment is verified and parent is bound'''
-        ...
-
-    ## Detaching extant children
-    def _pre_detach(self, parent : 'Primitive') -> None:
-        '''Preconditions prior to attempting detachment of this Primitive from a parent'''
-        if not isinstance(parent, MutableCompositePrimitive):
-            raise TypeError('Only MutableCompositePrimitive can be dynamically made parents of other Prmitive instances')
-        
-    def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        subprimitive = self.child(prim_addr)
-        subprimitive.parent = None
-        
-        del self.children_by_address[prim_addr]
-        # for conn_addr, conn in subprimitive.connectors_by_address.items():
-        #     del self.connector_is_internal[conn_addr]
-        #     del self.connector_origin_address[conn_addr]
-            # TODO: free Connectors at the "other end" of any connections to these Connectors
-        
-        return subprimitive
-    
-    def _post_detach(self, parent : 'Primitive') -> None:
-        '''Post-actions to take once attachment is verified and parent is bound'''
-        ...
-    
-    ## Topology
     ...
 
-    # Resolution shift operations
+    ## Resolution shift operations
     def expand(self) -> None:
         '''Replace this Primitive with its children, preserving connections and traces'''
         raise NotImplementedError
@@ -460,21 +494,9 @@ class MutableCompositePrimitive(SupportsChildren, SupportsParents):
         '''
         raise NotImplementedError
         
-    # Overriding RigidlyTransformable contracts to apply recursively to children as well
-    def _copy_untransformed(self) -> 'Primitive':
-        raise NotImplementedError
+    ## Topology
+    ...
 
-# DEV: chose deliberately to not make this a method of any composite subtype
-# to avoid requiring subtypes to have awareness of one another in their impl
-def frozen(composite : CompositePrimitive) -> FrozenCompositePrimitive:
-    '''
-    Return an immutable CompositePrimitive copy of this MutableCompositePrimitive
-    '''
-    if isinstance(composite, FrozenCompositePrimitive):
-        return composite
-    
-    raise NotImplementedError
-  
 ## Simples
 class SimplePrimitive(SupportsParents):
     '''
