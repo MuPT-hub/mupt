@@ -1,6 +1,5 @@
 '''Abstractions of connections between two primitives'''
 
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

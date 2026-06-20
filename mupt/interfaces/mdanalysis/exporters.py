@@ -11,7 +11,6 @@ the same entry point to support all-atom, coarse-grained, or
 custom export schemes.
 """
 
-
 import logging
 
 LOGGER = logging.getLogger(__name__)

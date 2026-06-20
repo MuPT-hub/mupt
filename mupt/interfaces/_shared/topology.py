@@ -1,6 +1,5 @@
 """Shared topology traversal helpers for exporter interfaces."""
 
-
 from collections.abc import Hashable, Iterator
 from dataclasses import dataclass, field
 

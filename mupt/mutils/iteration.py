@@ -1,6 +1,5 @@
 '''Tools for simplifying iteration over collections of items'''
 
-
 from typing import (
     Any,
     Generator,

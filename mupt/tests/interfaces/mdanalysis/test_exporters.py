@@ -6,8 +6,6 @@ Tests to ensure export from MuPT to MDAnalysis preserves molecular identity and 
 # python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py -v
 # With Coverage:
 # python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py --cov=mupt.interfaces.mdanalysis --cov-report=term -v
-
-
 import pytest
 from anytree import PreOrderIter
 

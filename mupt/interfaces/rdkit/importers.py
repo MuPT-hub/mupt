@@ -1,6 +1,5 @@
 '''Readers which convert RDKit Atoms and Mols into the MuPT molecular representation'''
 
-
 from typing import (
     Hashable,
     Optional,

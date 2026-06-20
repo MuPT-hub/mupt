@@ -3,7 +3,6 @@ Wrappers and reference for RDKit Mol sanitization operations, aromaticity handli
 Intended to ensure consistent rules are applied when sanitizing within MuPT
 '''
 
-
 from typing import Optional, Union
 
 from rdkit.Chem.rdchem import Mol

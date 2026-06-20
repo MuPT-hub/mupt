@@ -1,6 +1,5 @@
 '''For calculation of rigid transforms which force two bodies to be spatially coincident in some way'''
 
-
 from typing import Optional
 
 from scipy.spatial.transform import RigidTransform

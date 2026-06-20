@@ -1,6 +1,5 @@
 '''Unit tests for Mol saniitization wrappers and utilities'''
 
-
 import pytest
 
 from typing import Union, Optional

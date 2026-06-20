@@ -1,6 +1,5 @@
 '''Decorators for modifying classes'''
 
-
 from typing import Callable, Iterable, Optional, TypeVar, Union
 C = TypeVar('C')
 

@@ -1,6 +1,5 @@
 '''For converting objects and types between different chemical representation formats'''
 
-
 from typing import Union
 
 from rdkit.Chem.rdchem import Atom

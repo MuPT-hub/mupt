@@ -1,6 +1,5 @@
 """Tests for shared SAAMR role topology traversal helpers."""
 
-
 import pytest
 
 from mupt.chemistry import ELEMENTS

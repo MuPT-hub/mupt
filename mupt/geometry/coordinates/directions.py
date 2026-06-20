@@ -1,6 +1,5 @@
 '''For procedurally generating random coordinate directions'''
 
-
 import numpy as np
 
 from .basis import are_linearly_independent

@@ -1,6 +1,5 @@
 '''Interfaces for SMILES, SMARTS, BIGSMILES, and other line notations'''
 
-
 from typing import Hashable, Optional
 
 from rdkit.Chem.rdmolops import (

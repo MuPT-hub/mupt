@@ -1,6 +1,5 @@
 '''Fundamental data structures for multiscale molecular representation'''
 
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

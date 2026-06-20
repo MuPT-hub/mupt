@@ -1,6 +1,5 @@
 '''Decorators for modifying functions'''
 
-
 from typing import Callable, Concatenate, Iterable, Iterator, Optional, ParamSpec, TypeVar, Union
 
 T = TypeVar('T')
