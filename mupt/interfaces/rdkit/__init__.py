@@ -1,6 +1,5 @@
 '''Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects'''
 
-
 from .selection import (
     # Atom selection
     AtomCondition,
