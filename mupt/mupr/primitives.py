@@ -1,4 +1,4 @@
-'''A refactored version of mupr.primitives which is more cohesive and cleanly adheres to functionality where needed'''
+'''Fundamental, resolution-agnostic building blocks of chemical systems in the MuPT representation'''
 
 __author__ = 'Timotej Bernat'
 __email__ = 'timotej.bernat@colorado.edu'
