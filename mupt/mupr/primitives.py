@@ -197,7 +197,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     def unfreeze_connections(self) -> None:
         '''Enable mutation of connectivity throughout the hierarchy'''
         self._unfreeze_connections_local()
-        for subprimitive in self.ancestors:
+        for subprimitive in self.children:
             subprimitive._unfreeze_connections_local()
         self._frozen_connections = False # don't update flag until recursive call completes
 
@@ -317,7 +317,7 @@ class SupportsChildren(Primitive):
         criterion : PrimitiveSelector,
     ) -> None:
         '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
-        prim_subselection = select_primitives(self.ancestors, criterion=criterion)
+        prim_subselection = select_primitives(self.descendants, criterion=criterion)
         assert len(prim_subselection) == topology.number_of_nodes()
         assert set(prim_subselection.keys()) == set(topology.nodes) # TODO: make return include labels for indication
         
@@ -327,7 +327,7 @@ class SupportsChildren(Primitive):
                 prim_label : set(prim.connections.connectors)
                     for prim_label, prim in prim_subselection.items()
             },
-            n_iter_max=10*len(topology), # TB TODO: fill in actual llogic fordecisidng this - 10 is a number I made up for now
+            n_iter_max=10*len(topology), # TB TODO: fill in actual logic fordeciding this - 10 is a number I made up for now
         )
 
     def export_cross_section(self, criterion : PrimitiveSelector) -> nx.Graph:
@@ -488,7 +488,7 @@ class SimplePrimitive(SupportsParents):
 
         conn_handle = self.connections._register_connector(connector, label=label)
         if self.parent:
-            for anc in self.ancestors:
+            for anc in self.ancestors: # N.B.: ancestors, since looking UP the tree
                 _ = anc.connections._register_connector(connector, label=label)
 
         return conn_handle
@@ -500,7 +500,7 @@ class SimplePrimitive(SupportsParents):
 
         self.connections._remove_connector(connector)
         if self.parent:
-            for anc in self.ancestors:
+            for anc in self.ancestors: # N.B.: ancestors, since looking UP the tree
                 _ = anc.connections._remove_connector(connector)
         
         return connector
