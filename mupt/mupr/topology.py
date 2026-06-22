@@ -1,4 +1,4 @@
-'''Monomer Interconnectivity and Degree (MID) graphs, for encoding the topological connectivity of a polymer system'''
+'''Utilities for graphs which encode neighbor connectivity of chemical systems in the MuPT molecular representation'''
 
 from typing import (
     Callable,
