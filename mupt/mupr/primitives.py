@@ -302,8 +302,39 @@ class SupportsChildren(Primitive):
             # TODO: free Connectors at the "other end" of any connections to these Connectors
         
         return subprimitive
+    
+    ## Resolution shift operations
+    def expand(self) -> None:
+        '''Replace this Primitive with its children, preserving connections and traces'''
+        self._precondition_mutable_hierarchy()
+        raise NotImplementedError
 
-    ## Overriding RigidlyTransformable contracts to apply recursively to children as well
+    def flatten(self) -> None:
+        '''Recursively expand until all childless subprimitives are depth 1 below this one'''
+        self._precondition_mutable_hierarchy()
+        raise NotImplementedError
+
+    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
+        '''
+        Insert a new level of Primitive between this Composite and its children,
+        with each part of the provided partition forming a new child Primitive
+        
+        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts")
+        can be specified via the "implicit_parts" argument
+        ''' # DEV: eventually, make enum for implicit_parts behavior
+        self._precondition_mutable_hierarchy()
+        raise NotImplementedError
+
+    def truncate(self) -> None:
+        '''
+        Replace this MutableComposite with an analogous MutableSimple,
+        disconnecting all children from the rest of the hierarchy tree
+        '''
+        self._precondition_mutable_hierarchy()
+        raise NotImplementedError
+
+    # Geometry
+    ## Overriding RigidlyTransformable contracts - apply recursively to children as well
     def _copy_untransformed(self) -> 'Primitive':
         raise NotImplementedError
         
@@ -424,37 +455,7 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
     
     # Hierarchy
     ...
-
-    ## Resolution shift operations
-    def expand(self) -> None:
-        '''Replace this Primitive with its children, preserving connections and traces'''
-        self._precondition_mutable_hierarchy()
-        raise NotImplementedError
-
-    def flatten(self) -> None:
-        '''Recursively expand until all childless subprimitives are depth 1 below this one'''
-        self._precondition_mutable_hierarchy()
-        raise NotImplementedError
-
-    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
-        '''
-        Insert a new level of Primitive between this Composite and its children,
-        with each part of the provided partition forming a new child Primitive
-        
-        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts")
-        can be specified via the "implicit_parts" argument
-        ''' # DEV: eventually, make enum for implicit_parts behavior
-        self._precondition_mutable_hierarchy()
-        raise NotImplementedError
-
-    def truncate(self) -> None:
-        '''
-        Replace this MutableComposite with an analogous MutableSimple,
-        disconnecting all children from the rest of the hierarchy tree
-        '''
-        self._precondition_mutable_hierarchy()
-        raise NotImplementedError
-        
+       
     ## Topology
     ...
 
@@ -551,8 +552,8 @@ class AtomicPrimitive(SimplePrimitive):
         ):
             raise ValueError(f'Atomic {self!r} with total valence {valence} incompatible with assigned element {self.element!r}')
     
-    def canonical_form(self) -> str:
-        return f'{self.element.symbol}{canonical_form_primitive(self)}'
+    # def canonical_form(self) -> str:
+    #     return f'{self.element.symbol}{canonical_form_primitive(self)}'
 
 
 # Hashable canonical forms for core components
