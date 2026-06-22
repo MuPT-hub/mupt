@@ -183,23 +183,34 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         '''Force Connectors on this Primitive to be immutable and cached (without recursive calls)'''
         self.connections = ConnectorManagerFrozen(vars(self.connections)) # TODO: this handoff need work
 
-    def freeze_connections(self) -> None:
-        '''Prevent any connection within the hierarchy from being mutated'''
+    def _freeze_connections_recursive(self) -> None:
+        '''Prevent any connection within the hierarchy at this Primitive and below from being mutated'''
         self._freeze_connections_local()
         for subprimitive in self.children:
-            subprimitive._freeze_connections_local()
+            subprimitive.freeze_connections()
         self._frozen_connections = True # don't update flag until recursive call completes
+
+    def freeze_connections(self) ->  None:
+        '''Prevent connectivity of this Primitive and any others in its hierarchy tree from being mutated'''
+        # TB: from root, since it doesn't make sense to just freeze parts of hierarchy; 
+        # if one bit is frozen, it causes all others touching it to also freeze
+        # also note that the "root" here is not necessarily a RootPrimitive; it's just the topmost Primitive ancestor 
+        self.root._freeze_connections_recursive() 
 
     def _unfreeze_connections_local(self) -> None:
         '''Allow Connectors on this Primitive to be mutated (without recursive calls)'''
         self.connections = ConnectorManagerMutable(vars(self.connections)) # TODO: this handoff need work
 
-    def unfreeze_connections(self) -> None:
-        '''Enable mutation of connectivity throughout the hierarchy'''
+    def _unfreeze_connections_recursive(self) -> None:
+        '''Enable mutation of connectivity for this Primitive and below from being mutated'''
         self._unfreeze_connections_local()
         for subprimitive in self.children:
-            subprimitive._unfreeze_connections_local()
+            subprimitive.unfreeze_connections()
         self._frozen_connections = False # don't update flag until recursive call completes
+
+    def unfreeze_connections(self) -> None:
+        '''Enable mutation of connectivity of this Primitive and any others in its hierarchy tree'''
+        self.root._unfreeze_connections_recursive()
 
     ## Adjacency
     def neighbors(self, criterion : Optional[PrimitiveSelector]=None) -> Generator['Primitive', None, None]:
