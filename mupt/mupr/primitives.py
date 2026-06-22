@@ -187,7 +187,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         '''Prevent any connection within the hierarchy at this Primitive and below from being mutated'''
         self._freeze_connections_local()
         for subprimitive in self.children:
-            subprimitive.freeze_connections()
+            subprimitive._freeze_connections_recursive()
         self._frozen_connections = True # don't update flag until recursive call completes
 
     def freeze_connections(self) ->  None:
@@ -205,7 +205,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         '''Enable mutation of connectivity for this Primitive and below from being mutated'''
         self._unfreeze_connections_local()
         for subprimitive in self.children:
-            subprimitive.unfreeze_connections()
+            subprimitive._unfreeze_connections_recursive()
         self._frozen_connections = False # don't update flag until recursive call completes
 
     def unfreeze_connections(self) -> None:
