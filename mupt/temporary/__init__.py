@@ -1,8 +1,5 @@
 """Temporary helpers pending stable MuPT APIs."""
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 from .sdf import (
     iter_primitives_from_mupt_sdf,
     primitive_from_mupt_sdf,
