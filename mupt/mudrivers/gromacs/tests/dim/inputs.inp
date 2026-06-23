@@ -1,0 +1,75 @@
+#Required inputs for .gro file creation
+
+; box dimensions in nm
+box_dim               = 4.0,4.0,4.0
+
+; molecule names and gro files
+molecule_name         = DIM
+molecule_gro          = dim.gro
+
+; number of molecules
+nmolecules            = 1
+
+#---------------------------------------------------#
+
+#Required inputs for .mdp file creation
+
+;number of processes to write mdp file for
+nprocess              = 1
+
+;integrator to use
+integrator            = steep
+emin                  = T
+
+;number of steps
+nsteps                = 100000
+
+;ensemble (NVE, NVT, NPT)
+ensemble              = NVE
+
+#---------------------------------------------------#
+
+#Required inputs for .top file creation
+
+; force field file
+ff                    = forcefield.itp
+
+; molecule topology files
+molecule_topology     = dim.itp
+
+#---------------------------------------------------#
+#---------------------------------------------------#
+
+# optional inputs
+
+; filenames for .mdp files
+mdp_filename          = emin
+
+
+# For energy minimization
+
+
+
+# For equilibration
+; timestep size in ps
+dt                    = None
+
+; velocity generation
+gen-vel               = None
+gen-temp              = None
+gen-seed              = None
+
+; constraints
+constraints           = all-bonds
+constraint_algorithm  = lincs
+
+; output control
+nstxout              = None
+nstvout              = None
+nstfout              = None
+nstlog               = None
+nstenergy            = None
+nstxout-compressed   = None
+
+
+
