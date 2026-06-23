@@ -1,8 +1,5 @@
 """Tests for temporary MuPT SDF interoperability export."""
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 import subprocess
 import sys
 
