@@ -13,9 +13,6 @@ representable in this temporary per-segment format. SDF metadata is record-level
 so imported record metadata is stored on rebuilt SEGMENT nodes.
 """
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 from collections.abc import Iterator
 import os
 from pathlib import Path
