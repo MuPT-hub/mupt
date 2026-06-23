@@ -3,6 +3,7 @@
 
 from typing import (
     Callable,
+    Collection,
     Generic,
     Hashable,
     Iterable,
@@ -152,7 +153,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     @overload
     def register_from(
         self,
-        collection : Iterable[T],
+        collection : Iterable[T], # DEV: generic here is NOT a Labelled interface
         labeller : Callable[[T], LabelT],
     ) -> list[HandleT]:
         ...
@@ -195,7 +196,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         for handle in handles_to_remove:
             self.deregister(handle)
             
-    ## Object access
+    # Read access
     @property
     def by_labels(self) -> dict[LabelT, tuple[T, ...]]: 
         # DEV: eventually would like to make sets (since order is irrelevant), but that relies on assumptions about hashability of T
@@ -212,6 +213,38 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
                 for label, child_class in label_classes.items()
         }
           
+    # Partitioning
+    def split(self, partition : Collection[Iterable[HandleT]]) -> tuple['UniqueRegistry']:
+        '''
+        Separate this registry by a partition of its handle set
+        
+        Any handles not specifically explicitly identified in a part of the partition
+        will be placed into a final, "implicit" registry, returned at the end
+        '''
+        ...
+
+    def merge(self, other : 'UniqueRegistry', preserve_idxs : bool=False) -> None:
+        '''
+        Merge another registry into this one, with the handles of
+        this registry taking priority in the case of collisions
+        '''
+        ...
+
+    @classmethod
+    def merged(cls, *other_regs : 'UniqueRegistry', preserve_idxs : bool=False) -> 'UniqueRegistry':
+        '''
+        Generate a registry by combining together other registries 
+        Will preserve handle indices as-encountered when possible, even if they are non-contiguous
+
+        Priority is first-come-first served, i.e. key collisions are
+        resolved by giving the key to the object in the first seen registry
+        '''
+        reg = cls()
+        for other_reg in other_regs:
+            reg.merge(other_reg, preserve_idxs=preserve_idxs)
+        
+        return reg
+
     # Copying
     def copy(self, value_copy_method : Callable[[T], T]=deepcopy) -> 'UniqueRegistry[HandleT, T]':
         '''
