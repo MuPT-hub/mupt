@@ -70,7 +70,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     
     def _setitem(self, key : LabelT, item : T) -> None:
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
-        super().__setitem__(key, item)
+        super(UniqueRegistry, self).__setitem__(key, item)
 
     @overload
     def register(self, obj : Labelled) -> HandleT:
@@ -95,7 +95,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             label = label(obj)
 
         handle : HandleT = (label, self._take_connector_number(label))
-        super().__setitem__(handle, obj)
+        self._setitem(handle, obj) # TODO: reconcile types between the bound GEneric T and the external "Labelled"
 
         return handle
     
@@ -223,15 +223,32 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         '''
         ...
 
-    def merge(self, other : 'UniqueRegistry', preserve_idxs : bool=False) -> None:
+    def merge(
+        self,
+        other : 'UniqueRegistry',
+        concise_mapping : bool=True,
+    ) -> Mapping[HandleT, HandleT]:
         '''
-        Merge another registry into this one, with the handles of
-        this registry taking priority in the case of collisions
+        Merge another registry into this one, collapsing distinguishing indices serially
+
+        Returns a mapping from the handles in the other registry to the handles assigned in this registry
+        If concise_mapping=True (by default), returns only the handles which changes; otherwise, maps all
         '''
-        ...
+        handle_map : dict[HandleT, HandleT] = dict()
+        for prior_handle, obj in other.items():
+            label, prior_idx = prior_handle
+            new_handle = self.register(obj, label=label)
+            if (new_handle != prior_handle) or not concise_mapping:
+                handle_map[prior_handle] = new_handle
+
+        return handle_map
 
     @classmethod
-    def merged(cls, *other_regs : 'UniqueRegistry', preserve_idxs : bool=False) -> 'UniqueRegistry':
+    def merged(
+        cls,
+        *other_regs : 'UniqueRegistry',
+        concise_mapping : bool=True,
+    ) -> tuple['UniqueRegistry', Iterable[Mapping[HandleT, HandleT]]]:
         '''
         Generate a registry by combining together other registries 
         Will preserve handle indices as-encountered when possible, even if they are non-contiguous
@@ -240,10 +257,11 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         resolved by giving the key to the object in the first seen registry
         '''
         reg = cls()
+        handle_maps : list[Mapping[HandleT, HandleT]] = []
         for other_reg in other_regs:
-            reg.merge(other_reg, preserve_idxs=preserve_idxs)
+            handle_maps.append(reg.merge(other_reg, concise_mapping=concise_mapping))
         
-        return reg
+        return reg, handle_maps
 
     # Copying
     def copy(self, value_copy_method : Callable[[T], T]=deepcopy) -> 'UniqueRegistry[HandleT, T]':
