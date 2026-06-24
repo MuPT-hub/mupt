@@ -258,7 +258,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         '''
         reg = cls()
         handle_maps : list[Mapping[HandleT, HandleT]] = []
-        for other_reg in other_regs:
+        for other_reg in other_regs: # TB DEV: might be interesting to try functoools.reduce instead  
             handle_maps.append(reg.merge(other_reg, concise_mapping=concise_mapping))
         
         return reg, handle_maps

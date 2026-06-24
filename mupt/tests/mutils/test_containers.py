@@ -135,7 +135,7 @@ def test_register_from(
 
     assert set(keys_actual) == keys_expected
 
-# deregistration tests
+# Deregistration tests
 def test_unique_reg_deregister() -> None:
     '''Test that deregistering an item removes it from the registry and returns the object'''
     obj = DummyRelation(label='p')
@@ -176,7 +176,7 @@ def test_unique_reg_purge() -> None:
     reg.purge('a')
     assert all(handle[0] != 'a' for handle in reg.keys()) and (len(reg) == 4)
 
-# internal state update tests
+# Internal state update tests
 def test_freed_labels_reinserted() -> None:
     '''Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels'''
     obj = DummyRelation(label='p')
@@ -201,7 +201,7 @@ def test_unique_reg_adjust_ticker() -> None:
     
     assert set(reg.keys()) == {('p', 0), ('p', 5)}
     
-# copying tests
+# Copying tests
 def test_unique_reg_copy() -> None:
     '''Test that copying a UniqueRegistry produces an identical copy'''
     reg = UniqueRegistry()
@@ -256,3 +256,86 @@ def test_unique_reg_by_labels() -> None:
     assert set(by_labels.keys()) == {'a', 'b'}
     assert by_labels['a'] == (a, c)
     assert by_labels['b'] == (b,)
+
+# Partition tests
+def reg_example_a() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)}),
+
+    return reg
+
+def reg_example_b() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    _ = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)}),
+
+    return reg
+
+def reg_example_c() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    _ = reg.register_from([3.14, 0.5772, 2.718], label='constants'),
+
+    return reg
+
+@pytest.mark.parametrize(
+    'reg1,reg2,dict_expected',
+    [
+        (
+            reg_example_a(),
+            reg_example_b(),
+            {
+                ('letters', 0) : 'a',
+                ('letters', 1) : 'b',
+                ('numbers', 0) : 1,
+                ('numbers', 1) : 2,
+                ('numbers', 2) : 3,
+                ('letters', 2) : 'b',
+                ('letters', 3) : 'c',
+                ('letters', 4) : 'd',
+                ('truths', 0) : False,
+                ('truths', 1) : True,
+            }
+        )
+    ]
+)
+def test_merge(
+    reg1 : UniqueRegistry,
+    reg2 : UniqueRegistry,
+    dict_expected : dict[tuple[LabelT, int], str],
+) -> None:
+    key_remap = reg1.merge(reg2)
+    assert dict(reg1) == dict_expected
+
+@pytest.mark.parametrize(
+    'regs,dict_expected',
+    [
+        (
+            (    
+                reg_example_a(),
+                reg_example_b(),
+                reg_example_c(),
+            ),
+            {
+                ('letters', 0) : 'a',
+                ('letters', 1) : 'b',
+                ('numbers', 0) : 1,
+                ('numbers', 1) : 2,
+                ('numbers', 2) : 3,
+                ('letters', 2) : 'b',
+                ('letters', 3) : 'c',
+                ('letters', 4) : 'd',
+                ('truths', 0) : False,
+                ('truths', 1) : True,
+                ('constants', 0) : 3.14,
+                ('constants', 1) : 0.5772,
+                ('constants', 2) : 2.718,
+            }
+        ),
+    ]
+)
+def test_merged(
+    regs : Iterable[UniqueRegistry],
+    dict_expected : dict[tuple[LabelT, int], str],
+) -> None:
+    '''Test that classmethod version of merge() behaves as expected'''
+    reg, handle_maps = UniqueRegistry.merged(*regs)
+    assert dict(reg) == dict_expected
