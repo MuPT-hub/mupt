@@ -2,7 +2,6 @@
 
 from typing import (
     Callable,
-    Collection,
     Generic,
     Hashable,
     Iterable,
@@ -11,7 +10,6 @@ from typing import (
     overload,
     Protocol,
     runtime_checkable,
-    Sequence,
     TypeVar,
 )
 from collections import Counter, UserDict, defaultdict
@@ -130,7 +128,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     
     def register_from_sequential(
         self,
-        collection : Sequence[T],
+        collection : Iterable[T],
         label : Optional[Callable[[T], LabelT] | LabelT]=None,
     ) -> list[HandleT]:
         '''
