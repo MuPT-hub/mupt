@@ -74,7 +74,7 @@ def test_unique_reg_register_implicit_label() -> None:
                 'second' : (DummyRelation(label='q'), DummyRelation(label='p')),
             },
             None,
-            set([ # explicit label overrides object labe
+            set([ # explicit label overrides object label
                 ('first', 0),
                 ('second', 0),
                 ('second', 1),
