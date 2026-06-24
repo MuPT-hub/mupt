@@ -94,7 +94,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         elif isinstance(label, Callable): # N.B.: all Callables are Hashable, so order matters in any isinstance checks for the latter
             label = label(obj)
 
-        handle : HandleT = (label, self._take_connector_number(label))
+        handle : HandleT = (label, self._get_uniquifying_index(label))
         self._setitem(handle, obj) # TODO: reconcile types between the bound GEneric T and the external "Labelled"
 
         return handle
