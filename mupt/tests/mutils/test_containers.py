@@ -9,7 +9,7 @@ from typing import (
     Iterable,
     Optional,
     TypeVar,
-) 
+)
 T = TypeVar('T')
 from dataclasses import dataclass, field
 
@@ -299,7 +299,7 @@ def reg_example_c() -> UniqueRegistry:
 def test_merge(
     reg1 : UniqueRegistry,
     reg2 : UniqueRegistry,
-    dict_expected : dict[tuple[LabelT, int], str],
+    dict_expected : dict[tuple[LabelT, int], str | int | bool],
 ) -> None:
     key_remap = reg1.merge(reg2)
     assert dict(reg1) == dict_expected
@@ -333,7 +333,7 @@ def test_merge(
 )
 def test_merged(
     regs : Iterable[UniqueRegistry],
-    dict_expected : dict[tuple[LabelT, int], str],
+    dict_expected : dict[tuple[LabelT, int], str | int | bool],
 ) -> None:
     '''Test that classmethod version of merge() behaves as expected'''
     reg, handle_maps = UniqueRegistry.merged(*regs)
