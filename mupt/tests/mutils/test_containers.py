@@ -266,13 +266,13 @@ def reg_example_a() -> UniqueRegistry:
 
 def reg_example_b() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)}),
+    _ = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
 
     return reg
 
 def reg_example_c() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from([3.14, 0.5772, 2.718], label='constants'),
+    _ = reg.register_from([3.14, 0.5772, 2.718], label='constants')
 
     return reg
 
@@ -339,3 +339,17 @@ def test_merged(
     '''Test that classmethod version of merge() behaves as expected'''
     reg, handle_maps = UniqueRegistry.merged(*regs)
     assert dict(reg) == dict_expected
+
+def test_split() -> None:
+    '''Test that splitting by category works as expected'''
+    reg = UniqueRegistry()
+    _ = reg.register_from(range(9), 'num')
+
+    subregs = reg.split(lambda x : x % 3)
+    subregs = {category : dict(subreg) for category, subreg in subregs.items()} # conversion done purely for easy comparison
+
+    assert subregs == {
+        0 : {('num', 0) : 0, ('num', 1) : 3, ('num', 2) : 6},
+        1 : {('num', 0) : 1, ('num', 1) : 4, ('num', 2) : 7},
+        2 : {('num', 0) : 2, ('num', 1) : 5, ('num', 2) : 8},
+    }

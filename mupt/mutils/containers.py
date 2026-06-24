@@ -19,6 +19,7 @@ from collections import Counter, UserDict, defaultdict
 from copy import deepcopy
 
 
+C = TypeVar('C', bound=Hashable)
 T = TypeVar('T')
 LabelT = TypeVar('LabelT', bound=Hashable)
 HandleT = tuple[LabelT, int] # label uniquified with an additional arbitrary index
@@ -214,14 +215,32 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         }
           
     # Partitioning
-    def split(self, partition : Collection[Iterable[HandleT]]) -> tuple['UniqueRegistry']:
+    def split(self, categorizer : Callable[[T], C]) -> dict[C, 'UniqueRegistry[LabelT, T]']:
         '''
-        Separate this registry by a partition of its handle set
+        Separate this registry by a partition, determined by the equivalence classes
+        of its object values which share the same category evaluation
+
+        E.g. a registry with integer values called with
+        >>> reg.split(category=lambda x : x % 4)
+        will return {
+            0 : <reg with multiple of 4>
+            1 : <reg with element of form 4n + 1>
+            2 : <reg with element of form 4n + 2>
+            3 : <reg with element of form 4n + 3>
+        }
         
         Any handles not specifically explicitly identified in a part of the partition
         will be placed into a final, "implicit" registry, returned at the end
         '''
-        ...
+        # TB NOTE: slightly problematic is that re-merging splits may  
+        # scramble labels in final dict as-implemented (want to be invertible)
+        subreg_map : dict[C, 'UniqueRegistry[LabelT, T]'] = defaultdict(UniqueRegistry)
+        for (label, idx), obj in self.items():
+            category = categorizer(obj)
+            subreg = subreg_map[category]
+            subreg.register(obj, label)
+
+        return dict(subreg_map)
 
     def merge(
         self,
@@ -264,7 +283,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         return reg, handle_maps
 
     # Copying
-    def copy(self, value_copy_method : Callable[[T], T]=deepcopy) -> 'UniqueRegistry[HandleT, T]':
+    def copy(self, value_copy_method : Callable[[T], T]=deepcopy) -> 'UniqueRegistry[LabelT, T]':
         '''
         Create a deep copy of this UniqueRegistry, with the same (key, value) pairs and internal state
         Requires a method for copying values in general, since their complete type is not explicit a priori
