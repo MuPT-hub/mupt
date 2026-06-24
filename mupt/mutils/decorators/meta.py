@@ -1,6 +1,5 @@
 '''Decorators for modifying other decorators'''
 
-
 from typing import Concatenate, Callable, ParamSpec, TypeAlias, TypeVar
 from functools import update_wrapper, wraps
 

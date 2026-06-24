@@ -1,7 +1,5 @@
 '''Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects'''
 
-
-
 from .selection import (
     # Atom selection
     AtomCondition,
@@ -24,7 +22,11 @@ from .components import (
     connectors_from_rdkit,
 )
 from .importers import primitive_from_rdkit
-from .exporters import primitive_to_rdkit
+from .exporters import primitive_to_rdkit, primitive_to_rdkit_mols
+from .strategies import (
+    RDKitExportStrategy,
+    AllAtomRDKitExportStrategy,
+)
 from .depiction import (
     set_rdkdraw_size,
     show_substruct_highlights,

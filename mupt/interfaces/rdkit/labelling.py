@@ -1,6 +1,5 @@
 '''For assigning and deriving labels for RDKit objects (e.g. Mols, Bonds, and Atoms)'''
 
-
 from rdkit.Chem.rdchem import Atom, Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles, SmilesWriteParams
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS

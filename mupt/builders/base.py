@@ -1,6 +1,5 @@
 '''Generic, base contract for all MuPT builders'''
 
-
 from typing import Iterable
 from abc import ABC, abstractmethod
 

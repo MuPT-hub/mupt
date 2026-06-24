@@ -1,6 +1,5 @@
 '''Custom data containers with useful properties'''
 
-
 from typing import (
     Callable,
     Collection,
@@ -42,8 +41,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         self._freed = defaultdict(set)
 
     # Unique index ticker management
-    def _take_connector_number(self, label : LabelT) -> int:
-        '''Increment and return the next available integer for uniquifying a Connector label'''
+    def _get_uniquifying_index(self, label : Optional[LabelT]) -> int:
+        '''Increment and return the next available integer for uniquifying a label'''
         if len(freed_idxs := self._freed[label]) > 0:
             idx = min(freed_idxs)
             self._freed[label].remove(idx)

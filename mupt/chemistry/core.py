@@ -1,6 +1,5 @@
 '''Reference for fundamental chemical units, namely elements, ions, isotopes, and bond types'''
 
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

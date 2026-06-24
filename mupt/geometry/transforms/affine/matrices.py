@@ -1,6 +1,5 @@
 '''Affine matrices which realize many common affine transformations'''
 
-
 from typing import Literal, Optional, Union
 import numpy as np
 

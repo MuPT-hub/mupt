@@ -1,6 +1,5 @@
 '''Indicators for coordinate axis-specific operations and indexing'''
 
-
 from enum import Enum
 import numpy as np
 

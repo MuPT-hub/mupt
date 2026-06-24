@@ -1,6 +1,5 @@
 '''Unit tests for containers module'''
 
-
 import pytest
 
 from typing import (

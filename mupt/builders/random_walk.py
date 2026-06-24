@@ -1,6 +1,5 @@
 '''Utilities for generating coordinates of random walks'''
 
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

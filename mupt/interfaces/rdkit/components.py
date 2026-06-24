@@ -3,8 +3,6 @@ Utilities for extracting information from and recasting RDKit objects
 (e.g. Atom, Bond, Conformer, etc.) and recasting them as MuPT core objects
 '''
 
-
-
 from typing import (
     Callable,
     Generator,

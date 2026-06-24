@@ -1,17 +1,33 @@
 '''Utilities for applying rigid transformations to other objects (not necessarily just points!)'''
 
-
 from typing import Any, Mapping, Self, Sequence, Union
 from typing import Protocol, runtime_checkable
-from abc import ABC, abstractmethod
 
+from numpy import allclose
 from scipy.spatial.transform import RigidTransform
 
 from ....mutils.copyable import Copyable, NotCopyableError
 
 
+def transformations_approx_equal(
+    transformation1 : RigidTransform,
+    transformation2 : RigidTransform,
+    rtol : float = 1E-5,
+    atol : float=1E-8,
+    equal_nan : bool=False,
+) -> bool:
+    '''Check if two RigidTransforms are within '''
+    return allclose(
+        # NOTE: must compare as matrix, as __eq__ does not perform this comparison
+        transformation1.as_matrix(),
+        transformation2.as_matrix(),
+        rtol=rtol,
+        atol=atol,
+        equal_nan=equal_nan,
+    )
+
 @runtime_checkable
-class RigidlyTransformable(Protocol):
+class RigidlyTransformable(Copyable, Protocol):
     '''Mixin for objects which support rigid transformations'''
     # DEV: went back and forth on verbiage, but settled on the following as least ambiguous:
     # * "transformation" to refer to the RigidTransforms passed around
@@ -20,6 +36,8 @@ class RigidlyTransformable(Protocol):
     # DON'T change these names until you've understood this and made similar considerations for proposed changes
 
     # transform provenance
+    _cumul_transf : RigidTransform 
+    
     @property
     def cumulative_transformation(self) -> RigidTransform:
         '''
@@ -36,6 +54,18 @@ class RigidlyTransformable(Protocol):
     def cumulative_transformation(self, transformation : RigidTransform) -> None:
         # DEV: might include some additional checks in here in the future
         self._cumul_transf = transformation
+
+    def transformed_like(self, other : 'RigidlyTransformable', *args, **kwargs) -> bool:
+        '''
+        Whether of not this RigidlyTransformable object has a 
+        cumulative transformation approximately equal to that of another
+        '''
+        return transformations_approx_equal(
+            self.cumulative_transformation,
+            other.cumulative_transformation,
+            *args,
+            **kwargs,
+        )
         
     @property
     def resetting_transformation(self) -> RigidTransform:
@@ -43,7 +73,6 @@ class RigidlyTransformable(Protocol):
         return self.cumulative_transformation.inv()
 
     # in-place application of transformations
-    @abstractmethod
     def _rigidly_transform(self, transformation : RigidTransform) -> None:
         raise NotImplementedError # implement subclass-specific behavior here
         
@@ -57,7 +86,6 @@ class RigidlyTransformable(Protocol):
         self.rigidly_transform(self.resetting_transformation)
 
     # copying and out-of-place applications of transformations
-
     ## DEV: _copy_untransformed() is deliberately NOT an abstract method, as it's not required that child classes implement it;
     ## ...if children don't implement it, they simply won't be able to perform copying or out-of-place transformations
     def _copy_untransformed(self) -> Self:
@@ -71,6 +99,7 @@ class RigidlyTransformable(Protocol):
         
         return new_obj
 
+    # out-of-place applications of transformations
     def rigidly_transformed(self, transformation: RigidTransform) -> Self:
         '''Return a copy of this object which has been transformed according to the rigid transformation provided'''
         clone = self.copy() # TODO: implement mechanism to transfer cumul transform during copy of child classes
@@ -84,9 +113,9 @@ class RigidlyTransformable(Protocol):
         
         
 def apply_rigid_transformation_recursive(
-        obj : Union[object, Sequence[Any], Mapping[str, Any]],
-        transformation: RigidTransform,
-    ) -> Union[object, Sequence[Any], dict[str, Any]]:
+    obj : Union[object, Sequence[Any], Mapping[str, Any]],
+    transformation: RigidTransform,
+) -> Union[object, Sequence[Any], dict[str, Any]]:
     '''Apply a rigid transformation to an object, if it supports such a transformation, and
     if the object is a Sequence or Mapping, attempt to transform its members recursively
     
@@ -109,10 +138,11 @@ def apply_rigid_transformation_recursive(
 
     # recursive iteration, as necessary
     if isinstance(obj, Sequence):  # DEVNOTE: specifically opted for Sequence over Iterable here to avoid double-covering Mappings and unpacking generators
-        return type(obj)( # DEVNOTE: most common Sequence types (e.g. tuple, str, list) support init from comprehension; may revisit if this is not always the case
-            apply_rigid_transformation_recursive(value, transformation)
+         # DEVNOTE: most common Sequence types (e.g. tuple, str, list) support init from comprehension; may revisit if this is not always the case
+        return type(obj)(
+            apply_rigid_transformation_recursive(value, transformation) 
                 for value in obj
-        ) 
+        )
     elif isinstance(obj, Mapping):
         return {
             key : apply_rigid_transformation_recursive(value, transformation)
