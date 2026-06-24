@@ -126,7 +126,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
                 handles.append(self.register(obj, label=label))
         return handles
     
-    def register_from_sequential(
+    def register_from_collection(
         self,
         collection : Iterable[T],
         label : Optional[Callable[[T], LabelT] | LabelT]=None,
@@ -174,7 +174,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
                 raise ValueError('Registration from mapping received unexpected "labeller" argument')
             return self.register_from_mapping(collection)
         elif isinstance(collection, Iterable):
-            return self.register_from_sequential(collection, label=label)
+            return self.register_from_collection(collection, label=label)
 
     # Object deregistration
     def deregister(self, handle : HandleT) -> T:
@@ -226,8 +226,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             3 : <reg with element of form 4n + 3>
         }
         
-        Any handles not specifically explicitly identified in a part of the partition
-        will be placed into a final, "implicit" registry, returned at the end
+        It is expected that the categorizer will return some value for EVERY object in the registry;
+        the caller is responsible for ensuring this is the case
         '''
         # TB NOTE: slightly problematic is that re-merging splits may  
         # scramble labels in final dict as-implemented (want to be invertible)
@@ -266,11 +266,13 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         concise_mapping : bool=True,
     ) -> tuple['UniqueRegistry', Iterable[Mapping[HandleT, HandleT]]]:
         '''
-        Generate a registry by combining together other registries 
-        Will preserve handle indices as-encountered when possible, even if they are non-contiguous
+        Generate a registry by combining together other registries
 
-        Priority is first-come-first served, i.e. key collisions are
-        resolved by giving the key to the object in the first seen registry
+        In the case of handle collisions, registries passed earliest will
+        be given priority and later handls will be reindexed sequentially
+        
+        Returns the merged registry AND an iterable of the same length as the number
+        of registries passed in, with the handle remapping in corresponding order
         '''
         reg = cls()
         handle_maps : list[Mapping[HandleT, HandleT]] = []
