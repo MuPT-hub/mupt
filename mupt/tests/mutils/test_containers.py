@@ -9,7 +9,7 @@ from typing import (
     Iterable,
     Optional,
     TypeVar,
-) 
+)
 T = TypeVar('T')
 from dataclasses import dataclass, field
 
@@ -74,7 +74,7 @@ def test_unique_reg_register_implicit_label() -> None:
                 'second' : (DummyRelation(label='q'), DummyRelation(label='p')),
             },
             None,
-            set([ # explicit label overrides object labe
+            set([ # explicit label overrides object label
                 ('first', 0),
                 ('second', 0),
                 ('second', 1),
@@ -259,19 +259,19 @@ def test_unique_reg_by_labels() -> None:
 # Partition tests
 def reg_example_a() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)}),
+    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)})
 
     return reg
 
 def reg_example_b() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
+    handles = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
 
     return reg
 
 def reg_example_c() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from([3.14, 0.5772, 2.718], label='constants')
+    handles = reg.register_from([3.14, 0.5772, 2.718], label='constants')
 
     return reg
 
@@ -299,7 +299,7 @@ def reg_example_c() -> UniqueRegistry:
 def test_merge(
     reg1 : UniqueRegistry,
     reg2 : UniqueRegistry,
-    dict_expected : dict[tuple[LabelT, int], str],
+    dict_expected : dict[tuple[LabelT, int], str | int | bool],
 ) -> None:
     key_remap = reg1.merge(reg2)
     assert dict(reg1) == dict_expected
@@ -333,7 +333,7 @@ def test_merge(
 )
 def test_merged(
     regs : Iterable[UniqueRegistry],
-    dict_expected : dict[tuple[LabelT, int], str],
+    dict_expected : dict[tuple[LabelT, int], str | int | bool],
 ) -> None:
     '''Test that classmethod version of merge() behaves as expected'''
     reg, handle_maps = UniqueRegistry.merged(*regs)
