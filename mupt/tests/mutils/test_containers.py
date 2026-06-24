@@ -3,10 +3,18 @@
 
 import pytest
 
-from typing import ClassVar, Hashable
+from typing import (
+    Callable,
+    ClassVar,
+    Hashable,
+    Iterable,
+    Optional,
+    TypeVar,
+) 
+T = TypeVar('T')
 from dataclasses import dataclass, field
 
-from mupt.mutils.containers import UniqueRegistry
+from mupt.mutils.containers import UniqueRegistry, LabelT
 
 
 @dataclass
@@ -14,7 +22,7 @@ class DummyRelation:
     DEFAULT_LABEL : ClassVar[str] = 'default'
     label : Hashable = field(default_factory=str)
     
-# initialization tests
+# Initialization tests
 @pytest.mark.xfail(
     reason="Direct assignment to UniqueRegistry items should raise PermissionError",
     raises=PermissionError,
@@ -24,8 +32,8 @@ def test_unique_reg_no_defaults() -> None:
     '''Test that key-value pairs cannot be directly intialized in UniqueRegistry'''
     reg = UniqueRegistry(this='is_illegal')
 
-# registration tests
-def test_unique_reg_register_explicit() -> None:
+# Registration tests
+def test_unique_reg_register_explicit_label() -> None:
     '''Test that registering with explicit label works as expected'''
     obj = DummyRelation(label='p')
     reg = UniqueRegistry()
@@ -33,7 +41,7 @@ def test_unique_reg_register_explicit() -> None:
     
     assert set(reg.keys()) == {('my_label', 0)}
 
-def test_unique_reg_register_implicit() -> None:
+def test_unique_reg_register_implicit_label() -> None:
     '''Test that registering with implicit label (inferred from registered object) works as expected'''
     obj = DummyRelation(label='p')
     reg = UniqueRegistry()
@@ -41,26 +49,91 @@ def test_unique_reg_register_implicit() -> None:
     
     assert set(reg.keys()) == {('p', 0)}
 
-def test_unique_reg_register_callable() -> None:
-    ...
-    
-def test_unique_reg_register_from_explicit() -> None:
-    '''Test that registering multiple objects with explicit labels works as expected'''
-    obj1 = DummyRelation(label='p')
-    obj2 = DummyRelation(label='q')
+@pytest.mark.parametrize(
+    'collection,labeller,keys_expected',
+    [
+        # Test registration from mapping
+        (
+            {
+                'letter' : 'abc',
+                'number' : [1,2,3,4],
+            },
+            None,
+            set([
+                ('letter', 0),
+                ('letter', 1),
+                ('letter', 2),
+                ('number', 0),
+                ('number', 1),
+                ('number', 2),
+                ('number', 3),
+            ]),
+        ),
+        (
+            {
+                'first' : (DummyRelation(label='p'),),
+                'second' : (DummyRelation(label='q'), DummyRelation(label='p')),
+            },
+            None,
+            set([ # explicit label overrides object labe
+                ('first', 0),
+                ('second', 0),
+                ('second', 1),
+            ]),          
+        ),
+        # Testing registration from labelled objects
+        (
+            [5,6,7,8],
+            'begin',
+            set([
+                ('begin', 0),
+                ('begin', 1),
+                ('begin', 2),
+                ('begin', 3),
+            ]),
+        ),
+        # Testing registration with explicit base label
+        (
+            (
+                DummyRelation(label='p'),
+                DummyRelation(label='q'),
+                DummyRelation(label='q'),
+                DummyRelation(label='r'),
+            ),
+            None,
+            set([
+                ('p', 0),
+                ('q', 0),
+                ('q', 1),
+                ('r', 0),
+            ]),
+        ),
+        # Test registration with Callable label generator
+        (
+            [
+                'foo',
+                'bar',
+                'baz',
+            ],
+            str.swapcase,
+            set([
+                ('FOO', 0),
+                ('BAR', 0),
+                ('BAZ', 0),
+            ]),
+        ),
+    ]
+)
+def test_register_from(
+    collection : Iterable[T],
+    labeller : Optional[Callable[[T], LabelT] | LabelT],
+    keys_expected : set[tuple[LabelT, int]],
+) -> None:
+    '''Check that bulk registration behaves as expected'''
     reg = UniqueRegistry()
-    handles = reg.register_from({'first' : (obj1,), 'second' : (obj2,)})
-    
-    assert set(reg.keys()) == {('first', 0), ('second', 0)}
-    
-def test_unique_reg_register_from_implicit() -> None:
-    '''Test that registering multiple objects with implicit labels (inferred from registered objects) works as expected'''
-    obj1 = DummyRelation(label='p')
-    obj2 = DummyRelation(label='q')
-    reg = UniqueRegistry()
-    handles = reg.register_from([obj1, obj2])
-    
-    assert set(reg.keys()) == {('p', 0), ('q', 0)}
+    keys_actual = reg.register_from(collection, label=labeller)
+
+    assert set(keys_actual) == keys_expected
 
 # deregistration tests
 def test_unique_reg_deregister() -> None:
