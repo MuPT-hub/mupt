@@ -114,7 +114,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
 
         For example, onto a previously-empty UniqueRegistry:
         >>> reg = UniqueRegistry()
-        >>> reg.register_from_mapping({'foo' : (f1, f2), 'bar' : b1})
+        >>> reg.register_from_mapping({'foo' : (f1, f2), 'bar' : (b1,)})
         would produce a registry like:
         {
             ('foo', 0) : f1,
