@@ -259,19 +259,19 @@ def test_unique_reg_by_labels() -> None:
 # Partition tests
 def reg_example_a() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)}),
+    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)})
 
     return reg
 
 def reg_example_b() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
+    handles = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
 
     return reg
 
 def reg_example_c() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from([3.14, 0.5772, 2.718], label='constants')
+    handles = reg.register_from([3.14, 0.5772, 2.718], label='constants')
 
     return reg
 
