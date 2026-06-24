@@ -177,6 +177,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             return self.register_from_mapping(collection)
         elif isinstance(collection, Iterable):
             return self.register_from_sequential(collection, label=label)
+        else:
+            raise TypeError(f'Collection to be registered must either be Mapping or non-Mapping Iterable, not "{type(collection).__name__}"')
 
     # Object deregistration
     def deregister(self, handle : HandleT) -> T:
