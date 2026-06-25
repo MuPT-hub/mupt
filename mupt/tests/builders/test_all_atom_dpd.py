@@ -418,7 +418,7 @@ def test_segment_records_counts_tiny_saamr_atoms_and_bonds():
     assert records[0].bonds == [(0, 1), (1, 2)]
 
 
-def test_initial_positions_consumes_placement_generator_factory():
+def test_initial_positions_consumes_placement_generator():
     from mupt.builders.base import PlacementGenerator
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
@@ -432,22 +432,16 @@ def test_initial_positions_consumes_placement_generator_factory():
                 yield handle, RigidTransform.from_translation([10.0, 2.0, 3.0])
 
     fake_generator = FakePlacementGenerator()
-    factory_calls = []
-
-    def factory(rng, box_length):
-        factory_calls.append(box_length)
-        return fake_generator
 
     root, _atoms = _tiny_saamr_hierarchy()
     builder = AllAtomDPDBuilder(
         settings=AllAtomDPDSettings(random_seed=123),
-        placement_generator_factory=factory,
+        placement_generator=fake_generator,
     )
     records = builder._segment_records(root)
 
     positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
 
-    assert factory_calls == [100.0]
     assert fake_generator.seen_labels == ["seg"]
     np.testing.assert_allclose(
         positions,
@@ -487,7 +481,7 @@ def test_initial_positions_validates_placement_generator_handles(mode, match):
                 yield "unknown", transform
 
     root, _atoms = _tiny_saamr_hierarchy()
-    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: InvalidPlacementGenerator())
+    builder = AllAtomDPDBuilder(placement_generator=InvalidPlacementGenerator())
     records = builder._segment_records(root)
 
     with pytest.raises(ValueError, match=match):
@@ -524,7 +518,7 @@ def test_initial_positions_adapts_nested_residue_layout_to_placement_generator()
     root.attach_child(segment)
 
     fake_generator = FakePlacementGenerator()
-    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: fake_generator)
+    builder = AllAtomDPDBuilder(placement_generator=fake_generator)
     records = builder._segment_records(root)
 
     positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
@@ -559,7 +553,7 @@ def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
     root = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     root.attach_child(segment)
 
-    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: LabelPlacementGenerator())
+    builder = AllAtomDPDBuilder(placement_generator=LabelPlacementGenerator())
     records = builder._segment_records(root)
 
     positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
@@ -633,7 +627,7 @@ def test_initial_positions_wraps_atoms_for_periodic_snapshot():
                 yield handle, RigidTransform.from_translation([8.0, 0.0, 0.0])
 
     root, _atoms = _tiny_saamr_hierarchy()
-    builder = AllAtomDPDBuilder(placement_generator_factory=lambda rng, box_length: OffsetPlacementGenerator())
+    builder = AllAtomDPDBuilder(placement_generator=OffsetPlacementGenerator())
     records = builder._segment_records(root)
 
     positions = builder._initial_positions(records, box_length=10.0, rng=np.random.default_rng(123))

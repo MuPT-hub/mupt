@@ -39,7 +39,7 @@ import time
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -444,7 +444,7 @@ class AllAtomDPDBuilder:
         self,
         settings: Optional[AllAtomDPDSettings] = None,
         parameter_provider: Optional[AllAtomDPDParameterProvider] = None,
-        placement_generator_factory: Callable[[np.random.Generator, float], PlacementGenerator] | None = None,
+        placement_generator: Optional[PlacementGenerator] = None,
         resname_map: Optional[dict[str, str]] = None,
     ) -> None:
         """Create an all-atom DPD builder.
@@ -455,12 +455,13 @@ class AllAtomDPDBuilder:
             Builder settings. Defaults mirror the Issue #77 notebook values.
         parameter_provider
             Provider for OpenFF/HOOMD parameter tables.
-        placement_generator_factory
-            Factory returning a ``PlacementGenerator`` for frame-0 residue
-            placement from the AA-DPD RNG and box length. AA-DPD delegates this
-            construction step to the repository placement abstraction to avoid a
-            duplicate chain initializer; AA-DPD remains responsible for dense
-            all-atom relaxation, not residue-chain construction.
+        placement_generator
+            Optional ``PlacementGenerator`` used for frame-0 residue placement.
+            AA-DPD delegates this construction step to the repository placement
+            abstraction to avoid a duplicate chain initializer; AA-DPD remains
+            responsible for dense all-atom relaxation, not residue-chain
+            construction. If omitted, AA-DPD creates a deterministic
+            ``AngleConstrainedRandomWalk`` from the builder settings.
         resname_map
             Optional residue-name map overriding ``settings.resname_map``.
         """
@@ -470,8 +471,8 @@ class AllAtomDPDBuilder:
             self.settings.resname_map = dict(resname_map)
         self._validate_settings()
         self.parameter_provider = parameter_provider or OpenFFAllAtomDPDParameterProvider()
-        self._uses_default_placement_generator = placement_generator_factory is None
-        self.placement_generator_factory = placement_generator_factory or self._default_placement_generator
+        self._uses_default_placement_generator = placement_generator is None
+        self.placement_generator = placement_generator
 
     def _validate_settings(self) -> None:
         """Reject invalid settings before optional HOOMD/OpenFF work starts."""
@@ -864,7 +865,9 @@ class AllAtomDPDBuilder:
             if self._uses_default_placement_generator:
                 placement_generator = self._default_placement_generator(rng, box_lengths)
             else:
-                placement_generator = self.placement_generator_factory(rng, float(np.min(box_lengths)))
+                placement_generator = self.placement_generator
+                if placement_generator is None:
+                    raise RuntimeError("AA-DPD placement generator was unexpectedly unset.")
             placements_by_handle = {}
             duplicate_handles = []
             unknown_handles = []
