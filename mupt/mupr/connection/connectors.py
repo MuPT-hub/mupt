@@ -412,8 +412,7 @@ class Connector(
             raise ConnectorLockedError(f'Cannot remove holder of locked Connector {self}')
         self._holder = None
 
-    # Interactions with neighboring Connectors
-    ## Comparison methods
+    # Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
@@ -449,6 +448,7 @@ class Connector(
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
+    # Interactions with neighboring Connectors
     def is_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
         '''
         Whether this Connector is anti-aligned with another Connector, i.e. whether 
@@ -584,12 +584,6 @@ class Connector(
         if not self.has_neighbor:
             return
 
-        self._precondition_mutable_neighbor()
-        self.neighbor._precondition_mutable_neighbor()
-
-        self.neighbor._neighbor = None
-        self._neighbor = None # done second since reference is needed to find other Connector
-
     # Copying and attr transfer methods
     def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
         '''
@@ -671,18 +665,6 @@ class Connector(
     # def __eq__(self, other : 'Connector') -> bool:
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
-
-def canonical_form_connectors(
-    connectors: Iterable[Connector],
-    separator : str=':',
-    joiner : str='-',
-) -> str:
-    '''A hashable string representing a collection of Connectors in canonical form'''
-    return lex_order_multiset_str(
-        map(Connector.canonical_form, connectors),
-        separator=separator,
-        joiner=joiner,
-    )
 
 # Canonicalization
 def canonical_form_connectors(connectors: Iterable[Connector], separator : str=':', joiner : str='-') -> str:
