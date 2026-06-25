@@ -118,9 +118,10 @@ class AllAtomDPDSettings:
     epsilon_reference_mode
         How to reduce OpenFF vdW epsilons into the DPD pair scaling reference.
     nlist_exclusions
-        HOOMD neighbor-list exclusions for the DPD pair force. The default keeps
-        HOOMD's bonded-pair exclusion while allowing callers to experiment with
-        excluding 1-3/1-4 pairs for difficult dense initializations.
+        HOOMD neighbor-list exclusions for the DPD pair force. The default
+        excludes directly bonded, 1-3, and 1-4 intramolecular pairs so the DPD
+        packing force does not fight local bonded geometry during dense all-atom
+        initialization.
     random_seed
         Optional deterministic seed for initialization and HOOMD.
     write_gsd
@@ -158,7 +159,7 @@ class AllAtomDPDSettings:
     angle_energy_tolerance_deg: float = 5.0
     require_bonded_energy_convergence: bool = True
     epsilon_reference_mode: str = "max"
-    nlist_exclusions: tuple[str, ...] = ("bond",)
+    nlist_exclusions: tuple[str, ...] = ("bond", "angle", "dihedral")
     random_seed: Optional[int] = None
     write_gsd: bool = False
     write_log: bool = False

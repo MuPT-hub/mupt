@@ -340,7 +340,7 @@ def test_default_settings_use_dense_initialization_restraints():
     assert settings.angle_scale == 30.0
     assert settings.dihedral_scale == 30.0
     assert settings.require_bonded_energy_convergence is True
-    assert settings.nlist_exclusions == ("bond",)
+    assert settings.nlist_exclusions == ("bond", "angle", "dihedral")
 
 
 def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
