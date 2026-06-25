@@ -21,6 +21,7 @@ from typing import (
 from dataclasses import dataclass, field
 from copy import deepcopy
 from itertools import product as cartesian
+from uuid import uuid4
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
@@ -100,10 +101,22 @@ class Connector(RigidlyTransformable):
         self.metadata : dict[Hashable, Any] = metadata or dict()
 
         ## Protected attributes
+        self._address = uuid4()  # randomly-generated; may opt for field based (with something like uuid7) in the future
+        self._address_str = str(self._address) # cache to avoid recalculation
+
         self._neighbor : Optional[Connector] = None
         self._locked : bool = False
         self._holders : list['HoldsConnectors'] = list()
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
+
+    @property
+    def address(self) -> str: # protected - no setter or deleter offered
+         # opting for str conversion to avoid consumers needing to know about UUID type
+        '''
+        Hashable address UNIQUE to this Connector
+        Not the same as __hash__ (Connector instances with the same hash will have different addresses)
+        '''
+        return self._address_str
 
     @property
     def bond_order(self) -> float:
