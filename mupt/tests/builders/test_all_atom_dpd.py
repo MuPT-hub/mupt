@@ -327,6 +327,18 @@ def test_rejects_invalid_settings(field, value, match):
         AllAtomDPDBuilder(settings=settings)
 
 
+def test_default_settings_use_dense_initialization_restraints():
+    from mupt.builders.all_atom_dpd import AllAtomDPDSettings
+
+    settings = AllAtomDPDSettings()
+
+    assert settings.initial_residue_spacing_a == 1.5
+    assert settings.bond_scale == 30.0
+    assert settings.angle_scale == 30.0
+    assert settings.dihedral_scale == 30.0
+    assert settings.require_bonded_energy_convergence is True
+
+
 def test_openff_key_atom_indices_support_topology_key_shapes():
     from mupt.builders.all_atom_dpd import OpenFFAllAtomDPDParameterProvider
 

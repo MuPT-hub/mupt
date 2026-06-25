@@ -101,7 +101,10 @@ class AllAtomDPDSettings:
     force_field
         OpenFF force field identifier passed to ``ForceField``.
     bond_scale, angle_scale, dihedral_scale
-        Multipliers applied to OpenFF bonded force constants.
+        Multipliers applied to OpenFF bonded force constants. Defaults are
+        intentionally stronger than production OpenFF values because AA-DPD uses
+        them as dense-coordinate initialization restraints against large DPD
+        packing forces.
     bond_energy_tolerance_a
         RMS-like bond displacement tolerance used to derive a harmonic bond
         energy threshold for AA-DPD convergence.
@@ -131,16 +134,16 @@ class AllAtomDPDSettings:
     gamma_base: float = 800.0
     dt: float = 0.001
     particle_spacing_a: float = 0.75
-    initial_residue_spacing_a: float = 5.0
+    initial_residue_spacing_a: float = 1.5
     initial_angle_max_rad: float = np.pi / 4.0
     n_steps_per_interval: int = 1000
     n_steps_max: int = 10000
     report_interval: int = 1000
     device: str = "auto"
     force_field: str = "openff-2.2.1.offxml"
-    bond_scale: float = 1.0
-    angle_scale: float = 1.0
-    dihedral_scale: float = 1.0
+    bond_scale: float = 30.0
+    angle_scale: float = 30.0
+    dihedral_scale: float = 30.0
     bond_energy_tolerance_a: float = 0.05
     angle_energy_tolerance_deg: float = 5.0
     require_bonded_energy_convergence: bool = True
@@ -465,7 +468,8 @@ class AllAtomDPDBuilder:
         Parameters
         ----------
         settings
-            Builder settings. Defaults mirror the Issue #77 notebook values.
+            Builder settings. Defaults are tuned for dense all-atom coordinate
+            initialization, not production molecular dynamics.
         parameter_provider
             Provider for OpenFF/HOOMD parameter tables.
         placement_generator
