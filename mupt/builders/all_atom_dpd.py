@@ -203,7 +203,13 @@ class _ParameterTables:
 
 
 class AllAtomDPDParameterProvider(ABC):
-    """Abstract source of all-atom DPD bonded and vdW parameter tables."""
+    """Abstract source of all-atom DPD bonded and vdW parameter tables.
+
+    ``AllAtomDPDBuilder`` consumes already-resolved HOOMD-style parameter
+    tables through this boundary. OpenFF is the first provider implemented here,
+    but callers can supply another provider that derives equivalent tables from
+    a different force field, cached labels, or external parameterization step.
+    """
 
     @abstractmethod
     def parameterize(
@@ -212,14 +218,20 @@ class AllAtomDPDParameterProvider(ABC):
         records: list[_SegmentRecord],
         settings: AllAtomDPDSettings,
     ) -> _ParameterTables:
-        """Return HOOMD-ready parameters for the supplied segment records."""
+        """Return HOOMD-ready parameters for the supplied segment records.
+
+        Implementations should fill bonded parameter dictionaries and atom vdW
+        epsilon/type mappings for every atom record they can parameterize.
+        """
 
 
 class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     """Parameter provider backed by OpenFF ``ForceField.label_molecules``.
 
     OpenFF bonded terms are converted to numeric kcal/mol-style values and used
-    as initialization restraints in HOOMD. 
+    as initialization restraints in HOOMD. This provider is intentionally one
+    implementation of the ``AllAtomDPDParameterProvider`` interface rather than a
+    requirement that every AA-DPD workflow use OpenFF internally.
     """
 
     def __init__(self, force_field: Optional[str] = None, resname_map: Optional[dict[str, str]] = None) -> None:
@@ -242,7 +254,11 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         records: list[_SegmentRecord],
         settings: AllAtomDPDSettings,
     ) -> _ParameterTables:
-        """Label RDKit segment molecules with OpenFF and collect parameters."""
+        """Label RDKit segment molecules with OpenFF and collect parameters.
+
+        The returned tables are builder-facing numeric parameters; downstream
+        AA-DPD code does not depend on OpenFF objects after this method returns.
+        """
 
         from openff.toolkit import ForceField, Molecule, Topology
         from openff.units import unit
