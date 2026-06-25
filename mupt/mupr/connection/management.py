@@ -8,6 +8,8 @@ from typing import (
     Optional,
     Protocol,
 )
+
+from types import MappingProxyType
 from abc import abstractmethod
 
 from .connectors import Connector
@@ -16,7 +18,7 @@ from .types import (
     ConnectorHandle,
     ConnectorAddress,
 )
-from mupt.mutils.containers import (
+from ...mutils.containers import (
     UniqueRegistry,
     Labelled,
     LabelledT,
@@ -24,31 +26,25 @@ from mupt.mutils.containers import (
 ) 
 
 
-class HoldsConnectors(Protocol):
-    '''
-    Type indicator for another class which is in some sense a 'proprietor' of
-    a collection of Connectors, but employs a ConnectorManager to manage them
-    '''
-    connections : ConnectorManager
-
 class ConnectorManager(Protocol):
     '''Interface for generic connector managment object'''
-    connectors : Collection['Connector']
-    connectors_by_handle : Mapping[ConnectorAddress, 'Connector']
+    connectors : Collection[Connector]
+    connectors_by_addr : Mapping[ConnectorAddress, Connector]
+    connectors_by_handle : Mapping[ConnectorHandle, Connector]
 
     @abstractmethod
-    def connector(self, conn_addr : ConnectorAddress) -> 'Connector':
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
         ...
 
     @property
     @abstractmethod
-    def connectors_free(self) -> Collection['Connector']:
+    def connectors_free(self) -> Collection[Connector]:
         '''Connectors which are currently unbound'''
         ...
 
     @property
     @abstractmethod
-    def connectors_bound(self) -> Collection['Connector']:
+    def connectors_bound(self) -> Collection[Connector]:
         '''Connectors which have a neighbor'''
         ...
 
@@ -64,6 +60,14 @@ class ConnectorManager(Protocol):
         return round(total_bond_order)
     chemical_valence = electronic_valence = valence # aliases for convenience
 
+class HoldsConnectors(Protocol):
+    '''
+    Type indicator for another class which is in some sense a 'proprietor' of
+    a collection of Connectors, but employs a ConnectorManager to manage them
+    '''
+    connections : ConnectorManager
+
+# Concrete ConnectorManager types
 class ConnectorManagerFrozen(ConnectorManager):
     '''
     ConnectorManager which does not permit mutation to connectivity after creation
@@ -71,6 +75,7 @@ class ConnectorManagerFrozen(ConnectorManager):
     _connectors_all : tuple[Connector, ...]
     _connectors_free : tuple[Connector, ...]
     _connectors_bound : tuple[Connector, ...]
+    _connectors_by_addr : MappingProxyType[ConnectorAddress, Connector]
 
     def __new__(
         cls,
@@ -81,6 +86,7 @@ class ConnectorManagerFrozen(ConnectorManager):
          # TODO: make Registries and set labels procedurally (somehow)
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
         obj._connectors_all = tuple(connectors)
+        obj._connectors_by_addr = MappingProxyType({conn.address : conn for conn in connectors})
 
         if connectors_free is None:
             connectors_free = tuple(
@@ -101,7 +107,11 @@ class ConnectorManagerFrozen(ConnectorManager):
         return obj
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        return self._connectors_all[conn_addr]
+        return self._connectors_by_addr[conn_addr]
+    
+    @property
+    def connectors_by_addr(self) -> Mapping[ConnectorAddress, Connector]:
+        return self._connectors_by_addr
 
     @property
     def connectors(self) -> tuple[Connector, ...]:
@@ -134,15 +144,15 @@ class ConnectorManagerMutable(ConnectorManager):
     ) -> None:
         ...
 
-    def connector(self, conn_addr : ConnectorAddress) -> 'Connector':
+    def connector(self, conn_addr : ConnectorAddress) -> Connector:
         ...
 
     @property
-    def connectors_free(self) -> Collection['Connector']:
+    def connectors_free(self) -> Collection[Connector]:
         '''Connectors which are currently unbound'''
         ...
 
     @property
-    def connectors_bound(self) -> Collection['Connector']:
+    def connectors_bound(self) -> Collection[Connector]:
         '''Connectors which have a neighbor'''
         ...

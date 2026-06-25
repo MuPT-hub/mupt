@@ -117,6 +117,7 @@ class Connector(RigidlyTransformable):
         Not the same as __hash__ (Connector instances with the same hash will have different addresses)
         '''
         return self._address_str
+    addr = address # alias for convenience
 
     @property
     def bond_order(self) -> float:

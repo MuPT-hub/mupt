@@ -14,4 +14,4 @@ type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases beco
 type ConnectorLabel = Hashable
 ConnectorHandle = tuple[ConnectorLabel, int]
 
-type ConnectorAddress = int # DEV TB: consider if this type needs to be more specific than just an alias
+type ConnectorAddress = Hashable # DEV TB: consider if this type needs to be more specific than just an alias
