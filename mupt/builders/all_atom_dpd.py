@@ -125,7 +125,7 @@ class AllAtomDPDSettings:
     random_seed
         Optional deterministic seed for initialization and HOOMD.
     write_gsd
-        Whether to write initial and trajectory GSD files.
+        Whether to write initial and trajectory GSD files. Will write only first and last unless report_interval is provided.
     write_log
         Whether to write AA-DPD convergence diagnostics as JSON lines. Requires
         ``output_name``.
@@ -1138,11 +1138,7 @@ class AllAtomDPDBuilder:
         simulation = hoomd.Simulation(device=self._hoomd_device(hoomd), seed=self.settings.random_seed or 1)
         simulation.operations.integrator = integrator
         simulation.create_state_from_snapshot(frame)
-        if self.settings.write_gsd and self.settings.output_name:
-            import gsd.hoomd
-
-            with gsd.hoomd.open(name=f"{self.settings.output_name}_init.gsd", mode="w") as handle:
-                handle.append(frame)
+        if self.settings.write_gsd and self.settings.output_name and self.settings.report_interval:
             simulation.operations.writers.append(
                 hoomd.write.GSD(
                     trigger=hoomd.trigger.Periodic(self.settings.report_interval),
@@ -1365,6 +1361,14 @@ class AllAtomDPDBuilder:
         start = time.perf_counter()
         steps = 0
         simulation.run(1)
+        if self.settings.write_gsd and self.settings.output_name:
+            import hoomd
+            hoomd.write.GSD.write(
+                    state=simulation.state,
+                    mode='wb',
+                    filename=f'{self.settings.output_name}_first_frame.gsd'
+            )
+        
         excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
         self._initialize_diagnostics_log()
         spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
@@ -1392,6 +1396,12 @@ class AllAtomDPDBuilder:
         frequency = self.settings.log_write_freq or self.settings.report_interval
         if steps != 0 and steps % frequency != 0:
             self._write_diagnostics_record(steps, diagnostics, force=True)
+        if self.settings.write_gsd and self.settings.output_name:
+            hoomd.write.GSD.write(
+                    state=simulation.state,
+                    mode='wb',
+                    filename=f'{self.settings.output_name}_last_frame.gsd'
+            ) 
         return steps, time.perf_counter() - start, converged, diagnostics
 
     def _diagnostics_log_path(self) -> Optional[str]:
