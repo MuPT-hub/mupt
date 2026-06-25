@@ -11,7 +11,6 @@ from rdkit.Chem.rdmolfiles import SDMolSupplier, SDWriter
 
 import mupt.interfaces.rdkit.exporters as rdkit_exporters
 import mupt.temporary.sdf as temporary_sdf
-from mupt.interfaces.rdkit import write_primitive_to_mupt_sdf
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.temporary.sdf import (
@@ -19,6 +18,7 @@ from mupt.temporary.sdf import (
     iter_primitives_from_mupt_sdf,
     primitive_from_mupt_sdf,
     prepare_mupt_sdf_atom_props,
+    write_primitive_to_mupt_sdf,
     write_primitive_to_sdf,
 )
 
@@ -102,9 +102,7 @@ def test_sdf_canonical_import_path_works_first_in_clean_interpreter():
     """Importing mupt.temporary.sdf first must not circular-import RDKit helpers."""
     code = """
 from mupt.temporary.sdf import write_primitive_to_sdf
-from mupt.interfaces.rdkit import write_primitive_to_sdf as compat_write
 assert callable(write_primitive_to_sdf)
-assert callable(compat_write)
 """
 
     subprocess.run(
@@ -154,7 +152,7 @@ def test_write_primitive_to_sdf_preserves_openff_atom_metadata(
     assert first_atom.HasProp("chain_id")
 
 
-def test_rdkit_interface_reexports_mupt_sdf_writer(
+def test_temporary_package_reexports_mupt_sdf_writer(
     tmp_path,
     single_polyethylene_2mer,
     polyethylene_resname_map,

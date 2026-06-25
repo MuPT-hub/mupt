@@ -51,45 +51,6 @@ from ...chemistry.sanitization import (
     SANITIZE_ALL,
     SANITIZE_NONE,
 )
-
-
-def write_primitive_to_sdf(
-    primitive,
-    path,
-    resname_map,
-    default_atom_position=None,
-    strategy=None,
-):
-    """Compatibility wrapper for the temporary MuPT SDF writer."""
-    from ...temporary.sdf import write_primitive_to_sdf as _write_primitive_to_sdf
-
-    return _write_primitive_to_sdf(
-        primitive,
-        path,
-        resname_map=resname_map,
-        default_atom_position=default_atom_position,
-        strategy=strategy,
-    )
-
-
-def write_primitive_to_mupt_sdf(
-    primitive,
-    path,
-    resname_map,
-    default_atom_position=None,
-    strategy=None,
-):
-    """Compatibility wrapper for the temporary MuPT SDF writer alias."""
-    from ...temporary.sdf import write_primitive_to_mupt_sdf as _write_primitive_to_mupt_sdf
-
-    return _write_primitive_to_mupt_sdf(
-        primitive,
-        path,
-        resname_map=resname_map,
-        default_atom_position=default_atom_position,
-        strategy=strategy,
-    )
-
 # DEFAULT DRAWING CONFIG
 set_rdkdraw_size(400, aspect=3/2)
 show_atom_indices()
