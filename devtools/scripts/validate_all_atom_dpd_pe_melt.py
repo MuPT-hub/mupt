@@ -7,7 +7,6 @@ import argparse
 import logging
 import math
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -104,25 +103,6 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
         root.attach_child(segment)
     assign_SAAMR_roles(root)
     return root
-
-
-@dataclass(frozen=True)
-class OpenFFDeps:
-    """Optional OpenFF-driven validation imports."""
-
-    Interchange: Any
-    ForceField: Any
-    Molecule: Any
-    Topology: Any
-    ToolkitRegistry: Any
-    NAGLToolkitWrapper: Any
-    off_unit: Any
-    omm_unit: Any
-    LangevinMiddleIntegrator: Any
-    MonteCarloBarostat: Any
-    Vec3: Any
-    Simulation: Any
-    primitive_to_rdkit_mols: Any
 
 
 def parse_args() -> argparse.Namespace:
@@ -299,43 +279,6 @@ def validate_dpd_diagnostics(result: Any, finite_coords: bool, minimum_distance:
         raise RuntimeError("AA-DPD did not satisfy the DPD convergence criterion.")
 
 
-def import_openff_deps() -> OpenFFDeps:
-    try:
-        from mupt.interfaces.rdkit import primitive_to_rdkit_mols
-        from openff.interchange import Interchange
-        from openff.toolkit import ForceField, Molecule, Topology
-        from openff.toolkit.utils import ToolkitRegistry
-        from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
-        from openff.units import unit as off_unit
-        from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, Vec3
-        from openmm import unit as omm_unit
-        from openmm.app import Simulation
-    except ModuleNotFoundError as exc:
-        missing = exc.name or "an optional OpenFF validation dependency"
-        raise RuntimeError(
-            "OpenFF validation dependencies are missing. Install RDKit, "
-            "openff-toolkit, openff-interchange, and openmm in this environment, "
-            "or rerun with --skip-openmm. "
-            f"Missing import: {missing}"
-        ) from exc
-
-    return OpenFFDeps(
-        Interchange=Interchange,
-        ForceField=ForceField,
-        Molecule=Molecule,
-        Topology=Topology,
-        ToolkitRegistry=ToolkitRegistry,
-        NAGLToolkitWrapper=NAGLToolkitWrapper,
-        off_unit=off_unit,
-        omm_unit=omm_unit,
-        LangevinMiddleIntegrator=LangevinMiddleIntegrator,
-        MonteCarloBarostat=MonteCarloBarostat,
-        Vec3=Vec3,
-        Simulation=Simulation,
-        primitive_to_rdkit_mols=primitive_to_rdkit_mols,
-    )
-
-
 def openmm_system_from_interchange(interchange: Any) -> Any:
     for method_name in ("to_openmm_system", "to_openmm"):
         method = getattr(interchange, method_name, None)
@@ -384,16 +327,19 @@ def box_density_g_cm3(box_vectors_nm: np.ndarray, mass_da: float) -> float:
     return mass_da * DA_PER_NM3_TO_G_CM3 / volume_nm3
 
 
-def assign_openff_charges(molecules: list[Any], deps: OpenFFDeps, charge_method: str) -> None:
+def assign_openff_charges(molecules: list[Any], charge_method: str) -> None:
     """Assign OpenFF partial charges, using NAGL explicitly for AshGC models."""
 
     if charge_method.endswith(".pt") or charge_method.startswith("openff-gnn"):
-        if not deps.NAGLToolkitWrapper.is_available():
+        from openff.toolkit.utils import ToolkitRegistry
+        from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
+
+        if not NAGLToolkitWrapper.is_available():
             raise RuntimeError(
                 "NAGL charge assignment requested, but OpenFF NAGL is unavailable. "
                 "Install openff-nagl or choose a debug-only method such as zeros."
             )
-        registry = deps.ToolkitRegistry([deps.NAGLToolkitWrapper()])
+        registry = ToolkitRegistry([NAGLToolkitWrapper()])
         for molecule in molecules:
             molecule.assign_partial_charges(
                 partial_charge_method=charge_method,
@@ -406,27 +352,34 @@ def assign_openff_charges(molecules: list[Any], deps: OpenFFDeps, charge_method:
 
 
 def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace) -> None:
-    deps = import_openff_deps()
+    from mupt.interfaces.rdkit import primitive_to_rdkit_mols
+    from openff.interchange import Interchange
+    from openff.toolkit import ForceField, Molecule, Topology
+    from openff.units import unit as off_unit
+    from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, Vec3
+    from openmm import unit as omm_unit
+    from openmm.app import Simulation
+
     rdkit_mols = list(
-        deps.primitive_to_rdkit_mols(
+        primitive_to_rdkit_mols(
             root,
             resname_map=PE_RESNAME_MAP,
             default_atom_position=np.zeros(3),
         )
     )
     molecules = [
-        deps.Molecule.from_rdkit(
+        Molecule.from_rdkit(
             mol,
             allow_undefined_stereo=True,
             hydrogens_are_explicit=True,
         )
         for mol in rdkit_mols
     ]
-    assign_openff_charges(molecules, deps, charge_method)
+    assign_openff_charges(molecules, charge_method)
 
-    topology = deps.Topology.from_molecules(molecules)
-    topology.box_vectors = deps.off_unit.Quantity(np.eye(3) * box_length_a, deps.off_unit.angstrom)
-    interchange = deps.ForceField("openff-2.2.1.offxml").create_interchange(
+    topology = Topology.from_molecules(molecules)
+    topology.box_vectors = off_unit.Quantity(np.eye(3) * box_length_a, off_unit.angstrom)
+    interchange = ForceField("openff-2.2.1.offxml").create_interchange(
         topology,
         charge_from_molecules=[molecules[0]],
     )
@@ -434,9 +387,9 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     openmm_topology = openmm_topology_from_interchange(interchange, topology)
 
     vectors = (
-        deps.Vec3(box_length_a, 0.0, 0.0) * deps.omm_unit.angstrom,
-        deps.Vec3(0.0, box_length_a, 0.0) * deps.omm_unit.angstrom,
-        deps.Vec3(0.0, 0.0, box_length_a) * deps.omm_unit.angstrom,
+        Vec3(box_length_a, 0.0, 0.0) * omm_unit.angstrom,
+        Vec3(0.0, box_length_a, 0.0) * omm_unit.angstrom,
+        Vec3(0.0, 0.0, box_length_a) * omm_unit.angstrom,
     )
     system.setDefaultPeriodicBoxVectors(*vectors)
     if hasattr(openmm_topology, "setPeriodicBoxVectors"):
@@ -450,17 +403,17 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
             f"RDKit coordinate count ({len(positions)})."
         )
 
-    integrator = deps.LangevinMiddleIntegrator(
-        args.md_temperature_k * deps.omm_unit.kelvin,
-        args.md_friction_ps / deps.omm_unit.picosecond,
-        args.md_timestep_fs * deps.omm_unit.femtosecond,
+    integrator = LangevinMiddleIntegrator(
+        args.md_temperature_k * omm_unit.kelvin,
+        args.md_friction_ps / omm_unit.picosecond,
+        args.md_timestep_fs * omm_unit.femtosecond,
     )
-    simulation = deps.Simulation(openmm_topology, system, integrator)
-    simulation.context.setPositions(positions * deps.omm_unit.angstrom)
+    simulation = Simulation(openmm_topology, system, integrator)
+    simulation.context.setPositions(positions * omm_unit.angstrom)
 
-    initial_energy = energy_kj_mol(simulation, deps.omm_unit)
+    initial_energy = energy_kj_mol(simulation, omm_unit)
     simulation.minimizeEnergy()
-    minimized_energy = energy_kj_mol(simulation, deps.omm_unit)
+    minimized_energy = energy_kj_mol(simulation, omm_unit)
     LOGGER.info("OpenMM diagnostics")
     LOGGER.info("  molecule_count: %s", len(molecules))
     LOGGER.info("  atom_count: %s", n_openmm_atoms)
@@ -471,8 +424,17 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     LOGGER.info("  finite_energies: %s", bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy)))
     if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
         raise RuntimeError("OpenMM validation produced nonfinite energies.")
-    run_nvt_smoke(simulation, system, deps.omm_unit, args)
-    run_npt_smoke(simulation, interchange, openmm_topology, deps, args)
+    run_nvt_smoke(simulation, system, omm_unit, args)
+    run_npt_smoke(
+        simulation,
+        interchange,
+        openmm_topology,
+        monte_carlo_barostat_cls=MonteCarloBarostat,
+        langevin_middle_integrator_cls=LangevinMiddleIntegrator,
+        simulation_cls=Simulation,
+        omm_unit=omm_unit,
+        args=args,
+    )
 
 
 def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace) -> None:
@@ -511,7 +473,16 @@ def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Na
             raise RuntimeError("NVT stability check produced nonfinite energy.")
 
 
-def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps: OpenFFDeps, args: argparse.Namespace) -> None:
+def run_npt_smoke(
+    simulation: Any,
+    interchange: Any,
+    openmm_topology: Any,
+    monte_carlo_barostat_cls: Any,
+    langevin_middle_integrator_cls: Any,
+    simulation_cls: Any,
+    omm_unit: Any,
+    args: argparse.Namespace,
+) -> None:
     """Continue from the NVT state under regular NPT conditions."""
 
     if args.npt_steps == 0:
@@ -525,24 +496,24 @@ def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps:
     system = openmm_system_from_interchange(interchange)
     system.setDefaultPeriodicBoxVectors(*box_vectors)
     system.addForce(
-        deps.MonteCarloBarostat(
-            args.pressure_atm * deps.omm_unit.atmosphere,
-            args.md_temperature_k * deps.omm_unit.kelvin,
+        monte_carlo_barostat_cls(
+            args.pressure_atm * omm_unit.atmosphere,
+            args.md_temperature_k * omm_unit.kelvin,
             args.barostat_frequency,
         )
     )
     if hasattr(openmm_topology, "setPeriodicBoxVectors"):
         openmm_topology.setPeriodicBoxVectors(box_vectors)
 
-    integrator = deps.LangevinMiddleIntegrator(
-        args.md_temperature_k * deps.omm_unit.kelvin,
-        args.md_friction_ps / deps.omm_unit.picosecond,
-        args.md_timestep_fs * deps.omm_unit.femtosecond,
+    integrator = langevin_middle_integrator_cls(
+        args.md_temperature_k * omm_unit.kelvin,
+        args.md_friction_ps / omm_unit.picosecond,
+        args.md_timestep_fs * omm_unit.femtosecond,
     )
-    npt = deps.Simulation(openmm_topology, system, integrator)
+    npt = simulation_cls(openmm_topology, system, integrator)
     npt.context.setPositions(positions)
     npt.context.setVelocities(velocities)
-    mass_da = system_mass_da(system, deps.omm_unit)
+    mass_da = system_mass_da(system, omm_unit)
 
     LOGGER.info("NPT diagnostics")
     LOGGER.info("  pressure_atm: %.6f", args.pressure_atm)
@@ -554,9 +525,9 @@ def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps:
         npt.step(steps)
         steps_run += steps
         state = npt.context.getState(getEnergy=True, enforcePeriodicBox=True)
-        potential = float(state.getPotentialEnergy().value_in_unit(deps.omm_unit.kilojoule_per_mole))
-        kinetic = float(state.getKineticEnergy().value_in_unit(deps.omm_unit.kilojoule_per_mole))
-        box_nm = state.getPeriodicBoxVectors(asNumpy=True).value_in_unit(deps.omm_unit.nanometer)
+        potential = float(state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
+        kinetic = float(state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
+        box_nm = state.getPeriodicBoxVectors(asNumpy=True).value_in_unit(omm_unit.nanometer)
         density = box_density_g_cm3(box_nm, mass_da)
         finite = bool(np.isfinite(potential) and np.isfinite(kinetic) and np.isfinite(density))
         time_ps = steps_run * args.md_timestep_fs / 1000.0
