@@ -188,7 +188,7 @@ def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
     real_import = builtins.__import__
 
     def guarded_import(name, *args, **kwargs):
-        if name == "hoomd" or name.startswith("hoomd.") or name == "openff" or name.startswith("openff."):
+        if name.startswith("hoomd") or name.startswith("openff"):
             raise AssertionError(f"unexpected optional dependency import: {name}")
         return real_import(name, *args, **kwargs)
 
