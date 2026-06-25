@@ -367,6 +367,53 @@ def test_missing_bonded_params_warn_and_use_max_k(caplog):
     assert "maximum-k parameter set 'stiff'" in caplog.text
 
 
+def test_energy_diagnostics_collects_force_energies_per_term():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    class BondForce:
+        energy = 8.0
+
+    class AngleForce:
+        energy = 12.0
+
+    class PairForce:
+        energy = 20.0
+
+    BondForce.__module__ = "hoomd.md.bond"
+    AngleForce.__module__ = "hoomd.md.angle"
+    PairForce.__module__ = "hoomd.md.pair"
+
+    class Container:
+        def __init__(self, n):
+            self.N = n
+
+    class Frame:
+        bonds = Container(4)
+        angles = Container(6)
+        dihedrals = Container(0)
+        impropers = Container(0)
+
+    class Integrator:
+        forces = [BondForce(), AngleForce(), PairForce()]
+
+    class Operations:
+        integrator = Integrator()
+
+    class Simulation:
+        operations = Operations()
+
+    diagnostics = AllAtomDPDBuilder._energy_diagnostics(Simulation(), Frame())
+
+    assert diagnostics["counts"] == {"bond": 4, "angle": 6, "dihedral": 0, "improper": 0}
+    assert diagnostics["bond_energy"] == 8.0
+    assert diagnostics["bond_energy_per_term"] == 2.0
+    assert diagnostics["angle_energy"] == 12.0
+    assert diagnostics["angle_energy_per_term"] == 2.0
+    assert diagnostics["dpd_energy"] == 20.0
+    assert diagnostics["dihedral_energy"] is None
+    assert diagnostics["dihedral_energy_per_term"] is None
+
+
 @pytest.mark.skipif(importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed")
 def test_openff_parameter_provider_handles_pet_improper_idivf_none():
     from mupt.builders.all_atom_dpd import (

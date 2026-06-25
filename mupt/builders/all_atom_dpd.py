@@ -154,6 +154,7 @@ class AllAtomDPDResult:
     box_length_a: float
     box_lengths_a: tuple[float, float, float]
     converged: bool
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -583,6 +584,7 @@ class AllAtomDPDBuilder:
         )
         simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, impropers, parameters)
         steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_lengths, bonds)
+        diagnostics = self._energy_diagnostics(simulation, frame)
         final_positions = self._unwrap_positions(
             simulation.state.get_snapshot().particles.position[:],
             bonds,
@@ -603,6 +605,7 @@ class AllAtomDPDBuilder:
             box_length_a=box_length,
             box_lengths_a=tuple(float(length) for length in box_lengths),
             converged=converged,
+            diagnostics=diagnostics,
         )
         root.metadata["all_atom_dpd_summary"] = self._serializable_summary(result)
         return result
@@ -1166,6 +1169,59 @@ class AllAtomDPDBuilder:
                 }
         return params
 
+    @classmethod
+    def _energy_diagnostics(cls, simulation: Any, frame: Any) -> dict[str, Any]:
+        """Return final HOOMD force energies and per-term normalizations."""
+
+        force_by_kind = cls._force_by_kind(simulation)
+        counts = {
+            "bond": int(getattr(frame.bonds, "N", 0)),
+            "angle": int(getattr(frame.angles, "N", 0)),
+            "dihedral": int(getattr(frame.dihedrals, "N", 0)),
+            "improper": int(getattr(frame.impropers, "N", 0)),
+        }
+        diagnostics: dict[str, Any] = {"counts": counts}
+        for kind in ("bond", "angle", "dihedral", "improper", "dpd"):
+            energy = cls._force_energy(force_by_kind.get(kind))
+            diagnostics[f"{kind}_energy"] = energy
+            if kind in counts:
+                count = counts[kind]
+                diagnostics[f"{kind}_energy_per_term"] = energy / count if energy is not None and count else None
+        return diagnostics
+
+    @staticmethod
+    def _force_by_kind(simulation: Any) -> dict[str, Any]:
+        """Group configured HOOMD force objects by the AA-DPD role they play."""
+
+        integrator = getattr(getattr(simulation, "operations", None), "integrator", None)
+        forces = getattr(integrator, "forces", []) if integrator is not None else []
+        force_by_kind = {}
+        for force in forces:
+            module = force.__class__.__module__
+            class_name = force.__class__.__name__
+            if module.endswith(".bond") or ".bond." in module:
+                force_by_kind["bond"] = force
+            elif module.endswith(".angle") or ".angle." in module:
+                force_by_kind["angle"] = force
+            elif module.endswith(".dihedral") or ".dihedral." in module:
+                force_by_kind["dihedral"] = force
+            elif module.endswith(".improper") or ".improper." in module:
+                force_by_kind["improper"] = force
+            elif class_name == "DPD" or module.endswith(".pair") or ".pair." in module:
+                force_by_kind["dpd"] = force
+        return force_by_kind
+
+    @staticmethod
+    def _force_energy(force: Any) -> Optional[float]:
+        """Return a HOOMD force energy as a float, or ``None`` when absent."""
+
+        if force is None:
+            return None
+        try:
+            return float(force.energy)
+        except (TypeError, ValueError):
+            return None
+
     def _run_until_spaced(
         self,
         simulation: Any,
@@ -1298,4 +1354,5 @@ class AllAtomDPDBuilder:
             "box_length_a": float(result.box_length_a),
             "box_lengths_a": [float(length) for length in result.box_lengths_a],
             "converged": bool(result.converged),
+            "diagnostics": result.diagnostics,
         }
