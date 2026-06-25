@@ -102,6 +102,15 @@ class AllAtomDPDSettings:
         OpenFF force field identifier passed to ``ForceField``.
     bond_scale, angle_scale, dihedral_scale
         Multipliers applied to OpenFF bonded force constants.
+    bond_energy_tolerance_a
+        RMS-like bond displacement tolerance used to derive a harmonic bond
+        energy threshold for AA-DPD convergence.
+    angle_energy_tolerance_deg
+        RMS-like angle displacement tolerance used to derive a harmonic angle
+        energy threshold for AA-DPD convergence.
+    require_bonded_energy_convergence
+        Whether AA-DPD convergence requires bond and angle energies to fall below
+        the derived thresholds in addition to nonbonded spacing.
     epsilon_reference_mode
         How to reduce OpenFF vdW epsilons into the DPD pair scaling reference.
     random_seed
@@ -132,6 +141,9 @@ class AllAtomDPDSettings:
     bond_scale: float = 1.0
     angle_scale: float = 1.0
     dihedral_scale: float = 1.0
+    bond_energy_tolerance_a: float = 0.05
+    angle_energy_tolerance_deg: float = 5.0
+    require_bonded_energy_convergence: bool = True
     epsilon_reference_mode: str = "max"
     random_seed: Optional[int] = None
     write_gsd: bool = False
@@ -491,6 +503,8 @@ class AllAtomDPDBuilder:
             "bond_scale": self.settings.bond_scale,
             "angle_scale": self.settings.angle_scale,
             "dihedral_scale": self.settings.dihedral_scale,
+            "bond_energy_tolerance_a": self.settings.bond_energy_tolerance_a,
+            "angle_energy_tolerance_deg": self.settings.angle_energy_tolerance_deg,
         }
         for name, value in positive_fields.items():
             if value <= 0.0:
@@ -583,8 +597,14 @@ class AllAtomDPDBuilder:
             box_lengths,
         )
         simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, impropers, parameters)
-        steps, elapsed_s, converged = self._run_until_spaced(simulation, freud, box_lengths, bonds)
-        diagnostics = self._energy_diagnostics(simulation, frame)
+        steps, elapsed_s, converged, diagnostics = self._run_until_converged(
+            simulation,
+            freud,
+            frame,
+            parameters,
+            box_lengths,
+            bonds,
+        )
         final_positions = self._unwrap_positions(
             simulation.state.get_snapshot().particles.position[:],
             bonds,
@@ -1170,7 +1190,13 @@ class AllAtomDPDBuilder:
         return params
 
     @classmethod
-    def _energy_diagnostics(cls, simulation: Any, frame: Any) -> dict[str, Any]:
+    def _energy_diagnostics(
+        cls,
+        simulation: Any,
+        frame: Any,
+        parameters: Optional[_ParameterTables] = None,
+        settings: Optional[AllAtomDPDSettings] = None,
+    ) -> dict[str, Any]:
         """Return final HOOMD force energies and per-term normalizations."""
 
         force_by_kind = cls._force_by_kind(simulation)
@@ -1187,7 +1213,80 @@ class AllAtomDPDBuilder:
             if kind in counts:
                 count = counts[kind]
                 diagnostics[f"{kind}_energy_per_term"] = energy / count if energy is not None and count else None
+        if parameters is not None and settings is not None:
+            diagnostics["bond_energy_threshold"] = cls._bond_energy_threshold(
+                frame,
+                parameters,
+                settings.bond_energy_tolerance_a,
+            )
+            diagnostics["angle_energy_threshold"] = cls._angle_energy_threshold(
+                frame,
+                parameters,
+                settings.angle_energy_tolerance_deg,
+            )
+            diagnostics["bond_energy_converged"] = cls._energy_below_threshold(
+                diagnostics["bond_energy"],
+                diagnostics["bond_energy_threshold"],
+            )
+            diagnostics["angle_energy_converged"] = cls._energy_below_threshold(
+                diagnostics["angle_energy"],
+                diagnostics["angle_energy_threshold"],
+            )
+            diagnostics["bonded_energy_converged"] = bool(
+                diagnostics["bond_energy_converged"] and diagnostics["angle_energy_converged"]
+            )
         return diagnostics
+
+    @staticmethod
+    def _energy_below_threshold(energy: Optional[float], threshold: Optional[float]) -> bool:
+        """Return whether an energy is finite and at or below a threshold."""
+
+        if threshold is None:
+            return True
+        if energy is None:
+            return False
+        return bool(np.isfinite(energy) and energy <= threshold)
+
+    @classmethod
+    def _bond_energy_threshold(
+        cls,
+        frame: Any,
+        parameters: _ParameterTables,
+        tolerance_a: float,
+    ) -> Optional[float]:
+        """Return total harmonic bond energy threshold for convergence."""
+
+        if int(getattr(frame.bonds, "N", 0)) == 0:
+            return None
+        threshold = 0.0
+        for type_name in cls._container_type_names(frame.bonds):
+            k = float(parameters.bond_params[type_name]["k"])
+            threshold += 0.5 * k * tolerance_a**2
+        return float(threshold)
+
+    @classmethod
+    def _angle_energy_threshold(
+        cls,
+        frame: Any,
+        parameters: _ParameterTables,
+        tolerance_deg: float,
+    ) -> Optional[float]:
+        """Return total harmonic angle energy threshold for convergence."""
+
+        if int(getattr(frame.angles, "N", 0)) == 0:
+            return None
+        tolerance_rad = float(np.deg2rad(tolerance_deg))
+        threshold = 0.0
+        for type_name in cls._container_type_names(frame.angles):
+            k = float(parameters.angle_params[type_name]["k"])
+            threshold += 0.5 * k * tolerance_rad**2
+        return float(threshold)
+
+    @staticmethod
+    def _container_type_names(container: Any) -> list[str]:
+        """Return one bonded type name per group/term in a HOOMD container."""
+
+        return [container.types[int(typeid)] for typeid in container.typeid]
 
     @staticmethod
     def _force_by_kind(simulation: Any) -> dict[str, Any]:
@@ -1222,6 +1321,51 @@ class AllAtomDPDBuilder:
         except (TypeError, ValueError):
             return None
 
+    def _run_until_converged(
+        self,
+        simulation: Any,
+        freud: Any,
+        frame: Any,
+        parameters: _ParameterTables,
+        box_lengths: np.ndarray,
+        excluded_pairs: list[tuple[int, int]],
+    ) -> tuple[int, float, bool, dict[str, Any]]:
+        """Run HOOMD intervals until spacing and bonded energies converge."""
+
+        box_lengths = self._as_box_lengths(box_lengths)
+        start = time.perf_counter()
+        steps = 0
+        simulation.run(1)
+        excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
+        spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
+        diagnostics = self._energy_diagnostics(simulation, frame, parameters, self.settings)
+        converged = self._convergence_ok(spacing_converged, diagnostics)
+        while not converged and steps < self.settings.n_steps_max:
+            simulation.run(self.settings.n_steps_per_interval)
+            steps += self.settings.n_steps_per_interval
+            spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
+            diagnostics = self._energy_diagnostics(simulation, frame, parameters, self.settings)
+            converged = self._convergence_ok(spacing_converged, diagnostics)
+            if steps % self.settings.report_interval == 0:
+                LOGGER.debug(
+                    "Integrated %s all-atom DPD steps; spacing=%s bonded=%s",
+                    steps,
+                    spacing_converged,
+                    diagnostics.get("bonded_energy_converged"),
+                )
+        diagnostics["spacing_converged"] = bool(spacing_converged)
+        diagnostics["converged"] = bool(converged)
+        return steps, time.perf_counter() - start, converged, diagnostics
+
+    def _convergence_ok(self, spacing_converged: bool, diagnostics: dict[str, Any]) -> bool:
+        """Return whether AA-DPD stopping criteria are satisfied."""
+
+        if not spacing_converged:
+            return False
+        if not self.settings.require_bonded_energy_convergence:
+            return True
+        return bool(diagnostics.get("bonded_energy_converged", False))
+
     def _run_until_spaced(
         self,
         simulation: Any,
@@ -1229,7 +1373,11 @@ class AllAtomDPDBuilder:
         box_lengths: np.ndarray,
         excluded_pairs: list[tuple[int, int]],
     ) -> tuple[int, float, bool]:
-        """Run HOOMD intervals until nearest-neighbor spacing converges."""
+        """Run HOOMD intervals until nearest-neighbor spacing converges.
+
+        This legacy helper is retained for focused tests and external callers.
+        ``build()`` uses ``_run_until_converged()``.
+        """
 
         box_lengths = self._as_box_lengths(box_lengths)
         start = time.perf_counter()

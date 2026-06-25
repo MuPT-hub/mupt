@@ -368,7 +368,7 @@ def test_missing_bonded_params_warn_and_use_max_k(caplog):
 
 
 def test_energy_diagnostics_collects_force_energies_per_term():
-    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings, _ParameterTables
 
     class BondForce:
         energy = 8.0
@@ -393,6 +393,11 @@ def test_energy_diagnostics_collects_force_energies_per_term():
         dihedrals = Container(0)
         impropers = Container(0)
 
+    Frame.bonds.types = ["b"]
+    Frame.bonds.typeid = np.array([0, 0, 0, 0])
+    Frame.angles.types = ["a"]
+    Frame.angles.typeid = np.array([0, 0, 0, 0, 0, 0])
+
     class Integrator:
         forces = [BondForce(), AngleForce(), PairForce()]
 
@@ -402,7 +407,13 @@ def test_energy_diagnostics_collects_force_energies_per_term():
     class Simulation:
         operations = Operations()
 
-    diagnostics = AllAtomDPDBuilder._energy_diagnostics(Simulation(), Frame())
+    parameters = _ParameterTables(
+        bond_params={"b": {"k": 100.0, "r0": 1.0}},
+        angle_params={"a": {"k": 20.0, "t0": np.pi / 2}},
+    )
+    settings = AllAtomDPDSettings(bond_energy_tolerance_a=0.2, angle_energy_tolerance_deg=10.0)
+
+    diagnostics = AllAtomDPDBuilder._energy_diagnostics(Simulation(), Frame(), parameters, settings)
 
     assert diagnostics["counts"] == {"bond": 4, "angle": 6, "dihedral": 0, "improper": 0}
     assert diagnostics["bond_energy"] == 8.0
@@ -412,6 +423,26 @@ def test_energy_diagnostics_collects_force_energies_per_term():
     assert diagnostics["dpd_energy"] == 20.0
     assert diagnostics["dihedral_energy"] is None
     assert diagnostics["dihedral_energy_per_term"] is None
+    assert diagnostics["bond_energy_threshold"] == pytest.approx(8.0)
+    assert diagnostics["angle_energy_threshold"] == pytest.approx(6 * 0.5 * 20.0 * np.deg2rad(10.0) ** 2)
+    assert diagnostics["bond_energy_converged"] is True
+    assert diagnostics["angle_energy_converged"] is False
+    assert diagnostics["bonded_energy_converged"] is False
+
+
+def test_convergence_requires_spacing_and_bonded_energy_by_default():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings())
+
+    assert builder._convergence_ok(True, {"bonded_energy_converged": True}) is True
+    assert builder._convergence_ok(False, {"bonded_energy_converged": True}) is False
+    assert builder._convergence_ok(True, {"bonded_energy_converged": False}) is False
+
+    spacing_only = AllAtomDPDBuilder(
+        settings=AllAtomDPDSettings(require_bonded_energy_convergence=False)
+    )
+    assert spacing_only._convergence_ok(True, {"bonded_energy_converged": False}) is True
 
 
 @pytest.mark.skipif(importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed")
