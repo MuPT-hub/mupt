@@ -14,9 +14,10 @@ from abc import abstractmethod
 
 from .connectors import Connector
 from .types import (
+    ConnectorAddress,
     ConnectorLabel,
     ConnectorHandle,
-    ConnectorAddress,
+    ConnectorLabeller,
 )
 from ...mutils.containers import (
     UniqueRegistry,
@@ -134,7 +135,26 @@ class ConnectorManagerMutable(ConnectorManager):
     ) -> None:
         self.connectors_by_addr : dict[ConnectorAddress, Connector] = {}
         for conn in connectors:
-            self.connectors_by_addr[conn.address] = conn
+            self.add_connector(conn)
+
+    def add_connector(
+        self,
+        conn : Connector,
+        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
+    ) -> None:
+        '''Register a new Connector to be managed here'''
+        # TODO: label to be used for UniqueRegistry registration to give human-readable handle
+        self.connectors_by_addr[conn.addr] = conn
+
+    def remove_connector(
+        self,
+        conn_addr : ConnectorAddress | Connector,
+    ) -> Connector:
+        '''Declare a Connector to be no longer managed here'''
+        if isinstance(conn_addr, Connector):
+            conn_addr = conn_addr.address
+        
+        return self.connectors_by_addr.pop(conn_addr)
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         '''Obtain the connector with the specified address'''
