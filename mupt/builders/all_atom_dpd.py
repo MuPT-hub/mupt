@@ -34,6 +34,7 @@ production state. A typical handoff is:
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -124,6 +125,11 @@ class AllAtomDPDSettings:
         Optional deterministic seed for initialization and HOOMD.
     write_gsd
         Whether to write initial and trajectory GSD files.
+    write_log
+        Whether to write AA-DPD convergence diagnostics as JSON lines. Requires
+        ``output_name``.
+    log_write_freq
+        Step interval for JSONL diagnostics. Defaults to ``report_interval``.
     output_name
         Prefix for optional GSD output.
     resname_map
@@ -155,6 +161,8 @@ class AllAtomDPDSettings:
     nlist_exclusions: tuple[str, ...] = ("bond",)
     random_seed: Optional[int] = None
     write_gsd: bool = False
+    write_log: bool = False
+    log_write_freq: Optional[int] = None
     output_name: Optional[str] = None
     resname_map: dict[str, str] = field(default_factory=dict)
 
@@ -540,6 +548,8 @@ class AllAtomDPDBuilder:
             raise ValueError("AA-DPD n_steps_max must be >= 0.")
         if self.settings.report_interval < 1:
             raise ValueError("AA-DPD report_interval must be >= 1.")
+        if self.settings.log_write_freq is not None and self.settings.log_write_freq < 1:
+            raise ValueError("AA-DPD log_write_freq must be >= 1 when supplied.")
         device = str(self.settings.device).lower()
         if device not in {"auto", "cpu", "gpu"}:
             raise ValueError("AA-DPD device must be 'auto', 'CPU', or 'GPU'.")
@@ -1355,15 +1365,22 @@ class AllAtomDPDBuilder:
         steps = 0
         simulation.run(1)
         excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
+        self._initialize_diagnostics_log()
         spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
         diagnostics = self._energy_diagnostics(simulation, frame, parameters, self.settings)
+        diagnostics["spacing_converged"] = bool(spacing_converged)
         converged = self._convergence_ok(spacing_converged, diagnostics)
+        diagnostics["converged"] = bool(converged)
+        self._write_diagnostics_record(steps, diagnostics)
         while not converged and steps < self.settings.n_steps_max:
             simulation.run(self.settings.n_steps_per_interval)
             steps += self.settings.n_steps_per_interval
             spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
             diagnostics = self._energy_diagnostics(simulation, frame, parameters, self.settings)
+            diagnostics["spacing_converged"] = bool(spacing_converged)
             converged = self._convergence_ok(spacing_converged, diagnostics)
+            diagnostics["converged"] = bool(converged)
+            self._write_diagnostics_record(steps, diagnostics)
             if steps % self.settings.report_interval == 0:
                 LOGGER.debug(
                     "Integrated %s all-atom DPD steps; spacing=%s bonded=%s",
@@ -1371,9 +1388,38 @@ class AllAtomDPDBuilder:
                     spacing_converged,
                     diagnostics.get("bonded_energy_converged"),
                 )
-        diagnostics["spacing_converged"] = bool(spacing_converged)
-        diagnostics["converged"] = bool(converged)
+        frequency = self.settings.log_write_freq or self.settings.report_interval
+        if steps != 0 and steps % frequency != 0:
+            self._write_diagnostics_record(steps, diagnostics, force=True)
         return steps, time.perf_counter() - start, converged, diagnostics
+
+    def _diagnostics_log_path(self) -> Optional[str]:
+        """Return the JSONL diagnostics path, if diagnostics logging is enabled."""
+
+        if not (self.settings.write_log and self.settings.output_name):
+            return None
+        return f"{self.settings.output_name}_diagnostics.jsonl"
+
+    def _initialize_diagnostics_log(self) -> None:
+        """Truncate the diagnostics JSONL file at the start of a run."""
+
+        path = self._diagnostics_log_path()
+        if path is not None:
+            with open(path, "w", encoding="utf-8"):
+                pass
+
+    def _write_diagnostics_record(self, steps: int, diagnostics: dict[str, Any], *, force: bool = False) -> None:
+        """Append one convergence diagnostics record when logging is enabled."""
+
+        path = self._diagnostics_log_path()
+        if path is None:
+            return
+        frequency = self.settings.log_write_freq or self.settings.report_interval
+        if not force and steps != 0 and steps % frequency != 0:
+            return
+        record = {"steps": int(steps), **diagnostics}
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
 
     def _convergence_ok(self, spacing_converged: bool, diagnostics: dict[str, Any]) -> bool:
         """Return whether AA-DPD stopping criteria are satisfied."""

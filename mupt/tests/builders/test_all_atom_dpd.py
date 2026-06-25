@@ -2,6 +2,7 @@
 
 import builtins
 import importlib
+import json
 import logging
 import sys
 
@@ -314,6 +315,7 @@ def test_uniform_chain_length_plan_uses_density_and_explicit_box():
         ("n_steps_per_interval", 0, "n_steps_per_interval"),
         ("n_steps_max", -1, "n_steps_max"),
         ("report_interval", 0, "report_interval"),
+        ("log_write_freq", 0, "log_write_freq"),
         ("epsilon_reference_mode", "not-a-number", "epsilon_reference_mode"),
         ("nlist_exclusions", ("unsupported",), "nlist_exclusions"),
     ],
@@ -400,6 +402,32 @@ def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
 
     assert builder.settings.nlist_exclusions == ("bond", "angle")
     assert captured == {"buffer": 0.4, "exclusions": ("bond", "angle")}
+
+
+def test_diagnostics_jsonl_logging_respects_frequency(tmp_path):
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+
+    output_name = tmp_path / "aa_dpd"
+    builder = AllAtomDPDBuilder(
+        settings=AllAtomDPDSettings(
+            write_log=True,
+            output_name=str(output_name),
+            report_interval=10,
+            log_write_freq=5,
+        )
+    )
+
+    builder._initialize_diagnostics_log()
+    builder._write_diagnostics_record(0, {"bond_energy": 1.0})
+    builder._write_diagnostics_record(3, {"bond_energy": 2.0})
+    builder._write_diagnostics_record(5, {"bond_energy": 3.0})
+
+    records = [json.loads(line) for line in (tmp_path / "aa_dpd_diagnostics.jsonl").read_text().splitlines()]
+
+    assert records == [
+        {"steps": 0, "bond_energy": 1.0},
+        {"steps": 5, "bond_energy": 3.0},
+    ]
 
 
 def test_openff_key_atom_indices_support_topology_key_shapes():
