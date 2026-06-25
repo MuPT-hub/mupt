@@ -29,23 +29,13 @@ from ...mutils.containers import (
 class ConnectorManager(Protocol):
     '''Interface for generic connector managment object'''
     connectors : Collection[Connector]
+    connectors_free : Collection[Connector]
+    connectors_bound : Collection[Connector]
     connectors_by_addr : Mapping[ConnectorAddress, Connector]
     connectors_by_handle : Mapping[ConnectorHandle, Connector]
 
     @abstractmethod
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
-
-    @property
-    @abstractmethod
-    def connectors_free(self) -> Collection[Connector]:
-        '''Connectors which are currently unbound'''
-        ...
-
-    @property
-    @abstractmethod
-    def connectors_bound(self) -> Collection[Connector]:
-        '''Connectors which have a neighbor'''
         ...
 
     # default implementations, for when explicitly inherited
@@ -118,14 +108,14 @@ class ConnectorManagerFrozen(ConnectorManager):
         return self._connectors_all
 
     @property
-    def connectors_free(self) -> Collection[Connector]:
+    def connectors_free(self) -> tuple[Connector, ...]:
         '''
         Connectors whose have not yet been assigned a neighbor
         '''
         return self._connectors_free
         
     @property
-    def connectors_bound(self) -> Collection[Connector]:
+    def connectors_bound(self) -> tuple[Connector, ...]:
         '''
         Connectors (originating from children as they must) which are
         bound and whose neighbor is also a child of this Composite
