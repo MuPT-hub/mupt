@@ -71,6 +71,7 @@ class ConnectorManagerFrozen(ConnectorManager):
     def __new__(
         cls,
         connectors : Iterable[Connector],
+        # TODO: provide optimization short-circuit to allow making use of known free/bound designations
         connectors_free  : Optional[Iterable[Connector]]=None,
         connectors_bound : Optional[Iterable[Connector]]=None,
     ) -> object:
@@ -79,21 +80,17 @@ class ConnectorManagerFrozen(ConnectorManager):
         obj._connectors_all = tuple(connectors)
         obj._connectors_by_addr = MappingProxyType({conn.address : conn for conn in connectors})
 
-        if connectors_free is None:
-            connectors_free = tuple(
-                conn
-                    for conn in connectors
-                        if conn.neighbor is None
-            )
-        obj._connectors_free = tuple(connectors_free) # will take caller's word for it
-
-        if connectors_bound is None:
-            connectors_bound = tuple(
-                conn
-                    for conn in connectors
-                        if conn.neighbor is not None
-            )
-        obj._connectors_bound = tuple(connectors_bound) # will take caller's word for it
+        connectors_free_accum : list[Connector] = [] 
+        connectors_bound_accum : list[Connector] = [] 
+        for conn in connectors:
+            # TB DEV: lock here is not secure as yet, since one could manually unlock after init
+            conn.lock() # ensure not mutations allowed subsequently
+            if conn.has_neighbor:
+                connectors_bound_accum.append(conn)
+            else:
+                connectors_free_accum.append(conn)
+        obj._connectors_free  = tuple(connectors_free_accum) # will take caller's word for it
+        obj._connectors_bound = tuple(connectors_bound_accum) # will take caller's word for it
 
         return obj
 
@@ -135,6 +132,7 @@ class ConnectorManagerMutable(ConnectorManager):
     ) -> None:
         self.connectors_by_addr : dict[ConnectorAddress, Connector] = {}
         for conn in connectors:
+            conn.unlock()
             self.add_connector(conn)
 
     def add_connector(
