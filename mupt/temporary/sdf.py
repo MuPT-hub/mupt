@@ -90,6 +90,8 @@ def write_primitive_to_sdf(
     molecule in memory.
     """
     target_path = _mupt_sdf_path(path)
+    # Write to a temporary file first so a failed export does not replace a
+    # complete existing file with a partial SDF.
     temp_fd, temp_name = tempfile.mkstemp(
         prefix=f".{target_path.name}.",
         suffix=".tmp",
