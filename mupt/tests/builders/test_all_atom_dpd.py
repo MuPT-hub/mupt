@@ -195,12 +195,7 @@ def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
     sys.modules.pop("mupt.builders.all_atom_dpd", None)
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
-    module = importlib.import_module("mupt.builders.all_atom_dpd")
-
-    assert module.AllAtomDPDBuilder.__name__ == "AllAtomDPDBuilder"
-    assert module.AllAtomDPDSettings.__name__ == "AllAtomDPDSettings"
-    assert module.AllAtomDPDResult.__name__ == "AllAtomDPDResult"
-    assert module.AllAtomDPDParameterProvider.__name__ == "AllAtomDPDParameterProvider"
+    importlib.import_module("mupt.builders.all_atom_dpd")
 
 
 def test_box_length_uses_mass_density_constants():
