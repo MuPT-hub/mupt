@@ -129,6 +129,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=42, help="Deterministic build and DPD seed.")
     parser.add_argument("--write-dpd-log", action="store_true", help="Write AA-DPD convergence diagnostics JSONL.")
+    parser.add_argument("--dpd-device", default="CPU", help="HOOMD device for AA-DPD validation: auto, CPU, or GPU.")
     parser.add_argument(
         "--dpd-output-name",
         default="pe_melt_aa_dpd",
@@ -210,6 +211,7 @@ def run_dpd(root: Any, args: argparse.Namespace) -> Any:
         particle_spacing_a=args.particle_spacing_a,
         report_interval=args.dpd_steps_per_interval,
         random_seed=args.seed,
+        device=args.dpd_device,
         write_gsd=False,
         write_log=args.write_dpd_log,
         output_name=args.dpd_output_name if args.write_dpd_log else None,
