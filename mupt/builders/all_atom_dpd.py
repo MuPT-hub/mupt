@@ -5,6 +5,13 @@ repulsions for dense coordinate initialization. The HOOMD simulation is meant to
 produce finite all-atom melt coordinates suitable for downstream minimization in 
 an MD engine.
 
+Particle treatment
+------------------
+This initializer currently treats every atom in the input hierarchy, including
+explicit hydrogens, as a DPD particle. A future optimization may use a reduced
+heavy-atom representation during DPD relaxation, but the present implementation
+keeps all atoms active so demo systems preserve direct all-atom coordinates.
+
 Recommended MD handoff
 ----------------------
 AA-DPD placement should be treated as an initialization step, not an equilibrated
