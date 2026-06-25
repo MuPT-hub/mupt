@@ -1,21 +1,19 @@
 #!/usr/bin/env python
-"""Manual dense polyethylene AA-DPD/OpenMM smoke-test harness."""
+"""Manual dense polyethylene AA-DPD/OpenMM smoke-test harness.
+
+Run this from an environment where MuPT is installed. For local development,
+install the checkout first with ``pip install -e .``.
+"""
 
 from __future__ import annotations
 
 import argparse
 import logging
 import math
-import sys
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import networkx as nx
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 from mupt.geometry.coordinates.reference import origin
