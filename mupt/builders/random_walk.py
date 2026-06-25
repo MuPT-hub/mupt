@@ -32,11 +32,6 @@ from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
-def _random_unit_vector(rng : np.random.Generator, dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
-    '''Generate a random unit vector from an explicit NumPy generator.'''
-    return normalized(rng.uniform(low=-1.0, high=1.0, size=dimension))
-
-
 def random_walk_jointed_chain(
     step_size : Union[Number, Iterable[Number], Generator[Number, None, None]],
     n_steps_max : Optional[int]=None,
@@ -89,7 +84,7 @@ def random_walk_jointed_chain(
         raise ValueError(f"Random walk starting point must be a {dimension}-dimensional vector")
     
     if initial_direction is None:
-        initial_direction = random_unit_vector(dimension=dimension) if rng is None else _random_unit_vector(rng, dimension)
+        initial_direction = random_unit_vector(dimension=dimension, rng=rng)
     assert initial_direction.shape == (dimension,) # NOTE: check user-provided start direction shape
 
     if (n_steps_max is None):
@@ -106,9 +101,9 @@ def random_walk_jointed_chain(
     yield initial_point # always yielded, consider as "step #0"
     for step_size in flexible_iterator(step_size, allowed_types=(Number,)):
         # draw new step within cone of movement by rejection sampling (simple and quick)
-        step_direction : np.ndarray = random_unit_vector(dimension=dimension) if rng is None else _random_unit_vector(rng, dimension)
+        step_direction : np.ndarray = random_unit_vector(dimension=dimension, rng=rng)
         while np.dot(step_direction, prev_direction) < cos_max: # NOTE: over |x| in [0, pi], cos(x) is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
-            step_direction : np.ndarray = random_unit_vector(dimension=dimension) if rng is None else _random_unit_vector(rng, dimension)
+            step_direction : np.ndarray = random_unit_vector(dimension=dimension, rng=rng)
         step = step_size * step_direction
         
         # DEV: resist the urge to just yield net_position after incrementing it; that yield the same REFERENCE to the underlying array at each step
