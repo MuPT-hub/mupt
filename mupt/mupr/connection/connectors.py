@@ -110,16 +110,6 @@ class Connector(RigidlyTransformable):
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
-    def address(self) -> str: # protected - no setter or deleter offered
-         # opting for str conversion to avoid consumers needing to know about UUID type
-        '''
-        Hashable address UNIQUE to this Connector
-        Not the same as __hash__ (Connector instances with the same hash will have different addresses)
-        '''
-        return self._address_str
-    addr = address # alias for convenience
-
-    @property
     def bond_order(self) -> float:
         '''
         A numerical bond order corresponding to the type of bond this Connector is associated with
@@ -422,7 +412,7 @@ class Connector(RigidlyTransformable):
     @property
     def neighbor(self) -> Optional['Connector']:
         '''
-        The Connector assigned to be this Connector's nieghbor, if assigned
+        The Connector assigned to be this Connector's neighbor, if assigned
         If unassigned, returns None
         '''
         return self._neighbor
@@ -482,6 +472,16 @@ class Connector(RigidlyTransformable):
         return counterpart
 
     # Labelling and representation methods
+    @property
+    def address(self) -> str: # protected - no setter or deleter offered
+         # opting for str conversion to avoid consumers needing to know about UUID type
+        '''
+        Hashable address UNIQUE to this Connector
+        Not the same as __hash__ (Connector instances with the same hash will have different addresses)
+        '''
+        return self._address_str
+    addr = address # alias for convenience
+
     @property
     def label(self) -> ConnectorLabel:
         '''Identifying label for this Connector'''
