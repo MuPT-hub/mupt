@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import sys
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ from mupt.mupr.primitives import Primitive
 from mupt.mupr.topology import TopologicalStructure
 from mupt.roles import assign_SAAMR_roles
 
+
+LOGGER = logging.getLogger(__name__)
 
 AMU_TO_G = 1.66053906660e-24
 ANGSTROM3_TO_CM3 = 1.0e-24
@@ -266,19 +269,19 @@ def min_distinct_distance_a(positions: np.ndarray, box_length_a: float | None = 
     return float(np.min(distances))
 
 
-def print_dpd_diagnostics(result: Any) -> tuple[bool, float]:
+def log_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     positions = atom_positions(result.atoms)
     mass_amu = total_mass_amu(result.atoms)
     finite_coords = bool(np.all(np.isfinite(positions)))
     minimum_distance = min_distinct_distance_a(positions, result.box_length_a)
-    print("AA-DPD diagnostics")
-    print(f"  atom_count: {len(result.atoms)}")
-    print(f"  density_g_cm3: {density_g_cm3(mass_amu, result.box_length_a):.6f}")
-    print(f"  box_length_a: {result.box_length_a:.6f}")
-    print(f"  converged: {result.converged}")
-    print(f"  dpd_steps: {result.steps}")
-    print(f"  finite_coords: {finite_coords}")
-    print(f"  min_periodic_distinct_atom_distance_a: {minimum_distance:.6f}")
+    LOGGER.info("AA-DPD diagnostics")
+    LOGGER.info("  atom_count: %s", len(result.atoms))
+    LOGGER.info("  density_g_cm3: %.6f", density_g_cm3(mass_amu, result.box_length_a))
+    LOGGER.info("  box_length_a: %.6f", result.box_length_a)
+    LOGGER.info("  converged: %s", result.converged)
+    LOGGER.info("  dpd_steps: %s", result.steps)
+    LOGGER.info("  finite_coords: %s", finite_coords)
+    LOGGER.info("  min_periodic_distinct_atom_distance_a: %.6f", minimum_distance)
     return finite_coords, minimum_distance
 
 
@@ -458,14 +461,14 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     initial_energy = energy_kj_mol(simulation, deps.omm_unit)
     simulation.minimizeEnergy()
     minimized_energy = energy_kj_mol(simulation, deps.omm_unit)
-    print("OpenMM diagnostics")
-    print(f"  molecule_count: {len(molecules)}")
-    print(f"  atom_count: {n_openmm_atoms}")
-    print(f"  constraints: {system.getNumConstraints()}")
-    print(f"  charge_method: {charge_method}")
-    print(f"  initial_potential_energy_kj_mol: {initial_energy:.6f}")
-    print(f"  minimized_potential_energy_kj_mol: {minimized_energy:.6f}")
-    print(f"  finite_energies: {bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy))}")
+    LOGGER.info("OpenMM diagnostics")
+    LOGGER.info("  molecule_count: %s", len(molecules))
+    LOGGER.info("  atom_count: %s", n_openmm_atoms)
+    LOGGER.info("  constraints: %s", system.getNumConstraints())
+    LOGGER.info("  charge_method: %s", charge_method)
+    LOGGER.info("  initial_potential_energy_kj_mol: %.6f", initial_energy)
+    LOGGER.info("  minimized_potential_energy_kj_mol: %.6f", minimized_energy)
+    LOGGER.info("  finite_energies: %s", bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy)))
     if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
         raise RuntimeError("OpenMM validation produced nonfinite energies.")
     run_nvt_smoke(simulation, system, deps.omm_unit, args)
@@ -476,15 +479,15 @@ def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Na
     """Run a short regular-NVT stability check after minimization."""
 
     if args.md_steps == 0:
-        print("NVT diagnostics: skipped (--md-steps 0)")
+        LOGGER.info("NVT diagnostics: skipped (--md-steps 0)")
         return
 
     simulation.context.setVelocitiesToTemperature(args.md_temperature_k * omm_unit.kelvin, args.seed)
-    print("NVT diagnostics")
-    print(f"  timestep_fs: {args.md_timestep_fs:.6f}")
-    print(f"  friction_1_per_ps: {args.md_friction_ps:.6f}")
-    print(f"  target_temperature_k: {args.md_temperature_k:.6f}")
-    print(f"  requested_steps: {args.md_steps}")
+    LOGGER.info("NVT diagnostics")
+    LOGGER.info("  timestep_fs: %.6f", args.md_timestep_fs)
+    LOGGER.info("  friction_1_per_ps: %.6f", args.md_friction_ps)
+    LOGGER.info("  target_temperature_k: %.6f", args.md_temperature_k)
+    LOGGER.info("  requested_steps: %s", args.md_steps)
     steps_run = 0
     while steps_run < args.md_steps:
         steps = min(args.md_report_interval, args.md_steps - steps_run)
@@ -495,9 +498,14 @@ def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Na
         kinetic = float(state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
         finite = bool(np.isfinite(potential) and np.isfinite(kinetic))
         time_ps = steps_run * args.md_timestep_fs / 1000.0
-        print(
-            f"  step {steps_run:8d} time_ps {time_ps:10.4f} "
-            f"potential_kj_mol {potential:14.6f} kinetic_kj_mol {kinetic:14.6f} finite {finite}"
+        LOGGER.info(
+            "  step %8d time_ps %10.4f potential_kj_mol %14.6f "
+            "kinetic_kj_mol %14.6f finite %s",
+            steps_run,
+            time_ps,
+            potential,
+            kinetic,
+            finite,
         )
         if not finite:
             raise RuntimeError("NVT stability check produced nonfinite energy.")
@@ -507,7 +515,7 @@ def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps:
     """Continue from the NVT state under regular NPT conditions."""
 
     if args.npt_steps == 0:
-        print("NPT diagnostics: skipped (--npt-steps 0)")
+        LOGGER.info("NPT diagnostics: skipped (--npt-steps 0)")
         return
 
     state = simulation.context.getState(getPositions=True, getVelocities=True, enforcePeriodicBox=True)
@@ -536,10 +544,10 @@ def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps:
     npt.context.setVelocities(velocities)
     mass_da = system_mass_da(system, deps.omm_unit)
 
-    print("NPT diagnostics")
-    print(f"  pressure_atm: {args.pressure_atm:.6f}")
-    print(f"  barostat_frequency: {args.barostat_frequency}")
-    print(f"  requested_steps: {args.npt_steps}")
+    LOGGER.info("NPT diagnostics")
+    LOGGER.info("  pressure_atm: %.6f", args.pressure_atm)
+    LOGGER.info("  barostat_frequency: %s", args.barostat_frequency)
+    LOGGER.info("  requested_steps: %s", args.npt_steps)
     steps_run = 0
     while steps_run < args.npt_steps:
         steps = min(args.md_report_interval, args.npt_steps - steps_run)
@@ -552,29 +560,35 @@ def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps:
         density = box_density_g_cm3(box_nm, mass_da)
         finite = bool(np.isfinite(potential) and np.isfinite(kinetic) and np.isfinite(density))
         time_ps = steps_run * args.md_timestep_fs / 1000.0
-        print(
-            f"  step {steps_run:8d} time_ps {time_ps:10.4f} "
-            f"potential_kj_mol {potential:14.6f} kinetic_kj_mol {kinetic:14.6f} "
-            f"density_g_cm3 {density:10.6f} finite {finite}"
+        LOGGER.info(
+            "  step %8d time_ps %10.4f potential_kj_mol %14.6f "
+            "kinetic_kj_mol %14.6f density_g_cm3 %10.6f finite %s",
+            steps_run,
+            time_ps,
+            potential,
+            kinetic,
+            density,
+            finite,
         )
         if not finite:
             raise RuntimeError("NPT stability check produced nonfinite energy or density.")
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
     try:
         validate_args(args)
         root = build_pe_melt(args)
         result = run_dpd(root, args)
-        finite_coords, minimum_distance = print_dpd_diagnostics(result)
+        finite_coords, minimum_distance = log_dpd_diagnostics(result)
         validate_dpd_diagnostics(result, finite_coords, minimum_distance, args)
         if args.skip_openmm:
-            print("OpenMM diagnostics: skipped (--skip-openmm)")
+            LOGGER.info("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
             run_openmm_validation(root, result.box_length_a, args.charge_method, args)
     except Exception as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+        LOGGER.error("ERROR: %s", exc)
         return 1
     return 0
 
