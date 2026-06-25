@@ -315,6 +315,7 @@ def test_uniform_chain_length_plan_uses_density_and_explicit_box():
         ("n_steps_max", -1, "n_steps_max"),
         ("report_interval", 0, "report_interval"),
         ("epsilon_reference_mode", "not-a-number", "epsilon_reference_mode"),
+        ("nlist_exclusions", ("unsupported",), "nlist_exclusions"),
     ],
 )
 def test_rejects_invalid_settings(field, value, match):
@@ -337,6 +338,68 @@ def test_default_settings_use_dense_initialization_restraints():
     assert settings.angle_scale == 30.0
     assert settings.dihedral_scale == 30.0
     assert settings.require_bonded_energy_convergence is True
+    assert settings.nlist_exclusions == ("bond",)
+
+
+def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings, _ParameterTables
+
+    captured = {}
+
+    class FakeNList:
+        def __init__(self, buffer, exclusions):
+            captured["buffer"] = buffer
+            captured["exclusions"] = exclusions
+
+    class FakeDPD:
+        def __init__(self, nlist, default_r_cut, kT):
+            self.params = {}
+
+    class FakeIntegrator:
+        def __init__(self, dt):
+            self.forces = []
+            self.methods = []
+
+    class FakeConstantVolume:
+        def __init__(self, filter):
+            pass
+
+    class FakeSimulation:
+        def __init__(self, device, seed):
+            self.operations = type("Operations", (), {"integrator": None, "writers": []})()
+
+        def create_state_from_snapshot(self, frame):
+            pass
+
+    class FakeHoomd:
+        filter = type("filter", (), {"All": lambda: object()})
+        trigger = type("trigger", (), {"Periodic": lambda interval: interval})
+        device = type("device", (), {"CPU": staticmethod(lambda: "cpu"), "GPU": staticmethod(lambda: "gpu"), "auto_select": staticmethod(lambda: "auto")})
+        Simulation = FakeSimulation
+        md = type(
+            "md",
+            (),
+            {
+                "Integrator": FakeIntegrator,
+                "methods": type("methods", (), {"ConstantVolume": FakeConstantVolume}),
+                "nlist": type("nlist", (), {"Cell": FakeNList}),
+                "pair": type("pair", (), {"DPD": FakeDPD}),
+            },
+        )
+
+    class Particles:
+        types = ["C"]
+
+    class Frame:
+        particles = Particles()
+
+    builder = AllAtomDPDBuilder(
+        settings=AllAtomDPDSettings(nlist_exclusions=["bond", "angle"], device="CPU")
+    )
+    builder._simulation(FakeHoomd, Frame(), [], [], [], [], _ParameterTables(epsilon_by_type={"C": 1.0}))
+
+    assert builder.settings.nlist_exclusions == ("bond", "angle")
+    assert captured == {"buffer": 0.4, "exclusions": ("bond", "angle")}
 
 
 def test_openff_key_atom_indices_support_topology_key_shapes():

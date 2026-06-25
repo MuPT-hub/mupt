@@ -116,6 +116,10 @@ class AllAtomDPDSettings:
         the derived thresholds in addition to nonbonded spacing.
     epsilon_reference_mode
         How to reduce OpenFF vdW epsilons into the DPD pair scaling reference.
+    nlist_exclusions
+        HOOMD neighbor-list exclusions for the DPD pair force. The default keeps
+        HOOMD's bonded-pair exclusion while allowing callers to experiment with
+        excluding 1-3/1-4 pairs for difficult dense initializations.
     random_seed
         Optional deterministic seed for initialization and HOOMD.
     write_gsd
@@ -148,6 +152,7 @@ class AllAtomDPDSettings:
     angle_energy_tolerance_deg: float = 5.0
     require_bonded_energy_convergence: bool = True
     epsilon_reference_mode: str = "max"
+    nlist_exclusions: tuple[str, ...] = ("bond",)
     random_seed: Optional[int] = None
     write_gsd: bool = False
     output_name: Optional[str] = None
@@ -546,6 +551,15 @@ class AllAtomDPDBuilder:
                 raise ValueError("AA-DPD epsilon_reference_mode must be 'max', 'mean', or a positive number.") from exc
             if reference <= 0.0:
                 raise ValueError("AA-DPD epsilon_reference_mode numeric value must be positive.")
+        allowed_exclusions = {"bond", "angle", "dihedral", "constraint", "body", "special_pair", "meshbond"}
+        try:
+            exclusions = tuple(str(exclusion) for exclusion in self.settings.nlist_exclusions)
+        except TypeError as exc:
+            raise ValueError("AA-DPD nlist_exclusions must be an iterable of HOOMD exclusion names.") from exc
+        unknown = sorted(set(exclusions) - allowed_exclusions)
+        if unknown:
+            raise ValueError(f"AA-DPD nlist_exclusions contains unsupported values: {unknown}.")
+        self.settings.nlist_exclusions = exclusions
 
     def _default_placement_generator(self, rng: np.random.Generator, box_length: float | np.ndarray) -> PlacementGenerator:
         """Return the default frame-0 residue placement generator."""
@@ -1103,7 +1117,7 @@ class AllAtomDPDBuilder:
                 )
             integrator.forces.append(periodic_improper)
 
-        nlist = hoomd.md.nlist.Cell(buffer=0.4)
+        nlist = hoomd.md.nlist.Cell(buffer=0.4, exclusions=self.settings.nlist_exclusions)
         dpd = hoomd.md.pair.DPD(nlist, default_r_cut=self.settings.r_cut_a, kT=self.settings.kT)
         pair_params = self._dpd_pair_params(frame.particles.types, parameters.epsilon_by_type)
         for pair, param in pair_params.items():
