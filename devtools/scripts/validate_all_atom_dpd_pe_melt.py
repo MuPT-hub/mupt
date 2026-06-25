@@ -107,7 +107,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Build a deterministic dense polyethylene melt, run the all-atom "
-            "DPD builder, and optionally smoke-test OpenMM minimization."
+            "DPD builder with spacing and bonded-energy convergence checks, "
+            "and optionally smoke-test OpenMM minimization."
         )
     )
     parser.add_argument("--n-chains", type=int, default=10, help="Number of PE chains to build.")
@@ -127,6 +128,12 @@ def parse_args() -> argparse.Namespace:
         help="DPD steps between convergence checks.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Deterministic build and DPD seed.")
+    parser.add_argument("--write-dpd-log", action="store_true", help="Write AA-DPD convergence diagnostics JSONL.")
+    parser.add_argument(
+        "--dpd-output-name",
+        default="pe_melt_aa_dpd",
+        help="Output prefix used when --write-dpd-log is enabled.",
+    )
     parser.add_argument("--skip-openmm", action="store_true", help="Skip OpenMM minimization smoke test.")
     parser.add_argument(
         "--allow-unconverged-dpd",
@@ -204,6 +211,8 @@ def run_dpd(root: Any, args: argparse.Namespace) -> Any:
         report_interval=args.dpd_steps_per_interval,
         random_seed=args.seed,
         write_gsd=False,
+        write_log=args.write_dpd_log,
+        output_name=args.dpd_output_name if args.write_dpd_log else None,
         resname_map=dict(PE_RESNAME_MAP),
     )
     try:
@@ -260,6 +269,15 @@ def log_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     LOGGER.info("  dpd_steps: %s", result.steps)
     LOGGER.info("  finite_coords: %s", finite_coords)
     LOGGER.info("  min_periodic_distinct_atom_distance_a: %.6f", minimum_distance)
+    diagnostics = getattr(result, "diagnostics", {})
+    if diagnostics:
+        LOGGER.info("  spacing_converged: %s", diagnostics.get("spacing_converged"))
+        LOGGER.info("  bonded_energy_converged: %s", diagnostics.get("bonded_energy_converged"))
+        LOGGER.info("  bond_energy_per_term: %s", diagnostics.get("bond_energy_per_term"))
+        LOGGER.info("  angle_energy_per_term: %s", diagnostics.get("angle_energy_per_term"))
+        LOGGER.info("  dihedral_energy_per_term: %s", diagnostics.get("dihedral_energy_per_term"))
+        LOGGER.info("  improper_energy_per_term: %s", diagnostics.get("improper_energy_per_term"))
+        LOGGER.info("  dpd_energy: %s", diagnostics.get("dpd_energy"))
     return finite_coords, minimum_distance
 
 
