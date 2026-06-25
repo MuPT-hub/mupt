@@ -132,17 +132,28 @@ class ConnectorManagerMutable(ConnectorManager):
         connectors : Iterable[Connector],
         default_label : Hashable='CONN',
     ) -> None:
-        ...
+        self.connectors_by_addr : dict[ConnectorAddress, Connector] = {}
+        for conn in connectors:
+            self.connectors_by_addr[conn.address] = conn
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
+        '''Obtain the connector with the specified address'''
+        return self.connectors_by_addr[conn_addr]
 
     @property
-    def connectors_free(self) -> Collection[Connector]:
-        '''Connectors which are currently unbound'''
-        ...
+    def connectors(self) -> tuple[Connector, ...]:
+        return tuple(self.connectors_by_addr.values())
+    
+    @property
+    def connectors_free(self) -> tuple[Connector, ...]:
+        '''Managed Connectors which have no assigned neighbor'''
+        # DEV: opting for search each time (rather than dyncamilly-updating list)
+        # since connectors might change neighbor status during bond linking (checks when called)
+        return tuple(conn for conn in self.connectors if not conn.has_neighbor)
 
     @property
-    def connectors_bound(self) -> Collection[Connector]:
-        '''Connectors which have a neighbor'''
-        ...
+    def connectors_bound(self) -> tuple[Connector, ...]:
+        '''Managed Connectors which have no assigned neighbor'''
+        # DEV: opting for search each time (rather than dyncamilly-updating list)
+        # since connectors might change neighbor status during bond linking (checks when called)
+        return tuple(conn for conn in self.connectors if conn.has_neighbor)
