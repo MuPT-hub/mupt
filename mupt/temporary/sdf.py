@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import tempfile
 from typing import Optional
+import warnings
 
 import numpy as np
 
@@ -63,8 +64,16 @@ def _mupt_sdf_path(path: str | Path) -> Path:
     if path_str.endswith(MUPT_SDF_SUFFIX):
         return path
     if path.suffix == ".sdf":
-        return path.with_suffix(MUPT_SDF_SUFFIX)
-    return Path(f"{path_str}{MUPT_SDF_SUFFIX}")
+        target_path = path.with_suffix(MUPT_SDF_SUFFIX)
+    else:
+        target_path = Path(f"{path_str}{MUPT_SDF_SUFFIX}")
+    warnings.warn(
+        "MuPT temporary SDF files use the '.mupt.sdf' suffix; writing to "
+        f"'{target_path}' instead of '{path}'.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return target_path
 
 
 def write_primitive_to_sdf(

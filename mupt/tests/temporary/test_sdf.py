@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import warnings
 
 import numpy as np
 import pytest
@@ -175,19 +176,32 @@ def test_write_primitive_to_sdf_normalizes_mupt_sdf_paths(
     polyethylene_resname_map,
 ):
     """Temporary SDF export always writes the MuPT-specific SDF suffix."""
-    for path in [
-        tmp_path / "no-suffix",
-        tmp_path / "sdf-suffix.sdf",
-        tmp_path / "mupt-suffix.mupt.sdf",
-    ]:
+    for path in [tmp_path / "no-suffix", tmp_path / "sdf-suffix.sdf"]:
+        with pytest.warns(
+            UserWarning,
+            match="MuPT temporary SDF files use the '.mupt.sdf' suffix",
+        ):
+            records = write_primitive_to_sdf(
+                single_polyethylene_2mer,
+                path,
+                resname_map=polyethylene_resname_map,
+            )
+
+        assert records == 1
+        assert _mupt_sdf_path(path).exists()
+
+    path = tmp_path / "mupt-suffix.mupt.sdf"
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
         records = write_primitive_to_sdf(
             single_polyethylene_2mer,
             path,
             resname_map=polyethylene_resname_map,
         )
 
-        assert records == 1
-        assert _mupt_sdf_path(path).exists()
+    assert records == 1
+    assert not caught_warnings
+    assert _mupt_sdf_path(path).exists()
 
 
 def test_write_primitive_to_sdf_preserves_existing_file_after_stream_failure(
