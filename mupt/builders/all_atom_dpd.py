@@ -1019,22 +1019,42 @@ class AllAtomDPDBuilder:
         if bonds:
             harmonic = hoomd.md.bond.Harmonic()
             for name in frame.bonds.types:
-                harmonic.params[name] = parameters.bond_params.get(name, {"r0": 1.5, "k": 100.0})
+                harmonic.params[name] = self._bonded_params_for(
+                    name,
+                    parameters.bond_params,
+                    {"r0": 1.5, "k": 100.0},
+                    "bond",
+                )
             integrator.forces.append(harmonic)
         if angles:
             harmonic_angle = hoomd.md.angle.Harmonic()
             for name in frame.angles.types:
-                harmonic_angle.params[name] = parameters.angle_params.get(name, {"t0": np.pi / 2, "k": 20.0})
+                harmonic_angle.params[name] = self._bonded_params_for(
+                    name,
+                    parameters.angle_params,
+                    {"t0": np.pi / 2, "k": 20.0},
+                    "angle",
+                )
             integrator.forces.append(harmonic_angle)
         if dihedrals:
             periodic = hoomd.md.dihedral.Periodic()
             for name in frame.dihedrals.types:
-                periodic.params[name] = parameters.dihedral_params.get(name, {"k": 1.0, "d": 1, "n": 1, "phi0": 0.0})
+                periodic.params[name] = self._bonded_params_for(
+                    name,
+                    parameters.dihedral_params,
+                    {"k": 1.0, "d": 1, "n": 1, "phi0": 0.0},
+                    "dihedral",
+                )
             integrator.forces.append(periodic)
         if impropers:
             periodic_improper = hoomd.md.improper.Periodic()
             for name in frame.impropers.types:
-                periodic_improper.params[name] = parameters.improper_params.get(name, {"k": 1.0, "d": 1, "n": 1, "chi0": 0.0})
+                periodic_improper.params[name] = self._bonded_params_for(
+                    name,
+                    parameters.improper_params,
+                    {"k": 1.0, "d": 1, "n": 1, "chi0": 0.0},
+                    "improper",
+                )
             integrator.forces.append(periodic_improper)
 
         nlist = hoomd.md.nlist.Cell(buffer=0.4)
@@ -1059,6 +1079,43 @@ class AllAtomDPDBuilder:
                 )
             )
         return simulation
+
+    @staticmethod
+    def _bonded_params_for(
+        name: str,
+        params_by_type: dict[str, dict[str, float]],
+        emergency_default: dict[str, float],
+        term_kind: str,
+    ) -> dict[str, float]:
+        """Return bonded parameters, loudly falling back to the stiffest known set."""
+
+        if name in params_by_type:
+            return params_by_type[name]
+        if params_by_type:
+            fallback_name, fallback_params = max(
+                params_by_type.items(),
+                key=lambda item: float(item[1].get("k", float("-inf"))),
+            )
+            assigned = dict(fallback_params)
+            LOGGER.warning(
+                "AA-DPD missing OpenFF %s parameters for type %r; using maximum-k "
+                "parameter set %r with values %s.",
+                term_kind,
+                name,
+                fallback_name,
+                assigned,
+            )
+            return assigned
+        assigned = dict(emergency_default)
+        LOGGER.warning(
+            "AA-DPD missing OpenFF %s parameters for type %r and no %s parameters "
+            "were available; using emergency defaults %s.",
+            term_kind,
+            name,
+            term_kind,
+            assigned,
+        )
+        return assigned
 
     def _hoomd_device(self, hoomd: Any) -> Any:
         """Return the requested HOOMD device object."""

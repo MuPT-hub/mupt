@@ -2,6 +2,7 @@
 
 import builtins
 import importlib
+import logging
 import sys
 
 import numpy as np
@@ -352,6 +353,23 @@ def test_periodic_idivf_defaults_when_openff_returns_none():
         idivf = None
 
     assert OpenFFAllAtomDPDParameterProvider._periodic_idivf(Parameter(), 2) == [1.0, 1.0]
+
+
+def test_missing_bonded_params_warn_and_use_max_k(caplog):
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+
+    caplog.set_level(logging.WARNING, logger="mupt.builders.all_atom_dpd")
+
+    params = {
+        "soft": {"r0": 1.1, "k": 10.0},
+        "stiff": {"r0": 1.2, "k": 25.0},
+    }
+
+    assigned = AllAtomDPDBuilder._bonded_params_for("missing", params, {"r0": 1.5, "k": 100.0}, "bond")
+
+    assert assigned == {"r0": 1.2, "k": 25.0}
+    assert "missing OpenFF bond parameters" in caplog.text
+    assert "maximum-k parameter set 'stiff'" in caplog.text
 
 
 @pytest.mark.skipif(importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed")
