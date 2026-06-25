@@ -104,8 +104,8 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
 
 
 @dataclass(frozen=True)
-class OpenMMDeps:
-    """Optional OpenMM validation imports."""
+class OpenFFDeps:
+    """Optional OpenFF-driven validation imports."""
 
     Interchange: Any
     ForceField: Any
@@ -296,7 +296,7 @@ def validate_dpd_diagnostics(result: Any, finite_coords: bool, minimum_distance:
         raise RuntimeError("AA-DPD did not satisfy the DPD convergence criterion.")
 
 
-def import_openmm_deps() -> OpenMMDeps:
+def import_openff_deps() -> OpenFFDeps:
     try:
         from mupt.interfaces.rdkit import primitive_to_rdkit_mols
         from openff.interchange import Interchange
@@ -308,15 +308,15 @@ def import_openmm_deps() -> OpenMMDeps:
         from openmm import unit as omm_unit
         from openmm.app import Simulation
     except ModuleNotFoundError as exc:
-        missing = exc.name or "an optional OpenMM validation dependency"
+        missing = exc.name or "an optional OpenFF validation dependency"
         raise RuntimeError(
-            "OpenMM validation dependencies are missing. Install RDKit, "
+            "OpenFF validation dependencies are missing. Install RDKit, "
             "openff-toolkit, openff-interchange, and openmm in this environment, "
             "or rerun with --skip-openmm. "
             f"Missing import: {missing}"
         ) from exc
 
-    return OpenMMDeps(
+    return OpenFFDeps(
         Interchange=Interchange,
         ForceField=ForceField,
         Molecule=Molecule,
@@ -381,7 +381,7 @@ def box_density_g_cm3(box_vectors_nm: np.ndarray, mass_da: float) -> float:
     return mass_da * DA_PER_NM3_TO_G_CM3 / volume_nm3
 
 
-def assign_openff_charges(molecules: list[Any], deps: OpenMMDeps, charge_method: str) -> None:
+def assign_openff_charges(molecules: list[Any], deps: OpenFFDeps, charge_method: str) -> None:
     """Assign OpenFF partial charges, using NAGL explicitly for AshGC models."""
 
     if charge_method.endswith(".pt") or charge_method.startswith("openff-gnn"):
@@ -403,7 +403,7 @@ def assign_openff_charges(molecules: list[Any], deps: OpenMMDeps, charge_method:
 
 
 def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace) -> None:
-    deps = import_openmm_deps()
+    deps = import_openff_deps()
     rdkit_mols = list(
         deps.primitive_to_rdkit_mols(
             root,
@@ -503,7 +503,7 @@ def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Na
             raise RuntimeError("NVT stability check produced nonfinite energy.")
 
 
-def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps: OpenMMDeps, args: argparse.Namespace) -> None:
+def run_npt_smoke(simulation: Any, interchange: Any, openmm_topology: Any, deps: OpenFFDeps, args: argparse.Namespace) -> None:
     """Continue from the NVT state under regular NPT conditions."""
 
     if args.npt_steps == 0:
