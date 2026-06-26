@@ -3,8 +3,10 @@ channels:
 
   - defaults
 dependencies:
-    # Base depends
-  - python
+  # Base depends
+  ## pinned Python under 3.14 to avoid pydantic/openff units issues
+  ## documented here: https://github.com/openforcefield/openff-units/pull/178
+  - python>=3.12,<3.14 
   - pip
 
     # Testing
