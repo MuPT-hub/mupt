@@ -4,7 +4,7 @@
 import pytest
 
 from mupt.chemistry import ELEMENTS
-from mupt.interfaces._shared.topology import build_saamr_role_topology_index
+from mupt.interfaces._shared.topology import _pdb_resname, build_saamr_role_topology_index
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 
@@ -55,3 +55,13 @@ def test_build_saamr_role_topology_index_rejects_nested_residue():
 
     with pytest.raises(ValueError, match="nested RESIDUE"):
         build_saamr_role_topology_index(universe)
+
+
+def test_pdb_resname_prefers_residue_metadata_for_instance_labels():
+    resname = _pdb_resname(
+        "head_styrene_000",
+        {"head_styrene": "PSH"},
+        metadata={"residue_name": "PSH"},
+    )
+
+    assert resname == "PSH"

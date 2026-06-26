@@ -107,7 +107,13 @@ class AllAtomExportStrategy(MDAExportStrategy):
 
         data.num_segments = len(index.segments)
         for residue_record in residue_records:
-            data.residue_names.append(_pdb_resname(residue_record.residue.label, resname_map))
+            data.residue_names.append(
+                _pdb_resname(
+                    residue_record.residue.label,
+                    resname_map,
+                    metadata=residue_record.residue.metadata,
+                )
+            )
             data.residue_segindex.append(residue_record.segment_idx)
             data.residue_ids.append(residue_record.residue_idx)
 
