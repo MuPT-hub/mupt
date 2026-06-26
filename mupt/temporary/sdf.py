@@ -279,14 +279,24 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
         residue_index = int(_required_atom_prop(atom, "mupt_residue_index"))
         atom_to_residue_index[atom_idx] = residue_index
         residue_label = _required_atom_prop(atom, "mupt_residue_label")
+        residue_name = _required_atom_prop(atom, "residue_name")
         if residue_index in residue_data:
             if residue_data[residue_index]["label"] != residue_label:
                 raise ValueError(
                     "MuPT SDF record has conflicting RESIDUE labels for "
                     f"index {residue_index}"
                 )
+            if residue_data[residue_index]["residue_name"] != residue_name:
+                raise ValueError(
+                    "MuPT SDF record has conflicting RESIDUE names for "
+                    f"index {residue_index}"
+                )
         else:
-            residue_data[residue_index] = {"label": residue_label, "atoms": []}
+            residue_data[residue_index] = {
+                "label": residue_label,
+                "residue_name": residue_name,
+                "atoms": [],
+            }
         residue_data[residue_index]["atoms"].append(atom_idx)
 
     residue_primitives = {}
@@ -296,7 +306,10 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
         data = residue_data[residue_index]
         residue = Primitive(
             label=data["label"],
-            metadata={"mupt_residue_index": residue_index},
+            metadata={
+                "mupt_residue_index": residue_index,
+                "residue_name": data["residue_name"],
+            },
             role=PrimitiveRole.RESIDUE,
         )
         for atom_idx in sorted(

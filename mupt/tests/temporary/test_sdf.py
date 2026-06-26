@@ -333,6 +333,45 @@ def test_primitive_from_mupt_sdf_roundtrips_exportable_hierarchy(
         np.testing.assert_allclose(_atom_positions(first_mol), _atom_positions(second_mol))
 
 
+def test_primitive_from_mupt_sdf_preserves_residue_names_for_instance_labels(
+    tmp_path,
+    single_polyethylene_3mer,
+    polyethylene_resname_map,
+):
+    """Imported generated residue labels remain exportable via metadata names."""
+    first_path = tmp_path / "generated-labels-first.mupt.sdf"
+    second_path = tmp_path / "generated-labels-second.mupt.sdf"
+    for residue_idx, residue in enumerate(single_polyethylene_3mer.children[0].children):
+        base_label = residue.label
+        residue.label = f"{base_label}_{residue_idx:03d}"
+        residue.metadata["residue_name"] = polyethylene_resname_map[base_label]
+
+    write_primitive_to_sdf(
+        single_polyethylene_3mer,
+        first_path,
+        resname_map=polyethylene_resname_map,
+    )
+    rebuilt = primitive_from_mupt_sdf(first_path)
+    second_records = write_primitive_to_sdf(
+        rebuilt,
+        second_path,
+        resname_map=polyethylene_resname_map,
+    )
+
+    rebuilt_residues = rebuilt.children[0].children
+    assert second_records == 1
+    assert [residue.label for residue in rebuilt_residues] == [
+        "head_000",
+        "ethane_001",
+        "tail_002",
+    ]
+    assert [residue.metadata["residue_name"] for residue in rebuilt_residues] == [
+        "HEA",
+        "EAN",
+        "TYL",
+    ]
+
+
 def test_primitive_from_mupt_sdf_roundtrips_multi_record_system(
     tmp_path,
     multi_polyethylene_system,
@@ -584,4 +623,34 @@ def test_primitive_from_mupt_sdf_rejects_conflicting_residue_labels(
     _write_mol(malformed_path, mol)
 
     with pytest.raises(ValueError, match="conflicting RESIDUE labels"):
+        primitive_from_mupt_sdf(malformed_path)
+
+
+def test_primitive_from_mupt_sdf_rejects_conflicting_residue_names(
+    tmp_path,
+    single_polyethylene_2mer,
+    polyethylene_resname_map,
+):
+    """Atoms sharing a MuPT residue index must agree on RESIDUE name."""
+    valid_path = tmp_path / "valid.mupt.sdf"
+    malformed_path = tmp_path / "bad-residue-name.mupt.sdf"
+    write_primitive_to_sdf(
+        single_polyethylene_2mer,
+        valid_path,
+        resname_map=polyethylene_resname_map,
+    )
+    mol = _load_sdf(valid_path)[0]
+    first_residue_index = mol.GetAtomWithIdx(0).GetProp("mupt_residue_index")
+    same_residue_atom = next(
+        atom
+        for atom in mol.GetAtoms()
+        if atom.GetIdx() != 0
+        and atom.HasProp("mupt_residue_index")
+        and atom.GetProp("mupt_residue_index") == first_residue_index
+    )
+    same_residue_atom.SetProp("residue_name", "BAD")
+    prepare_mupt_sdf_atom_props(mol)
+    _write_mol(malformed_path, mol)
+
+    with pytest.raises(ValueError, match="conflicting RESIDUE names"):
         primitive_from_mupt_sdf(malformed_path)
