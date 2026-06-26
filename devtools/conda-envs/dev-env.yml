@@ -3,48 +3,48 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-    # Basic Python dependencies
-    ## pinned Python under 3.14 to avoid pydantic/openff units issues
-    ## documented here: https://github.com/openforcefield/openff-units/pull/178
-    - python>=3.12,<3.14 
-    - pip
-    - jupyterlab
+  # Basic Python dependencies
+  ## pinned Python under 3.14 to avoid pydantic/openff units issues
+  ## documented here: https://github.com/openforcefield/openff-units/pull/178
+  - python>=3.12,<3.14 
+  - pip
+  - jupyterlab
 
-    # Unit testing
-    - pytest
-    - pytest-cov
-    - codecov
-    - nbval
+  # Unit testing
+  - pytest
+  - pytest-cov
+  - codecov
+  - nbval
 
-    # Mathematics and scientific computing
-    - numpy
-    - scipy>=1.16.0 # required to allow use of RigidTransform
-    - sympy
+  # Mathematics and scientific computing
+  - numpy
+  - scipy>=1.16.0 # required to allow use of RigidTransform
+  - sympy
 
-    # Graphs
-    - anytree
-    - networkx
+  # Graphs
+  - anytree
+  - networkx
 
-    # Visualization
-    - rich
-    - matplotlib
-    - ipympl
+  # Visualization
+  - rich
+  - matplotlib
+  - ipympl
 
-    # Molecular libraries
-    - rdkit
-    - py3Dmol
-    - openbabel>=3.0
-    - mbuild >=1.0
-    - periodictable
+  # Molecular libraries
+  - rdkit
+  - py3Dmol
+  - openbabel>=3.0
+  - mbuild >=1.0
+  - periodictable
 
-    # MD libraries
-    - openff-toolkit
-    - openff-interchange
-    - gsd>=3.0
-    - hoomd=5.3.0
-    - freud=3.0
-    # - fresnel
+  # MD libraries
+  - openff-toolkit
+  - openff-interchange
+  - gsd>=3.0
+  - hoomd=5.3.0
+  - freud=3.0
+  # - fresnel
 
-    - pip:
-      - build
-        # - some_pypi_module_name
+  - pip:
+    - build
+      # - some_pypi_module_name
