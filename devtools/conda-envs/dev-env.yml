@@ -4,9 +4,7 @@ channels:
   - defaults
 dependencies:
   # Basic Python dependencies
-  ## pinned Python under 3.14 to avoid pydantic/openff units issues
-  ## documented here: https://github.com/openforcefield/openff-units/pull/178
-  - python>=3.12,<3.14 
+  - python>=3.12,<3.14  # <3.14 because of https://github.com/openforcefield/openff-units/pull/178
   - pip
   - jupyterlab
 
