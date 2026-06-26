@@ -8,9 +8,7 @@ from typing import (
     Optional,
     Protocol,
 )
-
 from types import MappingProxyType
-from abc import abstractmethod
 
 from .connectors import Connector
 from .types import (
@@ -35,9 +33,9 @@ class ConnectorManager(Protocol):
     connectors_by_addr : Mapping[ConnectorAddress, Connector]
     connectors_by_handle : Mapping[ConnectorHandle, Connector]
 
-    @abstractmethod
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        ...
+        '''Retrieve a particular Connector by its unique address'''
+        return self.connectors_by_addr[conn_addr] # not using .get() to make KeyErrors explicit
 
     # default implementations, for when explicitly inherited
     @property
@@ -89,13 +87,10 @@ class ConnectorManagerFrozen(ConnectorManager):
                 connectors_bound_accum.append(conn)
             else:
                 connectors_free_accum.append(conn)
-        obj._connectors_free  = tuple(connectors_free_accum) # will take caller's word for it
-        obj._connectors_bound = tuple(connectors_bound_accum) # will take caller's word for it
+        obj._connectors_free  = tuple(connectors_free_accum)
+        obj._connectors_bound = tuple(connectors_bound_accum)
 
         return obj
-
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        return self._connectors_by_addr[conn_addr]
     
     @property
     def connectors_by_addr(self) -> Mapping[ConnectorAddress, Connector]:
@@ -154,24 +149,18 @@ class ConnectorManagerMutable(ConnectorManager):
         
         return self.connectors_by_addr.pop(conn_addr)
 
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        '''Obtain the connector with the specified address'''
-        return self.connectors_by_addr[conn_addr]
-
     @property
     def connectors(self) -> tuple[Connector, ...]:
         return tuple(self.connectors_by_addr.values())
     
+    # DEV: opting for linear search each time (rather than dynamically-updating list)
+    # since connectors might change neighbor status during bond linking (checks when called)
     @property
     def connectors_free(self) -> tuple[Connector, ...]:
         '''Managed Connectors which have no assigned neighbor'''
-        # DEV: opting for search each time (rather than dyncamilly-updating list)
-        # since connectors might change neighbor status during bond linking (checks when called)
         return tuple(conn for conn in self.connectors if not conn.has_neighbor)
 
     @property
     def connectors_bound(self) -> tuple[Connector, ...]:
         '''Managed Connectors which have no assigned neighbor'''
-        # DEV: opting for search each time (rather than dyncamilly-updating list)
-        # since connectors might change neighbor status during bond linking (checks when called)
         return tuple(conn for conn in self.connectors if conn.has_neighbor)
