@@ -1,6 +1,5 @@
 '''Testing assignment of labels to RDKit objects'''
 
-
 import pytest
 
 from rdkit import Chem

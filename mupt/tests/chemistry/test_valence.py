@@ -1,6 +1,5 @@
 '''Unit tests for chemical valence validation'''
 
-
 import pytest
 from mupt.chemistry.core import valence_allowed
 

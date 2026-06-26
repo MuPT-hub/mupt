@@ -1,7 +1,6 @@
 '''Utilities for creating rigid transformations and applying them to points in 3D space
 i.e. for working with the Special Euclidean group SE(3)'''
 
-
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 

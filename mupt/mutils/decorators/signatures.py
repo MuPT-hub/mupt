@@ -1,6 +1,5 @@
 '''Tools for simplifying transfer and modification of wrapped function type signatures'''
 
-
 from inspect import Parameter, Signature
 
 POSITIONAL_PARAMETER_TYPES = (

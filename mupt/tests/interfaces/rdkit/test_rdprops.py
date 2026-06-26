@@ -1,6 +1,5 @@
 '''Unit tests for RDKit property assignment and lookup'''
 
-
 import pytest
 
 from typing import Any

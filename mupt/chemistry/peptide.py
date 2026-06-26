@@ -1,6 +1,5 @@
 '''Reference for peptide residue substructures, FASTA codes, and CCD codes'''
 
-
 import logging
 LOGGER = logging.getLogger(__name__)
 

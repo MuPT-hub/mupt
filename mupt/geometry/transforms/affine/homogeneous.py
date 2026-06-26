@@ -1,6 +1,5 @@
 '''For handling array conversions to and from homogeneous coordinates'''
 
-
 import numpy as np
 from ...arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
 

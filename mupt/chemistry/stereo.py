@@ -1,6 +1,5 @@
 '''Utilities for handling stereochemistry, including CIP assignment and enumeration of stereoisomers'''
 
-
 from rdkit.Chem.rdchem import (
     StereoInfo,
     StereoType,

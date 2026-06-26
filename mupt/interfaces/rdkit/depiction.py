@@ -1,6 +1,5 @@
 '''Drawing config for RDKit molecule depiction'''
 
-
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.Draw import IPythonConsole
 

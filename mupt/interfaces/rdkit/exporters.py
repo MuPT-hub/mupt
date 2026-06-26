@@ -1,7 +1,5 @@
 '''Writers which convert the MuPT molecular representation out to RDKit Mols'''
 
-
-
 from collections.abc import Iterator
 from typing import Optional
 import warnings

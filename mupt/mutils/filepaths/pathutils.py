@@ -1,6 +1,5 @@
 '''Utilities for editing, augmenting, and querying Paths'''
 
-
 from typing import Union
 from pathlib import Path
     

@@ -1,6 +1,5 @@
 '''Utilities for conditional selection of chemical objects such as atoms and bonds from RDKit molecules'''
 
-
 from typing import Callable, Concatenate, Generator, Container, Optional, Union
 from operator import (
     xor as logical_xor, # alias for consistency

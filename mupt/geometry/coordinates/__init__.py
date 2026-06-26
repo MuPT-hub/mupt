@@ -1,6 +1,5 @@
 '''Definitions of positions in particular coordinate system and bases'''
 
-
 from .reference import origin
 from .basis import (
     are_linearly_independent,

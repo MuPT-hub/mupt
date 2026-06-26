@@ -3,7 +3,6 @@ Tests for ensuring export from MuPT to RDKit preserves chemical information and 
 and does not export systems which cannot be interpreted as all-atom molecules
 '''
 
-
 import pytest
 from anytree import PreOrderIter
 from rdkit import Chem

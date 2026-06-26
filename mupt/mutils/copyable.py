@@ -1,6 +1,5 @@
 '''Generic Protocols for copyable objects'''
 
-
 from typing import Protocol, Self, runtime_checkable
 from functools import cached_property
 
