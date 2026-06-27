@@ -38,11 +38,31 @@ dependencies:
   # MD libraries
   - openff-toolkit
   - openff-interchange
-  - gsd>=3.0
   - hoomd=5.3.0
   - freud=3.0
   # - fresnel
+  # Chemistry
+  - rdkit
+  - periodictable
+
+  # Molecular Dynamics toolkits
+  ## OpenFF
+  - openff-toolkit>=0.18
+  - openff-interchange>=0.5
+
+  ## HOOMD
+  - hoomd
+  - gsd>=3.0
+  - freud
+  - fresnel
+
+  ## MoSDeF
+  # - mbuild # DEV: dependencies and env solve really don't play nice w/ OpenFF - hiding for now, since unused in code + examples
+  - gmso
+
+  ## Analysis
+  - mdanalysis
 
   - pip:
     - build
-      # - some_pypi_module_name
+    - twine
