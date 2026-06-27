@@ -36,9 +36,8 @@ dependencies:
 
     # Molecular Dynamics toolkits
     ## OpenFF
-    - openff-toolkit
-    - openff-interchange
-    - mdanalysis
+    - openff-toolkit>=0.18
+    - openff-interchange>=0.5
 
     ## HOOMD
     - hoomd
@@ -49,6 +48,9 @@ dependencies:
     ## MoSDeF
     # - mbuild # DEV: dependencies and env solve really don't play nice w/ OpenFF - hiding for now, since unused in code + examples
     - gmso
+
+    ## Analysis
+    - mdanalysis
 
     # - pip:
         # - some_pypi_module_name
