@@ -3,8 +3,8 @@ channels:
 
   - defaults
 dependencies:
-    # Base depends
-  - python
+  # Base depends
+  - python>=3.12,<3.14  # <3.14 because of https://github.com/openforcefield/openff-units/pull/178
   - pip
 
     # Testing

@@ -143,6 +143,20 @@ def test_primitive_to_rdkit_mols_sets_pdb_residue_info(
         assert atom.GetProp("residue_name") in set(polyethylene_resname_map.values())
 
 
+def test_primitive_to_rdkit_mols_uses_residue_metadata_name_for_instance_labels():
+    """Residue metadata supports generated labels not present in resname_map."""
+    residue = Primitive(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
+    residue.metadata["residue_name"] = "PSH"
+    residue.attach_child(Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE))
+    universe = _universe_from_residue(residue)
+
+    mol = _rdkit_mols(universe, {"head_styrene": "PSH"})[0]
+    atom = mol.GetAtomWithIdx(0)
+
+    assert atom.GetPDBResidueInfo().GetResidueName().strip() == "PSH"
+    assert atom.GetProp("residue_name") == "PSH"
+
+
 def test_primitive_to_rdkit_mols_wraps_pdb_surrogate_residue_ids(
     single_polyethylene_3mer,
     polyethylene_resname_map,
