@@ -217,7 +217,9 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         '''Primitives whose share a Connection with this one'''
         for conn in self.connections.connectors_bound:
             yield from select_primitives(
-                conn.holders,
+                # TB TODO: figure out how to type this so HoldsConnector "knows" about NodeMixin
+                # methods without explicitly mentioning Primitive type in ..connections
+                conn.holder.path, # also, may include explicit check for has_holder to avoid errants NoneTypes passed
                 criterion=criterion,
             )
 

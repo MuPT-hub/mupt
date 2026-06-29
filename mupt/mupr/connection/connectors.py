@@ -106,7 +106,7 @@ class Connector(RigidlyTransformable):
 
         self._neighbor : Optional[Connector] = None
         self._locked : bool = False
-        self._holders : list['HoldsConnectors'] = list()
+        self._holder : Optional['HoldsConnectors'] = None
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     @property
@@ -319,32 +319,26 @@ class Connector(RigidlyTransformable):
         if self.has_tangent_position:
             self._tangent_position = transformation.apply(self._tangent_position)
 
-    # Parents
+    # Holder - higher-level object which "holds" this Connector (e.g. for reverse-lookup)
+    def has_holder(self) -> bool:
+        '''Check if holder has been assigned'''
+        return self._holder is not None
+    
     @property
-    def holders(self) -> list['HoldsConnectors']:
-        return self._holders
-    # N.B.: deliberately excluded holders.setter; moderated thru add_holder and remove_holder methods instead
+    def holder(self) -> Optional['HoldsConnectors']:
+        return self._holder
+    
+    @holder.setter
+    def holder(self, new_holder : 'HoldsConnectors') -> None:
+        if self._locked:
+            raise PermissionError(f'Cannot assign new holder to locked Connector {self}')
+        self._holder = new_holder
 
-    def add_holder(
-        self,
-        holder : 'HoldsConnectors',
-        ranking : Optional[Callable[['HoldsConnectors'], int]]=None, 
-        # DEV: eventually generalize to have ranking return be some kind
-        # of "Sortable" ABC (supports comparisons and equality checks)
-    ) -> None:
-        '''
-        Insert new holder into registry of holder connector holders
-        If ranking Callable is given, will apply to sort holders in-place post-insertion
-        '''
-        if holder in self._holders:
-            raise IndexError(f'The Connector holder {holder!r} is already present in the registry of Connector {self!r}')
-        self._holders.append(holder)
-
-        if ranking:
-            self._holders.sort(key=ranking, reverse=False)
-
-    def remove_holder(self, holder : 'HoldsConnectors') -> None:
-        self._holders.remove(holder) # no need to check membership - already raises ValueError if not present
+    @holder.deleter
+    def holder(self) -> None:
+        if self._locked and not self.has_holder:
+            raise PermissionError(f'Cannot remove holder of locked Connector {self}')
+        self._holder = None
 
     # Interactions with neighboring Connectors
     ## Comparison methods
