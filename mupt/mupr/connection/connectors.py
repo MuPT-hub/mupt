@@ -250,7 +250,7 @@ class Connector(RigidlyTransformable):
         if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
             raise ValueError('Cannot compute dihedral alignment between Connectors without explicitly-defined dihedral plane orientations')
         
-        if not self.are_antialigned(other, within=alignment_tolerance):
+        if not self.is_antialigned(other, within=alignment_tolerance):
             # DEV: could technically weaken this check to when bond vectors are antiparallel (-1 dot product when normed)
             # and difference between anchors is parallel and antiparallel with bond vectors respectively, but didn't for simplicity
             raise ValueError('Cannot set dihedral angle with non-antialigned Connectors')
