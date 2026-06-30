@@ -3,34 +3,34 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-    # Basic Python dependencies
-    - python>=3.12
-    - pip
-    - rich
+  # Basic Python dependencies
+  - python>=3.12,<3.14  # <3.14 because of https://github.com/openforcefield/openff-units/pull/178
+  - pip
+  - rich
 
-    # Unit testing
-    - pytest
-    - pytest-cov
-    - codecov
-    - nbval
+  # Unit testing
+  - pytest
+  - pytest-cov
+  - codecov
+  - nbval
 
-    # Visualization
-    - matplotlib
-    - jupyterlab
-    - ipympl
+  # Visualization
+  - matplotlib
+  - jupyterlab
+  - ipympl
 
-    # Scientific computing
-    - numpy>=2.0
-    - scipy>=1.16.0 # version pin required to allow use of RigidTransform
-    - sympy
+  # Scientific computing
+  - numpy>=2.0
+  - scipy>=1.16.0 # version pin required to allow use of RigidTransform
+  - sympy
 
-    # Graphs
-    - anytree
-    - networkx
+  # Graphs
+  - anytree
+  - networkx
 
-    # Molecular libraries
-    - rdkit
-    - periodictable
+  # Molecular libraries
+  - rdkit
+  - periodictable
 
-    # - pip:
-        # - some_pypi_module_name
+  # - pip:
+      # - some_pypi_module_name

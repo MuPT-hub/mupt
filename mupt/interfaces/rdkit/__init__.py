@@ -49,7 +49,6 @@ from ...chemistry.sanitization import (
     SANITIZE_ALL,
     SANITIZE_NONE,
 )
-
 # DEFAULT DRAWING CONFIG
 set_rdkdraw_size(400, aspect=3/2)
 show_atom_indices()

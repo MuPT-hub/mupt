@@ -83,7 +83,11 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
             atom_id_to_local: dict[int, int] = {}
 
             for residue_record in residue_records_by_segment[id(segment)]:
-                resname = _pdb_resname(residue_record.residue.label, resname_map)
+                resname = _pdb_resname(
+                    residue_record.residue.label,
+                    resname_map,
+                    metadata=residue_record.residue.metadata,
+                )
                 for atom in residue_record.particles:
                     atom_id_to_local[id(atom)] = len(data.atoms)
                     data.atoms.append(atom)

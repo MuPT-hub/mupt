@@ -13,21 +13,27 @@ def random_vector(
     low : float=-1.0,
     high : float=1.0,
     normalized : bool=False,
+    rng : np.random.Generator | None=None,
 ) -> np.ndarray[Shape[Dims], float]:
     '''Generate a random N-dimensional vector of floats, optionally normalized'''
-    vector = np.random.uniform(low=low, high=high, size=dimension)
+    sampler = np.random if rng is None else rng
+    vector = sampler.uniform(low=low, high=high, size=dimension)
     if normalized:
         normalize(vector)
         
     return vector
 
-def random_unit_vector(dimension : Dims=3) -> np.ndarray[Shape[Dims], float]:
+def random_unit_vector(
+    dimension : Dims=3,
+    rng : np.random.Generator | None=None,
+) -> np.ndarray[Shape[Dims], float]:
     '''Generate a randomly-oriented unit vector in N-dimensional space'''
-    return random_vector(dimension=dimension, low=-1.0, high=1.0, normalized=True)
+    return random_vector(dimension=dimension, low=-1.0, high=1.0, normalized=True, rng=rng)
 
 def random_orthogonal_vector(
     vector : np.ndarray[Shape[Dims], Numeric],
     normalized : bool=True,
+    rng : np.random.Generator | None=None,
 ) -> np.ndarray[Shape[Dims], Numeric]:
     '''Return a random vector orthogonal to the input vector'''
     (ndim,) = vector.shape
@@ -36,7 +42,7 @@ def random_orthogonal_vector(
     
     random_direction = np.copy(vector)
     while not are_linearly_independent(random_direction, vector): # rejection sampling avoids colinear vector edge case
-        random_direction = random_vector(ndim, low=-1.0, high=1.0, normalized=True)
+        random_direction = random_vector(ndim, low=-1.0, high=1.0, normalized=True, rng=rng)
 
     tangent = rejector(vector) @ random_direction
     if normalized:
