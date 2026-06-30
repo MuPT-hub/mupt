@@ -531,7 +531,6 @@ def canonical_form_connectors(
     '''A hashable string representing a collection of Connectors in canonical form'''
     return lex_order_multiset_str(
         map(Connector.canonical_form, connectors),
-        element_repr=Connector.canonical_form,
         separator=separator,
         joiner=joiner,
     )
