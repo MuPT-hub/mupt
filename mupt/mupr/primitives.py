@@ -1139,7 +1139,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return canonical_form_connectors(
             (
                 self.connectors[connector_handle]
-                for connector_handle in sorted(self.connectors.keys())  # sort by handle to ensure canonical ordering
+                    for connector_handle in sorted(self.connectors.keys())  # sort by handle to ensure canonical ordering
             ),
             separator=separator,
             joiner=joiner,
