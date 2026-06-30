@@ -1,6 +1,7 @@
 """Shared topology traversal helpers for exporter interfaces."""
 
-from collections.abc import Hashable, Iterator
+
+from collections.abc import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
@@ -168,10 +169,16 @@ def iter_saamr_residue_records(
             residue_global_idx += 1
 
 
-def _pdb_resname(label: Hashable, resname_map: dict[str, str]) -> str:
-    """Map a residue label to a PDB-compliant 3-character residue name."""
+def _pdb_resname(
+    label: Hashable,
+    resname_map: dict[str, str],
+    metadata: Mapping[str, object] | None = None,
+) -> str:
+    """Map residue metadata or label to a PDB-compliant 3-character name."""
     label = str(label)
-    if resname_map and label in resname_map:
+    if metadata is not None and "residue_name" in metadata:
+        name = str(metadata["residue_name"])
+    elif resname_map and label in resname_map:
         name = resname_map[label]
     else:
         name = label

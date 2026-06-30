@@ -257,6 +257,22 @@ def test_invalid_resname_map_raises_value_error(primitive_fixture, resname_map, 
         primitive_to_mdanalysis(univprim, resname_map=resname_map)
 
 
+def test_mda_export_uses_residue_metadata_name_for_instance_labels():
+    """Residue metadata supports generated labels not present in resname_map."""
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
+    residue = Primitive(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
+    residue.metadata["residue_name"] = "PSH"
+    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    residue.attach_child(atom)
+    segment.attach_child(residue)
+    universe.attach_child(segment)
+
+    mda_universe = primitive_to_mdanalysis(universe, resname_map={"head_styrene": "PSH"})
+
+    assert list(mda_universe.residues.resnames) == ["PSH"]
+
+
 # ============================================================================
 # STRATEGY-BASED EXPORT TESTS
 # ============================================================================
