@@ -21,6 +21,26 @@ class DummyRelation:
     DEFAULT_LABEL : ClassVar[str] = 'default'
     label : Hashable = field(default_factory=str)
     
+# Concrete, initializable registry examples
+def reg_example_a() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)})
+
+    return reg
+
+def reg_example_b() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    handles = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
+
+    return reg
+
+def reg_example_c() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    handles = reg.register_from([3.14, 0.5772, 2.718], label='constants')
+
+    return reg
+
+
 # Initialization tests
 @pytest.mark.xfail(
     reason="Direct assignment to UniqueRegistry items should raise PermissionError",
@@ -175,6 +195,24 @@ def test_unique_reg_purge() -> None:
     reg.purge('a')
     assert all(handle[0] != 'a' for handle in reg.keys()) and (len(reg) == 4)
 
+@pytest.mark.parametrize(
+    'reg',
+    (    
+        reg_example_a(),
+        reg_example_b(),
+        reg_example_c(),
+    ),
+)
+def test_reset_ticker_total(reg : UniqueRegistry) -> None:
+    '''
+    Test that resetting running ticker counts for ALL keys sets all counts to 0
+    '''
+    orig_keys = set(reg._ticker.keys()) # wrap in new container to prevent any chance of accidentally referencing original
+    reg.reset_ticker()
+    assert all(reg._ticker[key] == 0
+        for key in orig_keys
+    )
+    
 # Internal state update tests
 def test_freed_labels_reinserted() -> None:
     '''Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels'''
@@ -257,24 +295,6 @@ def test_unique_reg_by_labels() -> None:
     assert by_labels['b'] == (b,)
 
 # Partition tests
-def reg_example_a() -> UniqueRegistry:
-    reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)})
-
-    return reg
-
-def reg_example_b() -> UniqueRegistry:
-    reg = UniqueRegistry()
-    handles = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
-
-    return reg
-
-def reg_example_c() -> UniqueRegistry:
-    reg = UniqueRegistry()
-    handles = reg.register_from([3.14, 0.5772, 2.718], label='constants')
-
-    return reg
-
 @pytest.mark.parametrize(
     'reg1,reg2,dict_expected',
     [
