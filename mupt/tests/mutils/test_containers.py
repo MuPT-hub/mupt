@@ -213,6 +213,26 @@ def test_reset_ticker_total(reg : UniqueRegistry) -> None:
         for key in orig_keys
     )
     
+@pytest.mark.parametrize(
+    'reg,key',
+    [
+        ...
+    ]
+)
+def test_reset_ticker_indiv(reg : UniqueRegistry, key : LabelT) -> None:
+    '''
+    Test that resetting running ticker counts for a specific
+    key sets that count (and ONLY that count) to 0
+    '''
+    orig_ticker : dict[LabelT, int] = dict(reg._ticker)
+    other_keys = set(reg._ticker.keys()) - {key}
+
+    reg.reset_ticker_count_for(key)
+    assert reg._ticker[key] == 0 \
+        and all(reg._ticker[other_key] == orig_ticker[other_key]
+            for other_key in other_keys
+        )
+
 # Internal state update tests
 def test_freed_labels_reinserted() -> None:
     '''Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels'''
