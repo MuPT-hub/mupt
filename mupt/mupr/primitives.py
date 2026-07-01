@@ -315,9 +315,9 @@ class SupportsChildren(Primitive):
         subprimitive.parent = None
         
         del self.children_by_address[prim_addr]
-        # for conn_addr, conn in subprimitive.connectors_by_address.items():
-        #     del self.connector_is_internal[conn_addr]
-        #     del self.connector_origin_address[conn_addr]
+        # for connector_address, conn in subprimitive.connectors_by_address.items():
+        #     del self.connector_is_internal[connector_address]
+        #     del self.connector_origin_address[connector_address]
             # TODO: free Connectors at the "other end" of any connections to these Connectors
         
         return subprimitive
@@ -501,28 +501,32 @@ class SimplePrimitive(SupportsParents):
         self,
         connector : Connector,
         label : Optional[ConnectorLabel]=None,
-    ) -> ConnectorHandle:
+    ) -> ConnectorAddress:
         '''Introduce a new Connector into circulation throught the hierarchy'''
-        if label is None:
-            label = Connector.DEFAULT_LABEL
+        self._precondition_mutable_connectors()
+        
+        # TB this is irrelevant w/ addressed; keeping in case handles prove useful to add later
+        label = label or Connector.DEFAULT_LABEL 
 
-        conn_handle = self.connections._register_connector(connector, label=label)
-        if self.parent:
-            for anc in self.ancestors: # N.B.: ancestors, since looking UP the tree
-                _ = anc.connections._register_connector(connector, label=label)
+        conn_handle = self.connections.add_connector(connector, label=label)
+        for anc in self.ancestors: # N.B.: ancestors, since looking UP the tree
+            anc.connections.add_connector(connector) # direct access here, because .inject_connector will NOT be supported on non-simple Primitives
 
         return conn_handle
 
-    def withdraw_connector(self, connector : Connector | ConnectorHandle) -> Connector:
+    def withdraw_connector(
+        self,
+        connector_address : ConnectorAddress | Connector,
+    ) -> Connector:
         '''Remove a Connector from all levels of a hierarchy'''
-        if not isinstance(connector, Connector):
-            connector = self.connections.connector(connector)
+        self._precondition_mutable_connectors()
+        if isinstance(connector_address, Connector):
+            connector_address = connector_address.address
 
-        self.connections._remove_connector(connector)
-        if self.parent:
-            for anc in self.ancestors: # N.B.: ancestors, since looking UP the tree
-                _ = anc.connections._remove_connector(connector)
-        
+        for ancestor in self.path:
+            # TB: these all point to the same Connector instance, so collecting
+            # is technically redundant for all but the last iter of the loop
+            connector = ancestor.connections.remove_connector(connector_address) 
         return connector
 
     # Explicit ban on attachment of children (already simple)
