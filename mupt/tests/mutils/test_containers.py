@@ -43,8 +43,8 @@ def reg_example_c() -> UniqueRegistry:
 
 # Initialization tests
 @pytest.mark.xfail(
-    reason="Direct assignment to UniqueRegistry items should raise PermissionError",
-    raises=PermissionError,
+    reason="Direct assignment to UniqueRegistry items should raise AttributeError",
+    raises=AttributeError,
     strict=True,
 )
 def test_unique_reg_no_defaults() -> None:

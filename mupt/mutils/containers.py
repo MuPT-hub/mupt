@@ -64,7 +64,10 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
 
     # Object registration
     def __setitem__(self, key : LabelT, item : T) -> None:
-        raise PermissionError(f"Direct key-value assignment is not allowed; call 'register({item})' method instead")
+        raise AttributeError(
+            f"Direct key-value assignment is not allowed; " \
+            "call '{self}.register({item}, label={key})' method instead"
+        )
     
     def _setitem(self, key : LabelT, item : T) -> None:
         '''Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects'''
