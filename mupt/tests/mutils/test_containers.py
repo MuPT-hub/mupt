@@ -24,19 +24,19 @@ class DummyRelation:
 # Concrete, initializable registry examples
 def reg_example_a() -> UniqueRegistry:
     reg = UniqueRegistry()
-    _ = reg.register_from({'letters' : 'ab', 'numbers' : (1,2,3)})
+    _ = reg.register_from({'letter' : 'ab', 'number' : (1,2,3)})
 
     return reg
 
 def reg_example_b() -> UniqueRegistry:
     reg = UniqueRegistry()
-    handles = reg.register_from({'letters' : 'bcd', 'truths' : (False, True)})
+    handles = reg.register_from({'letter' : 'bcd', 'truth' : (False, True)})
 
     return reg
 
 def reg_example_c() -> UniqueRegistry:
     reg = UniqueRegistry()
-    handles = reg.register_from([3.14, 0.5772, 2.718], label='constants')
+    handles = reg.register_from([3.14, 0.5772, 2.718], label='constant')
 
     return reg
 
@@ -342,16 +342,16 @@ def test_unique_reg_by_labels() -> None:
             reg_example_a(),
             reg_example_b(),
             {
-                ('letters', 0) : 'a',
-                ('letters', 1) : 'b',
-                ('numbers', 0) : 1,
-                ('numbers', 1) : 2,
-                ('numbers', 2) : 3,
-                ('letters', 2) : 'b',
-                ('letters', 3) : 'c',
-                ('letters', 4) : 'd',
-                ('truths', 0) : False,
-                ('truths', 1) : True,
+                ('letter', 0) : 'a',
+                ('letter', 1) : 'b',
+                ('number', 0) : 1,
+                ('number', 1) : 2,
+                ('number', 2) : 3,
+                ('letter', 2) : 'b',
+                ('letter', 3) : 'c',
+                ('letter', 4) : 'd',
+                ('truth', 0) : False,
+                ('truth', 1) : True,
             }
         )
     ]
@@ -370,19 +370,19 @@ def test_merge(
         (
             reg_examples(),
             {
-                ('letters', 0) : 'a',
-                ('letters', 1) : 'b',
-                ('numbers', 0) : 1,
-                ('numbers', 1) : 2,
-                ('numbers', 2) : 3,
-                ('letters', 2) : 'b',
-                ('letters', 3) : 'c',
-                ('letters', 4) : 'd',
-                ('truths', 0) : False,
-                ('truths', 1) : True,
-                ('constants', 0) : 3.14,
-                ('constants', 1) : 0.5772,
-                ('constants', 2) : 2.718,
+                ('letter', 0) : 'a',
+                ('letter', 1) : 'b',
+                ('number', 0) : 1,
+                ('number', 1) : 2,
+                ('number', 2) : 3,
+                ('letter', 2) : 'b',
+                ('letter', 3) : 'c',
+                ('letter', 4) : 'd',
+                ('truth', 0) : False,
+                ('truth', 1) : True,
+                ('constant', 0) : 3.14,
+                ('constant', 1) : 0.5772,
+                ('constant', 2) : 2.718,
             }
         ),
     ]
