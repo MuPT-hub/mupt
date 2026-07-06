@@ -66,7 +66,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     def __setitem__(self, key : LabelT, item : T) -> None:
         raise AttributeError(
             f"Direct key-value assignment is not allowed; " \
-            "call '{self}.register({item}, label={key})' method instead"
+            f"call '{self}.register({item}, label={key})' method instead"
         )
     
     def _setitem(self, key : LabelT, item : T) -> None:
