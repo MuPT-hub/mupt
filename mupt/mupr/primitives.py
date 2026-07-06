@@ -816,7 +816,10 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     @topology.setter
     def topology(self, new_topology : TopologicalStructure) -> None:
-        raise PermissionError(f'Direct assignment to topology is prohibited; use {self.__class__.__name__}.set_topology() method instead')
+        raise AttributeError(
+            f"Direct assignment to topology is prohibited; " \
+            f"use {self.__class__.__name__}.set_topology() method instead"
+        )
         
     def set_topology(self, new_topology : TopologicalStructure, max_registration_iter : int=100) -> None:
         '''
