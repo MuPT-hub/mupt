@@ -40,6 +40,20 @@ def reg_example_c() -> UniqueRegistry:
 
     return reg
 
+def reg_examples() -> tuple[UniqueRegistry, ...]:
+    return (    
+        reg_example_a(),
+        reg_example_b(),
+        reg_example_c(),
+    )
+
+def reg_ticker_examples(reg_factory : Callable[[], UniqueRegistry]) -> list[tuple[UniqueRegistry, Hashable]]:
+    '''Convenience method for unpacking ticker keys while avoiding sharing state'''
+    reg = reg_factory()
+    return [
+        (reg_factory(), key)
+            for key in reg._ticker
+    ]
 
 # Initialization tests
 @pytest.mark.xfail(
@@ -197,11 +211,7 @@ def test_unique_reg_purge() -> None:
 
 @pytest.mark.parametrize(
     'reg',
-    (    
-        reg_example_a(),
-        reg_example_b(),
-        reg_example_c(),
-    ),
+    reg_examples(),
 )
 def test_reset_ticker_total(reg : UniqueRegistry) -> None:
     '''
@@ -216,7 +226,14 @@ def test_reset_ticker_total(reg : UniqueRegistry) -> None:
 @pytest.mark.parametrize(
     'reg,key',
     [
-        ...
+        # Test for kets previously present in tickers
+        *reg_ticker_examples(reg_example_a),
+        *reg_ticker_examples(reg_example_b),
+        *reg_ticker_examples(reg_example_c),
+        # Test for non-included key; shouldn't err (just set that unseen key's count to 0)
+        (reg_example_a(),'totally-made-up-key'),
+        (reg_example_b(),'totally-made-up-key'),
+        (reg_example_c(),'totally-made-up-key'),
     ]
 )
 def test_reset_ticker_indiv(reg : UniqueRegistry, key : LabelT) -> None:
@@ -224,7 +241,10 @@ def test_reset_ticker_indiv(reg : UniqueRegistry, key : LabelT) -> None:
     Test that resetting running ticker counts for a specific
     key sets that count (and ONLY that count) to 0
     '''
-    orig_ticker : dict[LabelT, int] = dict(reg._ticker)
+    orig_ticker : dict[LabelT, int] = { # making deep copy to avoid value contamination
+        key : count
+            for key, count in reg._ticker.items()
+    }
     other_keys = set(reg._ticker.keys()) - {key}
 
     reg.reset_ticker_count_for(key)
@@ -348,11 +368,7 @@ def test_merge(
     'regs,dict_expected',
     [
         (
-            (    
-                reg_example_a(),
-                reg_example_b(),
-                reg_example_c(),
-            ),
+            reg_examples(),
             {
                 ('letters', 0) : 'a',
                 ('letters', 1) : 'b',
