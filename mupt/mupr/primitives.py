@@ -252,6 +252,11 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
             mincount=min_count,
             maxcount=max_count,
         )
+    
+    @property
+    def path_inclusive(self) -> tuple['Primitive', ...]:
+        '''The path to this Primitive from the root, INCLUDING itself'''
+        return self.ancestors + (self,)
 
     # Depiction
     def __hash__(self) -> int:
@@ -286,18 +291,24 @@ class SupportsChildren(Primitive):
         self._precondition_mutable_hierarchy(
             msg='Hierarchy modification is frozen on this Primitive; cannot attach new outgoing nodes'
         )
+        self._precondition_mutable_connectors() # needed to inherit Connector from children
     
     def _post_attach_children(self, children : Iterable[SupportsParents]) -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         # TODO: remap connection info
         ...
 
-    def attach_child(self, child : Primitive, label : Optional[PrimitiveLabel]=None) -> PrimitiveHandle:
+    def attach_child(self, child : Primitive, label : Optional[PrimitiveLabel]=None) -> PrimitiveAddress:
         '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
         child.parent = self
-        
         child_address : PrimitiveAddress = child.address()
         self.children_by_address[child_address] = child
+
+        for conn in child.connections.connectors:
+            for superprimitive in self.path_inclusive: 
+                superprimitive.connections.add_connector(conn) # requires Mutable manager, hence precondition on Connectors
+
+        return child_address
 
     ## Detachment
     def _pre_detach_children(self, parent : SupportsChildren) -> None:
@@ -311,16 +322,15 @@ class SupportsChildren(Primitive):
         ...
 
     def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        subprimitive = self.child(prim_addr)
-        subprimitive.parent = None
-        
+        child = self.child(prim_addr)
+        child.parent = None
         del self.children_by_address[prim_addr]
-        # for connector_address, conn in subprimitive.connectors_by_address.items():
-        #     del self.connector_is_internal[connector_address]
-        #     del self.connector_origin_address[connector_address]
-            # TODO: free Connectors at the "other end" of any connections to these Connectors
+
+        for conn in child.connections.connectors:
+            for superprimitive in self.path_inclusive:
+                superprimitive.connections.remove_connector(conn)
         
-        return subprimitive
+        return child
     
     ## Resolution shift operations
     def expand(self) -> None:
@@ -456,21 +466,15 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         
         # Bind subprimitives and set connectivity, if possible
         self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
-        if children is None:
-            children = tuple()
-        self.children = children
-
-        connections : ConnectorManager = ConnectorManagerMutable()
-        for subprimitive in children:
-            self.attach_child(subprimitive)
-            connections.register_connectors(
-                free=subprimitive.connections.connectors_free,
-                bound=subprimitive.connections.connectors_bound,
-            )
-
         self._shape = shape
         self.metadata = metadata or dict()
-        self.connections = connections
+        self.connections : ConnectorManager = ConnectorManagerMutable()
+
+        if children is None:
+            children = tuple()
+
+        for subprimitive in children:
+            self.attach_child(subprimitive, label=subprimitive.label) # TODO: rework w/ UniqueRegistry smart registration
     
     # Hierarchy
     ...
