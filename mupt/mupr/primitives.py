@@ -137,6 +137,7 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     
     def address(self) -> PrimitiveAddress:
         '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
+        # TODO: add UUID4 registration on __init__
         ...
 
     ## Mutability flags
@@ -183,7 +184,9 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
     # Topology  
     def _freeze_connections_local(self) -> None:
         '''Force Connectors on this Primitive to be immutable and cached (without recursive calls)'''
-        self.connections = ConnectorManagerFrozen(vars(self.connections)) # TODO: this handoff need work
+        self.connections = ConnectorManagerFrozen(
+            connectors=self.connections.connectors
+        )
 
     def _freeze_connections_recursive(self) -> None:
         '''Prevent any connection within the hierarchy at this Primitive and below from being mutated'''
@@ -201,7 +204,9 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
 
     def _unfreeze_connections_local(self) -> None:
         '''Allow Connectors on this Primitive to be mutated (without recursive calls)'''
-        self.connections = ConnectorManagerMutable(vars(self.connections)) # TODO: this handoff need work
+        self.connections = ConnectorManagerMutable(
+            connectors=self.connections.connectors
+        )
 
     def _unfreeze_connections_recursive(self) -> None:
         '''Enable mutation of connectivity for this Primitive and below from being mutated'''
