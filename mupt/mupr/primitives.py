@@ -280,12 +280,12 @@ class SupportsChildren(Primitive):
     ## Lookup
     children_by_address : UniqueRegistry[PrimitiveAddress, Primitive]
    
-    def child(self, prim_addr : PrimitiveAddress) -> SupportsParents:
+    def child(self, prim_addr : PrimitiveAddress) -> 'SupportsParents':
         # TODO: provide overload which uses a handle <-> address isomorphism
         return self.children_by_address[prim_addr] # raise KeyError if not present
     
     ## Attachment
-    def _pre_attach_children(self, children : Iterable[SupportsParents]) -> None:
+    def _pre_attach_children(self, children : Iterable['SupportsParents']) -> None:
         '''Preconditions prior to attempting attachment of this Primitive to a parent'''
         ...
         self._precondition_mutable_hierarchy(
@@ -293,7 +293,7 @@ class SupportsChildren(Primitive):
         )
         self._precondition_mutable_connectors() # needed to inherit Connector from children
     
-    def _post_attach_children(self, children : Iterable[SupportsParents]) -> None:
+    def _post_attach_children(self, children : Iterable['SupportsParents']) -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         # TODO: remap connection info
         ...
@@ -311,13 +311,13 @@ class SupportsChildren(Primitive):
         return child_address
 
     ## Detachment
-    def _pre_detach_children(self, parent : SupportsChildren) -> None:
+    def _pre_detach_children(self, parent : 'SupportsChildren') -> None:
         '''Preconditions prior to attempting detachment of this Primitive from a parent'''
         self._precondition_mutable_hierarchy(
             msg='Hierarchy modification is frozen on this Primitive; cannot detach extant outgoing node(s)'
         )
     
-    def _post_detach(self, parent : SupportsChildren) -> None:
+    def _post_detach(self, parent : 'SupportsChildren') -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
         ...
 
