@@ -217,11 +217,11 @@ def bondable_connectors(
     # TODO: implement hashing of Connectors
     for conn_kinds_ours, conn_kinds_theirs in cartesian(
         equivalence_classes(
-            prim1.free_external_connections,  # TODO: implement this attr collection
+            prim1.connections.connectors_free,  # TODO: implement this attr collection
             relation=Connector.fungible_with,
         ),
         equivalence_classes(
-            prim2.free_external_connections,  # TODO: implement this attr collection
+            prim2.connections.connectors_free,  # TODO: implement this attr collection
             relation=Connector.fungible_with,
         ),
     ):
