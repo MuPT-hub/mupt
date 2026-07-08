@@ -1,7 +1,5 @@
 '''Placement generators based in HOOMD's dissipative particle dynamics (DPD) simulations'''
 
-__author__ = ''
-
 import logging
 
 LOGGER = logging.getLogger(__name__)

@@ -22,7 +22,11 @@ from .components import (
     connectors_from_rdkit,
 )
 from .importers import primitive_from_rdkit
-from .exporters import primitive_to_rdkit
+from .exporters import primitive_to_rdkit, primitive_to_rdkit_mols
+from .strategies import (
+    RDKitExportStrategy,
+    AllAtomRDKitExportStrategy,
+)
 from .depiction import (
     set_rdkdraw_size,
     show_substruct_highlights,
@@ -45,7 +49,6 @@ from ...chemistry.sanitization import (
     SANITIZE_ALL,
     SANITIZE_NONE,
 )
-
 # DEFAULT DRAWING CONFIG
 set_rdkdraw_size(400, aspect=3/2)
 show_atom_indices()

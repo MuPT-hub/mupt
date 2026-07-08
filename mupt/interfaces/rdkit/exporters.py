@@ -1,16 +1,17 @@
 '''Writers which convert the MuPT molecular representation out to RDKit Mols'''
 
-from typing import Optional
+from typing import Iterator, Optional
 
 import numpy as np
 
 from rdkit.Chem.rdchem import (
     Atom,
-    Bond,
     Mol,
     RWMol,
     Conformer,
+    AtomPDBResidueInfo,
 )
+from rdkit.Geometry import Point3D
 
 from .rdprops import RDPropType, assign_property_to_rdobj
 from .labelling import RDMOL_NAME_WRITE_PROP
@@ -19,6 +20,7 @@ from ...geometry.arraytypes import Shape
 from ...chemistry.conversion import element_to_rdkit_atom
 from ...mupr.connection import Connector
 from ...mupr.primitives import Primitive, PrimitiveHandle
+from .strategies import AllAtomRDKitExportStrategy, RDKitExportStrategy, RDKitMolData
 
 
 def rdkit_atom_from_atomic_primitive(atomic_primitive : Primitive) -> Atom:
@@ -40,9 +42,20 @@ def primitive_to_rdkit(
     '''
     Convert a Primitive hierarchy to an RDKit Mol
     Will return as single Mol instance, even is underlying Primitive represents a collection of multiple disconnected molecules
-    
+
+    DEV: This is the legacy flattened exporter. We recommend replacing downstream
+    workflows with primitive_to_rdkit_mols() and removing this path after reviewer
+    approval, rather than abstracting shared bond or metadata helpers around code
+    that is likely to be retired.
+
     Will set spatial positions for each atom ("default_atom_position" if not assigned per atom) to a Conformer bound to the returned Mol
     '''
+    warnings.warn(
+        "primitive_to_rdkit() is deprecated; use the role-aware "
+        "primitive_to_rdkit_mols() exporter instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if default_atom_position is None:
         # DEV: opted to not make this a call to geometry.reference.origin() to decrease coupling and allow choice for differently-determined default down the line
         default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float) 
@@ -128,4 +141,202 @@ def primitive_to_rdkit(
         mol.SetProp(RDMOL_NAME_WRITE_PROP, primitive.label)
     
     return mol
+
+
+PDB_CHAIN_IDS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+PDB_MAX_RESIDUE_NUMBER = 9999
+MUPT_RDKIT_ATOM_PROPS = (
+    "chain_id",
+    "residue_id",
+    "residue_name",
+    "mupt_segment_index",
+    "mupt_segment_label",
+    "mupt_residue_index",
+    "mupt_residue_label",
+    "mupt_particle_index",
+    "mupt_particle_label",
+)
+
+
+def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
+    """
+    Return PDB-compatible surrogate chain/residue identifiers for export metadata.
+
+    These are not true MuPT segment/chain semantics. Exported segment records are
+    assigned sequentially as A:1 through A:9999, then B:1, and so on for
+    PDB/OpenFF-style metadata fields with limited chain/residue capacity. MuPT
+    provenance is preserved separately on atom props such as
+    mupt_segment_index and mupt_residue_index.
+    """
+    chain_idx, resid_offset = divmod(global_residue_idx, PDB_MAX_RESIDUE_NUMBER)
+    if chain_idx >= len(PDB_CHAIN_IDS):
+        raise ValueError(
+            "Role-aware RDKit export exceeded PDB chain/residue capacity "
+            f"({len(PDB_CHAIN_IDS) * PDB_MAX_RESIDUE_NUMBER} residues). "
+            "Use a topology format with larger identifier fields."
+        )
+    return PDB_CHAIN_IDS[chain_idx], resid_offset + 1
+
+
+def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
+    """Return a PDB-width atom name from element and residue-local index."""
+    atom_name = f"{atom.element.symbol}{atom_idx_in_residue + 1}"
+    if len(atom.element.symbol) == 1:
+        return f" {atom_name:<3}"
+    return f"{atom_name:<4}"
+
+
+def _add_rdkit_atoms(
+    mol: RWMol,
+    conf: Conformer,
+    data: RDKitMolData,
+    segment_idx: int,
+    first_residue_idx: int,
+) -> None:
+    """Insert RDKit atoms, positions, and per-atom MuPT metadata."""
+    residue_atom_counts: dict[int, int] = {}
+
+    for atom_idx, atom_prim in enumerate(data.atoms):
+        rdkit_atom = rdkit_atom_from_atomic_primitive(atom_prim)
+        local_resid = data.atom_resids[atom_idx]
+        chain_id, resid = _pdb_chain_and_resid(first_residue_idx + local_resid - 1)
+        atom_idx_in_residue = residue_atom_counts.get(local_resid, 0)
+        residue_atom_counts[local_resid] = atom_idx_in_residue + 1
+
+        pdb_info = AtomPDBResidueInfo(
+            atomName=_atom_pdb_name(atom_prim, atom_idx_in_residue),
+            serialNumber=atom_idx + 1,
+            residueName=data.atom_resnames[atom_idx],
+            residueNumber=resid,
+            chainId=chain_id,
+            isHeteroAtom=True,
+        )
+        if data.atom_insertion_codes[atom_idx]:
+            pdb_info.SetInsertionCode(data.atom_insertion_codes[atom_idx])
+        rdkit_atom.SetMonomerInfo(pdb_info)
+        rdkit_atom.SetProp("residue_name", data.atom_resnames[atom_idx])
+        rdkit_atom.SetIntProp("residue_id", resid)
+        rdkit_atom.SetProp("chain_id", chain_id)
+        rdkit_atom.SetIntProp("mupt_segment_index", segment_idx)
+        rdkit_atom.SetProp("mupt_segment_label", str(data.segment.label))
+        rdkit_atom.SetIntProp("mupt_residue_index", local_resid)
+        rdkit_atom.SetProp("mupt_residue_label", data.atom_residue_labels[atom_idx])
+        rdkit_atom.SetIntProp("mupt_particle_index", atom_idx)
+        rdkit_atom.SetProp("mupt_particle_label", data.atom_particle_labels[atom_idx])
+
+        idx = mol.AddAtom(rdkit_atom)
+        pos = data.atom_positions[atom_idx]
+        conf.SetAtomPosition(idx, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
+
+
+def _add_rdkit_bonds(mol: RWMol, data: RDKitMolData) -> None:
+    """Insert internal bonds and merged bond metadata."""
+    for (idx1, idx2), (parent, conn_refs) in zip(data.bonds, data.bond_refs):
+        conn1 = parent.fetch_connector_on_child(conn_refs[0])
+        conn2 = parent.fetch_connector_on_child(conn_refs[1])
+        mol.AddBond(idx1, idx2, order=conn1.bondtype)
+        bond = mol.GetBondBetweenAtoms(idx1, idx2)
+        bond_metadata: dict[str, RDPropType] = {
+            **conn1.metadata,
+            **conn2.metadata,
+        }
+        for bond_key, bond_value in bond_metadata.items():
+            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
+
+
+def _add_rdkit_linkers(mol: RWMol, conf: Conformer, data: RDKitMolData) -> None:
+    """Insert linker atoms and their bond metadata."""
+    for atom_idx, parent, conn_ref in data.linker_refs:
+        conn = parent.fetch_connector_on_child(conn_ref)
+        anchor_atom = mol.GetAtomWithIdx(atom_idx)
+        linker_idx = mol.AddAtom(Atom(0))
+        anchor_pdb_info = anchor_atom.GetPDBResidueInfo()
+        linker_atom = mol.GetAtomWithIdx(linker_idx)
+        if anchor_pdb_info is not None:
+            pdb_info = AtomPDBResidueInfo(
+                atomName=" *  ",
+                serialNumber=linker_idx + 1,
+                residueName=anchor_pdb_info.GetResidueName(),
+                residueNumber=anchor_pdb_info.GetResidueNumber(),
+                chainId=anchor_pdb_info.GetChainId(),
+                isHeteroAtom=True,
+            )
+            if anchor_pdb_info.GetInsertionCode():
+                pdb_info.SetInsertionCode(anchor_pdb_info.GetInsertionCode())
+            linker_atom.SetMonomerInfo(pdb_info)
+            linker_atom.SetProp("residue_name", anchor_atom.GetProp("residue_name"))
+            linker_atom.SetIntProp("residue_id", anchor_atom.GetIntProp("residue_id"))
+            linker_atom.SetProp("chain_id", anchor_atom.GetProp("chain_id"))
+        mol.AddBond(atom_idx, linker_idx, order=conn.bondtype)
+        conf.SetAtomPosition(
+            linker_idx,
+            Point3D(
+                float(conn.linker.position[0]),
+                float(conn.linker.position[1]),
+                float(conn.linker.position[2]),
+            ),
+        )
+        bond = mol.GetBondBetweenAtoms(atom_idx, linker_idx)
+        for bond_key, bond_value in conn.metadata.items():
+            assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
+
+
+def _apply_rdkit_mol_metadata(mol: RWMol, data: RDKitMolData, root_metadata: dict) -> None:
+    """Attach root and segment metadata to one RDKit Mol."""
+    assign_property_to_rdobj(mol, 'origin', TOOLKIT_NAME, preserve_type=True)
+    if data.segment.label is not None:
+        mol.SetProp(RDMOL_NAME_WRITE_PROP, str(data.segment.label))
+    for key, value in root_metadata.items():
+        assign_property_to_rdobj(mol, key, value, preserve_type=True)
+    for key, value in data.segment.metadata.items():
+        assign_property_to_rdobj(mol, key, value, preserve_type=True)
+
+
+def _mol_from_rdkit_data(
+    data: RDKitMolData,
+    segment_idx: int,
+    first_residue_idx: int,
+    root_metadata: dict,
+) -> Mol:
+    """Build an RDKit Mol from collected role-aware topology data."""
+    mol = RWMol()
+    conf = Conformer(len(data.atoms) + len(data.linker_refs))
+    _add_rdkit_atoms(mol, conf, data, segment_idx, first_residue_idx)
+    _add_rdkit_bonds(mol, data)
+    _add_rdkit_linkers(mol, conf, data)
+    _apply_rdkit_mol_metadata(mol, data, root_metadata)
+
+    mol.AddConformer(conf, assignId=True)
+    final_mol = Mol(mol)
+    final_mol.UpdatePropertyCache(strict=True)
+    return final_mol
+
+
+def primitive_to_rdkit_mols(
+    primitive: Primitive,
+    resname_map: dict[str, str],
+    default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
+    strategy: Optional[RDKitExportStrategy] = None,
+) -> Iterator[Mol]:
+    """
+    Yield one RDKit Mol per segment from a role-annotated Primitive hierarchy.
+
+    The strategy performs topology validation as part of iteration. For the
+    default all-atom strategy, ``iter_mol_data()`` first builds the shared
+    SAAMR role topology index and raises if the hierarchy cannot be exported.
+    This keeps the exporter on the same EAFP path as other MuPT interfaces and
+    avoids a separate preflight traversal.
+    """
+    if strategy is None:
+        strategy = AllAtomRDKitExportStrategy(default_atom_position=default_atom_position)
+
+    first_residue_idx = 0
+    for segment_idx, data in enumerate(strategy.iter_mol_data(primitive, resname_map=resname_map)):
+        yield _mol_from_rdkit_data(
+            data,
+            segment_idx,
+            first_residue_idx,
+            root_metadata=primitive.metadata,
+        )
+        first_residue_idx += max(data.atom_resids, default=0)
     

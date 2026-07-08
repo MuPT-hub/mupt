@@ -40,6 +40,7 @@ def random_walk_jointed_chain(
     initial_direction : Optional[np.ndarray[Shape[Dims], NumericNP]]=None,
     clip_angle : float=np.pi/4,
     dimension : Dims=3,
+    rng : Optional[np.random.Generator]=None,
 ) -> Generator[np.ndarray[Shape[Dims], NumericNP], None, None]:
     '''
     Generate consecutive points from a non-self-avoiding random walk in continuous N-dimensional space
@@ -64,6 +65,9 @@ def random_walk_jointed_chain(
     dimension : int, default 3
         Dimension of the space in which the random walk is performed
         If no start point is provided, the inferred origin used as the start will have this many dimensions
+    rng : numpy.random.Generator, optional
+        Random number generator used for directions. If None, preserves the legacy
+        module-level NumPy random behavior.
         
     Returns
     -------
@@ -81,7 +85,7 @@ def random_walk_jointed_chain(
         raise ValueError(f"Random walk starting point must be a {dimension}-dimensional vector")
     
     if initial_direction is None:
-        initial_direction = random_unit_vector(dimension=dimension)
+        initial_direction = random_unit_vector(dimension=dimension, rng=rng)
     assert initial_direction.shape == (dimension,) # NOTE: check user-provided start direction shape
 
     if (n_steps_max is None):
@@ -98,9 +102,9 @@ def random_walk_jointed_chain(
     yield initial_point # always yielded, consider as "step #0"
     for step_size in flexible_iterator(step_size, allowed_types=(Number,)):
         # draw new step within cone of movement by rejection sampling (simple and quick)
-        step_direction : np.ndarray = random_unit_vector(dimension=dimension)
+        step_direction : np.ndarray = random_unit_vector(dimension=dimension, rng=rng)
         while np.dot(step_direction, prev_direction) < cos_max: # NOTE: over |x| in [0, pi], cos(x) is monotonically decreasing, so overly-large steps will have cosine BELOW the cutoff
-            step_direction : np.ndarray = random_unit_vector(dimension=dimension)
+            step_direction : np.ndarray = random_unit_vector(dimension=dimension, rng=rng)
         step = step_size * step_direction
         
         # DEV: resist the urge to just yield net_position after incrementing it; that yield the same REFERENCE to the underlying array at each step
@@ -125,13 +129,15 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         angle_max_rad : float=np.pi/4,
         initial_point : Optional[Vector3]=None,
         initial_direction : Optional[Vector3]=None,
-        alignment_strategy : ConnectorAntialignmentStrategy=ConnectorAntialignmentBallistic()
+        alignment_strategy : ConnectorAntialignmentStrategy=ConnectorAntialignmentBallistic(),
+        rng : Optional[np.random.Generator]=None,
     ) -> None:
         self.bond_length = bond_length
         self.angle_max_rad = angle_max_rad
         self.initial_point = initial_point
         self.initial_direction = initial_direction
         self.alignment_strategy = alignment_strategy
+        self.rng = rng
 
     # optional helper methods (to declutter casework from main logic)
     def get_termini_handles(self, chain : TopologicalStructure) -> tuple[Hashable, Hashable]:
@@ -200,6 +206,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 initial_direction=self.initial_direction,
                 clip_angle=self.angle_max_rad,
                 dimension=3,
+                rng=self.rng,
             )
             for handle, (step_start, step_end) in zip(path, sliding_window(rw_steps, 2)):
                 LOGGER.debug(f'Random walk placing body {handle} along vector from {step_start} to {step_end}')
