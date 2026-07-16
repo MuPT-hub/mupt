@@ -32,5 +32,9 @@ dependencies:
     - rdkit
     - periodictable
 
+    # YAML I/O for PolymerizeIt! reaction configs
+    - pyyaml
+    - ruamel.yaml
+
     # - pip:
         # - some_pypi_module_name

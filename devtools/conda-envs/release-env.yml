@@ -34,6 +34,10 @@ dependencies:
     - rdkit
     - periodictable
 
+    # YAML I/O for PolymerizeIt! reaction configs
+    - pyyaml
+    - ruamel.yaml
+
     # Molecular Dynamics toolkits
     ## OpenFF
     - openff-toolkit
