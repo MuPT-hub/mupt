@@ -1,0 +1,17 @@
+; Include file for non-bonded parameters
+
+[ defaults ]
+; nbfunc        comb-rule       gen-pairs       fudgeLJ fudgeQQ
+1               2               yes             0.5     0.833333
+
+[ atomtypes ]
+; name    at.num    mass    charge ptype  sigma      epsilon
+ca             6   12.01000    0.000000  A      0.339967      0.359824
+nh             7   14.01000    0.000000  A         0.325       0.71128
+hn             1    1.00800    0.000000  A      0.106908     0.0656888
+ha             1    1.00800    0.000000  A      0.259964       0.06276
+n              7   14.01000    0.000000  A         0.325       0.71128
+c              6   12.01000    0.000000  A      0.339967      0.359824
+o              8   16.00000    0.000000  A      0.295992       0.87864
+cl            17   35.45000    0.000000  A      0.347094       1.10876
+

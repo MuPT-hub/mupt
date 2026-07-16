@@ -1,0 +1,30 @@
+;; Energy minimization
+
+;; integrator and number of steps
+integrator          =  steep      	; steepest-descent algorithm
+nsteps              =  500000		; number of steps
+
+;; Criteria for minimization 
+emtol               =  1000			; convergence criterion
+emstep              =  0.01         ; intial step size
+
+;; output control part (values indicate steps)
+nstxout             =  0
+nstvout             =  0
+nstfout             =  0
+
+;; PBC and cutoff's
+pbc                 =  xyz          ; do not use pbc(optional for implicit solvent)
+rlist               =  1.0          ; recommended values for force field
+coulombtype         =  PME          ; 
+rcoulomb            =  1.0          ; recommended values for force field
+rvdw                =  1.0          ; recommended values for force field
+vdwtype             =  Cutoff
+cutoff-scheme       =  Verlet       ; 
+
+;; constraints: let energy minimization first relax the structure
+;; constraints         =  h-bonds
+;; constraint_algorithm=  lincs
+
+;; Long range dispersion correction
+DispCorr            =  Ener

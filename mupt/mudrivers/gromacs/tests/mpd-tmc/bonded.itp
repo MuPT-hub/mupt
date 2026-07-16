@@ -1,0 +1,86 @@
+; Include file for bonded parameters
+
+[ bondtypes ]
+; i 	 j 	 func 	 b0 	 kb 
+; General bonds
+ca         ca         1          0.13984    385848.48
+ca         ha         1          0.1086     289365.44
+; MPD bonds
+ca         nh         1          0.13859    349698.72 
+nh         hn         1          0.10121    338569.28      
+; TMC bonds
+ca         c          1          0.14906    289449.12
+c          o          1          0.12183    533627.36   
+c          cl         1          0.18029    223760.32 
+
+
+
+ca         n          1          0.14121    321498.56   
+n          c          1          0.13789    357815.68  
+n          hn         1          0.10129    337397.76  
+
+ 
+[ angletypes ]
+; i 	 j 	 k 	 funt 	 th0 	 cth
+; General angles
+ca         ca         ca         1          120.02005   557.47616  
+ca         ca         ha         1          119.88005   403.17024
+; MPD angles
+ca         ca         nh         1          120.95005   571.45072
+ca         nh         hn         1          116.07005   405.17856
+hn         nh         hn         1          115.12005   335.30576 
+; TMC angles
+ca         c          o          1          122.60005   575.04896 
+ca         c          cl         1          115.41505   449.746528 
+ca         ca         c          1          120.33005   537.89504    
+o          c          cl         1          120.69005   492.0384     
+
+
+  
+ca         ca         n          1          120.19005   567.93616   
+ca         n          c          1          123.71005   534.04576   
+n          c          o          1          123.05005   621.07296   
+n          c          ca         1          115.25005   566.34624                
+ca         n          hn         1          116.00005   398.56784   
+hn         n          c          1          117.55005   404.42544   
+
+ 
+[ dihedraltypes ]
+; i 	 j 	 k 	 l 	 func 	 phase 	 kd 	 pn
+; General dihedrals
+ca         ca         ca         ca         9          180.00008   15.167     2
+ca         ca         ca         ha         9          180.00008   15.167     2   
+ha         ca         ca         ha         9          180.00008   15.167     2 
+
+ca         ca         ca         ha         4          180.00008   4.6024     2
+; MPD dihedrals
+ca         ca         ca         nh         9          180.00008   15.167     2
+ca         ca         nh         hn         9          180.00008   4.3932     2
+ha         ca         ca         nh         9          180.00008   15.167     2 
+
+ca         ca         ca         nh         4          180.00008   4.6024     2 
+ca         hn         nh         hn         4          180.00008   4.6024     2  
+; TMC dihedrals
+ca         ca         ca         c          9          180.00008   15.167     2 
+ca         ca         c          o          9          180.00008   4.184      2  
+ca         ca         c          cl         9          180.00008   4.184      2  
+ha         ca         ca         c          9          180.00008   15.167     2  
+
+ca         ca         ca         c          4          180.00008   4.6024     2
+ca         cl         c          o          4          180.00008   43.932     2 
+
+
+          
+ca         ca         ca         n          9          180.00008   15.167     2                   
+ca         ca         n          c          9          180.00008   1.8828     2          
+ca         n          c          o          9          180.00008   10.46      2          
+ca         n          c          ca         9          180.00008   10.46      2          
+n          c          ca         ca         9          180.00008   4.184      2                                                                                       
+ca         ca         n          hn         9          180.00008   1.8828     2                    
+ha         ca         ca         n          9          180.00008   15.167     2                   
+hn         n          c          o          9          180.00008   10.46      2          
+hn         n          c          ca         9          180.00008   10.46      2                            
+n          ca         c          o          4          180.00008   43.932     2                         
+ca         c          n          hn         4          180.00008   4.6024     2          
+ca         n          c          o          4          180.00008   43.932     2
+ 
