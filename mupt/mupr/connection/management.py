@@ -20,7 +20,6 @@ from .types import (
 from ...mutils.containers import (
     UniqueRegistry,
     Labelled,
-    LabelledT,
     HandleT,
 ) 
 

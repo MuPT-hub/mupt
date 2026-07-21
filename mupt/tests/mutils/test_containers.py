@@ -2,10 +2,18 @@
 
 import pytest
 
-from typing import ClassVar, Hashable
+from typing import (
+    Callable,
+    ClassVar,
+    Hashable,
+    Iterable,
+    Optional,
+    TypeVar,
+)
+T = TypeVar('T')
 from dataclasses import dataclass, field
 
-from mupt.mutils.containers import UniqueRegistry
+from mupt.mutils.containers import UniqueRegistry, LabelT
 
 
 @dataclass
@@ -13,18 +21,52 @@ class DummyRelation:
     DEFAULT_LABEL : ClassVar[str] = 'default'
     label : Hashable = field(default_factory=str)
     
-# initialization tests
+# Concrete, initializable registry examples
+def reg_example_a() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    _ = reg.register_from({'letter' : 'ab', 'number' : (1,2,3)})
+
+    return reg
+
+def reg_example_b() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    handles = reg.register_from({'letter' : 'bcd', 'truth' : (False, True)})
+
+    return reg
+
+def reg_example_c() -> UniqueRegistry:
+    reg = UniqueRegistry()
+    handles = reg.register_from([3.14, 0.5772, 2.718], label='constant')
+
+    return reg
+
+def reg_examples() -> tuple[UniqueRegistry, ...]:
+    return (    
+        reg_example_a(),
+        reg_example_b(),
+        reg_example_c(),
+    )
+
+def reg_ticker_examples(reg_factory : Callable[[], UniqueRegistry]) -> list[tuple[UniqueRegistry, Hashable]]:
+    '''Convenience method for unpacking ticker keys while avoiding sharing state'''
+    reg = reg_factory()
+    return [
+        (reg_factory(), key)
+            for key in reg._ticker
+    ]
+
+# Initialization tests
 @pytest.mark.xfail(
-    reason="Direct assignment to UniqueRegistry items should raise PermissionError",
-    raises=PermissionError,
+    reason="Direct assignment to UniqueRegistry items should raise AttributeError",
+    raises=AttributeError,
     strict=True,
 )
 def test_unique_reg_no_defaults() -> None:
     '''Test that key-value pairs cannot be directly intialized in UniqueRegistry'''
     reg = UniqueRegistry(this='is_illegal')
 
-# registration tests
-def test_unique_reg_register_explicit() -> None:
+# Registration tests
+def test_unique_reg_register_explicit_label() -> None:
     '''Test that registering with explicit label works as expected'''
     obj = DummyRelation(label='p')
     reg = UniqueRegistry()
@@ -32,33 +74,101 @@ def test_unique_reg_register_explicit() -> None:
     
     assert set(reg.keys()) == {('my_label', 0)}
 
-def test_unique_reg_register_implicit() -> None:
+def test_unique_reg_register_implicit_label() -> None:
     '''Test that registering with implicit label (inferred from registered object) works as expected'''
     obj = DummyRelation(label='p')
     reg = UniqueRegistry()
     reg.register(obj)
     
     assert set(reg.keys()) == {('p', 0)}
-    
-def test_unique_reg_register_from_explicit() -> None:
-    '''Test that registering multiple objects with explicit labels works as expected'''
-    obj1 = DummyRelation(label='p')
-    obj2 = DummyRelation(label='q')
-    reg = UniqueRegistry()
-    handles = reg.register_from({'first' : obj1, 'second' : obj2})
-    
-    assert set(reg.keys()) == {('first', 0), ('second', 0)}
-    
-def test_unique_reg_register_from_implicit() -> None:
-    '''Test that registering multiple objects with implicit labels (inferred from registered objects) works as expected'''
-    obj1 = DummyRelation(label='p')
-    obj2 = DummyRelation(label='q')
-    reg = UniqueRegistry()
-    handles = reg.register_from([obj1, obj2])
-    
-    assert set(reg.keys()) == {('p', 0), ('q', 0)}
 
-# deregistration tests
+@pytest.mark.parametrize(
+    'collection,labeller,keys_expected',
+    [
+        # Test registration from mapping
+        (
+            {
+                'letter' : 'abc',
+                'number' : [1,2,3,4],
+            },
+            None,
+            set([
+                ('letter', 0),
+                ('letter', 1),
+                ('letter', 2),
+                ('number', 0),
+                ('number', 1),
+                ('number', 2),
+                ('number', 3),
+            ]),
+        ),
+        (
+            {
+                'first' : (DummyRelation(label='p'),),
+                'second' : (DummyRelation(label='q'), DummyRelation(label='p')),
+            },
+            None,
+            set([ # explicit label overrides object label
+                ('first', 0),
+                ('second', 0),
+                ('second', 1),
+            ]),          
+        ),
+        # Testing registration from labelled objects
+        (
+            [5,6,7,8],
+            'begin',
+            set([
+                ('begin', 0),
+                ('begin', 1),
+                ('begin', 2),
+                ('begin', 3),
+            ]),
+        ),
+        # Testing registration with explicit base label
+        (
+            (
+                DummyRelation(label='p'),
+                DummyRelation(label='q'),
+                DummyRelation(label='q'),
+                DummyRelation(label='r'),
+            ),
+            None,
+            set([
+                ('p', 0),
+                ('q', 0),
+                ('q', 1),
+                ('r', 0),
+            ]),
+        ),
+        # Test registration with Callable label generator
+        (
+            [
+                'foo',
+                'bar',
+                'baz',
+            ],
+            str.swapcase,
+            set([
+                ('FOO', 0),
+                ('BAR', 0),
+                ('BAZ', 0),
+            ]),
+        ),
+    ]
+)
+def test_register_from(
+    collection : Iterable[T],
+    labeller : Optional[Callable[[T], LabelT] | LabelT],
+    keys_expected : set[tuple[LabelT, int]],
+) -> None:
+    '''Check that bulk registration behaves as expected'''
+    reg = UniqueRegistry()
+    keys_actual = reg.register_from(collection, label=labeller)
+
+    assert set(keys_actual) == keys_expected
+
+# Deregistration tests
 def test_unique_reg_deregister() -> None:
     '''Test that deregistering an item removes it from the registry and returns the object'''
     obj = DummyRelation(label='p')
@@ -99,7 +209,51 @@ def test_unique_reg_purge() -> None:
     reg.purge('a')
     assert all(handle[0] != 'a' for handle in reg.keys()) and (len(reg) == 4)
 
-# internal state update tests
+@pytest.mark.parametrize(
+    'reg',
+    reg_examples(),
+)
+def test_reset_ticker_total(reg : UniqueRegistry) -> None:
+    '''
+    Test that resetting running ticker counts for ALL keys sets all counts to 0
+    '''
+    orig_keys = set(reg._ticker.keys()) # wrap in new container to prevent any chance of accidentally referencing original
+    reg.reset_ticker()
+    assert all(reg._ticker[key] == 0
+        for key in orig_keys
+    )
+    
+@pytest.mark.parametrize(
+    'reg,key',
+    [
+        # Test for kets previously present in tickers
+        *reg_ticker_examples(reg_example_a),
+        *reg_ticker_examples(reg_example_b),
+        *reg_ticker_examples(reg_example_c),
+        # Test for non-included key; shouldn't err (just set that unseen key's count to 0)
+        (reg_example_a(),'totally-made-up-key'),
+        (reg_example_b(),'totally-made-up-key'),
+        (reg_example_c(),'totally-made-up-key'),
+    ]
+)
+def test_reset_ticker_indiv(reg : UniqueRegistry, key : LabelT) -> None:
+    '''
+    Test that resetting running ticker counts for a specific
+    key sets that count (and ONLY that count) to 0
+    '''
+    orig_ticker : dict[LabelT, int] = { # making deep copy to avoid value contamination
+        key : count
+            for key, count in reg._ticker.items()
+    }
+    other_keys = set(reg._ticker.keys()) - {key}
+
+    reg.reset_ticker_count_for(key)
+    assert reg._ticker[key] == 0 \
+        and all(reg._ticker[other_key] == orig_ticker[other_key]
+            for other_key in other_keys
+        )
+
+# Internal state update tests
 def test_freed_labels_reinserted() -> None:
     '''Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels'''
     obj = DummyRelation(label='p')
@@ -124,7 +278,7 @@ def test_unique_reg_adjust_ticker() -> None:
     
     assert set(reg.keys()) == {('p', 0), ('p', 5)}
     
-# copying tests
+# Copying tests
 def test_unique_reg_copy() -> None:
     '''Test that copying a UniqueRegistry produces an identical copy'''
     reg = UniqueRegistry()
@@ -179,3 +333,78 @@ def test_unique_reg_by_labels() -> None:
     assert set(by_labels.keys()) == {'a', 'b'}
     assert by_labels['a'] == (a, c)
     assert by_labels['b'] == (b,)
+
+# Partition tests
+@pytest.mark.parametrize(
+    'reg1,reg2,dict_expected',
+    [
+        (
+            reg_example_a(),
+            reg_example_b(),
+            {
+                ('letter', 0) : 'a',
+                ('letter', 1) : 'b',
+                ('number', 0) : 1,
+                ('number', 1) : 2,
+                ('number', 2) : 3,
+                ('letter', 2) : 'b',
+                ('letter', 3) : 'c',
+                ('letter', 4) : 'd',
+                ('truth', 0) : False,
+                ('truth', 1) : True,
+            }
+        )
+    ]
+)
+def test_merge(
+    reg1 : UniqueRegistry,
+    reg2 : UniqueRegistry,
+    dict_expected : dict[tuple[LabelT, int], str | int | bool],
+) -> None:
+    key_remap = reg1.merge(reg2)
+    assert dict(reg1) == dict_expected
+
+@pytest.mark.parametrize(
+    'regs,dict_expected',
+    [
+        (
+            reg_examples(),
+            {
+                ('letter', 0) : 'a',
+                ('letter', 1) : 'b',
+                ('number', 0) : 1,
+                ('number', 1) : 2,
+                ('number', 2) : 3,
+                ('letter', 2) : 'b',
+                ('letter', 3) : 'c',
+                ('letter', 4) : 'd',
+                ('truth', 0) : False,
+                ('truth', 1) : True,
+                ('constant', 0) : 3.14,
+                ('constant', 1) : 0.5772,
+                ('constant', 2) : 2.718,
+            }
+        ),
+    ]
+)
+def test_merged(
+    regs : Iterable[UniqueRegistry],
+    dict_expected : dict[tuple[LabelT, int], str | int | bool],
+) -> None:
+    '''Test that classmethod version of merge() behaves as expected'''
+    reg, handle_maps = UniqueRegistry.merged(*regs)
+    assert dict(reg) == dict_expected
+
+def test_split() -> None:
+    '''Test that splitting by category works as expected'''
+    reg = UniqueRegistry()
+    _ = reg.register_from(range(9), 'num')
+
+    subregs = reg.split(lambda x : x % 3)
+    subregs = {category : dict(subreg) for category, subreg in subregs.items()} # conversion done purely for easy comparison
+
+    assert subregs == {
+        0 : {('num', 0) : 0, ('num', 1) : 3, ('num', 2) : 6},
+        1 : {('num', 0) : 1, ('num', 1) : 4, ('num', 2) : 7},
+        2 : {('num', 0) : 2, ('num', 1) : 5, ('num', 2) : 8},
+    }
