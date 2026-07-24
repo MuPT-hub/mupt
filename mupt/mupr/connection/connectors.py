@@ -31,11 +31,9 @@ if TYPE_CHECKING:
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
-    ConnectorHandle,
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError
-from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
 
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
