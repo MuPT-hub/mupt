@@ -1,4 +1,8 @@
-'''Abstractions of connections between two primitives'''
+'''
+Core components of connections, namely:
+* AttachmentPoints, which define geometric positions and selectivity of attachment sites
+* Connectors, which comprise 2 attachment points (an "anchor" and a "linker") and represent half of a chemical bond
+'''
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -7,87 +11,39 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Generator,
     Hashable,
     Iterable,
-    Literal,
     Optional,
     TypeAlias,
-    TypeVar,
-    Union,
+    TYPE_CHECKING,
 )
-from warnings import warn
-
 from dataclasses import dataclass, field
-from enum import Enum
+
 from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector
-from ..geometry.measure import compare_optional_positions
-from ..geometry.coordinates.basis import is_orthonormal
-from ..geometry.transforms.linear import rejector
-from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..geometry.transforms.rigid.application import RigidlyTransformable
+if TYPE_CHECKING:
+    from .management import HoldsConnectors
+from .types import (
+    AttachmentLabel,
+    ConnectorLabel,
+)
+from .alignment import are_antialigned
+from .exceptions import IncompatibleConnectorError
 
+from ...mutils.referencing import Addressable
+from ..canonicalize import lex_order_multiset_str
+from ...chemistry.core import BondType, BOND_ORDER
+from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
+from ...geometry.measure import compare_optional_positions
+from ...geometry.coordinates.basis import is_orthonormal
+from ...geometry.transforms.linear import rejector
+from ...geometry.transforms.rigid.rotations import alignment_rotation
+from ...geometry.transforms.rigid.application import RigidlyTransformable
 
-# Label typehints
-ConnectorLabel = TypeVar('ConnectorLabel', bound=Hashable)
-ConnectorHandle = tuple[ConnectorLabel, int]
-AttachmentLabel = TypeVar('AttachmentLabel', bound=Hashable) # TODO: narrow down this type as use cases become clearer
-
-# Custom Exceptions
-class ConnectionError(Exception):
-    '''Raised when Connector-related errors as encountered'''
-    pass
-
-class IncompatibleConnectorError(ConnectionError):
-    '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
-    pass
-
-class MissingConnectorError(ConnectionError):
-    '''Raised when a required Connector is missing'''
-    pass
-
-class UnboundConnectorError(ConnectionError):
-    '''Raised when a pair of Connectors are unexpectedly not bound to one another'''
-    pass
-
-# Helper classes
-class TraversalDirection(Enum):
-    '''
-    Uniquifying label indicating whether a connection faces "forward" or "backward" along a path graph 
-    relative to an arbitrary-but-consistent absolute direction of traversal along the path from end-to-end
-    '''
-    AMBI = 0
-    ANTERO = 1
-    RETRO = 2
-    
-    @classmethod
-    def complement(cls, direction : 'TraversalDirection') -> 'TraversalDirection':
-        '''
-        Get the complement (i.e. "opposite") direction to a given TraversalDirection
-        
-        Parameters
-        ----------
-        direction : TraversalDirection
-            The direction to get the complement of
-            
-        Returns
-        -------
-        TraversalDirection
-            The complement of the given direction
-        '''
-        if direction == cls.ANTERO:
-            return cls.RETRO
-        elif direction == cls.RETRO:
-            return cls.ANTERO
-        elif direction == cls.AMBI:
-            return cls.AMBI
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable mechanism under-the-hood,
 # and also prevents reassignment of the attachment label, which is important in some cases
@@ -121,7 +77,10 @@ class AttachmentPoint(RigidlyTransformable):
         self.position[:] = transformation.apply(self.position)
 
 # Connector class proper
-class Connector(RigidlyTransformable):
+class Connector(
+    Addressable,
+    RigidlyTransformable,
+):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     DEFAULT_LABEL : ClassVar[ConnectorLabel] = 'Conn'
     
@@ -134,34 +93,33 @@ class Connector(RigidlyTransformable):
         label : Optional[ConnectorLabel]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ):
-        self.anchor = anchor if (anchor is not None) else AttachmentPoint()
-        self.linker = linker if (linker is not None) else AttachmentPoint()
+        self.anchor : AttachmentPoint = anchor if (anchor is not None) else AttachmentPoint()
+        self.linker : AttachmentPoint = linker if (linker is not None) else AttachmentPoint()
         
-        self.bondtype = bondtype
-        self.query_smarts = query_smarts
-        self.label = self.__class__.DEFAULT_LABEL if (label is None) else label
-        self.metadata = metadata or dict()
-    
+        self.bondtype : BondType = bondtype
+        self.query_smarts : str = query_smarts
+        self.label : Hashable = self.__class__.DEFAULT_LABEL if (label is None) else label
+        self.metadata : dict[Hashable, Any] = metadata or dict()
+
+        ## Protected attributes
+        self._neighbor : Optional[Connector] = None
+        self._locked : bool = False
+        self._holder : Optional['HoldsConnectors'] = None
         self._tangent_position = None # DEV: no call to setter; must be assigned via protected tangent_vector property
+
+    @property
+    def bond_order(self) -> float:
+        '''
+        A numerical bond order corresponding to the type of bond this Connector is associated with
+        E.g. UNASSIGNED = 0.0, AROMATIC = 1.5, DOUBLE = 2.0, etc.
+        '''
+        return BOND_ORDER.get(self.bondtype, 0.0)
 
     # Geometric properties
     ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
     ## preserving relative orientations for local orthogonal basis under general rigid transformations; key observation is that 
     ## a DIFFERENCE between positions is invariant under shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b), 
     
-    ## Attachment site position wrappers - DEV: necessary for backward compatibility with attr reference, though could be deprecated eventually
-    @property
-    def anchor_position(self) -> Vector3:
-        '''The central position that this Connector is anchored to'''
-        warn('Connector.anchor_position is slated for deprecation; use Connector.anchor.position instead', category=DeprecationWarning)
-        return self.anchor.position
-        
-    @property
-    def linker_position(self) -> Vector3:
-        '''The position of the off-body linker point'''
-        warn('Connector.linker_position is slated for deprecatation; use Connector.linker.position instead', category=DeprecationWarning)
-        return self.linker.position
-
     ## Bond vector
     @property
     def has_bond_vector(self) -> bool:
@@ -182,7 +140,7 @@ class Connector(RigidlyTransformable):
         self.linker.position = as_n_vector(new_bond_vector, dimension=3) + self.anchor.position
         
     @property
-    def bond_length(self) -> float:
+    def bond_length(self) -> np.floating:
         '''Distance spanned by the bond vector - i.e. distance from anchor to linker positions'''
         return np.linalg.norm(self.bond_vector)
     
@@ -191,7 +149,7 @@ class Connector(RigidlyTransformable):
         '''Unit vector in the same direction as the bond (oriented from anchor to linker)'''
         return self.bond_vector / self.bond_length # DEV: use normalized()?
     
-    def set_bond_length(self, new_bond_length : float) -> None:
+    def set_bond_length(self, new_bond_length : float | np.floating) -> None:
         '''Adjust length of bond vector by moving linker position along the bond vector's span, keeping the anchor fixed in place'''
         self.bond_vector = new_bond_length * self.unit_bond_vector
 
@@ -258,7 +216,7 @@ class Connector(RigidlyTransformable):
         return self.has_bond_vector and self.has_tangent_position
     has_local_orthogonal_basis = has_dihedral_orientation # alias
     
-    def local_orthonormal_basis(self) -> np.ndarray[Shape[Literal[3, 3]], float]:
+    def local_orthonormal_basis(self) -> Array3x3:
         '''
         Return a 3x3 array representing an orthonormal basis for this Connector's local coordinate system
         Columns of the array are the basis vectors, which are all mutually orthogonal and of unit length
@@ -275,50 +233,6 @@ class Connector(RigidlyTransformable):
         
         return local_orthonormal_basis
     
-    # Applying rigid transformations (fulfilling RigidlyTransformable contracts)
-    def _copy_untransformed(self) -> 'Connector':
-        new_connector = self.__class__(
-            anchor=self.anchor.copy(),
-            linker=self.linker.copy(),
-            bondtype=self.bondtype,
-            query_smarts=str(self.query_smarts),
-            label=self._label,
-            metadata=deepcopy(self.metadata),
-        )
-        if self.has_tangent_position:
-            new_connector.tangent_vector = as_n_vector(self.tangent_vector, dimension=3)
-
-        return new_connector
-
-    def _rigidly_transform(self, transformation : RigidTransform) -> None:
-        self.anchor.rigidly_transform(transformation)
-        self.linker.rigidly_transform(transformation)
-        if self.has_tangent_position:
-            self._tangent_position = transformation.apply(self._tangent_position)
-
-    # Anti-aligning Connectors to one another (simulates bonding in 3D space)
-    ## DEV: eventually try to move as much of the implementation of these transforms to geometry.transforms.rigid as possible
-    def are_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
-        ## DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
-        ## that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
-        '''
-        Whether this Connector is anti-aligned with another Connector, i.e. whether 
-        the anchor of this Connector is within some cutoff distance of the linker
-        of the other Connector, and vice-versa (with the same tolerance for both)
-        '''
-        return (
-            compare_optional_positions(
-                self.anchor.position,
-                other.linker.position,
-                radius=within,
-            )
-            and compare_optional_positions(
-                self.linker.position,
-                other.anchor.position,
-                radius=within,
-            )
-        )
-        
     ## Dihedral angle
     def dihedral_assignment_transform(
         self,
@@ -334,7 +248,7 @@ class Connector(RigidlyTransformable):
         if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
             raise ValueError('Cannot compute dihedral alignment between Connectors without explicitly-defined dihedral plane orientations')
         
-        if not self.are_antialigned(other, within=alignment_tolerance):
+        if not self.is_antialigned(other, within=alignment_tolerance):
             # DEV: could technically weaken this check to when bond vectors are antiparallel (-1 dot product when normed)
             # and difference between anchors is parallel and antiparallel with bond vectors respectively, but didn't for simplicity
             raise ValueError('Cannot set dihedral angle with non-antialigned Connectors')
@@ -381,160 +295,64 @@ class Connector(RigidlyTransformable):
         )
         
         return new_connector
-
-    ## Rigid alignment
-    def rigid_antialignment_to(
-        self, 
-        other : 'Connector',
-        tare_dihedrals : bool=False,
-    ) -> RigidTransform:
-        '''
-        Compute a rigid transformation which antialigns a pair of Connectors by making
-        the linker point of this Connector coincident with the anchor of the other Connector
-        
-        If the two Connectors have the same bond length, the anchor of this Connector will be coincident with the linker
-        of the other; otherwise, the anchor will merely lay on the span of the other Connectors bond vector
-        
-        If tare_dihedrals is True (default False), will also ensure that the dihedral planes of the two Connectors are coplanar
-        this may be desirable in many cases, but comes with stricter preconditions, namely both connectors having tangents define
-        '''
-        bond_antialignment : Rotation = alignment_rotation(self.unit_bond_vector, -other.unit_bond_vector)
-        if tare_dihedrals:
-            tangent_alignment = alignment_rotation(bond_antialignment.apply(self.tangent_vector), other.tangent_vector)
-        else:
-            tangent_alignment = Rotation.identity()
-        
-        return ( # order of application of operations reads bottom-to-top (rightmost operator acts first)
-            RigidTransform.from_translation(other.linker.position)
-            * RigidTransform.from_rotation(tangent_alignment)
-            * RigidTransform.from_rotation(bond_antialignment)
-            * RigidTransform.from_translation(-self.anchor.position)
+    
+    # Applying rigid transformations (fulfilling RigidlyTransformable contracts)
+    def _copy_untransformed(self) -> 'Connector':
+        new_connector = self.__class__(
+            anchor=self.anchor.copy(),
+            linker=self.linker.copy(),
+            bondtype=self.bondtype,
+            query_smarts=str(self.query_smarts),
+            label=self._label,
+            metadata=deepcopy(self.metadata),
         )
-
-    def antialign_rigidly_to(
-        self,
-        other : 'Connector',
-        tare_dihedrals : bool=False,
-        dihedral_angle_rad : Optional[float]=None,
-        match_bond_length : bool=False,
-    ) -> None:
-        '''Align this Connector rigidly to another Connector, based on the calculated rigid alignment transform'''
-        self.rigidly_transform(transformation=self.rigid_antialignment_to(other, tare_dihedrals=tare_dihedrals))
-        if match_bond_length: 
-            self.set_bond_length(other.bond_length) # ensure bond length matches the other Connector
-            if (dihedral_angle_rad is not None): # NOTE: sentinel (rather than default 0.0) weakens preconditions on tangents when no dihedral is specified
-                self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
-
-    def antialigned_rigidly_to(
-        self,
-        other : 'Connector',
-        tare_dihedrals : bool=False,
-        dihedral_angle_rad : Optional[float]=None,
-        match_bond_length : bool=False,
-    ) -> 'Connector':
-        '''Return a copy of this Connector rigidly aligned to another Connector'''
-        new_connector = self.copy()
-        new_connector.antialign_rigidly_to(
-            other,
-            tare_dihedrals=tare_dihedrals,
-            dihedral_angle_rad=dihedral_angle_rad,
-            match_bond_length=match_bond_length,
-        )
+        if self.has_tangent_position:
+            new_connector.tangent_vector = as_n_vector(self.tangent_vector, dimension=3)
 
         return new_connector
+
+    def _rigidly_transform(self, transformation : RigidTransform) -> None:
+        self.anchor.rigidly_transform(transformation)
+        self.linker.rigidly_transform(transformation)
+        if self.has_tangent_position:
+            self._tangent_position = transformation.apply(self._tangent_position)
+
+    # Holder - higher-level object which "holds" this Connector (e.g. for reverse-lookup)
+    def has_holder(self) -> bool:
+        '''Check if holder has been assigned'''
+        return self._holder is not None
     
-    ## Ballistic alignment
-    def ballistic_antialignment_to(self, other : 'Connector') -> RigidTransform:
-        '''
-        Compute a rigid transformation which aligns a pair of Connectors by turning
-        the bond vector of this Connector to face the linker point of other Connector
-        The anchor positions of either Connector will be unaffected
-        
-        Called "ballistic" because the action (especially when matching bond length)
-        resembles this Connector aiming and then "shooting" its linker at the other Connector
-        '''
-        return (
-            RigidTransform.from_translation(self.anchor.position)
-            * RigidTransform.from_rotation(alignment_rotation(self.bond_vector, other.anchor.position - self.anchor.position))
-            * RigidTransform.from_translation(-self.anchor.position)
-        )
+    @property
+    def holder(self) -> Optional['HoldsConnectors']:
+        return self._holder
     
-    def antialign_ballistically_to(
-        self,
-        other : 'Connector',
-        match_bond_length : bool=False,
-    ) -> None:
-        '''
-        Match linker position of this Connector to the anchor position of the other Connector (if assigned)
-        NOTE: does NOT modify the other Connector, only acts on the first Connector of the provided pair
-        '''
-        self.rigidly_transform(transformation=self.ballistic_antialignment_to(other))
-        if match_bond_length:
-            self.set_bond_length(np.linalg.norm(other.anchor.position - self.anchor.position))
+    @holder.setter
+    def holder(self, new_holder : 'HoldsConnectors') -> None:
+        if self._locked:
+            raise PermissionError(f'Cannot assign new holder to locked Connector {self}')
+        self._holder = new_holder
 
-    def antialigned_ballistically_to(
-        self,
-        other : 'Connector',
-        match_bond_length : bool=False,
-    ) -> None:
-        '''
-        Return copy of this Connector whose linker positions is aligned to the anchor position of the other Connector (if assigned)
-        NOTE: does NOT modify either Connector of the passed pair; returns a modified copy of the first Connector
-        '''
-        new_connector = self.copy() # DEV: opted not to go for self.rigidly_transformed(self.alignment_transform(...)) to avoid duplicating logic
-        new_connector.antialign_ballistically_to(other, match_bond_length=match_bond_length)
-        
-        return new_connector
-    
-    ### DEV: asymmetry relative to rigid alignment viz dihedral angles is no accident;
-    ### Rigid alignment results in antialignment after one application with bond length matching,
-    ### whereas ballistic alignment in general requires both Connecters to be mutually transformed to guarantee antialignment
-    def mutually_antialign_ballistically(
-        self,
-        other : 'Connector',
-        dihedral_angle_rad : Optional[float]=None,
-    ) -> None:
-        '''
-        Ballistically align this Connector to the other, and vice-versa
-        In the end, the linker of either Connector with be coincident with the
-        anchor of the other, and the anchors sites will not have been moved
+    @holder.deleter
+    def holder(self) -> None:
+        if self._locked and not self.has_holder:
+            raise PermissionError(f'Cannot remove holder of locked Connector {self}')
+        self._holder = None
 
-        If a dihedral angle is provided, will also rotate this Connector along the mutual bond axis to that angle
-        '''
-        self.antialign_ballistically_to(other, match_bond_length=True)
-        other.antialign_ballistically_to(self, match_bond_length=True)
-        if (dihedral_angle_rad is not None): # NOTE: sentinel (rather than default 0.0) weakens preconditions on tangents when no dihedral is specified
-            self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
-
-
-    # Comparison methods
+    # Interactions with neighboring Connectors
+    ## Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
             return False # DEVNOTE: raise TypeError instead (or at least log a warning)?
-        
         # DEV: opting for loosest possible comparison where at least on of the attachable elements overlaps between opposing pairs of attachment points
         # opted not to check the (perhaps more obvious) "self.anchor.attachment in other.linker.attachables", etc., 
-        # because the attachment labels may be unassigned between resolution shift operations in the representation hierarchy
+        # because the attachment labels may differ between resolution shift operations in the representation hierarchy
         return ( 
             (not set.isdisjoint(self.anchor.attachables, other.linker.attachables))
             and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
             and (self.bondtype == other.bondtype)
-            # TODO: also compare positions, if set?
         )
         
-    def bondable_with_iter(self, *others : Iterable[Union['Connector', Iterable['Connector']]]) -> Generator[bool, None, None]:
-        '''Whether this Connector can be connected to each of a sequence of other Connectors, in the order passed'''
-        for other in others:
-            if isinstance(other, Connector):
-                yield self.bondable_with(other)
-            elif isinstance(other, Iterable):
-                # DEVNOTE: deliberately NOT using "yield from" to preserve parity with input
-                # (output element corresponding to iterable is now just a Generator instance, rather than a bool)
-                yield self.bondable_with_iter(*other)
-            else:
-                raise TypeError(f'Connector can only be bonded to other Connectors or collection of Connectors, not with object of type {type(other)}')
-
     def coincides_with(self, other : 'Connector') -> bool:
         '''Whether this Connector overlaps spatially with another Connector'''
         return ( # TODO: set atol/rtol for float vector comparison
@@ -557,7 +375,95 @@ class Connector(RigidlyTransformable):
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
-    ## Labelling and representation methods
+    ## Neighbor configuration
+    def is_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
+        '''
+        Whether this Connector is anti-aligned with another Connector, i.e. whether 
+        the anchor of this Connector is within some cutoff distance of the linker
+        of the other Connector, and vice-versa (with the same tolerance for both)
+        '''
+        return are_antialigned(self, other, within=within)
+    
+    @property
+    def is_locked(self) -> bool:
+        '''Whether editing of neighbors is allowed'''
+        return self._locked
+
+    def lock(self) -> None:
+        '''Block editing of neighbors'''
+        self._locked = True
+
+    def unlock(self) -> None:
+        '''Allow editing of neighbors'''
+        self._locked = False
+    
+    @property
+    def has_neighbor(self) -> bool:
+        return self._neighbor is not None
+
+    @property
+    def neighbor(self) -> Optional['Connector']:
+        '''
+        The Connector assigned to be this Connector's neighbor, if assigned
+        If unassigned, returns None
+        '''
+        return self._neighbor
+
+    @neighbor.setter
+    def neighbor(self, other : 'Connector') -> None:
+        if self.is_locked:
+            raise PermissionError('Neighbor of this Connector is locked and cannot be modified')
+
+        if not self.bondable_with(other):
+            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
+
+        # N.B.: if ALL positions are unset, will evaluate as antialigned
+        if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
+            raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
+        
+        self._neighbor = other
+
+    @neighbor.deleter
+    def neighbor(self) -> None:
+        if self.has_neighbor and self.is_locked:
+            raise PermissionError('Neighbor of this Connector is locked and cannot be cleared')
+        self._neighbor = None
+
+    ## Copying and attr transfer methods
+    def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
+        '''
+        Expand a Connector into a set of Connectors with identical properties but 
+        distinct, singletons linkables, one for each linkable in the original Connector
+        '''
+        indiv_conn_map = dict()
+        for anchor_label, linker_label in cartesian(self.anchor.attachables, self.linker.attachables):
+            conn_clone = self.copy()
+            conn_clone.anchor.attachment = anchor_label
+            conn_clone.anchor.attachables = {anchor_label}
+            
+            conn_clone.linker.attachment = linker_label
+            conn_clone.linker.attachables = {linker_label}
+
+            indiv_conn_map[(anchor_label, linker_label)] = conn_clone
+        return indiv_conn_map
+    
+    def counterpart(self) -> 'Connector':
+        '''
+        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
+        
+        By construction, the counterpart will always be bondable with this Connector (and vice versa),
+        assuming the attachables set of the anchor and linker point are both non-empty
+        '''
+        counterpart = self.copy()
+        counterpart.anchor, counterpart.linker = self.linker, self.anchor
+        if self.has_tangent_position:
+            # NOTE: since vector if defined by difference to tangent point, updated tangent 
+            # point can be set directly from this difference, since anchor is updated about
+            counterpart.tangent_vector = self.tangent_vector 
+        
+        return counterpart
+
+    # Labelling and representation methods
     @property
     def label(self) -> ConnectorLabel:
         '''Identifying label for this Connector'''
@@ -604,40 +510,18 @@ class Connector(RigidlyTransformable):
     # def __eq__(self, other : 'Connector') -> bool:
     #     # return hash(self) == hash(other)
     #     return self.fungible_with(other)
-    
-    # Copying and attr transfer methods
-    def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
-        '''
-        Expand a Connector into a set of Connectors with identical properties but 
-        distinct, singletons linkables, one for each linkable in the original Connector
-        '''
-        indiv_conn_map = dict()
-        for anchor_label, linker_label in cartesian(self.anchor.attachables, self.linker.attachables):
-            conn_clone = self.copy()
-            conn_clone.anchor.attachment = anchor_label
-            conn_clone.anchor.attachables = {anchor_label}
-            
-            conn_clone.linker.attachment = linker_label
-            conn_clone.linker.attachables = {linker_label}
 
-            indiv_conn_map[(anchor_label, linker_label)] = conn_clone
-        return indiv_conn_map
-    
-    def counterpart(self) -> 'Connector':
-        '''
-        Create a counterpart Connector which is identical to this Connector but has its linker and anchor sites swapped
-        
-        By construction, the counterpart will always be bondable with this Connector (and vice versa),
-        assuming the attachables set of the anchor and linker point are both non-empty
-        '''
-        counterpart = self.copy()
-        counterpart.anchor, counterpart.linker = self.linker, self.anchor
-        if self.has_tangent_position:
-            # NOTE: since vector if defined by difference to tangent point, updated tangent 
-            # point can be set directly from this difference, since anchor is updated about
-            counterpart.tangent_vector = self.tangent_vector 
-        
-        return counterpart
+def canonical_form_connectors(
+    connectors: Iterable[Connector],
+    separator : str=':',
+    joiner : str='-',
+) -> str:
+    '''A hashable string representing a collection of Connectors in canonical form'''
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors),
+        separator=separator,
+        joiner=joiner,
+    )
 
 ## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
 ConnectorSelector : TypeAlias = Callable[[Connector, Connector], Connector]
