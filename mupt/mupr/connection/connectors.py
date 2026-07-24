@@ -17,11 +17,10 @@ from typing import (
     TypeAlias,
     TYPE_CHECKING,
 )
-
 from dataclasses import dataclass, field
+
 from copy import deepcopy
 from itertools import product as cartesian
-from uuid import uuid4
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
@@ -35,6 +34,7 @@ from .types import (
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError
 
+from ...mutils.referencing import Addressable
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -77,7 +77,10 @@ class AttachmentPoint(RigidlyTransformable):
         self.position[:] = transformation.apply(self.position)
 
 # Connector class proper
-class Connector(RigidlyTransformable):
+class Connector(
+    Addressable,
+    RigidlyTransformable,
+):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     DEFAULT_LABEL : ClassVar[ConnectorLabel] = 'Conn'
     
@@ -99,9 +102,6 @@ class Connector(RigidlyTransformable):
         self.metadata : dict[Hashable, Any] = metadata or dict()
 
         ## Protected attributes
-        self._address = uuid4()  # randomly-generated; may opt for field based (with something like uuid7) in the future
-        self._address_str = str(self._address) # cache to avoid recalculation
-
         self._neighbor : Optional[Connector] = None
         self._locked : bool = False
         self._holder : Optional['HoldsConnectors'] = None
@@ -464,16 +464,6 @@ class Connector(RigidlyTransformable):
         return counterpart
 
     # Labelling and representation methods
-    @property
-    def address(self) -> str: # protected - no setter or deleter offered
-         # opting for str conversion to avoid consumers needing to know about UUID type
-        '''
-        Hashable address UNIQUE to this Connector
-        Not the same as __hash__ (Connector instances with the same hash will have different addresses)
-        '''
-        return self._address_str
-    addr = address # alias for convenience
-
     @property
     def label(self) -> ConnectorLabel:
         '''Identifying label for this Connector'''
