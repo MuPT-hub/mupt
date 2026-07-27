@@ -22,19 +22,22 @@ class DummyDataclass(Addressable):
     baz : str
     boo : float
 
-
-# tests proper
-@pytest.mark.parametrize(
-    'addr_typ,args',
-    [
+def addressable_object_examples() -> tuple[tuple[Type[Addressable], dict[str, Any]], ...]:
+    '''
+    Pre-packaged examples of Addressable types and valid
+    arguments needed to initialize an instance of those types
+    '''
+    return (
         (DummyNoArgs, {}),
         (DummyWithArgs, {'foo' : 'abc', 'bar' : 42}),
         (DummyDataclass, {'baz' : 'name', 'boo' : 3.14}),
-    ]
-)
-def test_has_address(addr_typ : Type[Addressable], args : dict[str, Any]) -> None:
+    ) 
+
+# tests proper
+@pytest.mark.parametrize('addr_typ,kwargs', addressable_object_examples())
+def test_has_address(addr_typ : Type[Addressable], kwargs : dict[str, Any]) -> None:
     '''Test that Addressable objects indeed implement the address they claim to'''
-    obj = addr_typ(**args)
+    obj = addr_typ(**kwargs)
     assert hasattr(obj, 'address')
     assert hasattr(obj, '_uuid') and isinstance(obj._uuid, UUID)
 
