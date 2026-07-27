@@ -41,9 +41,14 @@ def test_has_address(addr_typ : Type[Addressable], kwargs : dict[str, Any]) -> N
     assert hasattr(obj, 'address')
     assert hasattr(obj, '_uuid') and isinstance(obj._uuid, UUID)
 
-def test_address_registration() -> None:
+@pytest.mark.parametrize('addr_typ,kwargs', addressable_object_examples())
+def test_address_registration(addr_typ : Type[Addressable], kwargs : dict[str, Any]) -> None:
     '''Test that newly-minted objects are also registered by their address in the classwide registry'''
-    ...
+    num_obj_registered_init : int = len(addr_typ.registry_addresses)
+    obj = addr_typ(**kwargs)
+
+    assert (obj.address in addr_typ.registry_addresses)  \
+        and (len(addr_typ.registry_addresses) == (num_obj_registered_init + 1))
 
 def test_weak_address_refs() -> None:
     '''Test that records of objects in classwide registry automatically vanish when object is garbage collected'''
