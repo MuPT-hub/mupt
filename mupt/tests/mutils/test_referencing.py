@@ -1,5 +1,6 @@
 '''Unit tests for object referencing'''
 
+from typing import Type
 from dataclasses import dataclass
 
 import pytest
@@ -10,13 +11,20 @@ def test_has_address() -> None:
     '''Test that Addressable objects indeed implement the address they claim to'''
     ...
 
-def test_address_REgistration() -> None:
+def test_address_registration() -> None:
     '''Test that newly-minted objects are also registered by their address in the classwide registry'''
     ...
 
 def test_weak_address_refs() -> None:
     '''Test that records of objects in classwide registry automatically vanish when object is garbage collected'''
-    ...
+    class Dummy(Addressable):
+        ... # N.B.: defined locally to ensure reference counter to instances are not contaminated by other tests
+
+    obj = Dummy()
+    assert len(Dummy.registry_addresses) == 1
+
+    del obj 
+    assert len(Dummy.registry_addresses) == 0
 
 def test_object_registries_distinct() -> None:
     '''Test that distinct subtypes of Addressable do not share their classwide object registries'''
