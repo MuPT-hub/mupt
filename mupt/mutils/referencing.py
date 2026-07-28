@@ -5,9 +5,9 @@ from uuid import UUID, uuid4
 from weakref import WeakValueDictionary
 
 
-class Addressable:
+class Addressed:
     '''Boilerplate for objects which are assigned a universally-unique ID at initialization'''
-    registry_addresses : ClassVar[WeakValueDictionary[str, 'Addressable']]
+    registry_addresses : ClassVar[WeakValueDictionary[str, 'Addressed']]
     
     def __init_subclass__(cls, /,  **kwargs) -> None:
         super(cls).__init_subclass__(**kwargs)
@@ -17,9 +17,8 @@ class Addressable:
     _uuid : UUID
     _address : str
 
-    # def __init__(self) -> None:
-    def __new__(cls, *args, **kwargs) -> 'Addressable':
-        obj = super(Addressable, cls).__new__(cls)
+    def __new__(cls, *args, **kwargs) -> 'Addressed':
+        obj = super(Addressed, cls).__new__(cls)
 
         unique_id = uuid4()
         obj._uuid = unique_id
