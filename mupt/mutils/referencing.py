@@ -12,9 +12,9 @@ class Addressable(Protocol):
     registry_addresses : ClassVar[Mapping[str, 'Addressable']]
     address : str
 
-class Addressed:
+class Addressed: # TB DEV: should name as "AddressedMixin" explicitly?
     '''
-    Boilerplate mixin for objects which are assigned a unique, hashable address at initialization
+    Mixin defining boilerplate for objects which are to be assigned a unique, hashable address at initialization
     Objects are also registered to a subclass-wide registry ("registry_addressed") keyed by their addresses
     '''
     registry_addresses : ClassVar[WeakValueDictionary[str, 'Addressed']]
@@ -28,6 +28,9 @@ class Addressed:
     _address : str
 
     def __new__(cls, *args, **kwargs) -> 'Addressed':
+        if cls is Addressed:
+            raise TypeError(f'Cannot instantiate from {cls.__name__} directly; must be used as mixin')
+
         obj = super(Addressed, cls).__new__(cls)
 
         unique_id = uuid4()
