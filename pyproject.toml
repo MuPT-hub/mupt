@@ -52,7 +52,7 @@ test = [
 [project.urls]
 Homepage = "https://github.com/MuPT-hub"
 #"Documentation" = "https://mupt.readthedocs.io/"
-# Download = "https://pypi.org/project/mupt/"
+Download = "https://pypi.org/project/mupt/"
 Source = "https://github.com/MuPT-hub/mupt/"
 Issues = "https://github.com/MuPT-hub/mupt/issues"
 Examples = "https://github.com/MuPT-hub/mupt-examples/"
