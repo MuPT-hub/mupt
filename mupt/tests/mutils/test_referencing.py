@@ -35,6 +35,11 @@ def addressed_object_examples() -> tuple[tuple[Type[Addressed], dict[str, Any]],
     ) 
 
 # tests proper
+def test_addressed_base_non_instantiable() -> None:
+    '''Test that Addressed mixin base cannot be instantiated directly'''
+    with pytest.raises(TypeError):
+        obj = Addressed()
+
 @pytest.mark.parametrize('addr_typ,kwargs', addressed_object_examples())
 def test_considered_addressable(addr_typ : Type[Addressed], kwargs : dict[str, Any]) -> None:
     '''Test behavioral interface outlined by Addressable is implemented by Addressed subtypes'''
