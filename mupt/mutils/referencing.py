@@ -38,6 +38,6 @@ class Addressed:
     # NOT the same as __hash__ (instances with the same hash will have different addresses)
     @property # protected, i.e. setter or deleter deliberately NOT offered
     def address(self) -> str: 
-        '''Hashable hexademical string address unique to this object instance'''
+        '''Hashable hexadecimal string address unique to this object instance'''
         return self._address
     addr = address # alias for convenience
