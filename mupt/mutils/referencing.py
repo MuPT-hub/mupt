@@ -13,11 +13,14 @@ class Addressable(Protocol):
     address : str
 
 class Addressed:
-    '''Boilerplate for objects which are assigned a universally-unique ID at initialization'''
+    '''
+    Boilerplate mixin for objects which are assigned a unique, hashable address at initialization
+    Objects are also registered to a subclass-wide registry ("registry_addressed") keyed by their addresses
+    '''
     registry_addresses : ClassVar[WeakValueDictionary[str, 'Addressed']]
     
     def __init_subclass__(cls, /,  **kwargs) -> None:
-        super(cls).__init_subclass__(**kwargs)
+        super().__init_subclass__(**kwargs)
         cls.registry_addresses = WeakValueDictionary() # avoids sharing mutable registry with subclasses 
 
     # Object attr declarations
