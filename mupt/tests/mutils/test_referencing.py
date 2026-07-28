@@ -63,4 +63,14 @@ def test_weak_address_refs() -> None:
 
 def test_object_registries_distinct() -> None:
     '''Test that distinct subtypes of Addressable do not share their classwide object registries'''
-    ...
+    class DummyLocal1(Addressable):
+        ...
+
+    class DummyLocal2(Addressable):
+        ...
+
+    obj1 = DummyLocal1()
+    assert (obj1.address not in DummyLocal2.registry_addresses)
+
+    obj2 = DummyLocal2() # perform reciprocal test to check symmetry
+    assert (obj2.address not in DummyLocal1.registry_addresses)
