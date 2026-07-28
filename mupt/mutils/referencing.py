@@ -14,8 +14,8 @@ class Addressable(Protocol):
 
 class Addressed: # TB DEV: should name as "AddressedMixin" explicitly?
     '''
-    Mixin defining boilerplate for objects which are to be assigned a unique, hashable address at initialization
-    Objects are also registered to a subclass-wide registry ("registry_addressed") keyed by their addresses
+    Mixin defining boilerplate for objects which are to be assigned a unique, hashable address during construction.
+    Objects are also registered to a subclass-wide registry (`registry_addresses`) keyed by their addresses.
     '''
     registry_addresses : ClassVar[WeakValueDictionary[str, 'Addressed']]
     
