@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import pytest
-from mupt.mutils.referencing import Addressed
+from mupt.mutils.referencing import Addressed, Addressable
 
 
 # dummy Addressed classes
@@ -34,6 +34,12 @@ def addressed_object_examples() -> tuple[tuple[Type[Addressed], dict[str, Any]],
     ) 
 
 # tests proper
+@pytest.mark.parametrize('addr_typ,kwargs', addressed_object_examples())
+def test_considered_addressable(addr_typ : Type[Addressed], kwargs : dict[str, Any]) -> None:
+    '''Test behavioral interface outlined by Addressable is implemented by Addressed subtypes'''
+    obj = addr_typ(**kwargs)
+    assert isinstance(obj, Addressable) # depends on having @runtime_checkable Protocol
+
 @pytest.mark.parametrize('addr_typ,kwargs', addressed_object_examples())
 def test_has_address(addr_typ : Type[Addressed], kwargs : dict[str, Any]) -> None:
     '''Test that Addressed objects indeed implement the address they claim to'''
