@@ -3,6 +3,7 @@
 from typing import Any, Type
 from dataclasses import dataclass
 from uuid import UUID
+from gc import collect as garbage_collect
 
 import pytest
 from mupt.mutils.referencing import Addressed, Addressable
@@ -64,7 +65,8 @@ def test_weak_address_refs() -> None:
     obj = DummyLocal()
     assert len(DummyLocal.registry_addresses) == 1
 
-    del obj 
+    del obj
+    garbage_collect() # force garbage collector to run for deterministic tests
     assert len(DummyLocal.registry_addresses) == 0
 
 def test_object_registries_distinct() -> None:
