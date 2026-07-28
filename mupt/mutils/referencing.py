@@ -1,9 +1,16 @@
 '''Utilities for providing Hashable references to arbitrary objects, along with registries of those objects'''
 
-from typing import ClassVar
+from typing import ClassVar, Mapping, Protocol, runtime_checkable
+
 from uuid import UUID, uuid4
 from weakref import WeakValueDictionary
 
+
+@runtime_checkable
+class Addressable(Protocol):
+    '''Behavioral interface for types which support registered, hashable object addressing'''
+    registry_addresses : ClassVar[Mapping[str, 'Addressable']]
+    address : str
 
 class Addressed:
     '''Boilerplate for objects which are assigned a universally-unique ID at initialization'''
