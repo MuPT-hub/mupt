@@ -12,7 +12,7 @@ TCall = Callable[Params, ReturnType] # generic function of callable class
 # from importlib import import_module
 from importlib.util import find_spec
 from functools import wraps
-from .names import get_calling_module
+from .inspection import get_calling_module
 
 
 class MissingPrerequisitePackage(Exception):
