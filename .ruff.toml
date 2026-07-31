@@ -1,0 +1,45 @@
+# Support Python 3.12+.
+target-version = "py312"
+line-length = 79 # 88 is also common (default for black) >100 becomes tricky to view side-by-side
+exclude = ['*.py']
+
+show-fixes = true
+unsafe-fixes = false
+
+[lint]
+preview = true
+
+# Add the `line-too-long` rule to the enforced rule set.
+select = [
+    "E", # show errors
+    "W", # show warnings
+    "F", # flake8
+    "I", # isort
+    "D", # docstring format
+    "E501", # check too long lines
+    "C90",  # McCabe (cyclomatic) complexity
+    "NPY",  # Numpy-specific rules"
+]
+# ignore = ["E501"] # allow format to fix long lines (theoretically)
+# extend-select = ["E501"]
+
+[lint.pydocstyle]
+# convention = "google"
+convention = "numpy"
+
+[lint.mccabe]
+max-complexity = 5 # Flag errors (`C901`) whenever the complexity level exceeds 5.
+
+[format]
+preview = true
+
+indent-style = "space"
+# quote-style = 'single'
+quote-style = "double"
+line-ending = "auto"
+docstring-code-format = true
+nested-string-quote-style = 'alternating'
+
+[analyze]
+preview = true
+type-checking-imports = true # Include type-checking-only imports from the graph
