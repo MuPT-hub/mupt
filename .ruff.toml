@@ -1,7 +1,7 @@
 target-version = "py312"
 # line limit of 79 is common, 88 is default for black, >100 becomes tricky to view side-by-side
 line-length = 88 
-exclude = ['*.py']
+# exclude = ['*.py']
 
 show-fixes = true
 unsafe-fixes = false
