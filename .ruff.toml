@@ -1,6 +1,6 @@
-# Support Python 3.12+.
 target-version = "py312"
-line-length = 79 # 88 is also common (default for black) >100 becomes tricky to view side-by-side
+# line limit of 79 is common, 88 is default for black, >100 becomes tricky to view side-by-side
+line-length = 88 
 exclude = ['*.py']
 
 show-fixes = true
