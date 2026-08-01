@@ -134,8 +134,7 @@ def requires_modules(
     if not isinstance(missing_module_error, Exception):
         if not (isinstance(missing_module_error, type) and issubclass(missing_module_error, Exception)):
             # DEV: this is potentially brittle, depending on how the specific Exception subtype is implemented?
-            raise TypeError('Must pass either Exception instance or subtype to "missing_module_error') 
-        
+            raise TypeError('Must pass either an Exception instance or an Exception subtype to "missing_module_error"')
     def tailored_exception(module_name : str) -> Exception:
         '''Accessory function to generate targetted Exceptions based on the provided
         mssing_module_error value and the name of a module with no found installation'''
