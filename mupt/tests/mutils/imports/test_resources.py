@@ -1,4 +1,4 @@
-'''Unit tests for fetching package resources`'''
+'''Unit tests for fetching package resources'''
 
 import pytest
 from _pytest.mark.structures import ParameterSet
