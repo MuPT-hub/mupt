@@ -13,9 +13,12 @@ from importlib.resources._common import resolve
 ModuleLike = Union[str, ModuleType, Package]
 
 
-def get_calling_module() -> Optional[ModuleType]:
+def get_calling_module(stacklevel : int=1) -> Optional[ModuleType]:
     '''When invoked within a Callable, return the module from which that Callable was called'''
-    caller_frame_info = stack()[1]
+    try:
+        caller_frame_info = stack()[stacklevel]
+    except IndexError:
+        return None
     return getmodule(caller_frame_info.frame)
 
 def _load_module(module : ModuleLike) -> ModuleType:
