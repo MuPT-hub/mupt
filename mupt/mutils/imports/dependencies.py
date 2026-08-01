@@ -57,10 +57,10 @@ class MissingPrerequisitePackage(Exception):
 
         install_desc : str = f' by following the installation instructions at {install_link}' if install_link else ''
         
-        message = f'''
-        '{use_case.capitalize()} require(s) {dependency_name_formal}, which was not found in the current context.'
-        'Please install `{dependency_name}`{install_desc}, then try importing from "{importing_package_name}" again'
-        '''
+        message = (
+            f'{use_case.capitalize()} require(s) {dependency_name_formal}, which was not found in the current context.'
+            f'Please install `{dependency_name}`{install_desc}, then try importing from "{importing_package_name}" again'
+        )
         
         super().__init__(message)
         
