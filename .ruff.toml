@@ -14,7 +14,7 @@ select = [
     "E", # show errors
     "W", # show warnings
     "F", # flake8
-    "I", # isort
+    # "I", # isort
     "D", # docstring format
     "E501", # check too long lines
     "C90",  # McCabe (cyclomatic) complexity
@@ -38,7 +38,7 @@ indent-style = "space"
 quote-style = "double"
 line-ending = "auto"
 docstring-code-format = true
-nested-string-quote-style = 'alternating'
+nested-string-quote-style = "alternating"
 
 [analyze]
 preview = true
