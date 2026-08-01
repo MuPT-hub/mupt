@@ -59,4 +59,4 @@ def test_requires_modules(module_name : str, missing_module_error : Union[Except
     def func() -> str:
         return 'I am pointless'
     
-    _ = func() # no assertion needed, xfail cases should raise Exception while working cases will ternimate without Exception
+    _ = func() # no assertion needed, xfail cases should raise Exception while working cases will terminate without Exception
