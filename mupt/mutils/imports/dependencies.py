@@ -7,7 +7,6 @@ from typing import Callable, Optional, ParamSpec, TypeVar, Union
 
 Params = ParamSpec('Params')
 ReturnType = TypeVar('ReturnType')
-TCall = Callable[Params, ReturnType] # generic function of callable class
 
 # from importlib import import_module
 from importlib.util import find_spec
@@ -112,7 +111,7 @@ def modules_installed(*module_names : str) -> bool:
 def requires_modules(
     *required_module_names : str,
     missing_module_error : Union[Exception, type[Exception]]=ImportError,
-) -> Callable[[TCall[..., ReturnType]], TCall[..., ReturnType]]:
+) -> Callable[[Callable[..., ReturnType]], Callable[..., ReturnType]]:
     '''
     Decorator which enforces optional module dependencies prior to function execution
     
@@ -144,7 +143,7 @@ def requires_modules(
         if isinstance(missing_module_error, type):
            return missing_module_error(f'No installation found for module "{module_name}"')
     
-    def decorator(func : TCall) -> TCall:
+    def decorator(func : Callable[Params, ReturnType]) -> Callable[Params, ReturnType]:
         @wraps(func)
         def req_wrapper(*args : Params.args, **kwargs : Params.kwargs) -> ReturnType:
             for module_name in required_module_names:
