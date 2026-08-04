@@ -144,7 +144,7 @@ def requires_modules(
         if isinstance(missing_module_error, type):
            return missing_module_error(f'No installation found for module "{module_name}"')
     
-    def decorator(func) -> TCall[..., ReturnType]:
+    def decorator(func : TCall) -> TCall:
         @wraps(func)
         def req_wrapper(*args : Params.args, **kwargs : Params.kwargs) -> ReturnType:
             for module_name in required_module_names:
