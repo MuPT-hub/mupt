@@ -1,7 +1,5 @@
 '''Unit tests for chemical valence validation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import pytest
 from mupt.chemistry.core import valence_allowed

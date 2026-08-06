@@ -25,7 +25,8 @@ We welcome code contributions in the form of pull requests. Please follow the st
 * Make your changes
 * Commit your changes
 * Push your changes to your fork and create a pull request. In your pull request, include a short description and idenitfy any existing To-Do's. Include unit tests in your PR if your code adds new functionality.
-* Assign the pull request to a reviewer and wait for the reviewers feedback
+* Funded MuPT team members should directly message reviewers before assigning them, and should expect a reply within two days of when the review can be expected or whether it should be delegated to another team member.
+* Unfunded developers, THANK YOU, we will do our best to review as soon as possible.
 
 ## Code of Conduct
 
@@ -93,8 +94,6 @@ Further details of specific enforcement policies may be posted separately.
 Project maintainers who do not follow or enforce the Code of Conduct in good
 faith may face temporary or permanent repercussions as determined by other
 members of the project's leadership.
-
-### Attribution
 
 This Code of Conduct is adapted from the [Contributor Covenant][homepage].
 

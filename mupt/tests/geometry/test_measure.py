@@ -1,7 +1,5 @@
 '''Unit tests for vector measure operations'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import pytest
 

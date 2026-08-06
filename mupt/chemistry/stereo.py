@@ -1,7 +1,5 @@
 '''Utilities for handling stereochemistry, including CIP assignment and enumeration of stereoisomers'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from rdkit.Chem.rdchem import (
     StereoInfo,

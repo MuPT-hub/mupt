@@ -1,7 +1,5 @@
 '''Abstractions of connections between two primitives'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)

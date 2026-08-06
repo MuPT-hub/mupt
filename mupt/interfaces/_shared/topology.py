@@ -1,7 +1,5 @@
 """Shared topology traversal helpers for exporter interfaces."""
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
 
 from collections.abc import Hashable, Iterator
 from dataclasses import dataclass, field

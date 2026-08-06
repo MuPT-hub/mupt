@@ -1,7 +1,5 @@
 '''Affine matrices which realize many common affine transformations'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Literal, Optional, Union
 import numpy as np

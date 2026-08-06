@@ -1,7 +1,5 @@
 '''Writers which convert the MuPT molecular representation out to RDKit Mols'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 
 from typing import Optional

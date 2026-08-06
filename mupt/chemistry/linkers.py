@@ -1,7 +1,5 @@
 '''Perception and manipulation of wild-type "linker" atoms in an RDKit molecule'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Generator
 

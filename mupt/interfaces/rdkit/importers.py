@@ -1,7 +1,5 @@
 '''Readers which convert RDKit Atoms and Mols into the MuPT molecular representation'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import (
     Hashable,

@@ -1,7 +1,5 @@
 '''Utilities for applying affine transformations to other objects (not necessarily just points!)'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Literal, Mapping, Optional, Sequence, Union
 from typing import Protocol, runtime_checkable

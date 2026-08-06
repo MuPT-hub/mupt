@@ -1,7 +1,5 @@
 '''Tools for simplifying iteration over collections of items'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import (
     Any,

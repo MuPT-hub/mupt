@@ -1,7 +1,5 @@
 '''Indicators for coordinate axis-specific operations and indexing'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from enum import Enum
 import numpy as np

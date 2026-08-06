@@ -1,7 +1,5 @@
 '''Utilities for applying rigid transformations to other objects (not necessarily just points!)'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Any, Mapping, Self, Sequence, Union
 from typing import Protocol, runtime_checkable

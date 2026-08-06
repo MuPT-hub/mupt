@@ -3,8 +3,6 @@ Utilities for extracting information from and recasting RDKit objects
 (e.g. Atom, Bond, Conformer, etc.) and recasting them as MuPT core objects
 '''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 
 from typing import (

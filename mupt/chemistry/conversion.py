@@ -1,7 +1,5 @@
 '''For converting objects and types between different chemical representation formats'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 from typing import Union
 

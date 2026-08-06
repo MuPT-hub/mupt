@@ -1,7 +1,5 @@
 '''Reference for peptide residue substructures, FASTA codes, and CCD codes'''
 
-__author__ = 'Timotej Bernat'
-__email__ = 'timotej.bernat@colorado.edu'
 
 import logging
 LOGGER = logging.getLogger(__name__)
