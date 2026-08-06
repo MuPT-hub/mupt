@@ -13,9 +13,31 @@ from importlib.resources._common import resolve
 ModuleLike = Union[str, ModuleType, Package]
 
 
-def get_calling_module(stacklevel : int=1) -> Optional[ModuleType]:
-    '''When invoked within a Callable, return the module from which that Callable was called'''
+def get_calling_module(levels_above : int=0) -> Optional[ModuleType]:
+    '''
+    Return the module inside of which *THIS* function is called
+    
+    Parameters
+    ----------
+    levels_above : int, default 0
+        The number of levels up on the call stack to reference
+        relative to where this function was called
+
+        As an example, given the following 2 files:
+        In foo.py:
+        | from mupt.mutils.imports.inspection import get_calling_moudle
+        | 
+        | def show():
+        |     print(get_calling_module(levels_above=?).__name__)
+
+        In bar.py:
+        | from foo import show()
+        | show()
+
+        would print 'foo' if ? is 0, and 'bar' if ? is 1
+    '''
     try:
+        stacklevel : int = levels_above + 1 # if 0, would always just return *THIS* module
         caller_frame_info = stack()[stacklevel]
     except IndexError:
         return None
@@ -27,12 +49,14 @@ def _load_module(module : ModuleLike) -> ModuleType:
     (to restrict the relatively-permissive importlib.resources._common.resolve())
     '''
     try:
-        module_loaded = resolve(module) # if string-y, will raise ModuleNotFoundError by default if the module doesn't exist
+        # if string-y, will raise ModuleNotFoundError by default if the module doesn't exist
+        module_loaded = resolve(module) 
     except AttributeError:
-        raise ModuleNotFoundError # Coercion needed to raise uniform Exception in testing between 3.11 and 3.12
+        # Coercion needed to raise uniform Exception in testing between 3.11 and 3.12
+        raise ModuleNotFoundError 
     # TODO: add mechanism for loading from Path
 
-    if not hasattr(module_loaded, '__spec__'):
+    if not hasattr(module_loaded, '__spec__'): #TBDEV: exception is the module is __main__ in certain cases; worth addressing?
         raise ModuleNotFoundError
     
     return module_loaded
