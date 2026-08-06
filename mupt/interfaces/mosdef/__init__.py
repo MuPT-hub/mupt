@@ -3,7 +3,7 @@
 This subpackage is optional and is only loaded on explicit import, so mBuild is
 not a hard dependency of importing mupt. Import it directly:
 
-    from mupt.interfaces.mbuild import to_compound
+    from mupt.interfaces.mbuild import to_mbuild, to_gmso
 '''
 
 from .._shared.topology import (
@@ -14,7 +14,7 @@ from .._shared.topology import (
     resolution_graph,
 )
 from .exporters import (
-    to_compound,
+    to_mbuild,
     to_gmso,
 )
 
@@ -24,6 +24,6 @@ __all__ = [
     'resolution_predicate',
     'collect_resolution_nodes',
     'resolution_graph',
-    'to_compound',
+    'to_mbuild',
     'to_gmso',
 ]

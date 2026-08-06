@@ -45,7 +45,7 @@ ResolutionSpec = Union[None, int, PrimitiveRole, ResolutionPredicate]
 _MB_BOND_ORDERS = {0.0, 1.0, 2.0, 3.0, 1.5}
 
 
-def to_compound(
+def to_mbuild(
     root: Primitive,
     resolution: ResolutionSpec = None,
     name: Optional[str] = None,
@@ -159,7 +159,7 @@ def to_gmso(
     gmso.core.Topology
     '''
 
-    compound = to_compound(
+    compound = to_mbuild(
         root=root,
         resolution=resolution,
         name=name,
