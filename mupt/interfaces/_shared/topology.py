@@ -3,11 +3,24 @@
 
 from collections.abc import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
+from typing import Callable, Union
+
+import networkx as nx
+from anytree import PreOrderIter
 
 from ...chemistry.core import BOND_ORDER
 from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives import Primitive
 from ...roles import PrimitiveRole
+
+# Type hints for new objects introduced
+# ResolutionPredicate answers "should descent stop at this Primitive?".
+# It is the same signature anytree expects for the "stop" argument of its
+# iterators (PreOrderIter, LevelOrderIter, etc)
+# ResolutionSpec is the user-facing form and resolution_predicate() normalizes every
+# accepted form into a single ResolutionPredicate.
+ResolutionPredicate = Callable[[Primitive], bool]
+ResolutionSpec = Union[None, int, PrimitiveRole, ResolutionPredicate]
 
 
 @dataclass
@@ -249,3 +262,149 @@ def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -
     """Infer numeric bond order from a connection reference."""
     connector = parent.fetch_connector_on_child(conn_ref)
     return BOND_ORDER[connector.bondtype]
+
+#TODO: Maybe this can replace the logic in _resolve_to_atom? 2 possible routes
+# 1) Keep _resolve_to_atom as a wrapper that calls _resolve_to_resolution
+# 2) replace _resolve_to_atom entirely, and use _resolve_to_resolution
+#       with the correct stop predicate anywhere _resolve_to_atom() is called 
+def _resolve_to_resolution(
+    parent: Primitive,
+    conn_ref: ConnectorReference,
+    resolution_ids: set[int],
+    max_hops: int = 50
+) -> Primitive:
+    """Follow a connector reference down until it lands on a resolution node.
+
+    Generalizes _resolve_to_atom: stop at "is a resolution node" instead of "is an
+    atom". Only called from nodes above the floor.
+    """
+    for _ in range(max_hops):
+        try:
+            child = parent.fetch_child(conn_ref.primitive_handle)
+        except (KeyError, AttributeError) as exc:
+            raise ValueError(
+                f"Cannot resolve to resolution node: child '{conn_ref.primitive_handle}' "
+                f"not found under parent '{parent.label}'."
+            ) from exc
+        if id(child) in resolution_ids or child.is_leaf:
+            return child
+        try:
+            conn_ref = child.external_connectors[conn_ref.connector_handle]
+        except KeyError as exc:
+            raise ValueError(
+                f"Cannot resolve to resolution node: external connector "
+                f"'{conn_ref.connector_handle}' not found on child '{child.label}' "
+                f"(parent '{parent.label}')."
+            ) from exc
+        parent = child
+    raise ValueError(
+        f"_resolve_to_resolution exceeded {max_hops} hops; "
+        "likely a malformed hierarchy or non-terminating connector references."
+    )
+
+
+def resolution_graph(root: Primitive, resolution: ResolutionSpec = None) -> nx.Graph:
+    """Build the flat resolution graph for a given resolution floor.
+
+    This method is useful for interfacing with other software packages, or file writers.
+
+    A resolution designates a stopping floor through the hierarchy. Descending from
+    a root, a node either stops (it becomes one resolution node) or is descended
+    into; everything below a resolution node is collapsed into it.
+
+    Nodes are integer ids (preorder over the floor), each carrying:
+        primitive : the originating Primitive
+        name      : element symbol for atoms, else the Primitive label
+        element   : element symbol for atoms, else None
+    Edges carry:
+        bond_order: numeric bond order inferred from the crossing connector
+    """
+    should_stop = resolution_predicate(resolution, root)
+    resolution_nodes = collect_resolution_nodes(root, should_stop)
+    resolution_ids = {id(prim) for prim in resolution_nodes}
+    index_of = {id(prim): idx for idx, prim in enumerate(resolution_nodes)}
+
+    # Build flat graph, nodes are the floor primitives found above
+    graph = nx.Graph()
+    for idx, prim in enumerate(resolution_nodes):
+        graph.add_node(
+            idx,
+            primitive=prim,
+            name=prim.element.symbol if prim.is_atom else str(prim.label),
+            element=prim.element.symbol if prim.is_atom else None,
+        )
+    # Build edges (bonds) in the flat graph
+    # Descent stops just above the resolution floor, so nodes at and below it are never visited
+    # This is done because a node's own sibling-level bonds are recorded at its parent level.
+    # DEVNOTE: Possibly add a sibling_connections() method to Primitive?
+    # This could simplify workflows like this where we have a set of nodes and want their sibling bonds.
+    seen = set()
+    for node in PreOrderIter(root, stop=should_stop):
+        for conn_ref_pair in node.internal_connections:
+            ref1, ref2 = sorted(conn_ref_pair, key=connector_reference_sort_key)
+            end1 = _resolve_to_resolution(node, ref1, resolution_ids)
+            end2 = _resolve_to_resolution(node, ref2, resolution_ids)
+            if end1 is end2:
+                continue
+            idx1, idx2 = index_of[id(end1)], index_of[id(end2)]
+            key = frozenset((idx1, idx2))
+            if key in seen:
+                continue
+            seen.add(key)
+            graph.add_edge(idx1, idx2, bond_order=_bond_order_from_conn_ref(node, ref1))
+
+    return graph
+
+
+def resolution_predicate(resolution: ResolutionSpec, root: Primitive) -> ResolutionPredicate:
+    """Normalize any accepted resolution designation into one stop predicate.
+    
+    Stop predicates can include the following:
+        None: full recursion into the leaves (fully atomistic / finest stored)
+        int: a depth cut, measured relative to the passed root primitive
+        PrimitiveRole: a role cut (SAAMR levels)
+        Callable[[Primitive], bool]: a custom stop predicate
+
+    A ResolutionPredicate is usable with anytree iterator's ``stop`` parameter.
+
+    """
+    if resolution is None:
+        return lambda prim: False
+    if isinstance(resolution, PrimitiveRole):
+        if not any(node.role is resolution for node in PreOrderIter(root)):
+            raise ValueError(f"No Primitive in the hierarchy has role {resolution}.")
+        return lambda prim: prim.role is resolution
+    # bool is an int subclass, reject it before the int case catches it
+    if isinstance(resolution, bool):
+        raise TypeError("resolution cannot be a bool.")
+    if isinstance(resolution, int):
+        base_depth = root.depth
+        return lambda prim: (prim.depth - base_depth) >= resolution
+    if callable(resolution):
+        return resolution
+    raise TypeError(
+        f"Cannot interpret resolution of type {type(resolution).__name__}. "
+        "Pass None, an int depth, a PrimitiveRole, or a callable stop predicate."
+    )
+
+
+def collect_resolution_nodes(root: Primitive, should_stop: ResolutionPredicate) -> list[Primitive]:
+    """A recusrvie tree walk building a preordered list of floor nodes for a given ResolutionPredicate.
+
+    Nodes are collected based on the ``should_stop`` predicate conditions or by .is_leaf().
+    See ``resolution_predicate``.
+
+    Note
+    ----
+    This operates differently than anytree's iterators. Here, the nodes
+    triggering ``should_stop`` are captured. anytree's iterators exclude
+    nodes triggering ``should_stop``.
+
+    """
+    if root.is_leaf or should_stop(root):
+        return [root]
+    return [
+        node
+        for child in root.children
+        for node in collect_resolution_nodes(child, should_stop)
+    ]
