@@ -6,6 +6,18 @@ from types import ModuleType
 from importlib.resources._common import resolve
 
 
+def resolve_module_name(module : Optional[ModuleType]) -> str:
+    '''Given a ModuleType, returns a str-type name for it based on its'''
+    if module is None:
+        importing_package_name : str = 'unknown'
+    elif (calling_module_spec := module.__spec__) is None:
+        # see https://docs.python.org/3/reference/import.html#main-spec
+        importing_package_name : str = '__main__'
+    else:
+        importing_package_name = calling_module_spec.name
+
+    return importing_package_name
+
 def module_parts(module : Union[str, ModuleType]) -> tuple[Optional[str], str]:
     '''Takes a module (as its name or as ModuleType) and returns its parent package name and relative module name'''
     module = resolve(module)
