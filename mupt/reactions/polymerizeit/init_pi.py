@@ -1,65 +1,73 @@
-import polymerizeit as pi
-
-
-import subprocess
-import os
-from datetime import datetime
-from pathlib import Path
-from ruamel.yaml import YAML
-from ruamel.yaml.tokens import CommentToken
+from datetime import datetime #only for metadata['date'] on line 48
+from pathlib import Path #for definfinf paths
+from ruamel.yaml import YAML 
 from ruamel.yaml.comments import CommentedSeq
 
 from rdkit.Chem import Descriptors
 
+# PolymerizeIt init asks for a bunch of things - project name, monomers, repeat units, and finally
+# which "protocol starter" to use. That last question is the last three arguments here.
+# The menu is: option 1 is "custom (build from scratch)", which is also the default, and options 2+
+# are its reference protocols (worked examples like polyamide_kolev_03242014 that ship with it).
+# We always want custom, because fill_config writes into the inputs.yaml that gets generated - a
+# reference protocol would hand us someone else's already-filled config for different chemistry.
+# Picking custom means passing None for all three. They have no defaults, so we must pass them.
+CUSTOM_PROTOCOL = (None, None, None)
+
+
+def _smiles_sources(molecules):
+    '''Describe molecules to PolymerizeIt! as SMILES sources.
+
+    PolymerizeIt! records where each molecule came from as a {source, value} pair, since it also
+    accepts file paths and repository lookups. mupt has already resolved everything to SMILES.
+    '''
+    return [{'name': molecule['name'], 'source': 'smiles', 'value': molecule['smi']}
+            for molecule in molecules]
+
+
 def generate_config_file(inputs, system):
+    '''Scaffold a PolymerizeIt! project directory for one system, and record it on `inputs`.
+
+    Calls PolymerizeIt!'s project builder directly rather than driving its interactive CLI. The
+    import is deliberately function-local: PolymerizeIt! is an external tool, not a mupt dependency,
+    so this module must stay importable without it.
+    '''
+    from polymerizeit.commands.init import create_project_directory
 
     if 'dirname' not in inputs:
         print("No directory name provided in inputs. Using default directory name 'polymer'.")
         inputs['dirname'] = 'polymer'
 
-    # write the init script
-    with open("temp.sh", "w") as f:
-        f.write(f"polymerizeit init << EOF\n")
-        f.write(f"{inputs['dirname']}\n")
-        f.write(f"\n")
-        f.write(f"\n")
-        f.write(f"{len(inputs['monomers'])}\n")
-        for monomer in inputs['monomers']:
-            f.write(f"{monomer['name']}\n")
-            f.write(f"{3}\n")
-            f.write(f"{monomer['smi']}\n")
-        f.write(f"{len(inputs['repeat_units'])}\n")
-        for repeat_unit in inputs['repeat_units']:
-            f.write(f"{repeat_unit['name']}\n")
-            f.write(f"{3}\n")
-            f.write(f"{repeat_unit['smi']}\n")
-        if 'protocol' not in inputs['reaction_engine']['inputs']:
-            print("No protocol provided in reaction engine inputs. Using default protocol.")
-            inputs['reaction_engine']['inputs']['protocol'] = 'default'
-        if inputs['reaction_engine']['inputs']['protocol'] == 'default':
-            f.write(f"{1}\n")
-        else:
-            print("Other protocols currently not supported through this interface. Using default protocol.")
-            f.write(f"{1}\n")
-        f.write(f"EOF\n")
+    if 'protocol' not in inputs['reaction_engine']['inputs']:
+        print("No protocol provided in reaction engine inputs. Using default protocol.")
+        inputs['reaction_engine']['inputs']['protocol'] = 'default'
+    if inputs['reaction_engine']['inputs']['protocol'] != 'default':
+        print("Other protocols currently not supported through this interface. Using default protocol.")
 
-    command = f"bash temp.sh"
+    # PolymerizeIt! names the directory <polymer>_<author>_<date>; mupt supplies no author, so its
+    # default applies. The path it returns is authoritative -- it deduplicates against existing
+    # directories, so the name cannot be reliably reconstructed here.
+    metadata = {
+        'polymer_name': inputs['dirname'],
+        'author_name': 'unknown',
+        'date': datetime.today().strftime('%Y-%m-%d'),
+    }
+    project_path = Path(create_project_directory(
+        metadata,
+        _smiles_sources(inputs['monomers']),
+        _smiles_sources(inputs['repeat_units']),
+        *CUSTOM_PROTOCOL,
+    ))
 
-    subprocess.run(command, shell=True, check=True)
-    
-    subprocess.run("rm temp.sh", shell=True, check=True)
+    # give the project its system-specific name, archiving any project left by a previous run
+    directory = Path(f"{inputs['dirname']}_{system['name']}")
+    if directory.exists():
+        archived = rename_no_overwrite(directory, f"{directory}_archive")
+        print(f"Directory {directory} already exists. Renaming it to {archived}.")
 
-    today = datetime.today().strftime('%Y-%m-%d')
-    dir_name = f"{inputs['dirname']}_unknown_{today}"
-    new_name = f"{inputs['dirname']}_{system['name']}"
-    if os.path.exists(f"{new_name}"):
-        archive_name = f"{new_name}_archive"
-        newpath = rename_no_overwrite(new_name, archive_name)
-        print(f"Directory {new_name} already exists. Renaming it to {newpath}.")
+    project_path.rename(directory)
 
-    os.rename(dir_name, new_name)
-
-    inputs['directory'] = new_name
+    inputs['directory'] = str(directory)
     return
 
 def fill_config(inputs, system):
