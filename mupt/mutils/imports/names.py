@@ -6,8 +6,11 @@ from types import ModuleType
 from importlib.resources._common import resolve
 
 
-def resolve_module_name(module : Optional[ModuleType]) -> str:
-    '''Given a ModuleType, returns a str-type name for it based on its'''
+def resolve_module_name(module : Optional[ModuleType | str]) -> str:
+    '''Given a ModuleType, returns a str-type name for it based on its ModuleSpec (or lack thereof)'''
+    if isinstance(module, str):
+        module = resolve(module)
+
     if module is None:
         importing_package_name : str = 'unknown'
     elif (calling_module_spec := module.__spec__) is None:
