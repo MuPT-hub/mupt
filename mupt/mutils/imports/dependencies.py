@@ -4,13 +4,13 @@ dependencies required by another piece of code
 '''
 
 from typing import Callable, Optional, ParamSpec, TypeVar, Union
-
 Params = ParamSpec('Params')
 ReturnType = TypeVar('ReturnType')
 
-# from importlib import import_module
 from importlib.util import find_spec
 from functools import wraps
+
+from .names import resolve_module_name
 from .inspection import get_calling_module
 
 
@@ -52,12 +52,14 @@ class MissingPrerequisitePackage(Exception):
             dependency_name_formal = dependency_name
 
         if not importing_package_name:
-            importing_package_name = get_calling_module().__spec__.name
+            # levels_above=1 since want the module to get the module
+            # importing MissingPrerequisiteError, not *THIS module
+            importing_package_name = resolve_module_name(get_calling_module(levels_above=1))
 
-        install_desc : str = f' by following the installation instructions at {install_link}' if install_link else ''
+        install_desc : str = f' by following the installation instructions at {install_link}\n' if install_link else ''
         
         message = (
-            f'{use_case.capitalize()} require(s) {dependency_name_formal}, which was not found in the current context.'
+            f'{use_case.capitalize()} require(s) {dependency_name_formal}, which was not found in the current context.\n'
             f'Please install `{dependency_name}`{install_desc}, then try importing from "{importing_package_name}" again'
         )
         

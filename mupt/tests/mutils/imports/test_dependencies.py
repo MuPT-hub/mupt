@@ -2,11 +2,19 @@
 
 import pytest
 
-from typing import Any, Callable, Union
-from mupt.mutils.imports import dependencies
+from typing import Union
+from mupt.mutils.imports.dependencies import (
+    modules_installed,
+    requires_modules,
+    MissingPrerequisitePackage,
+)
 
 
-# Testing module finding
+def test_missing_prereq_call_module() -> None:
+    '''Test that auto-deduced calling module is accurate'''
+    with pytest.raises(MissingPrerequisitePackage, match=__name__): # check *THIS* module appears in the error msg
+        raise MissingPrerequisitePackage('bogus-module', importing_package_name=None)
+
 @pytest.mark.parametrize(
     'module_names, expected_found', [
         (['mupt'], True),     # we'd better hope the parent module is present if we're running tests on it :P
@@ -18,7 +26,8 @@ from mupt.mutils.imports import dependencies
 )
 def test_modules_installed(module_names : list[str], expected_found : bool) -> None:
     '''Check that module install checker correctly identifies present and absent modules'''
-    assert dependencies.modules_installed(*module_names) == expected_found
+    # TB: also implicitly tests module_installed (singular); worth having explicit tests for that?
+    assert modules_installed(*module_names) == expected_found
     
 # Testing requires_modules() decorator
 @pytest.mark.parametrize(
@@ -55,7 +64,7 @@ def test_modules_installed(module_names : list[str], expected_found : bool) -> N
 )
 def test_requires_modules(module_name : str, missing_module_error : Union[Exception, type[Exception]]) -> None:
     '''Test that the requires_modules decorator correctly wraps functions'''
-    @dependencies.requires_modules(module_name, missing_module_error=missing_module_error)
+    @requires_modules(module_name, missing_module_error=missing_module_error)
     def func() -> str:
         return 'I am pointless'
     
