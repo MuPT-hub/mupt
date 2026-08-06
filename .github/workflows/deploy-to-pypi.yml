@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy_pypi:
-    if: ${{ github.repository == 'MuPT-Hub/mupt' }}
+    if: ${{ github.repository == 'MuPT-hub/mupt' }}
     runs-on: ubuntu-latest
     name: Deploy to PyPI on release
     permissions:
