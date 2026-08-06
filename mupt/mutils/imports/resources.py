@@ -3,18 +3,18 @@
 from typing import Union
 from pathlib import Path
 
-from importlib.resources import (
-    Package,
-    files as get_package_path
-)
+from importlib.resources import files, Package
+from importlib.resources.abc import Traversable
 from importlib.resources._common import resolve
 
 
 def get_resource_path_within_package(relative_path : Union[str, Path], package : Package) -> Path:
     '''Get the Path to a resource (i.e. either a directory or a file) which lives within a Python package'''
-    package_path : Path = get_package_path(package) # will also implicitly check that the provided package exists as a module
-    resource_path = package_path / relative_path    # concat to Path here means string inputs for relative_path are valid without explicit conversion
+    package_path : Traversable = files(package) # also implicitly checks the provided package exists
+    if not isinstance(package_path, Path):
+        raise TypeError(f'Expected path to package "{package}" to be returned as Pathlike, got {type(package_path).__name__} instead')
 
+    resource_path = package_path / relative_path    # concat to Path here means string inputs for relative_path are valid without explicit conversion
     if not resource_path.exists(): # if this block is reached, it means "package" is a real module and resource path is DEFINED relative to package's path, so the below message is valid
         raise ValueError(f'{resolve(package).__name__} contains no resource "{relative_path}"')
     
