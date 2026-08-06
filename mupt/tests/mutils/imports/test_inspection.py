@@ -4,23 +4,24 @@ import pytest
 
 from types import ModuleType
 from dataclasses import dataclass
+import sys
 
 from mupt.mutils.imports.inspection import (
     _load_module,
     is_module,
     is_package,
-    get_calling_module, # TODO - write test(s) for this
+    get_calling_module,
 )
 
 # modules not supplying any functionality, but instead used as examples in tests
 import math, json # use these as test cases, since they are pretty stable in stdlib
 
-from mupt import mupt # this is a dummy toplevel module, and NOt the entire polymerist package
+from mupt import mupt # this is the dummy toplevel module, and NOT the entire polymerist package
 from mupt.mutils import imports
 
 
 # test examples
-def non_module_types() ->list[type]:
+def non_module_types() -> list[type]:
     '''Types that are obviously not modules OR packages, and which should fail'''
     return [
         bool, int, float, complex, tuple, list, dict, set, 
@@ -84,3 +85,7 @@ def test_is_package_fail_on_invalid_types(non_package_type : type) -> None:
     '''Check that package perception fails on invalid input types'''
     instance = non_package_type() # create a default instance
     assert not is_package(instance)
+
+def test_get_calling_module() -> None:
+    '''Test that get_calling_module() with defaults detects this module'''
+    assert get_calling_module() == sys.modules[__name__]
