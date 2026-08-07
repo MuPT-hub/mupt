@@ -68,7 +68,7 @@ class ConnectorManagerFrozen(ConnectorManager):
 
     def __new__(
         cls,
-        connectors : Iterable[Connector],
+        *connectors : Connector,
         # TODO: provide optimization short-circuit to allow making use of known free/bound designations
         connectors_free  : Optional[Iterable[Connector]]=None,
         connectors_bound : Optional[Iterable[Connector]]=None,
@@ -122,7 +122,7 @@ class ConnectorManagerMutable(ConnectorManager):
     '''
     def __init__(
         self,
-        connectors : Iterable[Connector],
+        *connectors : Connector,
         default_label : Hashable='CONN',
     ) -> None:
         self.connectors_by_addr : dict[ConnectorAddress, Connector] = {}
