@@ -19,7 +19,7 @@ from typing import (
 )
 type PrimitiveLabel =Hashable
 type PrimitiveAddress = Hashable
-PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
+type PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
 from copy import deepcopy
 from weakref import WeakValueDictionary
@@ -40,7 +40,7 @@ from .connection.exceptions import (
     UnboundConnectorError,
 )
 from .connection.types import ConnectorAddress, ConnectorLabel, ConnectorHandle
-from connection.management import (
+from .connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,
     ConnectorManagerMutable,
@@ -55,7 +55,7 @@ from .linking import (
     check_connections_compatible_with_primitive_registry,
 )
 
-from mutils.referencing import Addressed
+from ..mutils.referencing import Addressed
 from ..mutils.containers import UniqueRegistry, Labelled
 from ..geometry.arraytypes import Array3x3
 from ..geometry.shapes import Shaped, BoundedTransformableShape
@@ -352,7 +352,11 @@ class SupportsChildren(Primitive):
         self._precondition_mutable_hierarchy()
         raise NotImplementedError
 
-    def contract(self, parts : Iterable[AbstractSet[PrimitiveHandle]], implicit_parts : bool=True) -> None:
+    def contract(
+        self,
+        parts : Iterable[AbstractSet[PrimitiveAddress]],
+        implicit_parts : bool=True,
+    ) -> None:
         '''
         Insert a new level of Primitive between this Composite and its children,
         with each part of the provided partition forming a new child Primitive
@@ -365,8 +369,8 @@ class SupportsChildren(Primitive):
 
     def truncate(self) -> None:
         '''
-        Replace this MutableComposite with an analogous MutableSimple,
-        disconnecting all children from the rest of the hierarchy tree
+        Replace this Composite with an analogous Simple,
+        disconnecting all its children from the rest of the hierarchy tree
         '''
         self._precondition_mutable_hierarchy()
         raise NotImplementedError
