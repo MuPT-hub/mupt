@@ -39,7 +39,6 @@ from .types import (
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError, ConnectorLockedError
-from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
 
 from ...mutils.referencing import Addressed
 from ..canonicalize import lex_order_multiset_str
@@ -529,6 +528,13 @@ class Connector(
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
         self._precondition_mutable_neighbor()
         other._precondition_mutable_neighbor()
+=======
+        if self.is_locked:
+            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
+
+        if not self.bondable_with(other):
+            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
+>>>>>>> 5a40fb1 (Replaced incongruous PermissionErrors with new, more specific ConnectorLockedError)
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
@@ -545,6 +551,11 @@ class Connector(
        
         if not self.has_neighbor:
             return
+=======
+        if self.has_neighbor and self.is_locked:
+            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
+        self._neighbor = None
+>>>>>>> 5a40fb1 (Replaced incongruous PermissionErrors with new, more specific ConnectorLockedError)
 
     ## Copying and attr transfer methods
     def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
