@@ -444,8 +444,14 @@ class RootPrimitive(SupportsChildren):
         self._shape = shape
         self.metadata = metadata or dict()
 
-        self.children_by_address = WeakValueDictionary() # implements SupportsChildren contract
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
 
+        # implements SupportsChildren contract
+        self.children_by_address = WeakValueDictionary() 
+
+        # system-wide info specific to Root instances
         if box_vectors is None:
             box_vectors = np.eye(3, dtype=float)
         self.box_vectors = box_vectors
@@ -478,7 +484,11 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         self.metadata = metadata or dict()
         self.connections = ConnectorManagerMutable()
 
-        # Bind subprimitives
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
+
+        # Binding initial subprimitives
         self.children_by_address = WeakValueDictionary() # implements SupportsChildren contract
         if children is None:
             children = tuple()
@@ -506,12 +516,17 @@ class SimplePrimitive(SupportsParents):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
+        # Simples, uniquely, support the ability to be created with Connectors pre-injected
         if connections is None:
             connections = ConnectorManagerMutable()
 
         self.connections = connections
         self._shape = shape
         self.metadata = metadata or dict()
+
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
     
     # Exposing Connectors
     def inject_connector(
