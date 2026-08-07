@@ -22,6 +22,7 @@ type PrimitiveAddress = Hashable
 PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
 from copy import deepcopy
+from weakref import WeakValueDictionary
 
 from anytree import NodeMixin, findall
 import networkx as nx
@@ -54,12 +55,12 @@ from .linking import (
     check_connections_compatible_with_primitive_registry,
 )
 
+from mutils.referencing import Addressed
+from ..mutils.containers import UniqueRegistry, Labelled
 from ..geometry.arraytypes import Array3x3
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..mutils.containers import UniqueRegistry, Labelled
 from ..chemistry.core import ElementLike, isatom, valence_allowed
-from ..roles import PrimitiveRole
 
 
 # Custom Exceptions
@@ -111,7 +112,13 @@ def select_primitives(
 
 
 # Primitive base types
-class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
+class Primitive(
+    Addressed, # TB DEV: potentially problematic, since all subclasses will have separate registries
+    Labelled,
+    Shaped,
+    RigidlyTransformable,
+    NodeMixin,
+):
     '''
     A fundamental, scale-agnostic building block of a molecular system
     '''
@@ -134,11 +141,6 @@ class Primitive(Labelled, Shaped, RigidlyTransformable, NodeMixin):
         if 'label' in self.metadata:
             return self.metadata['label']
         return self.DEFAULT_LABEL
-    
-    def address(self) -> PrimitiveAddress:
-        '''Unique identifier used to identify this Connector instances, irrespective of similarity to other Connectors'''
-        # TODO: add UUID4 registration on __init__
-        ...
 
     ## Mutability flags
     @property
@@ -283,10 +285,9 @@ class SupportsChildren(Primitive):
     '''
     # Hierarchy
     ## Lookup
-    children_by_address : UniqueRegistry[PrimitiveAddress, Primitive]
+    children_by_address : WeakValueDictionary[PrimitiveAddress, 'SupportsParents']
    
     def child(self, prim_addr : PrimitiveAddress) -> 'SupportsParents':
-        # TODO: provide overload which uses a handle <-> address isomorphism
         return self.children_by_address[prim_addr] # raise KeyError if not present
     
     ## Attachment
@@ -303,17 +304,21 @@ class SupportsChildren(Primitive):
         # TODO: remap connection info
         ...
 
-    def attach_child(self, child : Primitive, label : Optional[PrimitiveLabel]=None) -> PrimitiveAddress:
+    def attach_child(
+        self,
+        child : 'SupportsParents',
+        label : Optional[PrimitiveLabel]=None,
+    ) -> PrimitiveAddress:
         '''Register a new child Primitive as existing below this one in the resolution hierarchy'''
         child.parent = self
-        child_address : PrimitiveAddress = child.address()
-        self.children_by_address[child_address] = child
+        # child.label = label
+        self.children_by_address[child.address] = child
 
         for conn in child.connections.connectors:
             for superprimitive in self.path_inclusive: 
                 superprimitive.connections.add_connector(conn) # requires Mutable manager, hence precondition on Connectors
 
-        return child_address
+        return child.address
 
     ## Detachment
     def _pre_detach_children(self, parent : 'SupportsChildren') -> None:
@@ -327,9 +332,8 @@ class SupportsChildren(Primitive):
         ...
 
     def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
-        child = self.child(prim_addr)
+        child = self.children_by_address.pop(prim_addr)
         child.parent = None
-        del self.children_by_address[prim_addr]
 
         for conn in child.connections.connectors:
             for superprimitive in self.path_inclusive:
@@ -436,15 +440,17 @@ class RootPrimitive(SupportsChildren):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        if box_vectors is None:
-            box_vectors = np.zeros(3, 3, dtype=float)
-        self.box_vectors = box_vectors
-
         self.connections = ConnectorManagerMutable()
         self._shape = shape
         self.metadata = metadata or dict()
 
-    # DEV: deliverately excluded public setter for is_frozen; this should never be tampered with externally
+        self.children_by_address = WeakValueDictionary() # implements SupportsChildren contract
+
+        if box_vectors is None:
+            box_vectors = np.zeros(3, 3, dtype=float)
+        self.box_vectors = box_vectors
+
+    # DEV: deliberately excluded public setter for is_frozen; this should never be tampered with externally
 
     # Managing hierarchy
     ## Explicitly banning parents
@@ -468,18 +474,17 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None, 
     ) -> None:
-        
-        # Bind subprimitives and set connectivity, if possible
-        self.children_by_address : dict[PrimitiveAddress, Primitive] = dict()
         self._shape = shape
         self.metadata = metadata or dict()
-        self.connections : ConnectorManager = ConnectorManagerMutable()
+        self.connections = ConnectorManagerMutable()
 
+        # Bind subprimitives
+        self.children_by_address = WeakValueDictionary() # implements SupportsChildren contract
         if children is None:
             children = tuple()
 
         for subprimitive in children:
-            self.attach_child(subprimitive, label=subprimitive.label) # TODO: rework w/ UniqueRegistry smart registration
+            self.attach_child(subprimitive, label=subprimitive.label)
     
     # Hierarchy
     ...
@@ -513,13 +518,14 @@ class SimplePrimitive(SupportsParents):
     ) -> ConnectorAddress:
         '''Introduce a new Connector into circulation throught the hierarchy'''
         self._precondition_mutable_connectors()
-        
-        # TB this is irrelevant w/ addressed; keeping in case handles prove useful to add later
-        label = label or Connector.DEFAULT_LABEL 
-
-        conn_handle = self.connections.add_connector(connector, label=label)
-        for anc in self.ancestors: # N.B.: ancestors, since looking UP the tree
-            anc.connections.add_connector(connector) # direct access here, because .inject_connector will NOT be supported on non-simple Primitives
+        conn_handle = self.connections.add_connector(
+            connector,
+            # TB: label is irrelevant w/ addresses; keeping in case handles prove useful to add later
+            label=(label or Connector.DEFAULT_LABEL),
+        )
+        for anc in self.ancestors:
+            # direct access here, because .inject_connector will NOT be supported on non-simple Primitives
+            anc.connections.add_connector(connector) 
 
         return conn_handle
 

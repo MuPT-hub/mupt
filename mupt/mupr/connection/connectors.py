@@ -31,10 +31,7 @@ if TYPE_CHECKING:
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
-<<<<<<< HEAD
     ConnectorHandle,
-=======
->>>>>>> connector-improvements
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError
