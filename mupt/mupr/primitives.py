@@ -186,9 +186,7 @@ class Primitive(
     # Topology  
     def _freeze_connections_local(self) -> None:
         '''Force Connectors on this Primitive to be immutable and cached (without recursive calls)'''
-        self.connections = ConnectorManagerFrozen(
-            connectors=self.connections.connectors
-        )
+        self.connections = ConnectorManagerFrozen(*self.connections.connectors)
 
     def _freeze_connections_recursive(self) -> None:
         '''Prevent any connection within the hierarchy at this Primitive and below from being mutated'''
@@ -206,9 +204,7 @@ class Primitive(
 
     def _unfreeze_connections_local(self) -> None:
         '''Allow Connectors on this Primitive to be mutated (without recursive calls)'''
-        self.connections = ConnectorManagerMutable(
-            connectors=self.connections.connectors
-        )
+        self.connections = ConnectorManagerMutable(*self.connections.connectors)
 
     def _unfreeze_connections_recursive(self) -> None:
         '''Enable mutation of connectivity for this Primitive and below from being mutated'''
@@ -451,7 +447,7 @@ class RootPrimitive(SupportsChildren):
         self.children_by_address = WeakValueDictionary() # implements SupportsChildren contract
 
         if box_vectors is None:
-            box_vectors = np.zeros(3, 3, dtype=float)
+            box_vectors = np.eye(3, dtype=float)
         self.box_vectors = box_vectors
 
     # DEV: deliberately excluded public setter for is_frozen; this should never be tampered with externally
@@ -506,10 +502,13 @@ class SimplePrimitive(SupportsParents):
     
     def __init__(
         self,
-        connections : ConnectorManager,
+        connections : Optional[ConnectorManager]=None,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
+        if connections is None:
+            connections = ConnectorManagerMutable()
+
         self.connections = connections
         self._shape = shape
         self.metadata = metadata or dict()
@@ -565,7 +564,7 @@ class AtomicPrimitive(SimplePrimitive):
     def __init__(
         self,
         element : ElementLike,
-        connections : ConnectorManager,
+        connections : Optional[ConnectorManager]=None,
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict]=None,
     ) -> None:
