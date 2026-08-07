@@ -380,7 +380,6 @@ class Connector(
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
-    ## Neighbor configuration
     def is_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
         '''
         Whether this Connector is anti-aligned with another Connector, i.e. whether 
@@ -389,6 +388,7 @@ class Connector(
         '''
         return are_antialigned(self, other, within=within)
     
+    ## Permissions for editing neighbor
     @property
     def is_locked(self) -> bool:
         '''Whether editing of neighbors is allowed'''
@@ -409,7 +409,20 @@ class Connector(
     def toggle_lock(self) -> None:
         '''Invert current neighbor lock status'''
         self._locked = not self._locked
-    
+
+    def _precondition_mutable_neighbor(
+        self,
+        msg_postfix : str=''
+    ) -> None:
+        '''Boilerplate for checking if permission exists to modify neighbor of this Connector'''
+        msg : str = f'{self!r} is locked and cannot be modified.'
+        if msg_postfix:
+            msg += ' ' + msg_postfix
+
+        if self.is_locked:
+            raise ConnectorLockedError(msg)
+
+    ## Neighbor config
     @property
     def has_neighbor(self) -> bool:
         return self._neighbor is not None
@@ -424,17 +437,15 @@ class Connector(
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
-        if self.is_locked:
-            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
-
-        if not self.bondable_with(other):
-            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
+        self._precondition_mutable_neighbor()
+        other._precondition_mutable_neighbor()
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
         
         self._neighbor = other
+        other._neighbor = self
 
     @neighbor.deleter
     def neighbor(self) -> None:
