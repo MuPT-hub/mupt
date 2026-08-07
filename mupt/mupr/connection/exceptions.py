@@ -5,6 +5,10 @@ class ConnectionError(Exception):
     '''Raised when Connector-related errors as encountered'''
     pass
 
+class ConnectorLockedError(ConnectionError, AttributeError):
+    '''Raised when attempting to modify immutable attributes on a locked Connector'''
+    pass
+
 class IncompatibleConnectorError(ConnectionError):
     '''Raised when attempting to connect two Connectors which are, for whatever reason, incompatible'''
     pass

@@ -34,7 +34,7 @@ from .types import (
     ConnectorHandle,
 )
 from .alignment import are_antialigned
-from .exceptions import IncompatibleConnectorError
+from .exceptions import IncompatibleConnectorError, ConnectorLockedError
 
 from ...mutils.referencing import Addressable
 from ..canonicalize import lex_order_multiset_str
@@ -334,13 +334,13 @@ class Connector(
     @holder.setter
     def holder(self, new_holder : 'HoldsConnectors') -> None:
         if self._locked:
-            raise PermissionError(f'Cannot assign new holder to locked Connector {self}')
+            raise ConnectorLockedError(f'Cannot assign new holder to locked Connector {self}')
         self._holder = new_holder
 
     @holder.deleter
     def holder(self) -> None:
         if self._locked and not self.has_holder:
-            raise PermissionError(f'Cannot remove holder of locked Connector {self}')
+            raise ConnectorLockedError(f'Cannot remove holder of locked Connector {self}')
         self._holder = None
 
     # Interactions with neighboring Connectors
@@ -417,7 +417,7 @@ class Connector(
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
         if self.is_locked:
-            raise PermissionError('Neighbor of this Connector is locked and cannot be modified')
+            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
 
         if not self.bondable_with(other):
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
@@ -431,7 +431,7 @@ class Connector(
     @neighbor.deleter
     def neighbor(self) -> None:
         if self.has_neighbor and self.is_locked:
-            raise PermissionError('Neighbor of this Connector is locked and cannot be cleared')
+            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
         self._neighbor = None
 
     ## Copying and attr transfer methods
