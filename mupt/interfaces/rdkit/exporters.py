@@ -1,6 +1,7 @@
 '''Writers which convert the MuPT molecular representation out to RDKit Mols'''
 
 from typing import Iterator, Optional
+import warnings
 
 import numpy as np
 

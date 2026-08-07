@@ -17,8 +17,8 @@ from typing import (
     TypeAlias,
     TYPE_CHECKING,
 )
-
 from dataclasses import dataclass, field
+
 from copy import deepcopy
 from itertools import product as cartesian
 from uuid import uuid4
@@ -31,12 +31,15 @@ if TYPE_CHECKING:
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
+<<<<<<< HEAD
     ConnectorHandle,
+=======
+>>>>>>> connector-improvements
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError
-from .types import AttachmentLabel, ConnectorLabel, ConnectorHandle
 
+from ...mutils.referencing import Addressable
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -79,7 +82,10 @@ class AttachmentPoint(RigidlyTransformable):
         self.position[:] = transformation.apply(self.position)
 
 # Connector class proper
-class Connector(RigidlyTransformable):
+class Connector(
+    Addressable,
+    RigidlyTransformable,
+):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
     DEFAULT_LABEL : ClassVar[ConnectorLabel] = 'Conn'
     
@@ -250,7 +256,7 @@ class Connector(RigidlyTransformable):
         if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
             raise ValueError('Cannot compute dihedral alignment between Connectors without explicitly-defined dihedral plane orientations')
         
-        if not self.are_antialigned(other, within=alignment_tolerance):
+        if not self.is_antialigned(other, within=alignment_tolerance):
             # DEV: could technically weaken this check to when bond vectors are antiparallel (-1 dot product when normed)
             # and difference between anchors is parallel and antiparallel with bond vectors respectively, but didn't for simplicity
             raise ValueError('Cannot set dihedral angle with non-antialigned Connectors')
@@ -531,7 +537,6 @@ def canonical_form_connectors(
     '''A hashable string representing a collection of Connectors in canonical form'''
     return lex_order_multiset_str(
         map(Connector.canonical_form, connectors),
-        element_repr=Connector.canonical_form,
         separator=separator,
         joiner=joiner,
     )
