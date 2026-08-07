@@ -409,7 +409,6 @@ class Connector(
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
-    ## Neighbor configuration
     def is_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
         '''
         Whether this Connector is anti-aligned with another Connector, i.e. whether 
@@ -417,61 +416,24 @@ class Connector(
         of the other Connector, and vice-versa (with the same tolerance for both)
         '''
         return are_antialigned(self, other, within=within)
-
-    @staticmethod
-    def bondable_connector_pairs(
-        connectors_former : Iterable['Connector'],
-        connectors_latter : Iterable['Connector'],
-        relation : Callable[['Connector', 'Connector'], bool]=fungible_with,
-    ) -> Generator[tuple['Connector', 'Connector'], None, None]:
-        # TB: is order-sensitivity still necessary, now that Connector comes equipped with
-        #  "holder" reverse-lookup? Only reason for having these fundamentally unordered pairs
-        # be ordered was to track originating nodes of Connector along edges
-        '''
-        Given two collections of Connectors, return all pairs of Connectors
-        comprising one Connector from each collection which can be joined in a bond
-
-        Pairs are sensitive to the order of connector collections, and the returns are equivariant in such
-        I.e. if bondable_connector_pairs(C0, C1) contains the pair (ca, cb), then
-        bondable_connector_pairs(C1, C0) will contain the corresponding pair (cb, ca) instead
-        '''
-        # Cut down full product space search by only considering representatives of equivalence
-        # classes of Connectors which are geometrically and selectivity-wise interchangeable
-        for conn_kind_former, conn_kind_latter in cartesian(
-            equivalence_classes(connectors_former, relation=relation),
-            equivalence_classes(connectors_latter, relation=relation),
-        ):
-            if Connector.bondable_with( 
-                arbitrary_element(conn_kind_former),
-                arbitrary_element(conn_kind_latter),
-            ):
-                for pair in cartesian(conn_kind_former, conn_kind_latter):
-                    yield pair
-
-    # Interactions with neighboring Connectors
+    
     ## Permissions for editing neighbor
     @property
     def is_locked(self) -> bool:
         '''Whether editing of neighbors is allowed'''
         return self._locked
 
-    def _lock(self) -> None:
-        self._locked = True
-
     def lock(self) -> None:
         '''Block editing of neighbors'''
-        self._lock()
+        self._locked = True
         if self.has_neighbor:
-            self.neighbor._lock() # ensure paired connectors remain synchronized
-
-    def _unlock(self) -> None:
-        self._locked = False
+            self.neighbor.lock() # ensure paired connectors remain synchronized
 
     def unlock(self) -> None:
         '''Allow editing of neighbors'''
-        self._lock()
+        self._locked = False
         if self.has_neighbor:
-            self.neighbor._unlock() # ensure paired connectors remain synchronized
+            self.neighbor.unlock() # ensure paired connectors remain synchronized
 
     def toggle_lock(self) -> None:
         '''Invert current neighbor lock status'''
@@ -495,31 +457,6 @@ class Connector(
         return self._neighbor is not None
 
     @property
-    def is_locked(self) -> bool:
-        '''Whether editing of neighbors is allowed'''
-        return self._locked
-
-    def lock(self) -> None:
-        '''Block editing of neighbors'''
-        self._locked = True
-        if self.has_neighbor:
-            self.neighbor.lock() # ensure paired connectors remain synchronized
-
-    def unlock(self) -> None:
-        '''Allow editing of neighbors'''
-        self._locked = False
-        if self.has_neighbor:
-            self.neighbor.unlock() # ensure paired connectors remain synchronized
-
-    def toggle_lock(self) -> None:
-        '''Invert current neighbor lock status'''
-        self._locked = not self._locked
-    
-    @property
-    def has_neighbor(self) -> bool:
-        return self._neighbor is not None
-
-    @property
     def neighbor(self) -> Optional['Connector']:
         '''
         The Connector assigned to be this Connector's neighbor, if assigned
@@ -529,21 +466,15 @@ class Connector(
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
-        if self.is_locked:
-            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
-
-        if not self.bondable_with(other):
-            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
         self._precondition_mutable_neighbor()
         other._precondition_mutable_neighbor()
-=======
+        
         if self.is_locked:
             raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
 
         if not self.bondable_with(other):
             raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
->>>>>>> 5a40fb1 (Replaced incongruous PermissionErrors with new, more specific ConnectorLockedError)
-
+       
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
@@ -557,14 +488,6 @@ class Connector(
             raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
         self._neighbor = None
        
-        if not self.has_neighbor:
-            return
-=======
-        if self.has_neighbor and self.is_locked:
-            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
-        self._neighbor = None
->>>>>>> 5a40fb1 (Replaced incongruous PermissionErrors with new, more specific ConnectorLockedError)
-
     ## Copying and attr transfer methods
     def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
         '''
