@@ -35,7 +35,7 @@ from .types import (
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError, ConnectorLockedError
 
-from ...mutils.referencing import Addressable
+from ...mutils.referencing import Addressed
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -79,7 +79,7 @@ class AttachmentPoint(RigidlyTransformable):
 
 # Connector class proper
 class Connector(
-    Addressable,
+    Addressed,
     RigidlyTransformable,
 ):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
