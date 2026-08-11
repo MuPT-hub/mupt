@@ -30,11 +30,12 @@ if TYPE_CHECKING:
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
+    ConnectorHandle,
 )
 from .alignment import are_antialigned
-from .exceptions import IncompatibleConnectorError
+from .exceptions import IncompatibleConnectorError, ConnectorLockedError
 
-from ...mutils.referencing import Addressable
+from ...mutils.referencing import Addressed
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -78,7 +79,7 @@ class AttachmentPoint(RigidlyTransformable):
 
 # Connector class proper
 class Connector(
-    Addressable,
+    Addressed,
     RigidlyTransformable,
 ):
     '''Abstraction of the notion of a chemical bond between a known body (anchor) and an indeterminate neighbor body (linker)'''
@@ -329,13 +330,13 @@ class Connector(
     @holder.setter
     def holder(self, new_holder : 'HoldsConnectors') -> None:
         if self._locked:
-            raise PermissionError(f'Cannot assign new holder to locked Connector {self}')
+            raise ConnectorLockedError(f'Cannot assign new holder to locked Connector {self}')
         self._holder = new_holder
 
     @holder.deleter
     def holder(self) -> None:
         if self._locked and not self.has_holder:
-            raise PermissionError(f'Cannot remove holder of locked Connector {self}')
+            raise ConnectorLockedError(f'Cannot remove holder of locked Connector {self}')
         self._holder = None
 
     # Interactions with neighboring Connectors
@@ -375,7 +376,6 @@ class Connector(
         '''Whether this connector can replace other without any change to programs which involve it'''
         return self.coincides_with(other) and self.resembles(other)
 
-    ## Neighbor configuration
     def is_antialigned(self, other : 'Connector', within : float=1E-6) -> bool:
         '''
         Whether this Connector is anti-aligned with another Connector, i.e. whether 
@@ -384,19 +384,47 @@ class Connector(
         '''
         return are_antialigned(self, other, within=within)
     
+    ## Permissions for editing neighbor
     @property
     def is_locked(self) -> bool:
         '''Whether editing of neighbors is allowed'''
         return self._locked
 
+    def _lock(self) -> None:
+        self._locked = True
+
     def lock(self) -> None:
         '''Block editing of neighbors'''
-        self._locked = True
+        self._lock()
+        if self.has_neighbor:
+            self.neighbor._lock() # ensure paired connectors remain synchronized
+
+    def _unlock(self) -> None:
+        self._locked = False
 
     def unlock(self) -> None:
         '''Allow editing of neighbors'''
-        self._locked = False
-    
+        self._lock()
+        if self.has_neighbor:
+            self.neighbor._unlock() # ensure paired connectors remain synchronized
+
+    def toggle_lock(self) -> None:
+        '''Invert current neighbor lock status'''
+        self._locked = not self._locked
+
+    def _precondition_mutable_neighbor(
+        self,
+        msg_postfix : str=''
+    ) -> None:
+        '''Boilerplate for checking if permission exists to modify neighbor of this Connector'''
+        msg : str = f'{self!r} is locked and cannot be modified.'
+        if msg_postfix:
+            msg += ' ' + msg_postfix
+
+        if self.is_locked:
+            raise ConnectorLockedError(msg)
+
+    ## Neighbor config
     @property
     def has_neighbor(self) -> bool:
         return self._neighbor is not None
@@ -411,23 +439,26 @@ class Connector(
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
-        if self.is_locked:
-            raise PermissionError('Neighbor of this Connector is locked and cannot be modified')
-
-        if not self.bondable_with(other):
-            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
+        self._precondition_mutable_neighbor()
+        other._precondition_mutable_neighbor()
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
         
         self._neighbor = other
+        other._neighbor = self
 
     @neighbor.deleter
     def neighbor(self) -> None:
-        if self.has_neighbor and self.is_locked:
-            raise PermissionError('Neighbor of this Connector is locked and cannot be cleared')
-        self._neighbor = None
+        if not self.has_neighbor:
+            return
+
+        self._precondition_mutable_neighbor()
+        self.neighbor._precondition_mutable_neighbor()
+
+        self.neighbor._neighbor = None
+        self._neighbor = None # done second since reference is needed to find other Connector
 
     ## Copying and attr transfer methods
     def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:

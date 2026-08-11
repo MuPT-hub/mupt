@@ -30,7 +30,7 @@ class ConnectorManager(Protocol):
     connectors_free : Collection[Connector]
     connectors_bound : Collection[Connector]
     connectors_by_addr : Mapping[ConnectorAddress, Connector]
-    connectors_by_handle : Mapping[ConnectorHandle, Connector]
+    # connectors_by_handle : Mapping[ConnectorHandle, Connector]
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         '''Retrieve a particular Connector by its unique address'''
@@ -67,7 +67,7 @@ class ConnectorManagerFrozen(ConnectorManager):
 
     def __new__(
         cls,
-        connectors : Iterable[Connector],
+        *connectors : Connector,
         # TODO: provide optimization short-circuit to allow making use of known free/bound designations
         connectors_free  : Optional[Iterable[Connector]]=None,
         connectors_bound : Optional[Iterable[Connector]]=None,
@@ -121,7 +121,7 @@ class ConnectorManagerMutable(ConnectorManager):
     '''
     def __init__(
         self,
-        connectors : Iterable[Connector],
+        *connectors : Connector,
         default_label : Hashable='CONN',
     ) -> None:
         self.connectors_by_addr : dict[ConnectorAddress, Connector] = {}
