@@ -451,9 +451,14 @@ class Connector(
 
     @neighbor.deleter
     def neighbor(self) -> None:
-        if self.has_neighbor and self.is_locked:
-            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
-        self._neighbor = None
+        if not self.has_neighbor:
+            return
+
+        self._precondition_mutable_neighbor()
+        self.neighbor._precondition_mutable_neighbor()
+
+        self.neighbor._neighbor = None
+        self._neighbor = None # done second since reference is needed to find other Connector
 
     ## Copying and attr transfer methods
     def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
