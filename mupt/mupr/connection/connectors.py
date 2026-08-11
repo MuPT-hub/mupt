@@ -394,17 +394,23 @@ class Connector(
         '''Whether editing of neighbors is allowed'''
         return self._locked
 
+    def _lock(self) -> None:
+        self._locked = True
+
     def lock(self) -> None:
         '''Block editing of neighbors'''
-        self._locked = True
+        self._lock()
         if self.has_neighbor:
-            self.neighbor.lock() # ensure paired connectors remain synchronized
+            self.neighbor._lock() # ensure paired connectors remain synchronized
+
+    def _unlock(self) -> None:
+        self._locked = False
 
     def unlock(self) -> None:
         '''Allow editing of neighbors'''
-        self._locked = False
+        self._lock()
         if self.has_neighbor:
-            self.neighbor.unlock() # ensure paired connectors remain synchronized
+            self.neighbor._unlock() # ensure paired connectors remain synchronized
 
     def toggle_lock(self) -> None:
         '''Invert current neighbor lock status'''
