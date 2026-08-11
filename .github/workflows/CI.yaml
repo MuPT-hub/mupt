@@ -65,8 +65,9 @@ jobs:
           pytest -v --cov=mupt --cov-report=xml --color=yes mupt/tests/
 
       - name: Run example notebook tests
+        # TODO - merge examples branch and remove pin below before merging
         run: |
-          git clone https://github.com/MuPT-hub/mupt-examples 
+          git clone https://github.com/MuPT-hub/mupt-examples -b connector-improvements 
           pushd mupt-examples
           source notebook_tests_master.sh
           popd

@@ -32,6 +32,7 @@ from scipy.spatial.transform import RigidTransform, Rotation
 from networkx import all_simple_paths
 
 from .base import PlacementGenerator
+from .heading import TraversalDirection
 from ..mutils.iteration import flexible_iterator, sliding_window
 
 from ..geometry.arraytypes import Shape, Dims, N
@@ -42,8 +43,8 @@ from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
 from ..mupr.topology import TopologicalStructure
-from ..mupr.connection import Connector, TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.connection.connectors import Connector
 
 def pbc(
     positions : np.ndarray[Shape[N, 3], float],
