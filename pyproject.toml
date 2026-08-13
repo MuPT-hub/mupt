@@ -109,3 +109,52 @@ default-tag = "1.0.0"
 
 [tool.versioningit.write]
 file = "mupt/_version.py"
+
+
+# Linting and formatting rules
+[tool.ruff]
+target-version = "py312"
+# line limit of 79 is common, 88 is default for black, >100 becomes tricky to view side-by-side
+line-length = 88 
+# exclude = ['*.py']
+
+show-fixes = true
+unsafe-fixes = false
+
+[tool.ruff.lint]
+preview = true
+
+# Add the `line-too-long` rule to the enforced rule set.
+select = [
+    "E", # show errors
+    "W", # show warnings
+    "F", # flake8
+    # "I", # isort
+    "D", # docstring format
+    "E501", # check too long lines
+    "C90",  # McCabe (cyclomatic) complexity
+    "NPY",  # Numpy-specific rules"
+]
+# ignore = ["E501"] # allow format to fix long lines (theoretically)
+# extend-select = ["E501"]
+
+[tool.ruff.lint.pydocstyle]
+# convention = "google"
+convention = "numpy"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 5 # Flag errors (`C901`) whenever the complexity level exceeds 5.
+
+[tool.ruff.format]
+preview = true
+
+indent-style = "space"
+# quote-style = 'single'
+quote-style = "double"
+line-ending = "auto"
+docstring-code-format = true
+nested-string-quote-style = "alternating"
+
+[tool.ruff.analyze]
+preview = true
+type-checking-imports = true # Include type-checking-only imports from the graph
