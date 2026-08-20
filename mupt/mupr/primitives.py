@@ -154,7 +154,7 @@ class Primitive(
     ) -> None:
         '''Boilerplate for checking if permission exists to modify connectivity of this Primitive'''
         if self.frozen_connections:
-            raise PermissionError(msg)
+            raise AttributeError(msg)
         
     @property
     def frozen_hierarchy(self) -> bool:
@@ -167,7 +167,7 @@ class Primitive(
     ) -> None:
         '''Boilerplate for checking if permission exists to modify hierarchical relationships to this Primitive'''
         if self.frozen_hierarchy:
-            raise PermissionError(msg)
+            raise AttributeError(msg)
 
     # Geometry
     def _rigidly_transform(self, transformation : RigidTransform) -> None: 
