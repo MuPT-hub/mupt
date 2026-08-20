@@ -1,12 +1,15 @@
-'''Utilities for verifying (and producing) relationships between Topologies and other MuPT core components'''
+'''
+Utilities for linking Connectors to form two-way bonded connections
+in a MuPT representation based on global topology specification
+'''
 
-# DEVNOTE: this is not a submodule under topology to avoid circular imports
-# and to shelter MID Graphs from needing to know about HOW they're embedded
 import logging
 LOGGER = logging.getLogger(__name__)
 
 from typing import (
+    AbstractSet,
     Callable,
+    Generator,
     Hashable,
     Iterable,
     Mapping,
@@ -14,10 +17,9 @@ from typing import (
     TypeVar,
     Union,
     overload,
+    TYPE_CHECKING
 )
 T = TypeVar('T')
-PrimitiveLabel = TypeVar('PrimitiveLabel', bound=Hashable)
-PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
 from dataclasses import dataclass
 from itertools import product as cartesian
@@ -26,28 +28,109 @@ from networkx import Graph
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
-# DEV: this module CANNOT import Primitive if circular imports are to be avoided
-from .connection import Connector, ConnectorHandle
-from .topology import TopologicalStructure
+if TYPE_CHECKING: # TODO: figure out how to non-circularly import even w/o typechecking
+    from .primitives import Primitive, PrimitiveLabel, PrimitiveHandle
+
+from .connection.connectors import Connector, ConnectorHandle
+from .connection.exceptions import (
+    IncompatibleConnectorError,
+    MissingConnectorError,
+    UnboundConnectorError,
+)
+Connection = tuple[Connector, Connector]
+from ..mutils.containers import UniqueRegistry
 
 
-class GraphEmbeddingError(ValueError):
+class BijectionError(ValueError):
+    '''Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched'''
+    ...
+
+class GraphLinkingError(ValueError):
     '''Raised when an invalid mapping to a graph is encountered'''
     ...
 
-class NodeEmbeddingError(GraphEmbeddingError):
+class NodeMappingError(GraphLinkingError):
     '''Raised when an invalid mapping between an object and a graph node is encountered'''
     ...
 
-class EdgeEmbeddingError(GraphEmbeddingError):
+class EdgeMissingError(GraphLinkingError):
     '''Raised when an invalid mapping between a pair of objects and a graph edge is encountered'''
     ...
 
+# Validators
+def check_connections_compatible_with_primitive_registry(
+    primitive_registry : UniqueRegistry['PrimitiveHandle', 'Primitive'],
+    connections : Iterable[Connection], # DEV: weakened type requirement here, even though in practice this will most like be a set or frozenset
+) -> None:
+    '''
+    Check that a collection of connections (i.e. pairs of (PrimitiveHandle, ConnectorAddress) references)
+    is absolutely compatible with a handled registry of Primitives
+    '''
+    for (prim_handle_1, conn_addr_1), (prim_handle_2, conn_addr_2) in connections:
+        if prim_handle_1 == prim_handle_2:
+            raise ValueError(f'Attempted to connect Primitive with handle "{prim_handle_1}" to itself')
+        
+        if conn_addr_1 == conn_addr_2:
+            raise IncompatibleConnectorError(f'Connections must be between distinct pair of Connector instances, not single Connector at address {conn_addr_1}')
+        
+        for prim_handle in (prim_handle_1, prim_handle_2):
+            if prim_handle not in primitive_registry:
+                raise ValueError(f'Primitive with handle "{prim_handle}" referenced in internal connections but does not exist in provided registry of children')
+            
+        if not Connector.bondable_with( # NOTE: fetch also implicitly checks each Connector exists on respective child
+            primitive_registry[prim_handle_1].connector(conn_addr_1),
+            primitive_registry[prim_handle_2].connector(conn_addr_2),
+        ):
+            raise IncompatibleConnectorError(
+                f'Connector {conn_addr_1} on Primitive {prim_handle_1} is not bondable with Connector {conn_addr_2} on Primitive {prim_handle_2}'
+            )
 
+def check_primitive_registry_bijective_to_topology_nodes(
+    primitive_registry : UniqueRegistry['PrimitiveHandle', 'Primitive'],
+    topology : Graph,
+) -> None:
+    '''
+    Verify 1:1 correspondence between the reference handles in a 
+    registry of Primitives and the nodes in an incidence topology
+    '''
+    num_children : int = len(primitive_registry) # perform cheap counting check first to fail faster
+    if topology.number_of_nodes() != num_children:
+        raise BijectionError(f'Cannot bijectively map {num_children} child Primitives onto {topology.number_of_nodes()}-element topology')
+    
+    node_labels = set(topology.nodes)
+    child_handles = set(primitive_registry.keys())
+    if node_labels != child_handles:
+        raise BijectionError(
+            f'Set underlying topology does not correspond to handles on child Primitives; {len(node_labels - child_handles)} element(s)'\
+            f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
+        )
+
+def check_connections_bijective_to_topology_edges(
+    connections : AbstractSet[Connection],
+    topology : Graph,
+) -> None:
+    '''
+    Verify that a 1:1 correspondence exists between the internal connections
+    (Connectors paired between sibling child Primitives) and the edges present in the incidence topology
+    '''
+    num_connections : int = len(connections) # perform cheap counting check first to fail faster
+    if (num_edges := topology.number_of_edges()) != num_connections:
+        raise BijectionError(f'Cannot bijectively map {num_connections} internal connections onto {num_edges}-edge topology')
+
+    edge_labels = set(frozenset(edge) for edge in topology.edges) # cast to frozenset to remove order-dependence
+    if edge_labels != connections:
+        raise BijectionError(
+            f'Incident pairs in associated topology do not correspond to internally-connected pairs of child Primitives;'\
+            f'{len(edge_labels - connections)} edge(s) have no corresponding connection, '\
+            f'and {len(connections - edge_labels)} internal connection(s) are unrepresented in the topology'
+        )
+
+
+# Deductions of connections from graphs
 def mapped_equivalence_classes(
-        objects : Iterable[T],
-        relation : Callable[[T, T], bool],
-    ) -> dict[Hashable, list[T]]:
+    objects : Iterable[T],
+    relation : Callable[[T, T], bool],
+) -> dict[Hashable, list[T]]:
     """
     Partition a collection of objects into equivalence classes by
     an equivalence relation defined on pairs of those objects
@@ -72,12 +155,12 @@ def mapped_equivalence_classes(
     }
 
 @dataclass(frozen=True) # needed for hashability
-class ConnectorReference:
+class ConnectorReference: # TB TODO: deprecate dependencies on this before merge
     '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
-    primitive_handle : PrimitiveHandle
+    primitive_handle : 'PrimitiveHandle'
     connector_handle : ConnectorHandle  
     
-    def with_reassigned_primitive(self, new_primitive_handle : PrimitiveHandle) -> 'ConnectorReference':
+    def with_reassigned_primitive(self, new_primitive_handle : 'PrimitiveHandle') -> 'ConnectorReference':
         '''Return a copy of this ConnectorReference with a different PrimitiveHandle'''
         return ConnectorReference(
             primitive_handle=new_primitive_handle,
@@ -87,42 +170,47 @@ class ConnectorReference:
     def __str__(self) -> str:
         return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
     
-@overload
-def flexible_connector_reference(
-    primitive_handle : PrimitiveHandle,
-    connector_handle : ConnectorHandle,
-) -> ConnectorReference: 
-    ...
-    
-@overload
-def flexible_connector_reference(
-    primitive_handle : ConnectorReference,
-) -> ConnectorReference:
-    ...
+# TBDEV: this ought to be a method of Connector/ConnectorManager directly
+def bondable_connectors(
+    prim1 : 'Primitive',
+    prim2 : 'Primitive',
+) -> Generator[tuple[Connector, Connector], None, None]:
+    '''
+    Given a pair of Primitives, return all compatible pairs
+    of free, external Connectors, exactly 1 from each Primitive,
+    which are eligible to form a bonded connection
 
-def flexible_connector_reference(
-    primitive_handle : Union[PrimitiveHandle, ConnectorReference],
-    connector_handle : Optional[ConnectorHandle]=None,
-) -> ConnectorReference:
-    '''Utility to interchangeably handle cases of passing a (PrimitiveHandle, ConnectorHandle) pair or a ConnectorReference'''
-    if isinstance(primitive_handle, ConnectorReference):
-        if connector_handle is not None:
-            raise ValueError('If passing a ConnectorReference as the first argument, the second argument must be omitted')
-        return primitive_handle
-    elif connector_handle is None:
-        raise ValueError('If passing a PrimitiveHandle as the first argument, the second argument (ConnectorHandle) must be provided')
-    else:
-        return ConnectorReference(
-            primitive_handle=primitive_handle,
-            connector_handle=connector_handle,
-        )
-    
-    
+    Connectors are in the same order in each pair
+    as the order the Primitives were passed
+    E.g. bondable_connectors(pA, pB) yields pairs of form (cA, cB),
+    where cA is held by pA and cB is held by pB
+    '''
+    # TODO: implement hashing of Connectors
+    for conn_kinds_ours, conn_kinds_theirs in cartesian(
+        equivalence_classes(
+            prim1.connections.connectors_free,
+            relation=Connector.fungible_with,
+        ),
+        equivalence_classes(
+            prim2.connections.connectors_free,
+            relation=Connector.fungible_with,
+        ),
+    ):
+        # only need to check if one representative of each class is compatible,
+        # since member of each equivalnce class are geometrically and fungible
+        if Connector.bondable_with( 
+            arbitrary_element(conn_kinds_ours),
+            arbitrary_element(conn_kinds_theirs),
+        ):
+            for pair in cartesian(conn_kinds_ours, conn_kinds_theirs):
+                yield pair
+
+
 def infer_connections_from_topology(
-    topology : TopologicalStructure,
-    mapped_connectors : Mapping[PrimitiveHandle, Mapping[ConnectorHandle, Connector]],
+    topology : Graph,
+    mapped_connectors : Mapping['PrimitiveHandle', Mapping[ConnectorHandle, Connector]],
     n_iter_max : int=25, # DEV: this is just a number I made up :P
-) -> dict[frozenset[PrimitiveHandle], frozenset[ConnectorReference]]:
+) -> dict[frozenset['PrimitiveHandle'], frozenset[ConnectorReference]]:
     """
     Deduce if a collection of Connectors associated to each node in a topology
     can be identified with the edges in that topology, such that each pair of Connectors is bondable
@@ -135,14 +223,14 @@ def infer_connections_from_topology(
     """
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
         # weaker requirement of containing (rather than being equal) to vertex set suffices
-        raise NodeEmbeddingError('Connector collection labels do not match topology node labels')
+        raise NodeMappingError('Connector collection labels do not match topology node labels')
 
     # Initialize containers for tracking pairing progress
     num_total_edges : int = topology.number_of_edges()
-    unpaired_edges : set[frozenset[PrimitiveHandle]] = set(frozenset(edge) for edge in topology.edges)
-    paired_connectors : dict[frozenset[PrimitiveHandle], frozenset[ConnectorReference]] = {}
+    unpaired_edges : set[frozenset['PrimitiveHandle']] = set(frozenset(edge) for edge in topology.edges)
+    paired_connectors : dict[frozenset['PrimitiveHandle'], frozenset[ConnectorReference]] = {}
     
-    connector_equiv_classes : dict[PrimitiveHandle, dict[int, set[ConnectorHandle]]] = {}
+    connector_equiv_classes : dict['PrimitiveHandle', dict[int, set[ConnectorHandle]]] = {}
     for owner_handle, connector_map in mapped_connectors.items():
         equiv_class = equivalence_classes(
             connector_map,
@@ -188,7 +276,7 @@ def infer_connections_from_topology(
                 unpaired_updated.add(edge_labels) # "try again next time!"
                 continue
             elif (compatible_class_labels is None):
-                raise EdgeEmbeddingError(f'No compatible Connector pairs found for edge {edge_labels}')
+                raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
             ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
             chosen_representatives : set[ConnectorReference] = set()
@@ -216,12 +304,12 @@ def infer_connections_from_topology(
         # TODO: log exceedance of max number of loops?
         
     if any(unpaired_edges):
-        raise EdgeEmbeddingError(f'Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors')
+        raise EdgeMissingError(f'Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors')
         
     ## DEV: with the refactor to have all Child Connectors be external by default in Primitive...
     ## ...it's no longer necessary to compute which are external here (though we have enough info to do so, as shown)
     # collate remaining unpaired Connectors as external
-    # external_connectors : dict[PrimitiveHandle, tuple[Connector]] = {
+    # external_connectors : dict['PrimitiveHandle', tuple[Connector]] = {
     #     owner_handle : tuple(chain.from_iterable(eq_classes.values()))
     #         for owner_handle, eq_classes in connector_equiv_classes.items()
     #             if eq_classes # skip over nodes whose equivalence classes have been exhausted

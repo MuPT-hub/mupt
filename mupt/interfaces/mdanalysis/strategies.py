@@ -6,6 +6,7 @@ from typing import Optional
 
 import numpy as np
 
+from ...chemistry.core import BOND_ORDER
 from ...mupr.primitives import Primitive
 from .._shared.topology import (
     _bond_order_from_conn_ref,

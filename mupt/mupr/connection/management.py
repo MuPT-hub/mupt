@@ -71,7 +71,7 @@ class ConnectorManagerFrozen(ConnectorManager):
         # TODO: provide optimization short-circuit to allow making use of known free/bound designations
         connectors_free  : Optional[Iterable[Connector]]=None,
         connectors_bound : Optional[Iterable[Connector]]=None,
-    ) -> object:
+    ) -> 'ConnectorManagerFrozen':
          # TODO: make Registries and set labels procedurally (somehow)
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
         obj._connectors_all = tuple(connectors)
