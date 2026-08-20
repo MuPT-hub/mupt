@@ -317,7 +317,7 @@ class SupportsChildren(Primitive):
         return child.address
 
     ## Detachment
-    def _pre_detach_children(self, parent : 'SupportsChildren') -> None:
+    def _pre_detach_children(self, children : Iterable['SupportsParents']) -> None:
         '''Preconditions prior to attempting detachment of this Primitive from a parent'''
         self._precondition_mutable_hierarchy(
             msg='Hierarchy modification is frozen on this Primitive; cannot detach extant outgoing node(s)'
@@ -453,7 +453,7 @@ class RootPrimitive(SupportsChildren):
 
         # system-wide info specific to Root instances
         if box_vectors is None:
-            box_vectors = np.eye(3, dtype=float)
+            box_vectors = np.eye(3, dtype=float) # TODO: associate units (once a standard has been decided upon)
         self.box_vectors = box_vectors
 
     # DEV: deliberately excluded public setter for is_frozen; this should never be tampered with externally
