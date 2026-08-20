@@ -155,7 +155,7 @@ def mapped_equivalence_classes(
     }
 
 @dataclass(frozen=True) # needed for hashability
-class ConnectorReference:
+class ConnectorReference: # TB TODO: deprecate dependencies on this before merge
     '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
     primitive_handle : 'PrimitiveHandle'
     connector_handle : ConnectorHandle  
@@ -169,36 +169,6 @@ class ConnectorReference:
         
     def __str__(self) -> str:
         return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
-    
-@overload
-def flexible_connector_reference(
-    primitive_handle : 'PrimitiveHandle',
-    connector_handle : ConnectorHandle,
-) -> ConnectorReference: 
-    ...
-    
-@overload
-def flexible_connector_reference(
-    primitive_handle : ConnectorReference,
-) -> ConnectorReference:
-    ...
-
-def flexible_connector_reference(
-    primitive_handle : Union['PrimitiveHandle', ConnectorReference],
-    connector_handle : Optional[ConnectorHandle]=None,
-) -> ConnectorReference:
-    '''Utility to interchangeably handle cases of passing a (PrimitiveHandle, ConnectorHandle) pair or a ConnectorReference'''
-    if isinstance(primitive_handle, ConnectorReference):
-        if connector_handle is not None:
-            raise ValueError('If passing a ConnectorReference as the first argument, the second argument must be omitted')
-        return primitive_handle
-    elif connector_handle is None:
-        raise ValueError('If passing a PrimitiveHandle as the first argument, the second argument (ConnectorHandle) must be provided')
-    else:
-        return ConnectorReference(
-            primitive_handle=primitive_handle,
-            connector_handle=connector_handle,
-        )
     
 # TBDEV: this ought to be a method of Connector/ConnectorManager directly
 def bondable_connectors(
