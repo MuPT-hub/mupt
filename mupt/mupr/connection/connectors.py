@@ -388,33 +388,6 @@ class Connector(
         return are_antialigned(self, other, within=within)
 
     @staticmethod
-    def equivalence_classes(
-        connectors : Iterable['Connector'],
-        relation : Callable[['Connector', 'Connector'], bool]=fungible_with,
-    ) -> set[frozenset['Connector']]:
-        '''
-        Partition an iterable collection of Connectors according to whether they are
-        equivalent under some equivalence relation on pairs of Connectors
-        
-        By default, each equivalence class comprises all fungible Connectors
-        
-        Parameters
-        ----------
-        connectors : Iterable['Connector'],
-            An iterable of Connector instances
-        relation : Callable[['Connector', 'Connector'], bool], default Connector.fungible_with
-            A binary relation, cast as a function taking in two Connectors and returning a bool
-            indicating whether the pair of passed Connectors should be considered "equivalent"
-
-        Returns
-        -------
-        equivalence_classes : set[frozenset['Connector']]
-            The set of equivalence classes induced by the relation
-        '''
-        # TB: requires Connector/__hash__, though Python default appears to be perfectly serviceable 
-        return equivalence_classes(connectors, relation=relation)
-
-    @staticmethod
     def bondable_connector_pairs(
         connectors_former : Iterable['Connector'],
         connectors_latter : Iterable['Connector'],
