@@ -24,7 +24,6 @@ class ConnectorManager(Protocol):
     connectors_free : Collection[Connector]
     connectors_bound : Collection[Connector]
     connectors_by_addr : Mapping[ConnectorAddress, Connector]
-    # connectors_by_handle : Mapping[ConnectorHandle, Connector]
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         '''Retrieve a particular Connector by its unique address'''

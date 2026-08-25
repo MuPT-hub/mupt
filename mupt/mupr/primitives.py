@@ -39,7 +39,7 @@ from .connection.exceptions import (
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .connection.types import ConnectorAddress, ConnectorLabel, ConnectorHandle
+from .connection.types import ConnectorAddress, ConnectorLabel
 from .connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,

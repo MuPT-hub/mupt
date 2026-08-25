@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
-    ConnectorHandle,
 )
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError, ConnectorLockedError
