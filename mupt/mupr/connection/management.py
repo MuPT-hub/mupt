@@ -36,6 +36,19 @@ class ConnectorManager(Protocol):
         '''Retrieve a particular Connector by its unique address'''
         return self.connectors_by_addr[conn_addr] # not using .get() to make KeyErrors explicit
 
+    def add_connector(
+        self,
+        conn : Connector,
+        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
+    ) -> None:
+        ...
+
+    def remove_connector(
+        self,
+        conn_addr : ConnectorAddress | Connector,
+    ) -> Connector:
+        ...
+
     # default implementations, for when explicitly inherited
     @property
     def functionality(self) -> int:
@@ -113,6 +126,19 @@ class ConnectorManagerFrozen(ConnectorManager):
         bound and whose neighbor is also a child of this Composite
         '''
         return self._connectors_bound
+
+    def add_connector(
+        self,
+        conn : Connector,
+        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
+    ) -> None:
+        raise AttributeError(f'Cannot add Connector to immutable {type(self).__name__} object')
+
+    def remove_connector(
+        self,
+        conn_addr : ConnectorAddress | Connector,
+    ) -> Connector:
+        raise AttributeError(f'Cannot remove Connector from immutable {type(self).__name__} object')
 
 class ConnectorManagerMutable(ConnectorManager):
     '''
