@@ -25,6 +25,8 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
+from networkx.algorithms import equivalence_classes
+
 if TYPE_CHECKING:
     from .management import HoldsConnectors
 from .types import (
@@ -35,8 +37,8 @@ from .types import (
 from .alignment import are_antialigned
 from .exceptions import IncompatibleConnectorError, ConnectorLockedError
 
-from ...mutils.referencing import Addressed
 from ..canonicalize import lex_order_multiset_str
+from ...mutils.referencing import Addressed
 from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
@@ -339,8 +341,7 @@ class Connector(
             raise ConnectorLockedError(f'Cannot remove holder of locked Connector {self}')
         self._holder = None
 
-    # Interactions with neighboring Connectors
-    ## Comparison methods
+    # Comparison methods
     def bondable_with(self, other : 'Connector') -> bool:
         '''Whether this Connector is bondable with another Connector instance'''
         if not isinstance(other, Connector):
@@ -383,7 +384,35 @@ class Connector(
         of the other Connector, and vice-versa (with the same tolerance for both)
         '''
         return are_antialigned(self, other, within=within)
-    
+
+    @staticmethod
+    def equivalence_classes(
+        connectors : Iterable['Connector'],
+        relation : Callable[['Connector', 'Connector'], bool]=fungible_with,
+    ) -> set[frozenset['Connector']]:
+        '''
+        Partition an iterable collection of Connectors according to whether they are
+        equivalent under some equivalence relation on pairs of Connectors
+        
+        By default, each equivalence class comprises all fungible Connectors
+        
+        Parameters
+        ----------
+        connectors : Iterable['Connector'],
+            An iterable of Connector instances
+        relation : Callable[['Connector', 'Connector'], bool], default Connector.fungible_with
+            A binary relation, cast as a function taking in two Connectors and returning a bool
+            indicating whether the pair of passed Connectors should be considered "equivalent"
+
+        Returns
+        -------
+        equivalence_classes : set[frozenset['Connector']]
+            The set of equivalence classes induced by the relation
+        '''
+        # TB: requires Connector/__hash__, though Python default appears to be perfectly serviceable 
+        return equivalence_classes(connectors, relation=relation)
+
+    # Interactions with neighboring Connectors
     ## Permissions for editing neighbor
     @property
     def is_locked(self) -> bool:
@@ -460,7 +489,7 @@ class Connector(
         self.neighbor._neighbor = None
         self._neighbor = None # done second since reference is needed to find other Connector
 
-    ## Copying and attr transfer methods
+    # Copying and attr transfer methods
     def individualize(self) -> dict[tuple[AttachmentLabel, AttachmentLabel], 'Connector']:
         '''
         Expand a Connector into a set of Connectors with identical properties but 
