@@ -101,7 +101,7 @@ class Connector(
         
         self.bondtype : BondType = bondtype
         self.query_smarts : str = query_smarts
-        self.label : Hashable = self.__class__.DEFAULT_LABEL if (label is None) else label
+        self._label : Hashable = self.__class__.DEFAULT_LABEL if (label is None) else label
         self.metadata : dict[Hashable, Any] = metadata or dict()
 
         ## Protected attributes
