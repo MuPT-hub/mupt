@@ -14,14 +14,8 @@ from .connectors import Connector
 from .types import (
     ConnectorAddress,
     ConnectorLabel,
-    ConnectorHandle,
     ConnectorLabeller,
 )
-from ...mutils.containers import (
-    UniqueRegistry,
-    Labelled,
-    HandleT,
-) 
 
 
 class ConnectorManager(Protocol):
