@@ -127,33 +127,6 @@ def check_connections_bijective_to_topology_edges(
 
 
 # Deductions of connections from graphs
-def mapped_equivalence_classes(
-    objects : Iterable[T],
-    relation : Callable[[T, T], bool],
-) -> dict[Hashable, list[T]]:
-    """
-    Partition a collection of objects into equivalence classes by
-    an equivalence relation defined on pairs of those objects
-    
-    Return dict whose values are the equivalence classes and 
-    whose keys are unique labels for each class
-    """
-    # DEV: more-or-less reimplements networkx's equivalence_classes but w/o the frozenset collapsing at the end - find way to incorporate going forward
-    # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.minors.equivalence_classes.html
-    equiv_classes : list[list[T]] = []
-    for obj in objects:
-        for equiv_class in equiv_classes:
-            if relation(obj, arbitrary_element(equiv_class)):
-                equiv_class.append(obj)
-                break
-        else:
-            equiv_classes.append([obj])
-    
-    return {
-        i : equiv_class # DEV: opting for index as default unique label for now; eventually want labels to be semantically-related to each class
-            for i, equiv_class in enumerate(equiv_classes)
-    }
-
 @dataclass(frozen=True) # needed for hashability
 class ConnectorReference: # TB TODO: deprecate dependencies on this before merge
     '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
