@@ -31,7 +31,8 @@ from networkx.algorithms import equivalence_classes
 if TYPE_CHECKING: # TODO: figure out how to non-circularly import even w/o typechecking
     from .primitives import Primitive, PrimitiveLabel, PrimitiveHandle
 
-from .connection.connectors import Connector, ConnectorHandle
+from .connection.connectors import Connector
+from .connection.types import ConnectorHandle
 from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
