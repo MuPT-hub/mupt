@@ -391,6 +391,7 @@ class Connector(
     def bondable_connector_pairs(
         connectors_former : Iterable['Connector'],
         connectors_latter : Iterable['Connector'],
+        relation : Callable[['Connector', 'Connector'], bool]=fungible_with,
     ) -> Generator[tuple['Connector', 'Connector'], None, None]:
         # TB: is order-sensitivity still necessary, now that Connector comes equipped with
         #  "holder" reverse-lookup? Only reason for having these fundamentally unordered pairs
@@ -406,8 +407,8 @@ class Connector(
         # Cut down full product space search by only considering representatives of equivalence
         # classes of Connectors which are geometrically and selectivity-wise interchangeable
         for conn_kind_former, conn_kind_latter in cartesian(
-            equivalence_classes(connectors_former, relation=Connector.fungible_with),
-            equivalence_classes(connectors_latter, relation=Connector.fungible_with),
+            equivalence_classes(connectors_former, relation=relation),
+            equivalence_classes(connectors_latter, relation=relation),
         ):
             if Connector.bondable_with( 
                 arbitrary_element(conn_kind_former),
