@@ -11,6 +11,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Generator,
     Hashable,
     Iterable,
     Optional,
@@ -25,6 +26,7 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
+from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
 if TYPE_CHECKING:
@@ -411,6 +413,35 @@ class Connector(
         '''
         # TB: requires Connector/__hash__, though Python default appears to be perfectly serviceable 
         return equivalence_classes(connectors, relation=relation)
+
+    @staticmethod
+    def bondable_connector_pairs(
+        connectors_former : Iterable['Connector'],
+        connectors_latter : Iterable['Connector'],
+    ) -> Generator[tuple['Connector', 'Connector'], None, None]:
+        # TB: is order-sensitivity still necessary, now that Connector comes equipped with
+        #  "holder" reverse-lookup? Only reason for having these fundamentally unordered pairs
+        # be ordered was to track originating nodes of Connector along edges
+        '''
+        Given two collections of Connectors, return all pairs of Connectors
+        comprising one Connector from each collection which can be joined in a bond
+
+        Pairs are sensitive to the order of connector collections, and the returns are equivariant in such
+        I.e. if bondable_connector_pairs(C0, C1) contains the pair (ca, cb), then
+        bondable_connector_pairs(C1, C0) will contain the corresponding pair (cb, ca) instead
+        '''
+        # Cut down full product space search by only considering representatives of equivalence
+        # classes of Connectors which are geometrically and selectivity-wise interchangeable
+        for conn_kind_former, conn_kind_latter in cartesian(
+            equivalence_classes(connectors_former, relation=Connector.fungible_with),
+            equivalence_classes(connectors_latter, relation=Connector.fungible_with),
+        ):
+            if Connector.bondable_with( 
+                arbitrary_element(conn_kind_former),
+                arbitrary_element(conn_kind_latter),
+            ):
+                for pair in cartesian(conn_kind_former, conn_kind_latter):
+                    yield pair
 
     # Interactions with neighboring Connectors
     ## Permissions for editing neighbor

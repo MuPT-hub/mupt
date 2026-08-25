@@ -143,41 +143,6 @@ class ConnectorReference: # TB TODO: deprecate dependencies on this before merge
     def __str__(self) -> str:
         return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
     
-# TBDEV: this ought to be a method of Connector/ConnectorManager directly
-def bondable_connectors(
-    prim1 : 'Primitive',
-    prim2 : 'Primitive',
-) -> Generator[tuple[Connector, Connector], None, None]:
-    '''
-    Given a pair of Primitives, return all compatible pairs
-    of free, external Connectors, exactly 1 from each Primitive,
-    which are eligible to form a bonded connection
-
-    Connectors are in the same order in each pair
-    as the order the Primitives were passed
-    E.g. bondable_connectors(pA, pB) yields pairs of form (cA, cB),
-    where cA is held by pA and cB is held by pB
-    '''
-    # TODO: implement hashing of Connectors
-    for conn_kinds_ours, conn_kinds_theirs in cartesian(
-        equivalence_classes(
-            prim1.connections.connectors_free,
-            relation=Connector.fungible_with,
-        ),
-        equivalence_classes(
-            prim2.connections.connectors_free,
-            relation=Connector.fungible_with,
-        ),
-    ):
-        # only need to check if one representative of each class is compatible,
-        # since member of each equivalnce class are geometrically and fungible
-        if Connector.bondable_with( 
-            arbitrary_element(conn_kinds_ours),
-            arbitrary_element(conn_kinds_theirs),
-        ):
-            for pair in cartesian(conn_kinds_ours, conn_kinds_theirs):
-                yield pair
-
 
 def infer_connections_from_topology(
     topology : Graph,
