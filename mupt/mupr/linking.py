@@ -32,7 +32,8 @@ if TYPE_CHECKING: # TODO: figure out how to non-circularly import even w/o typec
     from .primitives import Primitive, PrimitiveLabel, PrimitiveHandle
 
 from .connection.connectors import Connector
-from .connection.types import ConnectorHandle
+from .connection.types import ConnectorAddress, ConnectorHandle
+from .connection.management import ConnectorManager
 from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
@@ -129,7 +130,7 @@ def check_connections_bijective_to_topology_edges(
 
 # Deductions of connections from graphs
 @dataclass(frozen=True) # needed for hashability
-class ConnectorReference: # TB TODO: deprecate dependencies on this before merge
+class ConnectorReference: # TB TODO: deprecate code which depends on this before final merge
     '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
     primitive_handle : 'PrimitiveHandle'
     connector_handle : ConnectorHandle  
@@ -145,69 +146,54 @@ class ConnectorReference: # TB TODO: deprecate dependencies on this before merge
         return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
     
 
-def infer_connections_from_topology(
-    topology : Graph,
-    mapped_connectors : Mapping['PrimitiveHandle', Mapping[ConnectorHandle, Connector]],
-    n_iter_max : int=25, # DEV: this is just a number I made up :P
-) -> dict[frozenset['PrimitiveHandle'], frozenset[ConnectorReference]]:
+# def check_connector_map_compatible_with_topology() -> bool:
+#     ...
+
+def deduce_connections_from_topology(
+    topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
+    mapped_connectors : Mapping[T, ConnectorManager],
+    n_iter_max_rule : Callable[[int], int]=lambda graph_size : 10*graph_size, # TB DEV: 10 is just a number I made up :P
+) -> Mapping[tuple[T, T], Mapping[T, ConnectorAddress]]:
     """
-    Deduce if a collection of Connectors associated to each node in a topology
-    can be identified with the edges in that topology, such that each pair of Connectors is bondable
-    
-    Returns a first mapping of pairs of node labels (one pair for each edge)
-    to a mapping from node labels to the Connector associated to that edge,
-    and a second mapping of node labels to remaining external Connectors, if any remain unpaired
-    
+    Given a connectivity graph and a collection of ConnectorManagers
+    mapped to a (non-proper) subset of the nodes of that graph,
+    deduces if it is possible to connect the Connectors within those managers
+    along the edges of the graph, and if so returns an explicit mapping of those connections
+
     If pairing is impossible, will raise Exception instead
     """
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
         # weaker requirement of containing (rather than being equal) to vertex set suffices
-        raise NodeMappingError('Connector collection labels do not match topology node labels')
+        raise NodeMappingError('Not all nodes in the given topology are convered by collections of Connectors')
 
-    # Initialize containers for tracking pairing progress
     num_total_edges : int = topology.number_of_edges()
-    unpaired_edges : set[frozenset['PrimitiveHandle']] = set(frozenset(edge) for edge in topology.edges)
-    paired_connectors : dict[frozenset['PrimitiveHandle'], frozenset[ConnectorReference]] = {}
-    
-    connector_equiv_classes : dict['PrimitiveHandle', dict[int, set[ConnectorHandle]]] = {}
-    for owner_handle, connector_map in mapped_connectors.items():
-        equiv_class = equivalence_classes(
-            connector_map,
-            relation=lambda conn_handle1, conn_handle2 : Connector.fungible_with(
-                connector_map[conn_handle1],
-                connector_map[conn_handle2],
-            ),
-        )
-        connector_equiv_classes[owner_handle] = {
-            i : set(equiv_class)
-                for i, equiv_class in enumerate(equiv_class)
-        }
+    unpaired_edges : set[tuple[T, T]] = set(topology.edges)
+    connection_map : Mapping[tuple[T, T], Mapping[T, ConnectorAddress]] = dict()
 
-    # iteratively pair connectors along edges
+    # Begin iterative pairing logic
     n_iter : int = 0
+    n_iter_max : int = n_iter_max_rule(topology.number_of_nodes())
     while (n_iter < n_iter_max) and unpaired_edges:
         n_paired_new : int = 0
         unpaired_updated = set()
         
         for edge_labels in unpaired_edges:
-            owner_handle1, owner_handle2 = edge_labels    
+            node_label_former, node_label_latter = edge_labels
+            conn_mgr_former = mapped_connectors[node_label_former].connectors
+            conn_mgr_latter = mapped_connectors[node_label_latter].connectors
+                
             ## attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
             pair_choice_ambiguous : bool = False
-            compatible_class_labels : Optional[tuple[Connector, Connector]] = None
-            for (class_label1, eq_class_1), (class_label2, eq_class_2) in cartesian(
-                connector_equiv_classes[owner_handle1].items(),
-                connector_equiv_classes[owner_handle2].items(),
-            ):
-                if not Connector.bondable_with(
-                    mapped_connectors[owner_handle1][arbitrary_element(eq_class_1)],
-                    mapped_connectors[owner_handle2][arbitrary_element(eq_class_2)],                               
-                ): 
-                    continue # skip over incompatible Connector classes
-                
+            chosen_connectors : Optional[tuple[Connector, Connector]] = None
+            conns_fitting_edge = Connector.bondable_connector_pairs(conn_mgr_former, conn_mgr_latter)
+
+            for (conn_former, conn_latter) in conns_fitting_edge:
+                # assert Connector.bondable_with(conn_former, conn_latter) # redundant check for the paranoid
                 if compatible_class_labels is None:
                     compatible_class_labels = (class_label1, class_label2) # take note of first compatible pair found
                 else:
-                    pair_choice_ambiguous = True
+                    # TB TODO: modify to work when there are TOO MANY options (e.g. none of remaining unpaired have unique choice)
+                    pair_choice_ambiguous = True 
                     break # further search can't disambiguate choice, stop early to save computation
                 
             if pair_choice_ambiguous:
@@ -218,18 +204,11 @@ def infer_connections_from_topology(
                 raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
             ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
-            chosen_representatives : set[ConnectorReference] = set()
-            for (class_label, owner_label) in zip(compatible_class_labels, edge_labels):
-                equiv_class = connector_equiv_classes[owner_label][class_label]
-                chosen_representatives.add(
-                    ConnectorReference(
-                        primitive_handle=owner_label,
-                        connector_handle=equiv_class.pop(), # DEV: index here shouldn't matter, but will standardized to match arbitrary element selection
-                    )
-                )
-                if len(equiv_class) == 0: # remove bin from equivalence classes if empty after drawing
-                    _ = connector_equiv_classes[owner_label].pop(class_label)
-            paired_connectors[frozenset(edge_labels)] = frozenset(chosen_representatives)
+            # TODO: mark off newly-connected Connectors from candidates for bondability
+            connection_map[edge_labels] = {
+                node_label_former : conn_former,
+                node_label_latter : conn_latter
+            }
             n_paired_new += 1
         
         ## tee up next iteration; halt if no further connections can be made
@@ -240,19 +219,16 @@ def infer_connections_from_topology(
         if n_paired_new == 0:
             LOGGER.info(f'No new edges paired, halting registration loop')
             break 
-        # TODO: log exceedance of max number of loops?
         
     if any(unpaired_edges):
         raise EdgeMissingError(f'Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors')
-        
-    ## DEV: with the refactor to have all Child Connectors be external by default in Primitive...
-    ## ...it's no longer necessary to compute which are external here (though we have enough info to do so, as shown)
-    # collate remaining unpaired Connectors as external
-    # external_connectors : dict['PrimitiveHandle', tuple[Connector]] = {
-    #     owner_handle : tuple(chain.from_iterable(eq_classes.values()))
-    #         for owner_handle, eq_classes in connector_equiv_classes.items()
-    #             if eq_classes # skip over nodes whose equivalence classes have been exhausted
-    # }
-    # return paired_connectors, external_connectors
     
-    return paired_connectors
+    return connection_map
+
+def assign_connections_from_topology(
+    topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
+    mapped_connectors : Mapping[T, ConnectorManager],
+    n_iter_max_rule : Callable[[int], int]=lambda graph_size : 10*graph_size, # TB DEV: 10 is just a number I made up :P
+) -> None:
+    """Deduce connections from graph and mapped ConnectorManagers and assign neighborship based on it"""
+    ...
