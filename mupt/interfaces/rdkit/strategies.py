@@ -12,7 +12,7 @@ import numpy as np
 
 from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives import Primitive
-from .._shared.topology import (
+from .._shared.traversal import (
     _pdb_resname,
     build_saamr_role_topology_index,
     connector_reference_sort_key,

@@ -8,7 +8,7 @@ import numpy as np
 
 from ...chemistry.core import BOND_ORDER
 from ...mupr.primitives import Primitive
-from .._shared.topology import (
+from .._shared.traversal import (
     _bond_order_from_conn_ref,
     _pdb_resname,
     build_saamr_role_topology_index,

@@ -1,11 +1,11 @@
-"""Shared topology traversal helpers for exporter interfaces."""
+"""Shared MuPt representation traversal helpers for exporter interfaces."""
 
 
 from collections.abc import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
-from ...mupr.embedding import ConnectorReference
+from ...mupr import ConnectorReference
 from ...mupr.primitives import Primitive
 from ...roles import PrimitiveRole
 
