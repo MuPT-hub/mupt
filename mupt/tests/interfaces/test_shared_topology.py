@@ -3,7 +3,7 @@
 import pytest
 
 from mupt.chemistry import ELEMENTS
-from mupt.interfaces._shared.topology import _pdb_resname, build_saamr_role_topology_index
+from mupt.mupt.interfaces._shared.traversal import _pdb_resname, build_saamr_role_topology_index
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 
