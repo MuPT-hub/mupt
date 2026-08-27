@@ -1,9 +1,9 @@
-"""Tests for shared SAAMR role topology traversal helpers."""
+"""Tests for shared helpers which extract SAAMR roles from traversing MuPT representation hierarchies"""
 
 import pytest
 
 from mupt.chemistry import ELEMENTS
-from mupt.mupt.interfaces._shared.traversal import _pdb_resname, build_saamr_role_topology_index
+from mupt.mupt.interfaces._shared.traversal import _pdb_resname, build_saamr_role_index
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 
@@ -12,7 +12,7 @@ def _particle(label: str) -> Primitive:
     return Primitive(label=label, element=ELEMENTS[1], role=PrimitiveRole.PARTICLE)
 
 
-def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
+def test_build_saamr_role_index_allows_unassigned_grouping_nodes():
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     group = Primitive(label="group")
     segment = Primitive(label="segment", role=PrimitiveRole.SEGMENT)
@@ -24,7 +24,7 @@ def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
     segment.attach_child(residue)
     residue.attach_child(atom)
 
-    index = build_saamr_role_topology_index(universe)
+    index = build_saamr_role_index(universe)
 
     assert index.segments == [segment]
     assert index.residues_by_segment[id(segment)] == [residue]
@@ -32,15 +32,15 @@ def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
     assert index.segment_of_node[id(atom)] is segment
 
 
-def test_build_saamr_role_topology_index_rejects_empty_segment():
+def test_build_saamr_role_index_rejects_empty_segment():
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(Primitive(label="empty", role=PrimitiveRole.SEGMENT))
 
     with pytest.raises(ValueError, match="contains no RESIDUE"):
-        build_saamr_role_topology_index(universe)
+        build_saamr_role_index(universe)
 
 
-def test_build_saamr_role_topology_index_rejects_nested_residue():
+def test_build_saamr_role_index_rejects_nested_residue():
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     segment = Primitive(label="segment", role=PrimitiveRole.SEGMENT)
     residue = Primitive(label="residue", role=PrimitiveRole.RESIDUE)
@@ -53,7 +53,7 @@ def test_build_saamr_role_topology_index_rejects_nested_residue():
     nested.attach_child(atom)
 
     with pytest.raises(ValueError, match="nested RESIDUE"):
-        build_saamr_role_topology_index(universe)
+        build_saamr_role_index(universe)
 
 
 def test_pdb_resname_prefers_residue_metadata_for_instance_labels():
