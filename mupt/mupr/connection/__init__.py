@@ -3,7 +3,6 @@
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
-    ConnectorHandle,
 )
 from .exceptions import (
     ConnectionError,
@@ -14,4 +13,5 @@ from .exceptions import (
 from .connectors import (
     AttachmentPoint,
     Connector,
+    canonical_form_connectors,
 )

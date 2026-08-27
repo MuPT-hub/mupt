@@ -11,5 +11,5 @@ if TYPE_CHECKING:
 type AttachmentLabel = Hashable  # TODO: narrow down this type as use cases become clearer
 type ConnectorAddress = Hashable # DEV TB: consider if this type needs to be more specific
 type ConnectorLabel = Hashable
-type ConnectorHandle = tuple[ConnectorLabel, int]
 type ConnectorLabeller = Callable[[Connector], ConnectorLabel]
+type ConnectorHandle = tuple[ConnectorLabel, int] # TB: usused but leaving in case we want something like this later
