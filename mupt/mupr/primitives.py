@@ -1,4 +1,3 @@
-'''Fundamental, resolution-agnostic building blocks of chemical systems in the MuPT representation'''
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -48,10 +47,7 @@ from .connection.management import (
 
 from .topology import GraphLayout, canonical_graph_property
 from .linking import (
-    infer_connections_from_topology,
-    check_primitive_registry_bijective_to_topology_nodes,
-    check_connections_bijective_to_topology_edges,
-    check_connections_compatible_with_primitive_registry,
+    deduce_connections_from_topology,
 )
 
 from ..mutils.referencing import Addressed
