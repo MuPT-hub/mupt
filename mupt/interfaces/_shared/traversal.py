@@ -4,8 +4,8 @@ from typing import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
-from ...mupr import ConnectorReference
 from ...mupr.primitives import Primitive
+from ...mupr.linking import ConnectorReference
 from ...roles import PrimitiveRole
 
 
@@ -33,7 +33,7 @@ class SAAMRResidueRecord:
     particles: tuple[Primitive, ...]
 
 
-def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
+def build_saamr_role_index(root: Primitive) -> SAAMRRoleTopologyIndex:
     """Build a single-pass role index for a SAAMR-like Primitive hierarchy.
 
     The accepted hierarchy is role based rather than depth based: UNASSIGNED
