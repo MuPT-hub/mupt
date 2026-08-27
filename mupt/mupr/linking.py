@@ -79,11 +79,13 @@ class ConnectorReference: # TB TODO: deprecate code which depends on this before
 # def check_connector_map_compatible_with_topology() -> bool:
 #     ...
 
+DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a number I made up :P
+
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
     mapped_connectors : Mapping[T, ConnectorManager],
-    n_iter_max_rule : Callable[[int], int]=lambda graph_size : 10*graph_size, # TB DEV: 10 is just a number I made up :P
-) -> Mapping[tuple[T, T], Mapping[T, ConnectorAddress]]:
+    n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE, 
+) -> Mapping[tuple[T, T], Mapping[T, Connector]]:
     """
     Given a connectivity graph and a collection of ConnectorManagers
     mapped to a (non-proper) subset of the nodes of that graph,
@@ -98,7 +100,7 @@ def deduce_connections_from_topology(
 
     num_total_edges : int = topology.number_of_edges()
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
-    connection_map : Mapping[tuple[T, T], Mapping[T, ConnectorAddress]] = dict()
+    connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
 
     # Begin iterative pairing logic
     n_iter : int = 0
@@ -137,7 +139,7 @@ def deduce_connections_from_topology(
             # TODO: mark off newly-connected Connectors from candidates for bondability
             connection_map[edge_labels] = {
                 node_label_former : conn_former,
-                node_label_latter : conn_latter
+                node_label_latter : conn_latter,
             }
             n_paired_new += 1
         
@@ -158,7 +160,14 @@ def deduce_connections_from_topology(
 def assign_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
     mapped_connectors : Mapping[T, ConnectorManager],
-    n_iter_max_rule : Callable[[int], int]=lambda graph_size : 10*graph_size, # TB DEV: 10 is just a number I made up :P
+    n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE,
 ) -> None:
     """Deduce connections from graph and mapped ConnectorManagers and assign neighborship based on it"""
-    ...
+    connections : Mapping[tuple[T, T], Mapping[T, Connector]] = deduce_connections_from_topology(
+        topology,
+        mapped_connectors=mapped_connectors,
+        n_iter_max_rule=n_iter_max_rule,
+    )
+    
+    for (node_former, node_latter), connector_map in connections.items():
+        connector_map[node_former].neighbor = connector_map[node_latter]
