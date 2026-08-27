@@ -14,14 +14,8 @@ from .connectors import Connector
 from .types import (
     ConnectorAddress,
     ConnectorLabel,
-    ConnectorHandle,
     ConnectorLabeller,
 )
-from ...mutils.containers import (
-    UniqueRegistry,
-    Labelled,
-    HandleT,
-) 
 
 
 class ConnectorManager(Protocol):
@@ -30,11 +24,23 @@ class ConnectorManager(Protocol):
     connectors_free : Collection[Connector]
     connectors_bound : Collection[Connector]
     connectors_by_addr : Mapping[ConnectorAddress, Connector]
-    # connectors_by_handle : Mapping[ConnectorHandle, Connector]
 
     def connector(self, conn_addr : ConnectorAddress) -> Connector:
         '''Retrieve a particular Connector by its unique address'''
         return self.connectors_by_addr[conn_addr] # not using .get() to make KeyErrors explicit
+
+    def add_connector(
+        self,
+        conn : Connector,
+        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
+    ) -> None:
+        ...
+
+    def remove_connector(
+        self,
+        conn_addr : ConnectorAddress | Connector,
+    ) -> Connector:
+        ...
 
     # default implementations, for when explicitly inherited
     @property
@@ -71,7 +77,7 @@ class ConnectorManagerFrozen(ConnectorManager):
         # TODO: provide optimization short-circuit to allow making use of known free/bound designations
         connectors_free  : Optional[Iterable[Connector]]=None,
         connectors_bound : Optional[Iterable[Connector]]=None,
-    ) -> object:
+    ) -> 'ConnectorManagerFrozen':
          # TODO: make Registries and set labels procedurally (somehow)
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
         obj._connectors_all = tuple(connectors)
@@ -113,6 +119,19 @@ class ConnectorManagerFrozen(ConnectorManager):
         bound and whose neighbor is also a child of this Composite
         '''
         return self._connectors_bound
+
+    def add_connector(
+        self,
+        conn : Connector,
+        label : Optional[ConnectorLabel | ConnectorLabeller]=None,
+    ) -> None:
+        raise AttributeError(f'Cannot add Connector to immutable {type(self).__name__} object')
+
+    def remove_connector(
+        self,
+        conn_addr : ConnectorAddress | Connector,
+    ) -> Connector:
+        raise AttributeError(f'Cannot remove Connector from immutable {type(self).__name__} object')
 
 class ConnectorManagerMutable(ConnectorManager):
     '''
