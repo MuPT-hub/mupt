@@ -119,8 +119,8 @@ def deduce_connections_from_topology(
 
             for (conn_former, conn_latter) in conns_fitting_edge:
                 # assert Connector.bondable_with(conn_former, conn_latter) # redundant check for the paranoid
-                if compatible_class_labels is None:
-                    compatible_class_labels = (class_label1, class_label2) # take note of first compatible pair found
+                if (chosen_connectors is None):
+                    chosen_connectors = (conn_former, conn_latter) # take note of first compatible pair found
                 else:
                     # TB TODO: modify to work when there are TOO MANY options (e.g. none of remaining unpaired have unique choice)
                     pair_choice_ambiguous = True 
@@ -130,7 +130,7 @@ def deduce_connections_from_topology(
                 LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
                 unpaired_updated.add(edge_labels) # "try again next time!"
                 continue
-            elif (compatible_class_labels is None):
+            elif (chosen_connectors is None):
                 raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
             ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
