@@ -138,8 +138,10 @@ class AllAtomDPDSettings:
         Residue label to three-character residue name map for RDKit/OpenFF export.
     """
 
-    density: float = 0.85 * u.Unit('g / cm**3')
-    box_lengths_a: Optional[tuple[float, float, float]] = None
+    resolution: str = 'AA'
+    density: float = 0.85 * u.Unit('g / cm**3') #TODO: import unit class here and copy some density functionality from flowerMD
+    box_lengths_a: Optional[tuple[float, float, float]] = None #TODO: add option for set poylmer dimensions instead of random generation
+    #standard DPD params
     r_cut_a: float = 3.5
     kT: float = 1.0
     A_base: float = 5000.0
@@ -152,25 +154,28 @@ class AllAtomDPDSettings:
     n_steps_max: int = 10000
     report_interval: int = 1000
     device: str = "auto"
-    force_field: str = "openff-2.2.1.offxml"
-    bond_scale: float = 30.0
-    angle_scale: float = 30.0
-    dihedral_scale: float = 30.0
     bond_energy_tolerance_a: float = 0.05
-    angle_energy_tolerance_deg: float = 5.0
+    angle_energy_tolerance_deg: float = None #don't necessarily need this for CG
     require_bonded_energy_convergence: bool = True
-    epsilon_reference_mode: str = "max"
-    nlist_exclusions: tuple[str, ...] = ("bond", "angle", "dihedral")
+    if resolution == 'CG':
+        nlist_exclusions: tuple[str, ...] = ("bond")
+    if resolution == 'AA':
+        nlist_exclusions: tuple[str, ...] = ("bond", "angle", "dihedral")
     random_seed: Optional[int] = None
     write_gsd: bool = False
     write_log: bool = False
     log_write_freq: Optional[int] = None
-    output_name: Optional[str] = None
+    output_name: Optional[str] = None   
+    #aa specific settings
+    force_field: str = "openff-2.2.1.offxml"
+    bond_scale: float = 30.0
+    angle_scale: float = 30.0
+    dihedral_scale: float = 30.0
+    epsilon_reference_mode: str = "max"
     resname_map: dict[str, str] = field(default_factory=dict)
 
-
 @dataclass
-class AllAtomDPDResult:
+class DPDResult:
     """Summary of an all-atom DPD build."""
 
     atoms: list[Primitive]
@@ -201,7 +206,7 @@ class AllAtomDPDBoxFillPlan:
     target_mass_amu: float
     planned_mass_amu: float
     box_lengths_a: tuple[float, float, float]
-    density: float # this will now be a unyt array
+    density_g_cm3: float
 
 
 @dataclass
@@ -210,14 +215,15 @@ class _SegmentRecord:
 
     segment: Primitive
     residues: list[Primitive]
-    atoms: list[Primitive]
-    residue_atom_indices: list[list[int]]
+    if AA:
+        atoms: list[Primitive]
+        residue_atom_indices: list[list[int]]
     local_to_global: dict[int, int]
     bonds: list[tuple[int, int]]
 
 
 @dataclass
-class _ParameterTables:
+class _ParameterTables: #check initial data for which are needed
     """HOOMD-ready bonded and vdW parameter tables."""
 
     bond_params: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -510,7 +516,7 @@ class AllAtomDPDBuilder:
         """Reject invalid settings before optional HOOMD/OpenFF work starts."""
 
         positive_fields = {
-            "density": self.settings.density,
+            "density_g_cm3": self.settings.density_g_cm3,
             "r_cut_a": self.settings.r_cut_a,
             "kT": self.settings.kT,
             "A_base": self.settings.A_base,
@@ -586,7 +592,7 @@ class AllAtomDPDBuilder:
             rng=rng,
         )
 
-    def build(self, root: Primitive) -> AllAtomDPDResult:
+    def build(self, root: Primitive) -> DPDResult:
         """Mutate atom leaf coordinates in-place using an all-atom DPD run."""
 
         records = self._segment_records(root)
@@ -643,7 +649,7 @@ class AllAtomDPDBuilder:
         self._write_positions(root, atoms, final_positions)
 
         particle_types = list(frame.particles.types)
-        result = AllAtomDPDResult(
+        result = DPDResult(
             atoms=atoms,
             bonds=bonds,
             angles=angles,
@@ -709,7 +715,7 @@ class AllAtomDPDBuilder:
             raise ValueError(f"Atom '{atom.label}' has no element mass for density-based box sizing.")
         return float(mass)
 
-    def _box_length_mass_density(self, total_mass_amu: float) -> float:
+    def _box_length_a(self, total_mass_amu: float) -> float:
         """Return cubic box length in Angstrom from total mass and target density."""
 
         volume_cm3 = total_mass_amu * AMU_TO_G / self.settings.density_g_cm3
@@ -724,45 +730,12 @@ class AllAtomDPDBuilder:
             )
         return max(density_length, minimum_length)
 
-    def _box_length_number_density(self, total_mass_amu: float) -> float:
-        """Return cubic box length in nm from total particles and target density."""
-
-        volume_cm3 = total_mass_amu * AMU_TO_G / self.settings.density_g_cm3
-        density_length = float((volume_cm3 / ANGSTROM3_TO_CM3) ** (1.0 / 3.0))
-        minimum_length = 3.0 * self.settings.r_cut_a
-        if density_length < minimum_length:
-            LOGGER.warning(
-                "Density-derived AA-DPD box %.3f A is smaller than %.3f A; "
-                "expanding small-system box for HOOMD neighbor-list safety.",
-                density_length,
-                minimum_length,
-            )
-        return max(density_length, minimum_length)
-
-    def _box_lengths(self, total_mass_amu: float) -> np.ndarray:
+    def _box_lengths_a(self, total_mass_amu: float) -> np.ndarray:
         """Return orthorhombic box lengths in Angstrom for the active path."""
 
-        if self.settings.box_lengths is not None:
-            return np.asarray(self.settings.box_lengths, dtype=float)
-        
-        mass_density = u.Unit("g") / u.Unit("cm**3")
-        number_density = u.Unit("nm**-3")
-
-        if self.settings.density.units.dimensions == mass_density.dimensions:
-            box_length = self._box_length_mass_density(
-                density=self.settings.density, mass=total_mass_amu
-            ).to("g/cm**3")
-        elif self.settings.density.units.dimensions == number_density.dimensions:
-            box_length = self._box_length_number_density(
-                density=self.settings.density, n_beads=self.n_particles
-            ).to("nm")
-        else:
-            raise ValueError(
-                f"Density dimensions of {self.density.units.dimensions} "
-                "were given, but only mass density "
-                f"({mass_density.dimensions}) and "
-                f"number density ({number_density.dimensions}) are supported."
-            )
+        if self.settings.box_lengths_a is not None:
+            return np.asarray(self.settings.box_lengths_a, dtype=float)
+        box_length = self._box_length_a(total_mass_amu)
         return np.array([box_length, box_length, box_length], dtype=float)
 
     @staticmethod
@@ -772,21 +745,23 @@ class AllAtomDPDBuilder:
         return float(np.prod(box_lengths) ** (1.0 / 3.0))
 
     @staticmethod
-    def target_mass_for_box(density: float, box_lengths: tuple[float, float, float]) -> float:
+    def target_mass_for_box(density_g_cm3: float, box_lengths_a: tuple[float, float, float]) -> float:
         """Return target mass in amu for a density and orthorhombic AA-DPD box."""
 
-        if density <= 0.0:
+    #TODO: add unyt options here for number density
+
+        if density_g_cm3 <= 0.0:
             raise ValueError("AA-DPD target density_g_cm3 must be positive.")
-        box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths)
+        box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths_a)
         if np.any(box_lengths <= 0.0):
             raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.")
         volume_a3 = float(np.prod(box_lengths))
-        return density * volume_a3 * ANGSTROM3_TO_CM3 / AMU_TO_G
+        return density_g_cm3 * volume_a3 * ANGSTROM3_TO_CM3 / AMU_TO_G
 
     @staticmethod
     def plan_uniform_chain_lengths_for_box(
-        density: float,
-        box_lengths: tuple[float, float, float],
+        density_g_cm3: float,
+        box_lengths_a: tuple[float, float, float],
         repeat_unit_mass_amu: float,
         chain_length_min: int,
         chain_length_max: int,
@@ -817,8 +792,8 @@ class AllAtomDPDBuilder:
             chain_lengths=chain_lengths,
             target_mass_amu=float(target_mass),
             planned_mass_amu=float(planned_mass),
-            box_lengths=box_lengths,
-            density=float(density),
+            box_lengths_a=box_lengths,
+            density_g_cm3=float(density_g_cm3),
         )
 
     @staticmethod
@@ -1112,9 +1087,9 @@ class AllAtomDPDBuilder:
         hoomd: Any,
         frame: Any,
         bonds: list[tuple[int, int]],
-        angles: list[tuple[int, int, int]],
-        dihedrals: list[tuple[int, int, int, int]],
-        impropers: list[tuple[int, int, int, int]],
+        angles: list[tuple[int, int, int]], #optional
+        dihedrals: list[tuple[int, int, int, int]], #optional
+        impropers: list[tuple[int, int, int, int]], #optional
         parameters: _ParameterTables,
     ) -> Any:
         """Create and configure a HOOMD simulation from the initial frame."""
@@ -1182,7 +1157,7 @@ class AllAtomDPDBuilder:
         return simulation
 
     @staticmethod
-    def _bonded_params_for(
+    def _bonded_params_for( ##AA Specific
         name: str,
         params_by_type: dict[str, dict[str, float]],
         emergency_default: dict[str, float],
@@ -1227,7 +1202,7 @@ class AllAtomDPDBuilder:
             return hoomd.device.GPU()
         return hoomd.device.auto_select()
 
-    def _dpd_pair_params(self, particle_types: list[str], epsilon_by_type: dict[str, float]) -> dict[tuple[str, str], dict[str, float]]:
+    def _dpd_pair_params(self, particle_types: list[str], epsilon_by_type: dict[str, float]) -> dict[tuple[str, str], dict[str, float]]: ##AA specific
         """Return DPD pair parameters scaled by a simple epsilon heuristic."""
 
         reducer = max if self.settings.epsilon_reference_mode == "max" else np.mean
@@ -1341,13 +1316,13 @@ class AllAtomDPDBuilder:
             threshold += 0.5 * k * tolerance_rad**2
         return float(threshold)
 
-    @staticmethod
+    @staticmethod #AA Specific
     def _container_type_names(container: Any) -> list[str]:
         """Return one bonded type name per group/term in a HOOMD container."""
 
         return [container.types[int(typeid)] for typeid in container.typeid]
 
-    @staticmethod
+    @staticmethod #AA specfic
     def _force_by_kind(simulation: Any) -> dict[str, Any]:
         """Group configured HOOMD force objects by the AA-DPD role they play."""
 
@@ -1596,7 +1571,7 @@ class AllAtomDPDBuilder:
         return array
 
     @staticmethod
-    def _serializable_summary(result: AllAtomDPDResult) -> dict[str, Any]:
+    def _serializable_summary(result: DPDResult) -> dict[str, Any]:
         """Return JSON-like metadata summary values from a result."""
 
         return {
