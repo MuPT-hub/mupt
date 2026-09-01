@@ -106,6 +106,19 @@ def deduce_connections_from_topology(
                 f'{num_connectors} connection to distribute among them'
             )
 
+    # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
+    # pares down cartesian product for search and makes unique-choice condition less stringent
+    conn_equiv_classes : dict[T, set[set[Connector]]] = {
+        node_label : set(
+            set(equiv_class)
+                for equiv_class in equivalence_classes(
+                    connectors,
+                    relation=Connector.fungible_with,
+                )
+        )
+        for node_label, connectors in mapped_connectors.items() 
+    }
+
     num_total_edges : int = topology.number_of_edges()
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
     connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
@@ -118,22 +131,30 @@ def deduce_connections_from_topology(
         
         for edge_labels in unpaired_edges:
             node_label_former, node_label_latter = edge_labels
-            conn_mgr_former = mapped_connectors[node_label_former]
-            conn_mgr_latter = mapped_connectors[node_label_latter]
+            conn_classes_former : set[set[Connector]] = conn_equiv_classes[node_label_former]
+            conn_classes_latter : set[set[Connector]] = conn_equiv_classes[node_label_latter]
                 
-            # attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
             pair_choice_ambiguous : bool = False
-            chosen_connectors : Optional[tuple[Connector, Connector]] = None
-            conns_fitting_edge = Connector.bondable_connector_pairs(conn_mgr_former, conn_mgr_latter)
+            chosen_connector_classes : Optional[tuple[set[Connector], set[Connector]]] = None
 
-            for (conn_former, conn_latter) in conns_fitting_edge:
-                # assert Connector.bondable_with(conn_former, conn_latter) # redundant check for the paranoid
-                if (chosen_connectors is None):
-                    chosen_connectors = (conn_former, conn_latter) # take note of first compatible pair found
+            for conn_class_former, conn_class_latter in cartesian(
+                conn_classes_former,
+                conn_classes_latter,
+            ):
+                # one pair from product of equiv classes bondable ==> any pair bondable
+                if not Connector.bondable_with(
+                    arbitrary_element(conn_class_former),
+                    arbitrary_element(conn_class_latter),
+                ):
+                    continue
+
+                if (chosen_connector_classes is None):
+                    # take note of first compatible pair found
+                    chosen_connector_classes = (conn_class_former, conn_class_latter) 
                 else:
-                    # TB TODO: modify to work when there are TOO MANY options (e.g. none of remaining unpaired have unique choice)
                     pair_choice_ambiguous = True 
                     break # further search can't disambiguate choice, stop early to save computation
+                # TB TODO: make record of all choice when ambiguous, provide way to pass heuristic for breaking ties
                 
             if pair_choice_ambiguous:
                 LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
@@ -141,15 +162,22 @@ def deduce_connections_from_topology(
                 # NB: opting to collected unmatched edges (rather than popping
                 # matched ones) to avoid modifying set while iterating over it
                 continue
-            elif (chosen_connectors is None):
+            elif (chosen_connector_classes is None):
                 raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
             # if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
             # TODO: mark off newly-connected Connectors from candidates for bondability
+            conn_class_former, conn_class_latter = chosen_connector_classes # TODO: avoid redudant unpacking
             connection_map[edge_labels] = {
-                node_label_former : conn_former,
-                node_label_latter : conn_latter,
+                node_label_former : conn_class_former.pop(),
+                node_label_latter : conn_class_latter.pop(),
             }
+            if not conn_class_former:
+                conn_classes_former.remove(conn_class_former) # delete class if emptied
+            
+            if not conn_class_latter:
+                conn_classes_latter.remove(conn_class_latter) # delete class if emptied
+                    
             n_paired_new += 1
         
         # tee up next iteration;
