@@ -82,8 +82,8 @@ class ConnectorReference: # TB TODO: deprecate code which depends on this before
 DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a number I made up :P
 
 def deduce_connections_from_topology(
-    topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
-    mapped_connectors : Mapping[T, ConnectorManager],
+    topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
+    mapped_connectors : Mapping[T, Iterable[Connector]],
     n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE, 
 ) -> Mapping[tuple[T, T], Mapping[T, Connector]]:
     """
@@ -102,7 +102,6 @@ def deduce_connections_from_topology(
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
     connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
 
-    # Begin iterative pairing logic
     n_iter : int = 0
     n_iter_max : int = n_iter_max_rule(topology.number_of_nodes())
     while (n_iter < n_iter_max) and unpaired_edges:
@@ -111,10 +110,10 @@ def deduce_connections_from_topology(
         
         for edge_labels in unpaired_edges:
             node_label_former, node_label_latter = edge_labels
-            conn_mgr_former = mapped_connectors[node_label_former].connectors
-            conn_mgr_latter = mapped_connectors[node_label_latter].connectors
+            conn_mgr_former = mapped_connectors[node_label_former]
+            conn_mgr_latter = mapped_connectors[node_label_latter]
                 
-            ## attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
+            # attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
             pair_choice_ambiguous : bool = False
             chosen_connectors : Optional[tuple[Connector, Connector]] = None
             conns_fitting_edge = Connector.bondable_connector_pairs(conn_mgr_former, conn_mgr_latter)
@@ -131,11 +130,13 @@ def deduce_connections_from_topology(
             if pair_choice_ambiguous:
                 LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
                 unpaired_updated.add(edge_labels) # "try again next time!"
+                # NB: opting to collected unmatched edges (rather than popping
+                # matched ones) to avoid modifying set while iterating over it
                 continue
             elif (chosen_connectors is None):
                 raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
-            ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
+            # if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
             # TODO: mark off newly-connected Connectors from candidates for bondability
             connection_map[edge_labels] = {
                 node_label_former : conn_former,
@@ -143,11 +144,15 @@ def deduce_connections_from_topology(
             }
             n_paired_new += 1
         
-        ## tee up next iteration; halt if no further connections can be made
+        # tee up next iteration;
         unpaired_edges = unpaired_updated
         n_iter += 1
+        LOGGER.info(
+            f'Paired up {n_paired_new} new edges after {n_iter} iteration(s);'
+            '{len(unpaired_edges)}/{num_total_edges} edges remain unpaired'
+        )
         
-        LOGGER.info(f'Paired up {n_paired_new} new edges after {n_iter} iteration(s); {len(unpaired_edges)}/{num_total_edges} edges remain unpaired')
+        ## halt if no further connections can be made
         if n_paired_new == 0:
             LOGGER.info(f'No new edges paired, halting registration loop')
             break 
