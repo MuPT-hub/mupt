@@ -9,6 +9,7 @@ LOGGER = logging.getLogger(__name__)
 from typing import (
     AbstractSet,
     Callable,
+    Collection,
     Generator,
     Hashable,
     Iterable,
@@ -83,7 +84,7 @@ DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # T
 
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
-    mapped_connectors : Mapping[T, Iterable[Connector]],
+    mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
     n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE, 
 ) -> Mapping[tuple[T, T], Mapping[T, Connector]]:
     """
@@ -95,8 +96,15 @@ def deduce_connections_from_topology(
     If pairing is impossible, will raise Exception instead
     """
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
-        # weaker requirement of containing (rather than being equal) to vertex set suffices
+        # Weaker size requirement; nodes need not be in 1:1 correspondence with Connector collections, merely covered by them
         raise NodeMappingError('Not all nodes in the given topology are convered by collections of Connectors')
+    
+    for node in topology.nodes:
+        if (num_connectors := len(mapped_connectors[node])) < (num_neighbors := topology.degree[node]):
+            raise NodeMappingError(
+                f'Node {node!r} has {num_neighbors} neighbors, but only'
+                f'{num_connectors} connection to distribute among them'
+            )
 
     num_total_edges : int = topology.number_of_edges()
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
