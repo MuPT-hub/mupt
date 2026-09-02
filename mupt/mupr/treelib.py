@@ -15,15 +15,15 @@ from networkx import DiGraph
 
 
 # Rendering and printing trees
-_render_style_aliases : dict[AbstractStyle, tuple[str]] = {  # add any other common aliases here, as all-lowercase
+REDNER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
     AsciiStyle : ('asc', 'ascii', 'asciistyle', 'ascii_style'),
     ContStyle : ('cont', 'contstyle', 'cont_style'),
     ContRoundStyle : ('round', 'countround', 'controundstyle', 'cont_round_style'),
     DoubleStyle : ('dub', 'double', 'doublestyle', 'double_style'),    
 }
-RENDER_STYLE_ALIASES : dict[str, AbstractStyle] = { 
+RENDER_STYLES_BY_ALIAS : dict[str, AbstractStyle] = { 
     alias : stypetype()
-        for stypetype, aliases in _render_style_aliases.items()
+        for stypetype, aliases in REDNER_STYLE_ALIASES.items()
             for alias in aliases                                                   
 }
 
@@ -34,13 +34,13 @@ def flexible_treerender_style(style : Union[str, AbstractStyle, Type[AbstractSty
     '''
     if isinstance(style, AbstractStyle):
         return style
+    elif isinstance(style, str):
+        try:
+            return RENDER_STYLES_BY_ALIAS[style.lower()]
+        except KeyError:
+            raise ValueError(f'Unrecognized tree render style string: "{style}"')
     elif issubclass(style, AbstractStyle):
         return style()
-    elif isinstance(style, str):
-        style = RENDER_STYLE_ALIASES.get(style.lower(), None)
-        if style is None:
-            raise ValueError(f'Unrecognized tree render style string: "{style}"')
-        return style
     else:
         raise TypeError(f'Unsupported type for tree render style: {type(style)}')
     
