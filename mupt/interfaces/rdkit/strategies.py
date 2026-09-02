@@ -10,11 +10,11 @@ from typing import Optional
 
 import numpy as np
 
-from ...mupr.embedding import ConnectorReference
+from ...mupr._discard import ConnectorReference
 from ...mupr.primitives import Primitive
 from .._shared.traversal import (
     _pdb_resname,
-    build_saamr_role_topology_index,
+    build_saamr_role_index,
     connector_reference_sort_key,
     iter_saamr_residue_records,
     resolve_to_atom_cached,
@@ -72,7 +72,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
 
     def iter_mol_data(self, root: Primitive, resname_map: dict[str, str]) -> Iterator[RDKitMolData]:
         """Yield one RDKit topology dataset per SEGMENT-role node."""
-        index = build_saamr_role_topology_index(root)
+        index = build_saamr_role_index(root)
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
         residue_records_by_segment = {id(segment): [] for segment in index.segments}
         for residue_record in iter_saamr_residue_records(index):

@@ -1,15 +1,37 @@
 '''Vestiges from pre-refactor code which will be discarded, 
 but haven't been fully been scrapped for parts out yet'''
 
-from typing import Iterable, AbstractSet
+from typing import AbstractSet, Iterable, TYPE_CHECKING
+from dataclasses import dataclass
+
 from networkx import Graph
 
 from .linking import BijectionError
+from .connection.types import ConnectorHandle
 from .connection.connectors import Connector
 from .connection.exceptions import IncompatibleConnectorError
+from ..mutils.containers import UniqueRegistry
 
 Connection = tuple[Connector, Connector]
+if TYPE_CHECKING: # TODO: figure out how to non-circularly import even w/o typechecking
+    from .primitives import Primitive, PrimitiveHandle
 
+
+@dataclass(frozen=True) # needed for hashability
+class ConnectorReference: # TB TODO: deprecate code which depends on this before final merge
+    '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
+    primitive_handle : 'PrimitiveHandle'
+    connector_handle : ConnectorHandle  
+    
+    def with_reassigned_primitive(self, new_primitive_handle : 'PrimitiveHandle') -> 'ConnectorReference':
+        '''Return a copy of this ConnectorReference with a different PrimitiveHandle'''
+        return ConnectorReference(
+            primitive_handle=new_primitive_handle,
+            connector_handle=self.connector_handle,
+        )
+        
+    def __str__(self) -> str:
+        return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
 
 # Validators - TB: absorb useful parts and discard these as part of refactor
 def check_connections_compatible_with_primitive_registry(
