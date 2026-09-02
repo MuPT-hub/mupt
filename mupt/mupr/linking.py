@@ -60,7 +60,6 @@ class EdgeMissingError(GraphLinkingError):
     '''Raised when an invalid mapping between a pair of objects and a graph edge is encountered'''
     ...
 
-# Deductions of connections from graphs
 @dataclass(frozen=True) # needed for hashability
 class ConnectorReference: # TB TODO: deprecate code which depends on this before final merge
     '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
@@ -77,9 +76,7 @@ class ConnectorReference: # TB TODO: deprecate code which depends on this before
     def __str__(self) -> str:
         return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
     
-# def check_connector_map_compatible_with_topology() -> bool:
-#     ...
-
+# Deductions of connections from graphs
 DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a number I made up :P
 
 def _check_connectors_cover_topology(
@@ -149,49 +146,50 @@ def deduce_connections_from_topology(
             conn_classes_latter : set[set[Connector]] = conn_equiv_classes[node_label_latter]
                 
             pair_choice_ambiguous : bool = False
-            chosen_connector_classes : Optional[tuple[set[Connector], set[Connector]]] = None
+            chosen_connectors : Optional[dict[T, Connector]] = None
 
             for conn_class_former, conn_class_latter in cartesian(
                 conn_classes_former,
                 conn_classes_latter,
             ):
                 # one pair from product of equiv classes bondable ==> any pair bondable
-                if not Connector.bondable_with(
-                    arbitrary_element(conn_class_former),
-                    arbitrary_element(conn_class_latter),
-                ):
+                peek_conn_former = arbitrary_element(conn_class_former)
+                peek_conn_latter = arbitrary_element(conn_class_latter)
+                
+                if not Connector.bondable_with(peek_conn_former, peek_conn_latter):
                     continue
-
-                if (chosen_connector_classes is None):
-                    # take note of first compatible pair found
-                    chosen_connector_classes = (conn_class_former, conn_class_latter) 
-                else:
+                elif (chosen_connectors is None): # take note of first compatible pair found
+                    chosen_connectors = {
+                        node_label_former : peek_conn_former,
+                        node_label_latter : peek_conn_latter,
+                    }
+                else: # if compatible classes were found previously, choice is ambiguous; halt class assessment
+                    # TB TODO: provide means to break ties when ALL edge pairings are ambiguous (keep record, rather than halting)
                     pair_choice_ambiguous = True 
                     break # further search can't disambiguate choice, stop early to save computation
-                # TB TODO: make record of all choice when ambiguous, provide way to pass heuristic for breaking ties
                 
+            # Decide how to continue after equivalence classes have been assessed
+            if (chosen_connectors is None):
+                raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
+            
             if pair_choice_ambiguous:
                 LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
                 unpaired_updated.add(edge_labels) # "try again next time!"
                 # NB: opting to collected unmatched edges (rather than popping
                 # matched ones) to avoid modifying set while iterating over it
                 continue
-            elif (chosen_connector_classes is None):
-                raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
 
-            # if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
-            # TODO: mark off newly-connected Connectors from candidates for bondability
-            conn_class_former, conn_class_latter = chosen_connector_classes # TODO: avoid redudant unpacking
-            connection_map[edge_labels] = {
-                node_label_former : conn_class_former.pop(),
-                node_label_latter : conn_class_latter.pop(),
-            }
+            # Pairing is unambiguous; mark off chosen representatives and update their equivalence classes if necessary
+            conn_class_former.remove(peek_conn_former)
             if not conn_class_former:
                 conn_classes_former.remove(conn_class_former) # delete class if emptied
             
+            conn_class_latter.remove(peek_conn_latter)
             if not conn_class_latter:
                 conn_classes_latter.remove(conn_class_latter) # delete class if emptied
                     
+            # Lock in pair of Connectors and proceed
+            connection_map[edge_labels] = chosen_connectors
             n_paired_new += 1
         
         # tee up next iteration;
@@ -202,7 +200,7 @@ def deduce_connections_from_topology(
             '{len(unpaired_edges)}/{num_total_edges} edges remain unpaired'
         )
         
-        ## halt if no further connections can be made
+        # halt if no further connections can be made
         if n_paired_new == 0:
             LOGGER.info(f'No new edges paired, halting registration loop')
             break 
