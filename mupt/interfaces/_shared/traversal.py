@@ -21,7 +21,6 @@ class SAAMRRoleTopologyIndex:
     bond_nodes: list[Primitive] = field(default_factory=list)
     bond_nodes_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
 
-
 @dataclass(frozen=True)
 class SAAMRResidueRecord:
     """One RESIDUE-role node and its role-aware traversal context."""
@@ -147,7 +146,6 @@ def build_saamr_role_index(root: Primitive) -> SAAMRRoleTopologyIndex:
 
     return index
 
-
 def iter_saamr_residue_records(
     index: SAAMRRoleTopologyIndex,
 ) -> Iterator[SAAMRResidueRecord]:
@@ -168,7 +166,6 @@ def iter_saamr_residue_records(
             )
             residue_global_idx += 1
 
-
 def _pdb_resname(
     label: Hashable,
     resname_map: dict[str, str],
@@ -187,11 +184,9 @@ def _pdb_resname(
         raise ValueError(f"Residue name '{name}' (from '{label}') is not 3 characters long")
     return name.upper()
 
-
 def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str]:
     """Return a deterministic key for connector refs with arbitrary hashable handles."""
     return (repr(conn_ref.primitive_handle), repr(conn_ref.connector_handle))
-
 
 def _resolve_to_atom(
     parent: Primitive,
@@ -232,7 +227,6 @@ def _resolve_to_atom(
 
     return _resolve_to_atom(child, next_ref, _depth=_depth + 1, _max_depth=_max_depth)
 
-
 def resolve_to_atom_cached(
     parent: Primitive,
     conn_ref: ConnectorReference,
@@ -243,9 +237,3 @@ def resolve_to_atom_cached(
     if cache_key not in cache:
         cache[cache_key] = _resolve_to_atom(parent, conn_ref)
     return cache[cache_key]
-
-
-def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
-    """Infer numeric bond order from a connection reference."""
-    connector = parent.fetch_connector_on_child(conn_ref)
-    return BOND_ORDER[connector.bondtype]
