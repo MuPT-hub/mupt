@@ -16,7 +16,7 @@ from typing import (
     Self,
     TypeVar,
 )
-type PrimitiveLabel =Hashable
+type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index)
 
@@ -24,7 +24,7 @@ from copy import deepcopy
 from weakref import WeakValueDictionary
 
 from anytree import NodeMixin, findall
-import networkx as nx
+from networkx import Graph, DiGraph, MultiGraph
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
@@ -256,6 +256,12 @@ class Primitive(
         '''The path to this Primitive from the root, INCLUDING itself'''
         return self.ancestors + (self,)
 
+    def hierarchy_summary(self) -> str:
+        raise NotImplementedError
+    
+    def hierarchy_tree(self) -> DiGraph:
+        raise NotImplemented
+
     # Depiction
     def __hash__(self) -> int:
         # NOTE: !CRITICAL! this be implemented if Primitives are to be used as nodes in networkx graphs
@@ -377,7 +383,7 @@ class SupportsChildren(Primitive):
     # Topology
     def set_connectivity_from_topology(
         self,
-        topology : nx.Graph,
+        topology : Graph,
         criterion : PrimitiveSelector,
     ) -> None:
         '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
@@ -394,7 +400,7 @@ class SupportsChildren(Primitive):
             n_iter_max=10*len(topology), # TB TODO: fill in actual logic fordeciding this - 10 is a number I made up for now
         )
 
-    def export_cross_section(self, criterion : PrimitiveSelector) -> nx.Graph:
+    def export_cross_section(self, criterion : PrimitiveSelector) -> Graph:
         '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
         raise NotImplementedError
 
