@@ -9,9 +9,8 @@ import numpy as np
 from ...chemistry.core import BOND_ORDER
 from ...mupr.primitives import Primitive
 from .._shared.traversal import (
-    _bond_order_from_conn_ref,
     _pdb_resname,
-    build_saamr_role_topology_index,
+    build_saamr_role_index,
     connector_reference_sort_key,
     iter_saamr_residue_records,
     resolve_to_atom_cached,
@@ -21,7 +20,6 @@ from .._shared.traversal import (
 @dataclass
 class MDATopologyData:
     """Container for topology arrays/lists used to build an MDAnalysis Universe."""
-
     atom_elements: list[str] = field(default_factory=list)
     atom_names: list[str] = field(default_factory=list)
     atom_positions: list[list[float]] = field(default_factory=list)
@@ -35,10 +33,8 @@ class MDATopologyData:
     bonds_set: set[tuple[int, int]] = field(default_factory=set)
     num_segments: int = 0
 
-
 class MDAExportStrategy(ABC):
     """Abstract strategy for collecting MDAnalysis-exportable topology data."""
-
     @abstractmethod
     def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
         """Collect topology attributes from a Primitive hierarchy."""
@@ -50,7 +46,8 @@ class MDAExportStrategy(ABC):
 
 
 class AllAtomExportStrategy(MDAExportStrategy):
-    """All-atom export strategy based on role-aware hierarchy traversal.
+    """
+    All-atom export strategy based on role-aware hierarchy traversal.
 
     Although only the four SAAMR roles are recognized (UNIVERSE,
     SEGMENT, RESIDUE, PARTICLE), this strategy supports trees of arbitrary
@@ -58,7 +55,6 @@ class AllAtomExportStrategy(MDAExportStrategy):
     grouping between UNIVERSE and SEGMENT) are traversed transparently by the
     shared SAAMR role index and carry ``PrimitiveRole.UNASSIGNED``.
     """
-
     def __init__(
         self,
         default_atom_position: Optional[np.ndarray] = None,
@@ -78,7 +74,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
 
     def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
         """Walk the hierarchy once and gather MDAnalysis topology arrays/lists."""
-        index = build_saamr_role_topology_index(root)
+        index = build_saamr_role_index(root)
         data = MDATopologyData()
         residue_records = list(iter_saamr_residue_records(index))
 
@@ -144,7 +140,9 @@ class AllAtomExportStrategy(MDAExportStrategy):
 
                 data.bonds.append(bond_pair)
                 data.bonds_set.add(bond_pair)
-                data.bond_orders.append(_bond_order_from_conn_ref(node, conn_ref1))
+                data.bond_orders.append(
+                    BOND_ORDER[node.fetch_connector_on_child(conn_ref1)]   
+                )
 
         # Sort bonds for deterministic output (internal_connections is a set,
         # so iteration order is nondeterministic without explicit sorting)
