@@ -89,6 +89,7 @@ def equivalence_classes_mutable(
             for equiv_class in equivalence_classes(iterable, relation=relation)
     )
             
+# TODO: ensure no ambiguity arises on deduction over parallel MultiGraph edges 
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
