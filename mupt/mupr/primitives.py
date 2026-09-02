@@ -46,9 +46,7 @@ from .connection.management import (
 )
 
 from .topology import GraphLayout, canonical_graph_property
-from .linking import (
-    deduce_connections_from_topology,
-)
+from .linking import assign_connections_from_topology
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import UniqueRegistry, Labelled
@@ -385,19 +383,16 @@ class SupportsChildren(Primitive):
         self,
         topology : Graph,
         criterion : PrimitiveSelector,
+        n_iter_max_rule : Optional[Callable[[int], int]]=None,
     ) -> None:
         '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
-        prim_subselection = select_primitives(self.descendants, criterion=criterion)
-        assert len(prim_subselection) == topology.number_of_nodes()
-        assert set(prim_subselection.keys()) == set(topology.nodes) # TODO: make return include labels for indication
-        
-        infer_connections_from_topology(
+        assign_connections_from_topology(
             topology,
-            mapped_connectors={
-                prim_label : set(prim.connections.connectors)
-                    for prim_label, prim in prim_subselection.items()
-            },
-            n_iter_max=10*len(topology), # TB TODO: fill in actual logic fordeciding this - 10 is a number I made up for now
+            mapped_connectors = {
+                subprim.addr : subprim.connections.connectors # TODO: figure out how to map from unique addresses to graph node
+                    for subprim in select_primitives(self.descendants, criterion=criterion)
+            }
+            n_iter_max_rule=n_iter_max_rule,
         )
 
     def export_cross_section(self, criterion : PrimitiveSelector) -> Graph:

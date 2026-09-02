@@ -93,7 +93,7 @@ def equivalence_classes_mutable(
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
-    n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE, 
+    n_iter_max_rule : Optional[Callable[[int], int]]=None, 
 ) -> Mapping[tuple[T, T], Mapping[T, Connector]]:
     """
     Given a connectivity graph and a collection of ConnectorManagers
@@ -104,6 +104,8 @@ def deduce_connections_from_topology(
     If pairing is impossible, will raise Exception instead
     """
     _check_connectors_cover_topology(topology, mapped_connectors)
+    if n_iter_max_rule is None:
+        n_iter_max_rule = DEFAULT_ITER_RULE
     
     # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
     # pares down cartesian product for search and makes unique-choice condition less stringent
@@ -193,7 +195,7 @@ def deduce_connections_from_topology(
 def assign_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
     mapped_connectors : Mapping[T, Collection[Connector]],
-    n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE,
+    n_iter_max_rule : Optional[Callable[[int], int]]=None,
 ) -> None:
     """Deduce connections from graph and mapped ConnectorManagers and assign neighborship based on it"""
     connections : Mapping[tuple[T, T], Mapping[T, Connector]] = deduce_connections_from_topology(
