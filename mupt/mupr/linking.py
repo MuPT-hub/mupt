@@ -82,6 +82,31 @@ class ConnectorReference: # TB TODO: deprecate code which depends on this before
 
 DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a number I made up :P
 
+def _check_connectors_cover_topology(
+    topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
+    mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
+) -> None:
+    '''
+    Necessary (but not sufficient) conditions to ensure a map from
+    graph nodes to collections of Connectors covers all nodes and edges
+    
+    Specifically, checks that:
+    * Preimage of map contains node set (i.e. every node gets some collection of Connectors)
+    * Image of each node has no fewer Connectors than the node has neighbors
+    
+    Returns silently if passing; raises NodeMappingError otherwise
+    '''
+    if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
+        # Weaker size requirement; nodes need not be in 1:1 correspondence with Connector collections, merely covered by them
+        raise NodeMappingError('Not all nodes in the given topology are convered by collections of Connectors')
+    
+    for node in topology.nodes:
+        if (num_connectors := len(mapped_connectors[node])) < (num_neighbors := topology.degree[node]):
+            raise NodeMappingError(
+                f'Node {node!r} has {num_neighbors} neighbors, but only'
+                f'{num_connectors} connection to distribute among them'
+            )
+            
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
@@ -95,17 +120,8 @@ def deduce_connections_from_topology(
 
     If pairing is impossible, will raise Exception instead
     """
-    if not set(topology.nodes).issubset(set(mapped_connectors.keys())): 
-        # Weaker size requirement; nodes need not be in 1:1 correspondence with Connector collections, merely covered by them
-        raise NodeMappingError('Not all nodes in the given topology are convered by collections of Connectors')
+    _check_connectors_cover_topology(topology, mapped_connectors)
     
-    for node in topology.nodes:
-        if (num_connectors := len(mapped_connectors[node])) < (num_neighbors := topology.degree[node]):
-            raise NodeMappingError(
-                f'Node {node!r} has {num_neighbors} neighbors, but only'
-                f'{num_connectors} connection to distribute among them'
-            )
-
     # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
     # pares down cartesian product for search and makes unique-choice condition less stringent
     conn_equiv_classes : dict[T, set[set[Connector]]] = {
@@ -118,8 +134,6 @@ def deduce_connections_from_topology(
         )
         for node_label, connectors in mapped_connectors.items() 
     }
-
-    num_total_edges : int = topology.number_of_edges()
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
     connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
 
@@ -200,7 +214,7 @@ def deduce_connections_from_topology(
 
 def assign_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
-    mapped_connectors : Mapping[T, ConnectorManager],
+    mapped_connectors : Mapping[T, Collection[Connector]],
     n_iter_max_rule : Callable[[int], int]=DEFAULT_ITER_RULE,
 ) -> None:
     """Deduce connections from graph and mapped ConnectorManagers and assign neighborship based on it"""

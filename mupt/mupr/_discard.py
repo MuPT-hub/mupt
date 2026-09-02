@@ -59,7 +59,7 @@ def check_primitive_registry_bijective_to_topology_nodes(
             f' present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology'
         )
 
-def check_connections_bijective_to_topology_edges(
+def check_connections_bijectiLve_to_topology_edges(
     connections : AbstractSet[Connection],
     topology : Graph,
 ) -> None:
