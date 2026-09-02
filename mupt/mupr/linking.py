@@ -76,19 +76,6 @@ def _check_connectors_cover_topology(
                 f'{num_connectors} connection to distribute among them'
             )
             
-def equivalence_classes_mutable(
-    iterable : Iterable[T],
-    relation : Callable[[T, T], bool],
-) -> set[set[T]]:
-    '''
-    Wrapper around networkx's equivalence_classes() which makes the
-    returned equivlance classes mutable (i.e. sets instead of frozensets)
-    '''
-    return set(
-        set(equiv_class)
-            for equiv_class in equivalence_classes(iterable, relation=relation)
-    )
-            
 # TODO: ensure no ambiguity arises on deduction over parallel MultiGraph edges 
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
@@ -109,8 +96,8 @@ def deduce_connections_from_topology(
     
     # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
     # pares down cartesian product for search and makes unique-choice condition less stringent
-    conn_equiv_classes : dict[T, set[set[Connector]]] = {
-        node_label : equivalence_classes_mutable(connectors, relation=Connector.fungible_with)
+    conn_equiv_classes : dict[T, set[frozenset[Connector]]] = {
+        node_label : equivalence_classes(connectors, relation=Connector.fungible_with)
             for node_label, connectors in mapped_connectors.items() 
     }
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
@@ -124,8 +111,8 @@ def deduce_connections_from_topology(
         
         for edge_labels in unpaired_edges:
             node_label_former, node_label_latter = edge_labels
-            conn_classes_former : set[set[Connector]] = conn_equiv_classes[node_label_former]
-            conn_classes_latter : set[set[Connector]] = conn_equiv_classes[node_label_latter]
+            conn_classes_former : set[frozenset[Connector]] = conn_equiv_classes[node_label_former]
+            conn_classes_latter : set[frozenset[Connector]] = conn_equiv_classes[node_label_latter]
                 
             pair_choice_ambiguous : bool = False
             chosen_connectors : Optional[dict[T, Connector]] = None
@@ -162,14 +149,15 @@ def deduce_connections_from_topology(
                 continue
 
             # Pairing is unambiguous; mark off chosen representatives and update their equivalence classes if necessary
-            conn_class_former.remove(peek_conn_former)
-            if not conn_class_former:
-                conn_classes_former.remove(conn_class_former) # delete class if emptied
+            for equiv_classes, equiv_class, representative in (
+                (conn_classes_former, conn_class_former, peek_conn_former),
+                (conn_classes_latter, conn_class_latter, peek_conn_latter),
+            ):
+                equiv_classes.remove(equiv_class)
+                equiv_class -= {representative}
+                if equiv_class: # re-add part only if it is non-empty after the pairing
+                    equiv_classes.add(equiv_class)
             
-            conn_class_latter.remove(peek_conn_latter)
-            if not conn_class_latter:
-                conn_classes_latter.remove(conn_class_latter) # delete class if emptied
-                    
             # Lock in pair of Connectors and proceed
             connection_map[edge_labels] = chosen_connectors
             n_paired_new += 1
