@@ -7,41 +7,29 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 from typing import (
-    AbstractSet,
     Callable,
     Collection,
     Generator,
-    Hashable,
     Iterable,
     Mapping,
     Optional,
     TypeVar,
-    Union,
     overload,
-    TYPE_CHECKING
 )
 T = TypeVar('T')
 
-from dataclasses import dataclass
 from itertools import product as cartesian
 
 from networkx import Graph
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
-if TYPE_CHECKING: # TODO: figure out how to non-circularly import even w/o typechecking
-    from .primitives import Primitive, PrimitiveLabel, PrimitiveHandle
-
 from .connection.connectors import Connector
-from .connection.types import ConnectorAddress, ConnectorHandle
-from .connection.management import ConnectorManager
 from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
-Connection = tuple[Connector, Connector]
-from ..mutils.containers import UniqueRegistry
 
 
 class BijectionError(ValueError):
@@ -60,23 +48,7 @@ class EdgeMissingError(GraphLinkingError):
     '''Raised when an invalid mapping between a pair of objects and a graph edge is encountered'''
     ...
 
-@dataclass(frozen=True) # needed for hashability
-class ConnectorReference: # TB TODO: deprecate code which depends on this before final merge
-    '''Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle'''
-    primitive_handle : 'PrimitiveHandle'
-    connector_handle : ConnectorHandle  
-    
-    def with_reassigned_primitive(self, new_primitive_handle : 'PrimitiveHandle') -> 'ConnectorReference':
-        '''Return a copy of this ConnectorReference with a different PrimitiveHandle'''
-        return ConnectorReference(
-            primitive_handle=new_primitive_handle,
-            connector_handle=self.connector_handle,
-        )
-        
-    def __str__(self) -> str:
-        return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
-    
-# Deductions of connections from graphs
+
 DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a number I made up :P
 
 def _check_connectors_cover_topology(
