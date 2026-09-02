@@ -76,7 +76,6 @@ def _check_connectors_cover_topology(
                 f'{num_connectors} connection to distribute among them'
             )
             
-# TODO: ensure no ambiguity arises on deduction over parallel MultiGraph edges 
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
@@ -90,12 +89,17 @@ def deduce_connections_from_topology(
 
     If pairing is impossible, will raise Exception instead
     """
+    # TODO: ensure no ambiguity arises on deduction over parallel MultiGraph edges 
     _check_connectors_cover_topology(topology, mapped_connectors)
     if n_iter_max_rule is None:
-        n_iter_max_rule = DEFAULT_ITER_RULE
+        # set here (rather than as arg default) so external callers can be oblivious to default and just use None
+        n_iter_max_rule = DEFAULT_ITER_RULE 
     
     # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
     # pares down cartesian product for search and makes unique-choice condition less stringent
+    #
+    # Equivalence relations (in this case, Connector fungibility) naturally induce partitions
+    # (see https://en.wikipedia.org/wiki/Equivalence_relation#Fundamental_theorem_of_equivalence_relations)
     conn_equiv_classes : dict[T, set[frozenset[Connector]]] = {
         node_label : equivalence_classes(connectors, relation=Connector.fungible_with)
             for node_label, connectors in mapped_connectors.items() 
