@@ -100,7 +100,7 @@ def deduce_connections_from_topology(
     #
     # Equivalence relations (in this case, Connector fungibility) naturally induce partitions
     # (see https://en.wikipedia.org/wiki/Equivalence_relation#Fundamental_theorem_of_equivalence_relations)
-    conn_equiv_classes : dict[T, set[frozenset[Connector]]] = {
+    conn_partitions : dict[T, set[frozenset[Connector]]] = {
         node_label : equivalence_classes(connectors, relation=Connector.fungible_with)
             for node_label, connectors in mapped_connectors.items() 
     }
@@ -115,20 +115,17 @@ def deduce_connections_from_topology(
         
         for edge_labels in unpaired_edges:
             node_label_former, node_label_latter = edge_labels
-            conn_classes_former : set[frozenset[Connector]] = conn_equiv_classes[node_label_former]
-            conn_classes_latter : set[frozenset[Connector]] = conn_equiv_classes[node_label_latter]
+            conn_partition_former : set[frozenset[Connector]] = conn_partitions[node_label_former]
+            conn_partition_latter : set[frozenset[Connector]] = conn_partitions[node_label_latter]
                 
             pair_choice_ambiguous : bool = False
             chosen_connectors : Optional[dict[T, Connector]] = None
 
-            for conn_class_former, conn_class_latter in cartesian(
-                conn_classes_former,
-                conn_classes_latter,
-            ):
-                # one pair from product of equiv classes bondable ==> any pair bondable
-                peek_conn_former = arbitrary_element(conn_class_former)
-                peek_conn_latter = arbitrary_element(conn_class_latter)
+            for conn_part_former, conn_part_latter in cartesian(conn_partition_former, conn_partition_latter):
+                peek_conn_former = arbitrary_element(conn_part_former)
+                peek_conn_latter = arbitrary_element(conn_part_latter)
                 
+                # any pair from the product of equivalence classes being bondable implies any pair is
                 if not Connector.bondable_with(peek_conn_former, peek_conn_latter):
                     continue
                 elif (chosen_connectors is None): # take note of first compatible pair found
@@ -153,14 +150,14 @@ def deduce_connections_from_topology(
                 continue
 
             # Pairing is unambiguous; mark off chosen representatives and update their equivalence classes if necessary
-            for equiv_classes, equiv_class, representative in (
-                (conn_classes_former, conn_class_former, peek_conn_former),
-                (conn_classes_latter, conn_class_latter, peek_conn_latter),
+            for partition, part, representative in (
+                (conn_partition_former, conn_part_former, peek_conn_former),
+                (conn_partition_latter, conn_part_latter, peek_conn_latter),
             ):
-                equiv_classes.remove(equiv_class)
-                equiv_class -= {representative}
-                if equiv_class: # re-add part only if it is non-empty after the pairing
-                    equiv_classes.add(equiv_class)
+                partition.remove(part)
+                part -= {representative}
+                if part: # re-add part only if it is non-empty after the pairing
+                    partition.add(part)
             
             # Lock in pair of Connectors and proceed
             connection_map[edge_labels] = chosen_connectors
