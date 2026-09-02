@@ -104,6 +104,19 @@ def _check_connectors_cover_topology(
                 f'{num_connectors} connection to distribute among them'
             )
             
+def equivalence_classes_mutable(
+    iterable : Iterable[T],
+    relation : Callable[[T, T], bool],
+) -> set[set[T]]:
+    '''
+    Wrapper around networkx's equivalence_classes() which makes the
+    returned equivlance classes mutable (i.e. sets instead of frozensets)
+    '''
+    return set(
+        set(equiv_class)
+            for equiv_class in equivalence_classes(iterable, relation=relation)
+    )
+            
 def deduce_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
@@ -122,14 +135,8 @@ def deduce_connections_from_topology(
     # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
     # pares down cartesian product for search and makes unique-choice condition less stringent
     conn_equiv_classes : dict[T, set[set[Connector]]] = {
-        node_label : set(
-            set(equiv_class)
-                for equiv_class in equivalence_classes(
-                    connectors,
-                    relation=Connector.fungible_with,
-                )
-        )
-        for node_label, connectors in mapped_connectors.items() 
+        node_label : equivalence_classes_mutable(connectors, relation=Connector.fungible_with)
+            for node_label, connectors in mapped_connectors.items() 
     }
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
     connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
