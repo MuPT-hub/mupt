@@ -391,7 +391,7 @@ class SupportsChildren(Primitive):
             mapped_connectors = {
                 subprim.addr : subprim.connections.connectors # TODO: figure out how to map from unique addresses to graph node
                     for subprim in select_primitives(self.descendants, criterion=criterion)
-            }
+            },
             n_iter_max_rule=n_iter_max_rule,
         )
 
