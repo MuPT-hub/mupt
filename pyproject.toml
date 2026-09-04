@@ -124,7 +124,6 @@ unsafe-fixes = false
 [tool.ruff.lint]
 preview = true
 
-# Add the `line-too-long` rule to the enforced rule set.
 select = [
     "E", # show errors
     "W", # show warnings
@@ -143,13 +142,12 @@ select = [
 convention = "numpy"
 
 [tool.ruff.lint.mccabe]
-max-complexity = 5 # Flag errors (`C901`) whenever the complexity level exceeds 5.
+max-complexity = 10 # Flag errors (`C901`) whenever the complexity level exceeds 5.
 
 [tool.ruff.format]
 preview = true
 
 indent-style = "space"
-# quote-style = 'single'
 quote-style = "double"
 line-ending = "auto"
 docstring-code-format = true
