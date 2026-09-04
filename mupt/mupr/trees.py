@@ -1,6 +1,6 @@
 '''Utilities for interfacing with the anytree library (https://anytree.readthedocs.io/en/latest/)'''
 
-from typing import Union, Type
+from typing import Type, Union
 
 from anytree import NodeMixin
 from anytree.render import (
@@ -13,9 +13,13 @@ from anytree.render import (
 )
 from networkx import DiGraph
 
+# type unions to placate linter (AbstractStyle/Type[AbstractStyle] rejected due to __init__ defaults on subclasses)
+ConcreteStyle = Union[*AbstractStyle.__subclasses__()]
+ConcreteStyleType = Union[*(Type[style_type] for style_type in AbstractStyle.__subclasses__())]
+
 
 # Rendering and printing trees
-RENDER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
+RENDER_STYLE_ALIASES : dict[ConcreteStyleType, tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
     AsciiStyle : (
         'asc',
         'ascii',
@@ -40,25 +44,25 @@ RENDER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any
         'double_style',
     ),    
 }
-RENDER_STYLES_BY_ALIAS : dict[str, AbstractStyle] = { 
+RENDER_STYLES_BY_ALIAS : dict[str, ConcreteStyle] = { 
     alias : stypetype()
         for stypetype, aliases in RENDER_STYLE_ALIASES.items()
             for alias in aliases                                                   
 }
 
-def flexible_treerender_style(style : Union[str, AbstractStyle, Type[AbstractStyle]]) -> AbstractStyle: # TODO: write tests
+def flexible_tree_render_style(style : Union[str, ConcreteStyle, ConcreteStyleType]) -> ConcreteStyle:
     '''
     Obtain a render style object which can be passed on to anytree renderers
     (https://anytree.readthedocs.io/en/latest/api/anytree.render.html)
     '''
-    if isinstance(style, AbstractStyle):
+    if isinstance(style, ConcreteStyle):
         return style
     elif isinstance(style, str):
         try:
             return RENDER_STYLES_BY_ALIAS[style.lower()]
         except KeyError:
             raise ValueError(f'Unrecognized tree render style string: "{style}"')
-    elif issubclass(style, AbstractStyle):
+    elif issubclass(style, ConcreteStyleType):
         return style()
     else:
         raise TypeError(f'Unsupported type for tree render style: {type(style)}')
