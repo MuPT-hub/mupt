@@ -134,7 +134,10 @@ select = [
     "C90",  # McCabe (cyclomatic) complexity
     "NPY",  # Numpy-specific rules"
 ]
-# ignore = ["E501"] # allow format to fix long lines (theoretically)
+ignore = [
+    "D401", # prevent rejection of docstrings with "non-imperative mood"
+    #"E501", # allow format to fix long lines (theoretically)
+]
 # extend-select = ["E501"]
 
 [tool.ruff.lint.pydocstyle]
