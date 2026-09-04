@@ -51,7 +51,7 @@ RENDER_STYLES_BY_ALIAS : dict[str, ConcreteStyle] = {
             for alias in aliases                                                   
 }
 
-def flexible_tree_render_style(style : Union[str, ConcreteStyle, Type[ConcreteStyle]]) -> ConcreteStyle:
+def tree_render_style(style : Union[str, ConcreteStyle, Type[ConcreteStyle]]) -> ConcreteStyle:
     '''
     Obtain a render style object which can be passed on to anytree renderers
     (https://anytree.readthedocs.io/en/latest/api/anytree.render.html)
