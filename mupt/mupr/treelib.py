@@ -15,7 +15,7 @@ from networkx import DiGraph
 
 
 # Rendering and printing trees
-REDNER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
+RENDER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
     AsciiStyle : ('asc', 'ascii', 'asciistyle', 'ascii_style'),
     ContStyle : ('cont', 'contstyle', 'cont_style'),
     ContRoundStyle : ('round', 'countround', 'controundstyle', 'cont_round_style'),
@@ -23,7 +23,7 @@ REDNER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any
 }
 RENDER_STYLES_BY_ALIAS : dict[str, AbstractStyle] = { 
     alias : stypetype()
-        for stypetype, aliases in REDNER_STYLE_ALIASES.items()
+        for stypetype, aliases in RENDER_STYLE_ALIASES.items()
             for alias in aliases                                                   
 }
 
