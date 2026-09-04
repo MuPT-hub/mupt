@@ -14,7 +14,9 @@ from typing import (
     Optional,
     Mapping,
     Self,
+    Type,
     TypeVar,
+    Union,
 )
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
@@ -23,7 +25,7 @@ type PrimitiveHandle = tuple[PrimitiveLabel, int] # (label, uniquification index
 from copy import deepcopy
 from weakref import WeakValueDictionary
 
-from anytree import NodeMixin, findall
+from anytree import NodeMixin, RenderTree, findall
 from networkx import Graph, DiGraph, MultiGraph
 
 import numpy as np
@@ -44,9 +46,9 @@ from .connection.management import (
     ConnectorManagerFrozen,
     ConnectorManagerMutable,
 )
-
-from .topology import GraphLayout, canonical_graph_property
 from .linking import assign_connections_from_topology
+from .topology import GraphLayout, canonical_graph_property
+from .trees import tree_to_networkx, tree_render_style, ConcreteStyle
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import UniqueRegistry, Labelled
@@ -254,11 +256,24 @@ class Primitive(
         '''The path to this Primitive from the root, INCLUDING itself'''
         return self.ancestors + (self,)
 
-    def hierarchy_summary(self) -> str:
-        raise NotImplementedError
+    def hierarchy_summary(        
+        self,
+        to_depth : Optional[int]=None,
+        style : Union[str, ConcreteStyle, Type[ConcreteStyle]]='cont',
+        render_attr : str='label', # TB: may consider fallback to address (or start of it) in place of default label
+    ) -> str:
+        '''A printable representation of this Primitive and all its descendants in the hierarchy'''
+        return RenderTree(
+            self,
+            style=tree_render_style(style),
+            maxlevel=to_depth,
+            # childiter=list
+        ).by_attr(render_attr) 
     
-    def hierarchy_tree(self) -> DiGraph:
-        raise NotImplemented
+    def hierarchy_tree(self, *args) -> DiGraph:
+        '''Generate a directed Graph representing the hierarchy below this Primitive'''
+        # TODO: assign nodes w/ .address attr, name them w/ .label attr
+        return tree_to_networkx(self, *args)
 
     # Depiction
     def __hash__(self) -> int:
