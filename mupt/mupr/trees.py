@@ -13,13 +13,14 @@ from anytree.render import (
 )
 from networkx import DiGraph
 
-# type unions to placate linter (AbstractStyle/Type[AbstractStyle] rejected due to __init__ defaults on subclasses)
+# type unions to placate linter (AbstractStyle/Type[AbstractStyle]
+# flags subclasses due to non-empty __init__ defaults in their impls)
 ConcreteStyle = Union[*AbstractStyle.__subclasses__()]
-ConcreteStyleType = Union[*(Type[style_type] for style_type in AbstractStyle.__subclasses__())]
 
 
 # Rendering and printing trees
-RENDER_STYLE_ALIASES : dict[ConcreteStyleType, tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
+## DEV: add any other common aliases here, as all-lowercase
+RENDER_STYLE_ALIASES : dict[Type[ConcreteStyle], tuple[str, ...]] = {  
     AsciiStyle : (
         'asc',
         'ascii',
@@ -50,7 +51,7 @@ RENDER_STYLES_BY_ALIAS : dict[str, ConcreteStyle] = {
             for alias in aliases                                                   
 }
 
-def flexible_tree_render_style(style : Union[str, ConcreteStyle, ConcreteStyleType]) -> ConcreteStyle:
+def flexible_tree_render_style(style : Union[str, ConcreteStyle, Type[ConcreteStyle]]) -> ConcreteStyle:
     '''
     Obtain a render style object which can be passed on to anytree renderers
     (https://anytree.readthedocs.io/en/latest/api/anytree.render.html)
@@ -62,7 +63,7 @@ def flexible_tree_render_style(style : Union[str, ConcreteStyle, ConcreteStyleTy
             return RENDER_STYLES_BY_ALIAS[style.lower()]
         except KeyError:
             raise ValueError(f'Unrecognized tree render style string: "{style}"')
-    elif issubclass(style, ConcreteStyleType):
+    elif issubclass(style, ConcreteStyle):
         return style()
     else:
         raise TypeError(f'Unsupported type for tree render style: {type(style)}')
