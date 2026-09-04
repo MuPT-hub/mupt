@@ -2,7 +2,7 @@
 
 from typing import Union, Type
 
-from anytree import Node, NodeMixin
+from anytree import NodeMixin
 from anytree.render import (
     RenderTree,
     AbstractStyle,
@@ -16,10 +16,29 @@ from networkx import DiGraph
 
 # Rendering and printing trees
 RENDER_STYLE_ALIASES : dict[type[AbstractStyle], tuple[str, ...]] = {  # add any other common aliases here, as all-lowercase
-    AsciiStyle : ('asc', 'ascii', 'asciistyle', 'ascii_style'),
-    ContStyle : ('cont', 'contstyle', 'cont_style'),
-    ContRoundStyle : ('round', 'countround', 'controundstyle', 'cont_round_style'),
-    DoubleStyle : ('dub', 'double', 'doublestyle', 'double_style'),    
+    AsciiStyle : (
+        'asc',
+        'ascii',
+        'asciistyle',
+        'ascii_style',
+    ),
+    ContStyle : (
+        'cont',
+        'contstyle',
+        'cont_style',
+    ),
+    ContRoundStyle : (
+        'round',
+        'countround',
+        'controundstyle',
+        'cont_round_style',
+    ),
+    DoubleStyle : (
+        'dub',
+        'double',
+        'doublestyle',
+        'double_style',
+    ),    
 }
 RENDER_STYLES_BY_ALIAS : dict[str, AbstractStyle] = { 
     alias : stypetype()
