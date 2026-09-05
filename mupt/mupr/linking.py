@@ -110,31 +110,42 @@ def deduce_connections_from_topology(
     n_iter : int = 0
     n_iter_max : int = n_iter_max_rule(topology.number_of_nodes())
     while (n_iter < n_iter_max) and unpaired_edges:
+        LOGGER.debug(f'Beginning Connector linking iteration {n_iter}:')
         n_paired_new : int = 0
         unpaired_updated = set()
         
         for edge_labels in unpaired_edges:
             node_label_former, node_label_latter = edge_labels
+            LOGGER.debug(f'Attempting to find compatible Connectors for edge {edge_labels}:')
+                
+            # NB: assigning to vars, rather than referencing directly in cartesian(), as refs are needed later for updating seen classes 
             conn_partition_former : set[frozenset[Connector]] = conn_partitions[node_label_former]
             conn_partition_latter : set[frozenset[Connector]] = conn_partitions[node_label_latter]
-                
+            
             pair_choice_ambiguous : bool = False
             chosen_connectors : Optional[dict[T, Connector]] = None
-
-            for conn_part_former, conn_part_latter in cartesian(conn_partition_former, conn_partition_latter):
+            
+            for conn_part_former, conn_part_latter in cartesian(
+                conn_partition_former,
+                conn_partition_latter,
+            ):
                 peek_conn_former = arbitrary_element(conn_part_former)
                 peek_conn_latter = arbitrary_element(conn_part_latter)
+                LOGGER.debug(f'Examining Connector pair {peek_conn_former!r} and {peek_conn_latter!r}')
                 
                 # any pair from the product of equivalence classes being bondable implies any pair is
                 if not Connector.bondable_with(peek_conn_former, peek_conn_latter):
+                    LOGGER.debug(f'Found pair to be incompatible, continuing...')
                     continue
                 elif (chosen_connectors is None): # take note of first compatible pair found
+                    LOGGER.debug(f'Chosen pair is a match!')
                     chosen_connectors = {
                         node_label_former : peek_conn_former,
                         node_label_latter : peek_conn_latter,
                     }
                 else: # if compatible classes were found previously, choice is ambiguous; halt class assessment
                     # TB TODO: provide means to break ties when ALL edge pairings are ambiguous (keep record, rather than halting)
+                    LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
                     pair_choice_ambiguous = True 
                     break # further search can't disambiguate choice, stop early to save computation
                 
@@ -143,10 +154,9 @@ def deduce_connections_from_topology(
                 raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
             
             if pair_choice_ambiguous:
-                LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
-                unpaired_updated.add(edge_labels) # "try again next time!"
                 # NB: opting to collected unmatched edges (rather than popping
                 # matched ones) to avoid modifying set while iterating over it
+                unpaired_updated.add(edge_labels) # "try again next time!"
                 continue
 
             # Pairing is unambiguous; mark off chosen representatives and update their equivalence classes if necessary
@@ -158,6 +168,8 @@ def deduce_connections_from_topology(
                 part -= {representative}
                 if part: # re-add part only if it is non-empty after the pairing
                     partition.add(part)
+                else:
+                    LOGGER.debug('Examined part has been emptied; removing from partition')
             
             # Lock in pair of Connectors and proceed
             connection_map[edge_labels] = chosen_connectors
@@ -171,7 +183,6 @@ def deduce_connections_from_topology(
             '{len(unpaired_edges)}/{num_total_edges} edges remain unpaired'
         )
         
-        # halt if no further connections can be made
         if n_paired_new == 0:
             LOGGER.info(f'No new edges paired, halting registration loop')
             break 
