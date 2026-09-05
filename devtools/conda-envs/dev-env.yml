@@ -8,6 +8,10 @@ dependencies:
   - pip
   - jupyterlab
 
+  # Linting and formatting
+  - ruff
+  - pre-commit
+
   # Unit testing
   - pytest
   - pytest-cov

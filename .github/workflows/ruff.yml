@@ -1,0 +1,21 @@
+name: Ruff
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "stable"
+  push:
+    branches:
+      - "main"
+
+jobs:
+  ruff:
+    name: Ruff linting and code formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+      # See astral repo for config details: https://github.com/astral-sh/ruff-action
+      - run: ruff format
+      - run: ruff check --fix
