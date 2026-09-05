@@ -1,3 +1,3 @@
 # .git-blame-ignore-revs
-# Mass reformat after initial run of ruff linter-formatter (2026/MM/DD)
-# <hash goes here, on ruff run merfore merge>
+# Mass reformat after initial run of ruff linter+formatter (2026/MM/DD)
+# <hash goes here, include after ruff run before merge>
