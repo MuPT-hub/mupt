@@ -77,12 +77,16 @@ def deduce_connections_from_topology(
     topology : Graph, # TB: Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]],
     n_iter_max_rule : Optional[Callable[[int], int]]=None, 
-) -> Mapping[tuple[T, T], Mapping[T, Connector]]:
+) -> Mapping[tuple[T, T], tuple[Connector, Connector]]:
     """
     Given a connectivity graph and a collection of ConnectorManagers
     mapped to a (non-proper) subset of the nodes of that graph,
-    deduces if it is possible to connect the Connectors within those managers
-    along the edges of the graph, and if so returns an explicit mapping of those connections
+    deduces if it is possible to pair those Connectors along the edges of the graph,
+    and if so returns an explicit mapping of those connections
+
+    Returned mapping maps edges, as ordered 2-tuples of nodes (i.e. (a, b) w/ a < b),
+    to 2-tuples of the Connectors associated to that same edge and in the same order
+    E.g. (0, 1) : (<Connector on 0>, <Connector on 1>)
 
     If pairing is impossible, will raise Exception instead
     """
@@ -103,7 +107,7 @@ def deduce_connections_from_topology(
     }
     num_total_edges : int = topology.number_of_edges()
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
-    connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
+    connection_map : Mapping[tuple[T, T], tuple[Connector, Connector]] = dict()
 
     n_iter : int = 0
     n_iter_max : int = n_iter_max_rule(topology.number_of_nodes())
@@ -112,7 +116,8 @@ def deduce_connections_from_topology(
         n_paired_new : int = 0
         unpaired_updated = set()
         
-        for edge_labels in unpaired_edges:
+        # TB TODO: add option to introduce some stochasticity for discovering alternate solutions
+        for edge_labels in unpaired_edges: 
             node_label_former, node_label_latter = edge_labels
             LOGGER.debug(f'Attempting to find compatible Connectors for edge {edge_labels}:')
                 
@@ -122,7 +127,7 @@ def deduce_connections_from_topology(
             conn_partition_latter : set[frozenset[Connector]] = conn_partitions[node_label_latter]
             
             pair_choice_ambiguous : bool = False
-            chosen_connectors : Optional[dict[T, Connector]] = None
+            chosen_connectors : Optional[tuple[Connector, Connector]] = None
             
             # Screen equivalence classes to see if 0, 1, or many matches are present
             for conn_part_former, conn_part_latter in cartesian(
@@ -140,10 +145,7 @@ def deduce_connections_from_topology(
                 
                 if not chosen_connectors: # take note of first compatible pair found
                     LOGGER.debug(f'Chosen pair is a match!')
-                    chosen_connectors = {
-                        node_label_former : peek_conn_former,
-                        node_label_latter : peek_conn_latter,
-                    }
+                    chosen_connectors = (peek_conn_former, peek_conn_latter)
                     break
                 else: 
                     LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
@@ -211,11 +213,11 @@ def assign_connections_from_topology(
     n_iter_max_rule : Optional[Callable[[int], int]]=None,
 ) -> None:
     """Deduce connections from graph and mapped ConnectorManagers and assign neighborship based on it"""
-    connections : Mapping[tuple[T, T], Mapping[T, Connector]] = deduce_connections_from_topology(
+    connections = deduce_connections_from_topology(
         topology,
         mapped_connectors=mapped_connectors,
         n_iter_max_rule=n_iter_max_rule,
     )
     
-    for (node_former, node_latter), connector_map in connections.items():
-        connector_map[node_former].neighbor = connector_map[node_latter]
+    for (node_former, node_latter), (conn_former, conn_latter) in connections.items():
+        conn_former.neighbor = conn_latter
