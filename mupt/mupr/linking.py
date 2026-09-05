@@ -9,12 +9,9 @@ LOGGER = logging.getLogger(__name__)
 from typing import (
     Callable,
     Collection,
-    Generator,
-    Iterable,
     Mapping,
     Optional,
     TypeVar,
-    overload,
 )
 T = TypeVar('T')
 
@@ -104,6 +101,7 @@ def deduce_connections_from_topology(
         node_label : equivalence_classes(connectors, relation=Connector.fungible_with)
             for node_label, connectors in mapped_connectors.items() 
     }
+    num_total_edges : int = topology.number_of_edges()
     unpaired_edges : set[tuple[T, T]] = set(topology.edges)
     connection_map : Mapping[tuple[T, T], Mapping[T, Connector]] = dict()
 
@@ -178,7 +176,7 @@ def deduce_connections_from_topology(
                         partition.add(part)
                     else:
                         LOGGER.debug(
-                            'Examined part has been emptied and removed from'
+                            'Examined part has been emptied and removed from '
                             f'{descriptor} partition; {len(partition)} parts remain'
                         )
                 n_paired_new += 1
@@ -187,8 +185,8 @@ def deduce_connections_from_topology(
         unpaired_edges = unpaired_updated
         n_iter += 1
         LOGGER.info(
-            f'Paired up {n_paired_new} new edges after {n_iter} iteration(s);'
-            '{len(unpaired_edges)}/{num_total_edges} edges remain unpaired'
+            f'Paired up {n_paired_new} new edges after {n_iter} iteration(s); '
+            f'{len(unpaired_edges)}/{num_total_edges} edges remain unpaired'
         )
         
         if n_paired_new == 0:
@@ -199,6 +197,10 @@ def deduce_connections_from_topology(
         raise EdgeMissingError(
             f'Could not identify connection for every edge; try running registration '
             'procedure for >{n_iter_max} iterations, or check topology/Connectors'
+        )
+    else:
+        LOGGER.info(
+            f'Linking protocol successful! {num_total_edges - len(unpaired_edges)}/{num_total_edges} edges were assigned Connector pairings'
         )
     
     return connection_map
