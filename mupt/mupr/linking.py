@@ -49,7 +49,7 @@ class EdgeMissingError(GraphLinkingError):
     ...
 
 
-DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a number I made up :P
+DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a sensible number I made up :P
 
 def _check_connectors_cover_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
@@ -77,8 +77,8 @@ def _check_connectors_cover_topology(
             )
             
 def deduce_connections_from_topology(
-    topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
-    mapped_connectors : Mapping[T, Collection[Connector]], # Collection (rather than Iterable) needed for length check
+    topology : Graph, # TB: Graph[T], indicating node type
+    mapped_connectors : Mapping[T, Collection[Connector]],
     n_iter_max_rule : Optional[Callable[[int], int]]=None, 
 ) -> Mapping[tuple[T, T], Mapping[T, Connector]]:
     """
@@ -118,13 +118,15 @@ def deduce_connections_from_topology(
             node_label_former, node_label_latter = edge_labels
             LOGGER.debug(f'Attempting to find compatible Connectors for edge {edge_labels}:')
                 
-            # NB: assigning to vars, rather than referencing directly in cartesian(), as refs are needed later for updating seen classes 
+            # NB: assigning to vars, rather than referencing directly in 
+            # cartesian(), as refs are needed later for updating seen partitions 
             conn_partition_former : set[frozenset[Connector]] = conn_partitions[node_label_former]
             conn_partition_latter : set[frozenset[Connector]] = conn_partitions[node_label_latter]
             
             pair_choice_ambiguous : bool = False
             chosen_connectors : Optional[dict[T, Connector]] = None
             
+            # Screen equivalence classes to see if 0, 1, or many matches are present
             for conn_part_former, conn_part_latter in cartesian(
                 conn_partition_former,
                 conn_partition_latter,
@@ -133,47 +135,53 @@ def deduce_connections_from_topology(
                 peek_conn_latter = arbitrary_element(conn_part_latter)
                 LOGGER.debug(f'Examining Connector pair {peek_conn_former!r} and {peek_conn_latter!r}')
                 
-                # any pair from the product of equivalence classes being bondable implies any pair is
                 if not Connector.bondable_with(peek_conn_former, peek_conn_latter):
+                    # any pair from the product of equivalence classes being bondable implies any pair is
                     LOGGER.debug(f'Found pair to be incompatible, continuing...')
                     continue
-                elif (chosen_connectors is None): # take note of first compatible pair found
+                
+                if not chosen_connectors: # take note of first compatible pair found
                     LOGGER.debug(f'Chosen pair is a match!')
                     chosen_connectors = {
                         node_label_former : peek_conn_former,
                         node_label_latter : peek_conn_latter,
                     }
-                else: # if compatible classes were found previously, choice is ambiguous; halt class assessment
-                    # TB TODO: provide means to break ties when ALL edge pairings are ambiguous (keep record, rather than halting)
+                    break
+                else: 
                     LOGGER.debug(f'Choice of Connector pair ambiguous for edge {edge_labels}, skipping')
                     pair_choice_ambiguous = True 
-                    break # further search can't disambiguate choice, stop early to save computation
+                    # TB TODO: provide means to break ties when ALL edge pairings
+                    # are ambiguous (keep record, rather than halting)
+                    break
                 
             # Decide how to continue after equivalence classes have been assessed
             if (chosen_connectors is None):
                 raise EdgeMissingError(f'No compatible Connector pairs found for edge {edge_labels}')
             
             if pair_choice_ambiguous:
+                unpaired_updated.add(edge_labels) # "try again next time!"
                 # NB: opting to collected unmatched edges (rather than popping
                 # matched ones) to avoid modifying set while iterating over it
-                unpaired_updated.add(edge_labels) # "try again next time!"
                 continue
-
-            # Pairing is unambiguous; mark off chosen representatives and update their equivalence classes if necessary
-            for partition, part, representative in (
-                (conn_partition_former, conn_part_former, peek_conn_former),
-                (conn_partition_latter, conn_part_latter, peek_conn_latter),
-            ):
-                partition.remove(part)
-                part -= {representative}
-                if part: # re-add part only if it is non-empty after the pairing
-                    partition.add(part)
-                else:
-                    LOGGER.debug('Examined part has been emptied; removing from partition')
-            
-            # Lock in pair of Connectors and proceed
-            connection_map[edge_labels] = chosen_connectors
-            n_paired_new += 1
+            else:
+                # If unambiguous, record chosen representatives, mark used up, 
+                # and update their equivalence classes if emptied
+                LOGGER.debug('Updating explored parts of partitions')
+                connection_map[edge_labels] = chosen_connectors
+                for partition, part, representative, descriptor in (
+                    (conn_partition_former, conn_part_former, peek_conn_former, 'former'),
+                    (conn_partition_latter, conn_part_latter, peek_conn_latter, 'latter'),
+                ):
+                    partition.remove(part)
+                    part -= {representative}
+                    if part:
+                        partition.add(part)
+                    else:
+                        LOGGER.debug(
+                            'Examined part has been emptied and removed from'
+                            f'{descriptor} partition; {len(partition)} parts remain'
+                        )
+                n_paired_new += 1
         
         # tee up next iteration;
         unpaired_edges = unpaired_updated
@@ -188,7 +196,10 @@ def deduce_connections_from_topology(
             break 
         
     if any(unpaired_edges):
-        raise EdgeMissingError(f'Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors')
+        raise EdgeMissingError(
+            f'Could not identify connection for every edge; try running registration '
+            'procedure for >{n_iter_max} iterations, or check topology/Connectors'
+        )
     
     return connection_map
 
