@@ -472,6 +472,11 @@ class Connector(
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
+        if self.is_locked:
+            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
+
+        if not self.bondable_with(other):
+            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
         self._precondition_mutable_neighbor()
         other._precondition_mutable_neighbor()
 
@@ -484,6 +489,10 @@ class Connector(
 
     @neighbor.deleter
     def neighbor(self) -> None:
+        if self.has_neighbor and self.is_locked:
+            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
+        self._neighbor = None
+       
         if not self.has_neighbor:
             return
 
