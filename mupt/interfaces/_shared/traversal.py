@@ -1,7 +1,6 @@
 """Shared MuPt representation traversal helpers for exporter interfaces."""
 
-
-from collections.abc import Hashable, Iterator, Mapping
+from typing import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER

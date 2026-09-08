@@ -30,7 +30,7 @@ from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..mupr.topology import TopologicalStructure
 from ..mupr.primitives import Primitive, PrimitiveHandle
 from ..mupr.connection.connectors import Connector
-from mupt.mupr.connection.alignment import ConnectorAntialignmentStrategy, ConnectorAntialignmentBallistic
+from ..mupr.connection.alignment import ConnectorAntialignmentStrategy, ConnectorAntialignmentBallistic 
 
 
 def random_walk_jointed_chain(

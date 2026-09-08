@@ -474,7 +474,6 @@ class Connector(
     def neighbor(self, other : 'Connector') -> None:
         self._precondition_mutable_neighbor()
         other._precondition_mutable_neighbor()
-
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
