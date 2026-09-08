@@ -132,7 +132,7 @@ select = [
     "D", # docstring format
     "E501", # check too long lines
     "C90",  # McCabe (cyclomatic) complexity
-    "NPY",  # Numpy-specific rules"
+    "NPY",  # Numpy-specific rules
 ]
 ignore = [
     "D401", # prevent rejection of docstrings with "non-imperative mood"
