@@ -472,14 +472,8 @@ class Connector(
 
     @neighbor.setter
     def neighbor(self, other : 'Connector') -> None:
-        if self.is_locked:
-            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be modified')
-
-        if not self.bondable_with(other):
-            raise IncompatibleConnectorError('Cannot make incompatible Connector neighbor')
         self._precondition_mutable_neighbor()
         other._precondition_mutable_neighbor()
-
         # N.B.: if ALL positions are unset, will evaluate as antialigned
         if not self.is_antialigned(other): # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError('Candidate for neighbor Connector is not anti-aligne within tolerance')
@@ -489,10 +483,6 @@ class Connector(
 
     @neighbor.deleter
     def neighbor(self) -> None:
-        if self.has_neighbor and self.is_locked:
-            raise ConnectorLockedError('Neighbor of this Connector is locked and cannot be cleared')
-        self._neighbor = None
-       
         if not self.has_neighbor:
             return
 
