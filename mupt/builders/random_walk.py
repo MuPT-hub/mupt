@@ -138,7 +138,6 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         self.initial_direction = initial_direction
         self.alignment_strategy = alignment_strategy
         self.rng = rng
-        self.alignment_strategy = alignment_strategy
 
     # optional helper methods (to declutter casework from main logic)
     def get_termini_handles(self, chain : TopologicalStructure) -> tuple[Hashable, Hashable]:
