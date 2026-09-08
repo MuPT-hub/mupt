@@ -64,6 +64,8 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/how_to/mol_from_scratch_basic.ipynb
+docs/tutorials/hierarchy_on_peptides.ipynb
 
 # PyBuilder
 target/

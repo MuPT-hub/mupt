@@ -15,6 +15,9 @@
 # Incase the project was not installed
 import os
 import sys
+from pathlib import Path
+from urllib.request import urlretrieve
+
 sys.path.insert(0, os.path.abspath('..'))
 
 import mupt
@@ -31,6 +34,30 @@ author = 'Timotej Bernat'
 version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
+
+examples_repo_base = (
+    'https://raw.githubusercontent.com/MuPT-hub/mupt-examples/main/'
+)
+
+# mappings: these map a URL for a raw file to a local path in the
+# documentation source tree.
+external_files = {
+    examples_repo_base + 'examples_repr/mol_from_scratch_basic.ipynb': (
+        'how_to/mol_from_scratch_basic.ipynb'
+    ),
+    examples_repo_base + 'examples_system/hierarchy_on_peptides.ipynb': (
+        'tutorials/hierarchy_on_peptides.ipynb'
+    ),
+}
+
+
+def download_external_files(app):
+    """Download externally maintained documentation sources."""
+    source_directory = Path(app.srcdir)
+    for source_url, relative_destination in external_files.items():
+        destination = source_directory / relative_destination
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        urlretrieve(source_url, destination)
 
 
 # -- General configuration ---------------------------------------------------
@@ -52,11 +79,13 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.extlinks',
     'sphinx_design',
-    'sphinx_copybutton',    
+    'sphinx_copybutton',
+    'nbsphinx',
 ]
 
 
 autosummary_generate = True
+nbsphinx_execute = 'never'
 napoleon_google_docstring = False
 napoleon_use_param = False
 napoleon_use_ivar = True
@@ -100,6 +129,7 @@ def skip_unsupported_api(app, what, name, obj, skip, options):
 
 
 def setup(app):
+    app.connect('builder-inited', download_external_files)
     app.connect('autoapi-skip-member', skip_unsupported_api)
 
 
@@ -109,7 +139,11 @@ autoapi_ignore = [
 
 # AutoAPI cannot statically resolve every alias imported from an optional or
 # third-party dependency. Those aliases still render correctly in signatures.
-suppress_warnings = ['autoapi.python_import_resolution']
+suppress_warnings = [
+    'autoapi.python_import_resolution',
+    # External notebooks may link to examples that are not part of these docs.
+    'nbsphinx.localfile',
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

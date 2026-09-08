@@ -13,6 +13,7 @@ dependencies:
   - sphinx-autoapi
   - sphinx-design
   - sphinx-copybutton
+  - nbsphinx
 
 
 
