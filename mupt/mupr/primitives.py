@@ -384,6 +384,7 @@ class SupportsChildren(Primitive):
         '''
         self._precondition_mutable_hierarchy()
         raise NotImplementedError
+    
 
     # Geometry
     ## Overriding RigidlyTransformable contracts - apply recursively to children as well
