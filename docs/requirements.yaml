@@ -10,6 +10,7 @@ dependencies:
   - pip
   
   - pydata-sphinx-theme
+  - sphinx-autoapi
   - sphinx-design
   - sphinx-copybutton
 
@@ -19,4 +20,3 @@ dependencies:
     # Pip-only installs
   - pip:
     - -e ../
-

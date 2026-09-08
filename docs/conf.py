@@ -43,6 +43,7 @@ release = ''
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'autoapi.extension',
     'sphinx.ext.autosummary',
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
@@ -59,6 +60,56 @@ autosummary_generate = True
 napoleon_google_docstring = False
 napoleon_use_param = False
 napoleon_use_ivar = True
+
+# Generate the public API reference directly from the Python source tree. The
+# generated reStructuredText files exist only for the duration of a build.
+autoapi_type = 'python'
+autoapi_dirs = ['../mupt']
+autoapi_root = 'reference/api'
+autoapi_add_toctree_entry = False
+autoapi_keep_files = False
+autoapi_member_order = 'bysource'
+autoapi_options = [
+    'members',
+    'undoc-members',
+    'show-inheritance',
+    'show-module-summary',
+]
+
+# Parse internal modules so AutoAPI can resolve public annotations and base
+# classes, but do not render them. New modules inside the supported packages
+# are discovered automatically; promoting a top-level package is explicit.
+public_api_prefixes = (
+    'mupt.builders',
+    'mupt.chemistry',
+    'mupt.geometry',
+    'mupt.interfaces',
+    'mupt.mupr',
+    'mupt.roles',
+)
+
+
+def skip_unsupported_api(app, what, name, obj, skip, options):
+    """Exclude objects outside the supported public API namespaces."""
+    if name == 'mupt' or any(
+        name == prefix or name.startswith(f'{prefix}.')
+        for prefix in public_api_prefixes
+    ):
+        return skip
+    return True
+
+
+def setup(app):
+    app.connect('autoapi-skip-member', skip_unsupported_api)
+
+
+autoapi_ignore = [
+    '*/tests/**',
+]
+
+# AutoAPI cannot statically resolve every alias imported from an optional or
+# third-party dependency. Those aliases still render correctly in signatures.
+suppress_warnings = ['autoapi.python_import_resolution']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -82,7 +133,12 @@ language = 'en'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = ['_build', 'autosummary/*', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    'reference/api/mupt/index.rst',
+    'Thumbs.db',
+    '.DS_Store',
+]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'default'

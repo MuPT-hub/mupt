@@ -49,6 +49,7 @@ test = [
 ]
 docs = [
   "sphinx",
+  "sphinx-autoapi",
   "pydata-sphinx-theme",
   "sphinx-design",
   "sphinx-copybutton",

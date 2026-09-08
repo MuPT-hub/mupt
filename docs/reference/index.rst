@@ -1,7 +1,4 @@
 Reference
 =========
 
-.. autosummary::
-   :toctree: autosummary
-
-   mupt.canvas
+.. include:: api/mupt/index.rst
