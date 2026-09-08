@@ -129,13 +129,14 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         angle_max_rad : float=np.pi/4,
         initial_point : Optional[Vector3]=None,
         initial_direction : Optional[Vector3]=None,
+        alignment_strategy : ConnectorAntialignmentStrategy=ConnectorAntialignmentBallistic(),
         rng : Optional[np.random.Generator]=None,
-        alignment_strategy : ConnectorAntialignmentStrategy=ConnectorAntialignmentBallistic()
     ) -> None:
         self.bond_length = bond_length
         self.angle_max_rad = angle_max_rad
         self.initial_point = initial_point
         self.initial_direction = initial_direction
+        self.alignment_strategy = alignment_strategy
         self.rng = rng
         self.alignment_strategy = alignment_strategy
 
