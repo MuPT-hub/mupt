@@ -122,3 +122,6 @@ ENV/
 */_version.py
 # Cookiecutter-CMS Test Artifacts
 /tests/CI_files
+# pixi environments
+.pixi/*
+!.pixi/config.toml
