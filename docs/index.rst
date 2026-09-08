@@ -1,3 +1,6 @@
+.. role:: visually-hidden
+   :class: visually-hidden
+
 Welcome to Multiscale Polymer Toolkit's documentation!
 =========================================================
 
@@ -10,8 +13,9 @@ Welcome to Multiscale Polymer Toolkit's documentation!
          :color: primary
          :outline:
          :expand:
+         :tooltip: Getting Started
 
-         To Getting Started
+         :material-outlined:`rocket_launch;2em` :visually-hidden:`Getting Started`
 
     .. grid-item-card:: Tutorials
       :margin: 0 3 0 0
@@ -20,8 +24,9 @@ Welcome to Multiscale Polymer Toolkit's documentation!
          :color: primary
          :outline:
          :expand:
+         :tooltip: Tutorials
 
-         To Tutorials
+         :material-outlined:`school;2em` :visually-hidden:`Tutorials`
 
     .. grid-item-card:: How-To
       :margin: 0 3 0 0
@@ -30,8 +35,9 @@ Welcome to Multiscale Polymer Toolkit's documentation!
          :color: primary
          :outline:
          :expand:
+         :tooltip: How-To
 
-         To How-To
+         :material-outlined:`construction;2em` :visually-hidden:`How-To`
 
     .. grid-item-card:: Explanation
       :margin: 0 3 0 0
@@ -40,8 +46,9 @@ Welcome to Multiscale Polymer Toolkit's documentation!
          :color: primary
          :outline:
          :expand:
+         :tooltip: Explanation
 
-         To Explanation
+         :material-outlined:`lightbulb;2em` :visually-hidden:`Explanation`
 
     .. grid-item-card:: Reference
       :margin: 0 3 0 0
@@ -50,8 +57,9 @@ Welcome to Multiscale Polymer Toolkit's documentation!
          :color: primary
          :outline:
          :expand:
+         :tooltip: Reference
 
-         To Reference
+         :material-outlined:`menu_book;2em` :visually-hidden:`Reference`
 
     .. grid-item-card:: Developing
       :margin: 0 3 0 0
@@ -60,8 +68,9 @@ Welcome to Multiscale Polymer Toolkit's documentation!
          :color: primary
          :outline:
          :expand:
+         :tooltip: Developing
 
-         To Developing
+         :material-outlined:`terminal;2em` :visually-hidden:`Developing`
 
 
 .. toctree::
