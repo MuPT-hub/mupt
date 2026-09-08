@@ -3,6 +3,7 @@
 from .types import (
     AttachmentLabel,
     ConnectorLabel,
+    ConnectorHandle
 )
 from .exceptions import (
     ConnectionError,
