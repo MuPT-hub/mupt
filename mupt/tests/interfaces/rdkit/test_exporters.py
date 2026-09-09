@@ -1,7 +1,7 @@
-'''
+"""
 Tests for ensuring export from MuPT to RDKit preserves chemical information and metadata,
 and does not export systems which cannot be interpreted as all-atom molecules
-'''
+"""
 
 import pytest
 from anytree import PreOrderIter
@@ -54,7 +54,9 @@ def _atoms_by_mupt_residue(mol):
     atoms_by_residue = {}
     for atom in mol.GetAtoms():
         if atom.HasProp("mupt_residue_index"):
-            atoms_by_residue.setdefault(atom.GetIntProp("mupt_residue_index"), []).append(atom)
+            atoms_by_residue.setdefault(
+                atom.GetIntProp("mupt_residue_index"), []
+            ).append(atom)
     return atoms_by_residue
 
 
@@ -75,8 +77,7 @@ def _pdb_boundary_bonds(mol, residue_ids, resnames):
     boundary_bonds = []
     for bond in mol.GetBonds():
         residue_data = tuple(
-            _pdb_residue_id(atom)
-            for atom in (bond.GetBeginAtom(), bond.GetEndAtom())
+            _pdb_residue_id(atom) for atom in (bond.GetBeginAtom(), bond.GetEndAtom())
         )
         if None in residue_data:
             continue
@@ -138,7 +139,9 @@ def test_primitive_to_rdkit_mols_sets_pdb_residue_info(
         pdb_info = atom.GetPDBResidueInfo()
         assert pdb_info is not None
         assert pdb_info.GetChainId() == "A"
-        assert pdb_info.GetResidueName().strip() in set(polyethylene_resname_map.values())
+        assert pdb_info.GetResidueName().strip() in set(
+            polyethylene_resname_map.values()
+        )
         assert atom.GetProp("chain_id") == "A"
         assert atom.GetProp("residue_name") in set(polyethylene_resname_map.values())
 
@@ -147,7 +150,9 @@ def test_primitive_to_rdkit_mols_uses_residue_metadata_name_for_instance_labels(
     """Residue metadata supports generated labels not present in resname_map."""
     residue = Primitive(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
     residue.metadata["residue_name"] = "PSH"
-    residue.attach_child(Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE))
+    residue.attach_child(
+        Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    )
     universe = _universe_from_residue(residue)
 
     mol = _rdkit_mols(universe, {"head_styrene": "PSH"})[0]
@@ -183,8 +188,14 @@ def test_primitive_to_rdkit_mols_wraps_pdb_surrogate_residue_ids(
         for atom in atoms_by_residue[mupt_residue_index]:
             pdb_info = atom.GetPDBResidueInfo()
             assert pdb_info is not None
-            assert (pdb_info.GetChainId(), pdb_info.GetResidueNumber()) == expected_surrogate_id
-            assert (atom.GetProp("chain_id"), atom.GetIntProp("residue_id")) == expected_surrogate_id
+            assert (
+                pdb_info.GetChainId(),
+                pdb_info.GetResidueNumber(),
+            ) == expected_surrogate_id
+            assert (
+                atom.GetProp("chain_id"),
+                atom.GetIntProp("residue_id"),
+            ) == expected_surrogate_id
 
 
 def test_primitive_to_rdkit_mols_preserves_bond_across_pdb_surrogate_chain_wrap(
@@ -237,13 +248,16 @@ def test_primitive_to_rdkit_mols_pdb_roundtrip_preserves_wrapped_chain_bond(
     assert reloaded is not None
     assert reloaded.GetNumAtoms() == mol.GetNumAtoms()
     assert reloaded.GetNumBonds() == mol.GetNumBonds()
-    assert len(
-        _pdb_boundary_bonds(
-            reloaded,
-            residue_ids={("A", 2), ("B", 1)},
-            resnames={"EAN", "TYL"},
+    assert (
+        len(
+            _pdb_boundary_bonds(
+                reloaded,
+                residue_ids={("A", 2), ("B", 1)},
+                resnames={"EAN", "TYL"},
+            )
         )
-    ) == 1
+        == 1
+    )
 
 
 def test_primitive_to_rdkit_mols_rejects_empty_segment():
@@ -299,13 +313,17 @@ def test_primitive_to_rdkit_mols_exports_heterocyclic_aromatics(label, smiles):
     mols = _rdkit_mols(universe, {label: "UNK"})
 
     assert len(mols) == 1
-    assert mols[0].GetNumAtoms() == len(residue.leaves) + len(universe.children[0].external_connectors)
-    assert mols[0].GetNumBonds() == _count_internal_connections(residue) + len(universe.children[0].external_connectors)
+    assert mols[0].GetNumAtoms() == len(residue.leaves) + len(
+        universe.children[0].external_connectors
+    )
+    assert mols[0].GetNumBonds() == _count_internal_connections(residue) + len(
+        universe.children[0].external_connectors
+    )
 
 
 def test_primitive_to_rdkit_mols_preserves_valid_thiophene_chemistry():
     """Issue #31: heteroaromatic thiophene exports remain RDKit-sanitizable.
-       See https://github.com/MuPT-hub/mupt/issues/31"""
+    See https://github.com/MuPT-hub/mupt/issues/31"""
     residue = primitive_from_smiles(
         "*-[C:1]1=C-C=[C:2](-S-1)-*",
         ensure_explicit_Hs=True,

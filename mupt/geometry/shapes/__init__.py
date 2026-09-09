@@ -1,4 +1,4 @@
-'''For representing spatial information about bounded and rigid bodies'''
+"""For representing spatial information about bounded and rigid bodies"""
 
 from .shapes import BoundedShape, BoundedTransformableShape, Shaped
 from .pointcloud import PointCloud

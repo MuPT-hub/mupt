@@ -1,6 +1,5 @@
 """Shared topology traversal helpers for exporter interfaces."""
 
-
 from collections.abc import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
@@ -74,7 +73,9 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
                     f"['{node.label}']."
                 )
             if current_segment is None:
-                raise ValueError("RESIDUE-role Primitives must be enclosed by a SEGMENT.")
+                raise ValueError(
+                    "RESIDUE-role Primitives must be enclosed by a SEGMENT."
+                )
             current_residue = node
             index.residues_by_segment[id(current_segment)].append(node)
             index.particles_by_residue[id(node)] = []
@@ -184,7 +185,9 @@ def _pdb_resname(
         name = label
 
     if len(name) != 3:
-        raise ValueError(f"Residue name '{name}' (from '{label}') is not 3 characters long")
+        raise ValueError(
+            f"Residue name '{name}' (from '{label}') is not 3 characters long"
+        )
     return name.upper()
 
 

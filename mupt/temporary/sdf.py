@@ -241,7 +241,9 @@ def _record_metadata(mol: Mol) -> dict:
     """Return non-atom-list SDF record metadata for segment-level preservation."""
     return {
         key: value
-        for key, value in mol.GetPropsAsDict(includePrivate=True, includeComputed=False).items()
+        for key, value in mol.GetPropsAsDict(
+            includePrivate=True, includeComputed=False
+        ).items()
         if not key.startswith(MUPT_SDF_ATOM_PROP_PREFIX)
     }
 
@@ -335,12 +337,17 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
     for bond in mol.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
-        if begin_idx not in atom_to_residue_index or end_idx not in atom_to_residue_index:
+        if (
+            begin_idx not in atom_to_residue_index
+            or end_idx not in atom_to_residue_index
+        ):
             if not (
                 _is_external_linker_atom(mol.GetAtomWithIdx(begin_idx))
                 or _is_external_linker_atom(mol.GetAtomWithIdx(end_idx))
             ):
-                raise ValueError("MuPT SDF bond references an atom without particle props")
+                raise ValueError(
+                    "MuPT SDF bond references an atom without particle props"
+                )
             continue
         begin_residue_index = atom_to_residue_index[begin_idx]
         end_residue_index = atom_to_residue_index[end_idx]
@@ -354,17 +361,24 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
 
     residue_handles = {}
     for residue_index in sorted(residue_primitives):
-        residue_handles[residue_index] = segment.attach_child(residue_primitives[residue_index])
+        residue_handles[residue_index] = segment.attach_child(
+            residue_primitives[residue_index]
+        )
 
     for bond in mol.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
-        if begin_idx not in atom_to_residue_index or end_idx not in atom_to_residue_index:
+        if (
+            begin_idx not in atom_to_residue_index
+            or end_idx not in atom_to_residue_index
+        ):
             if not (
                 _is_external_linker_atom(mol.GetAtomWithIdx(begin_idx))
                 or _is_external_linker_atom(mol.GetAtomWithIdx(end_idx))
             ):
-                raise ValueError("MuPT SDF bond references an atom without particle props")
+                raise ValueError(
+                    "MuPT SDF bond references an atom without particle props"
+                )
             continue
         begin_residue_index = atom_to_residue_index[begin_idx]
         end_residue_index = atom_to_residue_index[end_idx]
@@ -379,12 +393,12 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
             raise ValueError("MuPT SDF bond crosses SEGMENT records")
         begin_residue = residue_primitives[begin_residue_index]
         end_residue = residue_primitives[end_residue_index]
-        begin_residue_conn = begin_residue.external_connectors_on_child(atom_handles[begin_idx])[
-            atom_connector_handles[(begin_idx, end_idx)]
-        ]
-        end_residue_conn = end_residue.external_connectors_on_child(atom_handles[end_idx])[
-            atom_connector_handles[(end_idx, begin_idx)]
-        ]
+        begin_residue_conn = begin_residue.external_connectors_on_child(
+            atom_handles[begin_idx]
+        )[atom_connector_handles[(begin_idx, end_idx)]]
+        end_residue_conn = end_residue.external_connectors_on_child(
+            atom_handles[end_idx]
+        )[atom_connector_handles[(end_idx, begin_idx)]]
         segment.connect_children(
             residue_handles[begin_residue_index],
             begin_residue_conn,
@@ -436,7 +450,9 @@ def iter_primitives_from_mupt_sdf(
         )
         for record_idx, mol in enumerate(supplier):
             if mol is None:
-                raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
+                raise ValueError(
+                    f"Could not parse MuPT SDF record {record_idx} from '{path}'"
+                )
             if sanitize:
                 mol = sanitized_mol(mol)
             yield _build_segment_from_mol(mol)

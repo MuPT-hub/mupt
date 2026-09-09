@@ -48,14 +48,18 @@ def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
     return residue, atom
 
 
-def _one_atom_residue_with_connector(label: str, connector_label: str, anchor_position, linker_position):
+def _one_atom_residue_with_connector(
+    label: str, connector_label: str, anchor_position, linker_position
+):
     atom = Primitive(
         label=f"{label}_C",
         shape=PointCloud(np.array([0.0, 0.0, 0.0])),
         element=elements.C,
         role=PrimitiveRole.PARTICLE,
     )
-    connector_handle = atom.register_connector(_chain_connector(anchor_position, linker_position, connector_label))
+    connector_handle = atom.register_connector(
+        _chain_connector(anchor_position, linker_position, connector_label)
+    )
     residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
     residue.attach_child(atom)
     return residue, atom, connector_handle
@@ -75,9 +79,13 @@ def _multi_residue_chain_record(n_residues: int = 3):
         left = None
         right = None
         if idx > 0:
-            left = residue.register_connector(_chain_connector([-0.5, 0.0, 0.0], [-0.5, -1.0, 0.0], "left"))
+            left = residue.register_connector(
+                _chain_connector([-0.5, 0.0, 0.0], [-0.5, -1.0, 0.0], "left")
+            )
         if idx < n_residues - 1:
-            right = residue.register_connector(_chain_connector([0.5, 0.0, 0.0], [0.5, 1.0, 0.0], "right"))
+            right = residue.register_connector(
+                _chain_connector([0.5, 0.0, 0.0], [0.5, 1.0, 0.0], "right")
+            )
         residue_handles.append(segment.attach_child(residue))
         residues.append(residue)
         atoms.append(atom)
@@ -180,7 +188,10 @@ def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
         for atom in residue.children:
             atom.role = PrimitiveRole.PARTICLE
         handles.append(segment.attach_child(residue))
-    segment.set_topology(nx.path_graph(handles, create_using=TopologicalStructure), max_registration_iter=100)
+    segment.set_topology(
+        nx.path_graph(handles, create_using=TopologicalStructure),
+        max_registration_iter=100,
+    )
     root.attach_child(segment)
     return root, resname_map
 
@@ -200,13 +211,22 @@ def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
 
 
 def test_box_length_uses_mass_density_constants():
-    from mupt.builders.all_atom_dpd import AMU_TO_G, ANGSTROM3_TO_CM3, AllAtomDPDBuilder, AllAtomDPDSettings
+    from mupt.builders.all_atom_dpd import (
+        AMU_TO_G,
+        ANGSTROM3_TO_CM3,
+        AllAtomDPDBuilder,
+        AllAtomDPDSettings,
+    )
 
     total_mass_amu = 64000.0
     density_g_cm3 = 2.0
-    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(density_g_cm3=density_g_cm3))
+    builder = AllAtomDPDBuilder(
+        settings=AllAtomDPDSettings(density_g_cm3=density_g_cm3)
+    )
 
-    expected = ((total_mass_amu * AMU_TO_G / density_g_cm3) / ANGSTROM3_TO_CM3) ** (1.0 / 3.0)
+    expected = ((total_mass_amu * AMU_TO_G / density_g_cm3) / ANGSTROM3_TO_CM3) ** (
+        1.0 / 3.0
+    )
 
     assert builder._box_length_a(total_mass_amu) == expected
 
@@ -217,17 +237,21 @@ def test_explicit_box_lengths_select_orthorhombic_path():
     settings = AllAtomDPDSettings(box_lengths_a=(12.0, 18.0, 24.0), r_cut_a=3.0)
     builder = AllAtomDPDBuilder(settings=settings)
 
-    np.testing.assert_allclose(builder._box_lengths_a(total_mass_amu=1000.0), np.array([12.0, 18.0, 24.0]))
-    assert builder._effective_box_length_a(np.array([12.0, 18.0, 24.0])) == pytest.approx(
-        (12.0 * 18.0 * 24.0) ** (1.0 / 3.0)
+    np.testing.assert_allclose(
+        builder._box_lengths_a(total_mass_amu=1000.0), np.array([12.0, 18.0, 24.0])
     )
+    assert builder._effective_box_length_a(
+        np.array([12.0, 18.0, 24.0])
+    ) == pytest.approx((12.0 * 18.0 * 24.0) ** (1.0 / 3.0))
 
 
 def test_explicit_box_lengths_wrap_orthorhombic_positions():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
     np.testing.assert_allclose(
-        AllAtomDPDBuilder._wrap(np.array([7.0, 11.0, -14.0]), np.array([10.0, 20.0, 30.0])),
+        AllAtomDPDBuilder._wrap(
+            np.array([7.0, 11.0, -14.0]), np.array([10.0, 20.0, 30.0])
+        ),
         np.array([-3.0, -9.0, -14.0]),
     )
 
@@ -344,7 +368,11 @@ def test_default_settings_use_dense_initialization_restraints():
 
 
 def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
-    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings, _ParameterTables
+    from mupt.builders.all_atom_dpd import (
+        AllAtomDPDBuilder,
+        AllAtomDPDSettings,
+        _ParameterTables,
+    )
 
     captured = {}
 
@@ -368,7 +396,9 @@ def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
 
     class FakeSimulation:
         def __init__(self, device, seed):
-            self.operations = type("Operations", (), {"integrator": None, "writers": []})()
+            self.operations = type(
+                "Operations", (), {"integrator": None, "writers": []}
+            )()
 
         def create_state_from_snapshot(self, frame):
             pass
@@ -376,7 +406,15 @@ def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
     class FakeHoomd:
         filter = type("filter", (), {"All": lambda: object()})
         trigger = type("trigger", (), {"Periodic": lambda interval: interval})
-        device = type("device", (), {"CPU": staticmethod(lambda: "cpu"), "GPU": staticmethod(lambda: "gpu"), "auto_select": staticmethod(lambda: "auto")})
+        device = type(
+            "device",
+            (),
+            {
+                "CPU": staticmethod(lambda: "cpu"),
+                "GPU": staticmethod(lambda: "gpu"),
+                "auto_select": staticmethod(lambda: "auto"),
+            },
+        )
         Simulation = FakeSimulation
         md = type(
             "md",
@@ -398,7 +436,9 @@ def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
     builder = AllAtomDPDBuilder(
         settings=AllAtomDPDSettings(nlist_exclusions=["bond", "angle"], device="CPU")
     )
-    builder._simulation(FakeHoomd, Frame(), [], [], [], [], _ParameterTables(epsilon_by_type={"C": 1.0}))
+    builder._simulation(
+        FakeHoomd, Frame(), [], [], [], [], _ParameterTables(epsilon_by_type={"C": 1.0})
+    )
 
     assert builder.settings.nlist_exclusions == ("bond", "angle")
     assert captured == {"buffer": 0.4, "exclusions": ("bond", "angle")}
@@ -422,7 +462,10 @@ def test_diagnostics_jsonl_logging_respects_frequency(tmp_path):
     builder._write_diagnostics_record(3, {"bond_energy": 2.0})
     builder._write_diagnostics_record(5, {"bond_energy": 3.0})
 
-    records = [json.loads(line) for line in (tmp_path / "aa_dpd_diagnostics.jsonl").read_text().splitlines()]
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "aa_dpd_diagnostics.jsonl").read_text().splitlines()
+    ]
 
     assert records == [
         {"steps": 0, "bond_energy": 1.0},
@@ -439,9 +482,16 @@ def test_openff_key_atom_indices_support_topology_key_shapes():
     class ThisAtomIndexKey:
         this_atom_index = 4
 
-    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(AtomIndicesKey()) == (1, 2, 3)
-    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(ThisAtomIndexKey()) == (4,)
-    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key((5, 6)) == (5, 6)
+    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(
+        AtomIndicesKey()
+    ) == (1, 2, 3)
+    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key(
+        ThisAtomIndexKey()
+    ) == (4,)
+    assert OpenFFAllAtomDPDParameterProvider._atom_indices_from_openff_key((5, 6)) == (
+        5,
+        6,
+    )
 
 
 def test_periodic_idivf_defaults_when_openff_returns_none():
@@ -450,7 +500,10 @@ def test_periodic_idivf_defaults_when_openff_returns_none():
     class Parameter:
         idivf = None
 
-    assert OpenFFAllAtomDPDParameterProvider._periodic_idivf(Parameter(), 2) == [1.0, 1.0]
+    assert OpenFFAllAtomDPDParameterProvider._periodic_idivf(Parameter(), 2) == [
+        1.0,
+        1.0,
+    ]
 
 
 def test_missing_bonded_params_warn_and_use_max_k(caplog):
@@ -463,7 +516,9 @@ def test_missing_bonded_params_warn_and_use_max_k(caplog):
         "stiff": {"r0": 1.2, "k": 25.0},
     }
 
-    assigned = AllAtomDPDBuilder._bonded_params_for("missing", params, {"r0": 1.5, "k": 100.0}, "bond")
+    assigned = AllAtomDPDBuilder._bonded_params_for(
+        "missing", params, {"r0": 1.5, "k": 100.0}, "bond"
+    )
 
     assert assigned == {"r0": 1.2, "k": 25.0}
     assert "missing OpenFF bond parameters" in caplog.text
@@ -471,7 +526,11 @@ def test_missing_bonded_params_warn_and_use_max_k(caplog):
 
 
 def test_energy_diagnostics_collects_force_energies_per_term():
-    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings, _ParameterTables
+    from mupt.builders.all_atom_dpd import (
+        AllAtomDPDBuilder,
+        AllAtomDPDSettings,
+        _ParameterTables,
+    )
 
     class BondForce:
         energy = 8.0
@@ -514,11 +573,20 @@ def test_energy_diagnostics_collects_force_energies_per_term():
         bond_params={"b": {"k": 100.0, "r0": 1.0}},
         angle_params={"a": {"k": 20.0, "t0": np.pi / 2}},
     )
-    settings = AllAtomDPDSettings(bond_energy_tolerance_a=0.2, angle_energy_tolerance_deg=10.0)
+    settings = AllAtomDPDSettings(
+        bond_energy_tolerance_a=0.2, angle_energy_tolerance_deg=10.0
+    )
 
-    diagnostics = AllAtomDPDBuilder._energy_diagnostics(Simulation(), Frame(), parameters, settings)
+    diagnostics = AllAtomDPDBuilder._energy_diagnostics(
+        Simulation(), Frame(), parameters, settings
+    )
 
-    assert diagnostics["counts"] == {"bond": 4, "angle": 6, "dihedral": 0, "improper": 0}
+    assert diagnostics["counts"] == {
+        "bond": 4,
+        "angle": 6,
+        "dihedral": 0,
+        "improper": 0,
+    }
     assert diagnostics["bond_energy"] == 8.0
     assert diagnostics["bond_energy_per_term"] == 2.0
     assert diagnostics["angle_energy"] == 12.0
@@ -527,7 +595,9 @@ def test_energy_diagnostics_collects_force_energies_per_term():
     assert diagnostics["dihedral_energy"] is None
     assert diagnostics["dihedral_energy_per_term"] is None
     assert diagnostics["bond_energy_threshold"] == pytest.approx(8.0)
-    assert diagnostics["angle_energy_threshold"] == pytest.approx(6 * 0.5 * 20.0 * np.deg2rad(10.0) ** 2)
+    assert diagnostics["angle_energy_threshold"] == pytest.approx(
+        6 * 0.5 * 20.0 * np.deg2rad(10.0) ** 2
+    )
     assert diagnostics["bond_energy_converged"] is True
     assert diagnostics["angle_energy_converged"] is False
     assert diagnostics["bonded_energy_converged"] is False
@@ -545,10 +615,14 @@ def test_convergence_requires_spacing_and_bonded_energy_by_default():
     spacing_only = AllAtomDPDBuilder(
         settings=AllAtomDPDSettings(require_bonded_energy_convergence=False)
     )
-    assert spacing_only._convergence_ok(True, {"bonded_energy_converged": False}) is True
+    assert (
+        spacing_only._convergence_ok(True, {"bonded_energy_converged": False}) is True
+    )
 
 
-@pytest.mark.skipif(importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed")
+@pytest.mark.skipif(
+    importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed"
+)
 def test_openff_parameter_provider_handles_pet_improper_idivf_none():
     from mupt.builders.all_atom_dpd import (
         AllAtomDPDBuilder,
@@ -581,7 +655,11 @@ def test_build_rejects_malformed_hierarchy_before_optional_imports(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
     root = Primitive(label="empty", role=PrimitiveRole.UNIVERSE)
-    root.attach_child(Primitive(label="orphan_particle", element=elements.C, role=PrimitiveRole.PARTICLE))
+    root.attach_child(
+        Primitive(
+            label="orphan_particle", element=elements.C, role=PrimitiveRole.PARTICLE
+        )
+    )
 
     with pytest.raises(ValueError, match="RESIDUE and SEGMENT"):
         AllAtomDPDBuilder().build(root)
@@ -621,18 +699,18 @@ def test_initial_positions_consumes_placement_generator():
     )
     records = builder._segment_records(root)
 
-    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+    positions = builder._initial_positions(
+        records, box_length=100.0, rng=np.random.default_rng(123)
+    )
 
     assert fake_generator.seen_labels == ["seg"]
     np.testing.assert_allclose(
         positions,
-        np.array(
-            [
-                [10.0, 2.0, 3.0],
-                [11.0, 2.0, 3.0],
-                [12.0, 2.0, 3.0],
-            ]
-        ),
+        np.array([
+            [10.0, 2.0, 3.0],
+            [11.0, 2.0, 3.0],
+            [12.0, 2.0, 3.0],
+        ]),
     )
 
 
@@ -666,7 +744,9 @@ def test_initial_positions_validates_placement_generator_handles(mode, match):
     records = builder._segment_records(root)
 
     with pytest.raises(ValueError, match=match):
-        builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+        builder._initial_positions(
+            records, box_length=100.0, rng=np.random.default_rng(123)
+        )
 
 
 def test_initial_positions_adapts_nested_residue_layout_to_placement_generator():
@@ -702,10 +782,14 @@ def test_initial_positions_adapts_nested_residue_layout_to_placement_generator()
     builder = AllAtomDPDBuilder(placement_generator=fake_generator)
     records = builder._segment_records(root)
 
-    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+    positions = builder._initial_positions(
+        records, box_length=100.0, rng=np.random.default_rng(123)
+    )
 
     assert fake_generator.child_roles == [PrimitiveRole.RESIDUE, PrimitiveRole.RESIDUE]
-    np.testing.assert_allclose(positions, np.array([[10.0, 0.0, 0.0], [11.0, 0.0, 0.0]]))
+    np.testing.assert_allclose(
+        positions, np.array([[10.0, 0.0, 0.0], [11.0, 0.0, 0.0]])
+    )
     assert records[0].atoms == [atom1, atom2]
 
 
@@ -720,7 +804,14 @@ def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
         def _generate_placements(self, primitive):
             translations = {"res1": 10.0, "res2": 20.0, "res3": 30.0}
             for handle, child in primitive.children_by_handle.items():
-                yield handle, RigidTransform.from_translation([translations[child.label], 0.0, 0.0])
+                yield (
+                    handle,
+                    RigidTransform.from_translation([
+                        translations[child.label],
+                        0.0,
+                        0.0,
+                    ]),
+                )
 
     res1, atom1 = _one_atom_residue("res1")
     res2, atom2 = _one_atom_residue("res2")
@@ -737,20 +828,30 @@ def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
     builder = AllAtomDPDBuilder(placement_generator=LabelPlacementGenerator())
     records = builder._segment_records(root)
 
-    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(123))
+    positions = builder._initial_positions(
+        records, box_length=100.0, rng=np.random.default_rng(123)
+    )
 
     assert records[0].atoms == [atom1, atom2, atom3]
-    np.testing.assert_allclose(positions, np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]]))
+    np.testing.assert_allclose(
+        positions, np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]])
+    )
 
 
 def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
     records = [_multi_residue_chain_record()]
-    builder = AllAtomDPDBuilder(settings=AllAtomDPDSettings(initial_residue_spacing_a=1.5))
+    builder = AllAtomDPDBuilder(
+        settings=AllAtomDPDSettings(initial_residue_spacing_a=1.5)
+    )
 
-    positions1 = builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(2468))
-    positions2 = builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(2468))
+    positions1 = builder._initial_positions(
+        records, box_length=50.0, rng=np.random.default_rng(2468)
+    )
+    positions2 = builder._initial_positions(
+        records, box_length=50.0, rng=np.random.default_rng(2468)
+    )
 
     np.testing.assert_allclose(positions1, positions2)
     assert positions1.shape == (3, 3)
@@ -767,16 +868,16 @@ def test_default_initial_positions_support_single_residue_segment():
     records = builder._segment_records(root)
     seed = 123
 
-    positions = builder._initial_positions(records, box_length=100.0, rng=np.random.default_rng(seed))
+    positions = builder._initial_positions(
+        records, box_length=100.0, rng=np.random.default_rng(seed)
+    )
 
     target_centroid = np.random.default_rng(seed).uniform(-50.0, 50.0, size=3)
-    expected = target_centroid + np.array(
-        [
-            [-1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-        ]
-    )
+    expected = target_centroid + np.array([
+        [-1.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+    ])
     np.testing.assert_allclose(positions, expected)
 
 
@@ -790,7 +891,9 @@ def test_default_initial_positions_do_not_mutate_global_numpy_rng():
     expected = np.random.random(4)
     np.random.seed(13579)
 
-    builder._initial_positions(records, box_length=50.0, rng=np.random.default_rng(1234))
+    builder._initial_positions(
+        records, box_length=50.0, rng=np.random.default_rng(1234)
+    )
 
     np.testing.assert_allclose(np.random.random(4), expected)
 
@@ -811,17 +914,17 @@ def test_initial_positions_wraps_atoms_for_periodic_snapshot():
     builder = AllAtomDPDBuilder(placement_generator=OffsetPlacementGenerator())
     records = builder._segment_records(root)
 
-    positions = builder._initial_positions(records, box_length=10.0, rng=np.random.default_rng(123))
+    positions = builder._initial_positions(
+        records, box_length=10.0, rng=np.random.default_rng(123)
+    )
 
     np.testing.assert_allclose(
         positions,
-        np.array(
-            [
-                [-2.0, 0.0, 0.0],
-                [-1.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0],
-            ]
-        ),
+        np.array([
+            [-2.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+        ]),
     )
 
 
@@ -829,13 +932,11 @@ def test_write_positions_updates_atoms_and_parent_shapes():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
     root, atoms = _tiny_saamr_hierarchy()
-    positions = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [2.0, 0.0, 0.0],
-            [2.0, 3.0, 0.0],
-        ]
-    )
+    positions = np.array([
+        [0.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [2.0, 3.0, 0.0],
+    ])
 
     AllAtomDPDBuilder._write_positions(root, atoms, positions)
 
