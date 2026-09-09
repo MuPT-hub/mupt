@@ -84,7 +84,7 @@ class MissingSubprimitiveError(KeyError):
 
 
 # Selection strategies
-PrimitiveSelector = Callable[['Primitive'], bool]
+PrimitivePredicate = Callable[['Primitive'], bool]
 
 def indiscriminate_selector(prim : 'Primitive') -> bool:
     '''
@@ -95,7 +95,7 @@ def indiscriminate_selector(prim : 'Primitive') -> bool:
 
 def select_primitives(
     choices : Iterable['Primitive'],
-    criterion : Optional[PrimitiveSelector]=None,
+    criterion : Optional[PrimitivePredicate]=None,
 ) -> Generator['Primitive', None, None]:
     '''Boilerplate for choosing Primitives out of an iterable by some rule'''
     if criterion is None:
@@ -213,7 +213,7 @@ class Primitive(
         self.root._unfreeze_connections_recursive()
 
     ## Adjacency
-    def neighbors(self, criterion : Optional[PrimitiveSelector]=None) -> Generator['Primitive', None, None]:
+    def neighbors(self, criterion : Optional[PrimitivePredicate]=None) -> Generator['Primitive', None, None]:
         '''Primitives whose share a Connection with this one'''
         for conn in self.connections.connectors_bound:
             # TB TODO: figure out how to type this so HoldsConnector "knows" about NodeMixin
@@ -230,8 +230,8 @@ class Primitive(
     # Hierarchy
     def search_hierarchy_by(
         self,
-        criterion : PrimitiveSelector,
-        halt_when : Optional[PrimitiveSelector]=None,
+        criterion : PrimitivePredicate,
+        halt_when : Optional[PrimitivePredicate]=None,
         to_depth  : Optional[int]=None,
         min_count : Optional[int]=None,
         max_count : Optional[int]=None,
@@ -393,7 +393,7 @@ class SupportsChildren(Primitive):
     def set_connectivity_from_topology(
         self,
         topology : Graph,
-        criterion : PrimitiveSelector,
+        criterion : PrimitivePredicate,
         n_iter_max_rule : Optional[Callable[[int], int]]=None,
     ) -> None:
         '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
@@ -406,7 +406,7 @@ class SupportsChildren(Primitive):
             n_iter_max_rule=n_iter_max_rule,
         )
 
-    def export_cross_section(self, criterion : PrimitiveSelector) -> Graph:
+    def export_cross_section(self, criterion : PrimitivePredicate) -> Graph:
         '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
         raise NotImplementedError
 
