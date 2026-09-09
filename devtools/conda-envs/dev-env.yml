@@ -40,6 +40,7 @@ dependencies:
   ## OpenFF
   - openff-toolkit>=0.18
   - openff-interchange>=0.5
+  - openff-nagl-models
 
   ## HOOMD
   - hoomd>=5.3.0
