@@ -9,6 +9,10 @@ import subprocess as sp
 from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
 # YAML imports
 try:
     import yaml  # PyYAML
@@ -114,10 +118,10 @@ if conda_path is None:
         "Could not find a conda binary in CONDA_EXE variable or executable search path"
     )
 
-print(f"CONDA ENV NAME  {args.name}")
-print(f"PYTHON VERSION  {args.python}")
-print(f"CONDA FILE NAME {args.conda_file}")
-print(f"CONDA PATH      {conda_path}")
+LOGGER.info(f"CONDA ENV NAME  {args.name}")
+LOGGER.info(f"PYTHON VERSION  {args.python}")
+LOGGER.info(f"CONDA FILE NAME {args.conda_file}")
+LOGGER.info(f"CONDA PATH      {conda_path}")
 
 # Write to a temp directory which will always be cleaned up
 with temp_cd():
