@@ -1,8 +1,8 @@
 """All-atom DPD coordinate builder for SAAMR-compliant Primitive hierarchies.
 
 The builder uses OpenFF labels to construct bonded restraints and heuristic DPD
-repulsions for dense coordinate initialization. The HOOMD simulation is meant to
-produce finite all-atom melt coordinates suitable for downstream minimization in
+repulsions for dense coordinate initialization. The HOOMD simulation is meant to 
+produce finite all-atom melt coordinates suitable for downstream minimization in 
 an MD engine.
 
 Particle treatment
@@ -225,12 +225,8 @@ class _ParameterTables:
     improper_params: dict[str, dict[str, float]] = field(default_factory=dict)
     bond_type_by_group: dict[tuple[int, int], str] = field(default_factory=dict)
     angle_type_by_group: dict[tuple[int, int, int], str] = field(default_factory=dict)
-    dihedral_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(
-        default_factory=dict
-    )
-    improper_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(
-        default_factory=dict
-    )
+    dihedral_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(default_factory=dict)
+    improper_type_by_group: dict[tuple[int, int, int, int], list[str]] = field(default_factory=dict)
     atom_epsilons: dict[int, float] = field(default_factory=dict)
     atom_types_by_global: dict[int, str] = field(default_factory=dict)
     epsilon_by_type: dict[str, float] = field(default_factory=dict)
@@ -268,11 +264,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     requirement that every AA-DPD workflow use OpenFF internally.
     """
 
-    def __init__(
-        self,
-        force_field: Optional[str] = None,
-        resname_map: Optional[dict[str, str]] = None,
-    ) -> None:
+    def __init__(self, force_field: Optional[str] = None, resname_map: Optional[dict[str, str]] = None) -> None:
         """Create an OpenFF-backed parameter provider.
 
         Parameters
@@ -303,9 +295,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
 
         from ..interfaces.rdkit import primitive_to_rdkit_mols
 
-        resname_map = (
-            settings.resname_map if self.resname_map is None else self.resname_map
-        )
+        resname_map = settings.resname_map if self.resname_map is None else self.resname_map
         force_field = ForceField(self.force_field or settings.force_field)
         rdkit_mols = list(
             primitive_to_rdkit_mols(
@@ -329,12 +319,8 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             self._collect_vdw(labels, record, tables, unit)
             self._collect_bonds(labels, record, tables, unit, settings.bond_scale)
             self._collect_angles(labels, record, tables, unit, settings.angle_scale)
-            self._collect_dihedrals(
-                labels, record, tables, unit, settings.dihedral_scale
-            )
-            self._collect_impropers(
-                labels, record, tables, unit, settings.dihedral_scale
-            )
+            self._collect_dihedrals(labels, record, tables, unit, settings.dihedral_scale)
+            self._collect_impropers(labels, record, tables, unit, settings.dihedral_scale)
 
         return tables
 
@@ -370,72 +356,42 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             tables.epsilon_by_type[atom_type] = epsilon
 
     def _collect_bonds(
-        self,
-        labels: dict[str, dict],
-        record: _SegmentRecord,
-        tables: _ParameterTables,
-        unit: Any,
-        scale: float,
+        self, labels: dict[str, dict], record: _SegmentRecord, tables: _ParameterTables, unit: Any, scale: float
     ) -> None:
         """Collect harmonic bond parameters from OpenFF labels."""
 
         for key, parameter in labels.get("Bonds", {}).items():
             local_pair = self._atom_indices_from_openff_key(key)
-            i, j = (
-                record.local_to_global[int(local_pair[0])],
-                record.local_to_global[int(local_pair[1])],
-            )
+            i, j = (record.local_to_global[int(local_pair[0])], record.local_to_global[int(local_pair[1])])
             name = getattr(parameter, "id", None) or f"b{i}-{j}"
             tables.bond_type_by_group[tuple(sorted((i, j)))] = str(name)
             tables.bond_params[str(name)] = {
-                "r0": self._quantity_value(
-                    getattr(parameter, "length", None), unit.angstrom, 1.5
-                ),
-                "k": scale
-                * self._quantity_value(
-                    getattr(parameter, "k", None),
-                    unit.kilocalorie_per_mole / unit.angstrom**2,
-                    100.0,
+                "r0": self._quantity_value(getattr(parameter, "length", None), unit.angstrom, 1.5),
+                "k": scale * self._quantity_value(
+                    getattr(parameter, "k", None), unit.kilocalorie_per_mole / unit.angstrom**2, 100.0
                 ),
             }
 
     def _collect_angles(
-        self,
-        labels: dict[str, dict],
-        record: _SegmentRecord,
-        tables: _ParameterTables,
-        unit: Any,
-        scale: float,
+        self, labels: dict[str, dict], record: _SegmentRecord, tables: _ParameterTables, unit: Any, scale: float
     ) -> None:
         """Collect harmonic angle parameters from OpenFF labels."""
 
         for key, parameter in labels.get("Angles", {}).items():
             local_triplet = self._atom_indices_from_openff_key(key)
-            name = getattr(parameter, "id", None) or "a-" + "-".join(
-                map(str, local_triplet)
-            )
+            name = getattr(parameter, "id", None) or "a-" + "-".join(map(str, local_triplet))
             group = tuple(record.local_to_global[int(idx)] for idx in local_triplet)
             tables.angle_type_by_group[group] = str(name)
             tables.angle_type_by_group[tuple(reversed(group))] = str(name)
             tables.angle_params[str(name)] = {
-                "t0": self._quantity_value(
-                    getattr(parameter, "angle", None), unit.radian, np.pi / 2
-                ),
-                "k": scale
-                * self._quantity_value(
-                    getattr(parameter, "k", None),
-                    unit.kilocalorie_per_mole / unit.radian**2,
-                    20.0,
+                "t0": self._quantity_value(getattr(parameter, "angle", None), unit.radian, np.pi / 2),
+                "k": scale * self._quantity_value(
+                    getattr(parameter, "k", None), unit.kilocalorie_per_mole / unit.radian**2, 20.0
                 ),
             }
 
     def _collect_dihedrals(
-        self,
-        labels: dict[str, dict],
-        record: _SegmentRecord,
-        tables: _ParameterTables,
-        unit: Any,
-        scale: float,
+        self, labels: dict[str, dict], record: _SegmentRecord, tables: _ParameterTables, unit: Any, scale: float
     ) -> None:
         """Collect periodic torsion parameters from OpenFF labels."""
 
@@ -446,9 +402,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             phase = getattr(parameter, "phase", [0.0])
             k = getattr(parameter, "k", [1.0])
             idivf = self._periodic_idivf(parameter, len(k))
-            base_name = getattr(parameter, "id", None) or "d-" + "-".join(
-                map(str, local_quad)
-            )
+            base_name = getattr(parameter, "id", None) or "d-" + "-".join(map(str, local_quad))
             for term_idx, k_term in enumerate(k):
                 name = f"{base_name}_{term_idx}"
                 k_value = (
@@ -457,9 +411,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
                     / float(idivf[term_idx])
                 )
                 tables.dihedral_type_by_group.setdefault(group, []).append(name)
-                tables.dihedral_type_by_group.setdefault(
-                    tuple(reversed(group)), []
-                ).append(name)
+                tables.dihedral_type_by_group.setdefault(tuple(reversed(group)), []).append(name)
                 tables.dihedral_params[name] = {
                     "k": abs(k_value),
                     "d": 1 if k_value >= 0 else -1,
@@ -468,12 +420,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
                 }
 
     def _collect_impropers(
-        self,
-        labels: dict[str, dict],
-        record: _SegmentRecord,
-        tables: _ParameterTables,
-        unit: Any,
-        scale: float,
+        self, labels: dict[str, dict], record: _SegmentRecord, tables: _ParameterTables, unit: Any, scale: float
     ) -> None:
         """Collect periodic improper torsion parameters from OpenFF labels."""
 
@@ -484,9 +431,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             phase = getattr(parameter, "phase", [0.0])
             k = getattr(parameter, "k", [1.0])
             idivf = self._periodic_idivf(parameter, len(k))
-            base_name = getattr(parameter, "id", None) or "i-" + "-".join(
-                map(str, local_quad)
-            )
+            base_name = getattr(parameter, "id", None) or "i-" + "-".join(map(str, local_quad))
             for term_idx, k_term in enumerate(k):
                 name = f"{base_name}_{term_idx}"
                 k_value = (
@@ -556,9 +501,7 @@ class AllAtomDPDBuilder:
         if resname_map is not None:
             self.settings.resname_map = dict(resname_map)
         self._validate_settings()
-        self.parameter_provider = (
-            parameter_provider or OpenFFAllAtomDPDParameterProvider()
-        )
+        self.parameter_provider = parameter_provider or OpenFFAllAtomDPDParameterProvider()
         self._uses_default_placement_generator = placement_generator is None
         self.placement_generator = placement_generator
 
@@ -588,17 +531,11 @@ class AllAtomDPDBuilder:
             raise ValueError("AA-DPD initial_angle_max_rad must be <= pi radians.")
         if self.settings.box_lengths_a is not None:
             try:
-                box_lengths = tuple(
-                    float(length) for length in self.settings.box_lengths_a
-                )
+                box_lengths = tuple(float(length) for length in self.settings.box_lengths_a)
             except TypeError as exc:
-                raise ValueError(
-                    "AA-DPD box_lengths_a must contain three positive lengths."
-                ) from exc
+                raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.") from exc
             if len(box_lengths) != 3 or any(length <= 0.0 for length in box_lengths):
-                raise ValueError(
-                    "AA-DPD box_lengths_a must contain three positive lengths."
-                )
+                raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.")
             minimum_length = 3.0 * self.settings.r_cut_a
             if min(box_lengths) < minimum_length:
                 raise ValueError(
@@ -612,10 +549,7 @@ class AllAtomDPDBuilder:
             raise ValueError("AA-DPD n_steps_max must be >= 0.")
         if self.settings.report_interval < 1:
             raise ValueError("AA-DPD report_interval must be >= 1.")
-        if (
-            self.settings.log_write_freq is not None
-            and self.settings.log_write_freq < 1
-        ):
+        if self.settings.log_write_freq is not None and self.settings.log_write_freq < 1:
             raise ValueError("AA-DPD log_write_freq must be >= 1 when supplied.")
         device = str(self.settings.device).lower()
         if device not in {"auto", "cpu", "gpu"}:
@@ -625,40 +559,20 @@ class AllAtomDPDBuilder:
             try:
                 reference = float(self.settings.epsilon_reference_mode)
             except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    "AA-DPD epsilon_reference_mode must be 'max', 'mean', or a positive number."
-                ) from exc
+                raise ValueError("AA-DPD epsilon_reference_mode must be 'max', 'mean', or a positive number.") from exc
             if reference <= 0.0:
-                raise ValueError(
-                    "AA-DPD epsilon_reference_mode numeric value must be positive."
-                )
-        allowed_exclusions = {
-            "bond",
-            "angle",
-            "dihedral",
-            "constraint",
-            "body",
-            "special_pair",
-            "meshbond",
-        }
+                raise ValueError("AA-DPD epsilon_reference_mode numeric value must be positive.")
+        allowed_exclusions = {"bond", "angle", "dihedral", "constraint", "body", "special_pair", "meshbond"}
         try:
-            exclusions = tuple(
-                str(exclusion) for exclusion in self.settings.nlist_exclusions
-            )
+            exclusions = tuple(str(exclusion) for exclusion in self.settings.nlist_exclusions)
         except TypeError as exc:
-            raise ValueError(
-                "AA-DPD nlist_exclusions must be an iterable of HOOMD exclusion names."
-            ) from exc
+            raise ValueError("AA-DPD nlist_exclusions must be an iterable of HOOMD exclusion names.") from exc
         unknown = sorted(set(exclusions) - allowed_exclusions)
         if unknown:
-            raise ValueError(
-                f"AA-DPD nlist_exclusions contains unsupported values: {unknown}."
-            )
+            raise ValueError(f"AA-DPD nlist_exclusions contains unsupported values: {unknown}.")
         self.settings.nlist_exclusions = exclusions
 
-    def _default_placement_generator(
-        self, rng: np.random.Generator, box_length: float | np.ndarray
-    ) -> PlacementGenerator:
+    def _default_placement_generator(self, rng: np.random.Generator, box_length: float | np.ndarray) -> PlacementGenerator:
         """Return the default frame-0 residue placement generator."""
 
         box_lengths = self._as_box_lengths(box_length)
@@ -677,9 +591,7 @@ class AllAtomDPDBuilder:
         records = self._segment_records(root)
         atoms = [atom for record in records for atom in record.atoms]
         if not atoms:
-            raise ValueError(
-                "AA-DPD build requires at least one SEGMENT with atom PARTICLE leaves."
-            )
+            raise ValueError("AA-DPD build requires at least one SEGMENT with atom PARTICLE leaves.")
 
         import freud
         import gsd.hoomd
@@ -695,15 +607,11 @@ class AllAtomDPDBuilder:
         masses = np.array([self._atom_mass_amu(atom) for atom in atoms], dtype=float)
         box_lengths = self._box_lengths_a(float(masses.sum()))
         box_length = self._effective_box_length_a(box_lengths)
-        root.metadata["unit_cell_parameters"] = [
-            float(length) for length in box_lengths
-        ] + [90.0, 90.0, 90.0]
+        root.metadata["unit_cell_parameters"] = [float(length) for length in box_lengths] + [90.0, 90.0, 90.0]
 
         parameters = self.parameter_provider.parameterize(root, records, self.settings)
         angles = [group for group in angles if group in parameters.angle_type_by_group]
-        dihedrals = [
-            group for group in dihedrals if group in parameters.dihedral_type_by_group
-        ]
+        dihedrals = [group for group in dihedrals if group in parameters.dihedral_type_by_group]
         impropers = list(parameters.improper_type_by_group)
         frame = self._initial_frame(
             gsd.hoomd.Frame,
@@ -717,9 +625,7 @@ class AllAtomDPDBuilder:
             parameters,
             box_lengths,
         )
-        simulation = self._simulation(
-            hoomd, frame, bonds, angles, dihedrals, impropers, parameters
-        )
+        simulation = self._simulation(hoomd, frame, bonds, angles, dihedrals, impropers, parameters)
         steps, elapsed_s, converged, diagnostics = self._run_until_converged(
             simulation,
             freud,
@@ -765,9 +671,7 @@ class AllAtomDPDBuilder:
             residue_atom_indices = []
             for residue in index.residues_by_segment[id(segment)]:
                 residue_atoms = list(index.particles_by_residue[id(residue)])
-                residue_atom_indices.append(
-                    list(range(len(atoms), len(atoms) + len(residue_atoms)))
-                )
+                residue_atom_indices.append(list(range(len(atoms), len(atoms) + len(residue_atoms))))
                 atoms.extend(residue_atoms)
             atom_id_to_local = {id(atom): idx for idx, atom in enumerate(atoms)}
             local_to_global = {idx: next_global + idx for idx in range(len(atoms))}
@@ -775,17 +679,10 @@ class AllAtomDPDBuilder:
             seen = set()
             for node in index.bond_nodes_by_segment[id(segment)]:
                 for conn_ref_pair in node.internal_connections:
-                    conn_ref1, conn_ref2 = sorted(
-                        conn_ref_pair, key=connector_reference_sort_key
-                    )
+                    conn_ref1, conn_ref2 = sorted(conn_ref_pair, key=connector_reference_sort_key)
                     atom1 = resolve_to_atom_cached(node, conn_ref1, endpoint_cache)
                     atom2 = resolve_to_atom_cached(node, conn_ref2, endpoint_cache)
-                    pair = tuple(
-                        sorted((
-                            atom_id_to_local[id(atom1)],
-                            atom_id_to_local[id(atom2)],
-                        ))
-                    )
+                    pair = tuple(sorted((atom_id_to_local[id(atom1)], atom_id_to_local[id(atom2)])))
                     if pair not in seen:
                         bonds.append(pair)
                         seen.add(pair)
@@ -808,9 +705,7 @@ class AllAtomDPDBuilder:
 
         mass = getattr(atom.element, "mass", None)
         if mass is None:
-            raise ValueError(
-                f"Atom '{atom.label}' has no element mass for density-based box sizing."
-            )
+            raise ValueError(f"Atom '{atom.label}' has no element mass for density-based box sizing.")
         return float(mass)
 
     def _box_length_a(self, total_mass_amu: float) -> float:
@@ -843,18 +738,14 @@ class AllAtomDPDBuilder:
         return float(np.prod(box_lengths) ** (1.0 / 3.0))
 
     @staticmethod
-    def target_mass_for_box(
-        density_g_cm3: float, box_lengths_a: tuple[float, float, float]
-    ) -> float:
+    def target_mass_for_box(density_g_cm3: float, box_lengths_a: tuple[float, float, float]) -> float:
         """Return target mass in amu for a density and orthorhombic AA-DPD box."""
 
         if density_g_cm3 <= 0.0:
             raise ValueError("AA-DPD target density_g_cm3 must be positive.")
         box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths_a)
         if np.any(box_lengths <= 0.0):
-            raise ValueError(
-                "AA-DPD box_lengths_a must contain three positive lengths."
-            )
+            raise ValueError("AA-DPD box_lengths_a must contain three positive lengths.")
         volume_a3 = float(np.prod(box_lengths))
         return density_g_cm3 * volume_a3 * ANGSTROM3_TO_CM3 / AMU_TO_G
 
@@ -879,9 +770,7 @@ class AllAtomDPDBuilder:
             raise ValueError("AA-DPD repeat_unit_mass_amu must be positive.")
         if chain_length_min < 1 or chain_length_max < chain_length_min:
             raise ValueError("AA-DPD chain length bounds must satisfy 1 <= min <= max.")
-        box_lengths = tuple(
-            float(length) for length in AllAtomDPDBuilder._as_box_lengths(box_lengths_a)
-        )
+        box_lengths = tuple(float(length) for length in AllAtomDPDBuilder._as_box_lengths(box_lengths_a))
         target_mass = AllAtomDPDBuilder.target_mass_for_box(density_g_cm3, box_lengths)
         rng = np.random.default_rng(random_seed)
         chain_lengths: list[int] = []
@@ -899,9 +788,7 @@ class AllAtomDPDBuilder:
         )
 
     @staticmethod
-    def _angles_from_bonds(
-        n_atoms: int, bonds: list[tuple[int, int]]
-    ) -> list[tuple[int, int, int]]:
+    def _angles_from_bonds(n_atoms: int, bonds: list[tuple[int, int]]) -> list[tuple[int, int, int]]:
         """Enumerate unique graph angles from bond pairs."""
 
         neighbors = [set() for _ in range(n_atoms)]
@@ -912,14 +799,12 @@ class AllAtomDPDBuilder:
         for center, nbrs in enumerate(neighbors):
             ordered = sorted(nbrs)
             for pos, left in enumerate(ordered):
-                for right in ordered[pos + 1 :]:
+                for right in ordered[pos + 1:]:
                     angles.append((left, center, right))
         return angles
 
     @staticmethod
-    def _dihedrals_from_bonds(
-        n_atoms: int, bonds: list[tuple[int, int]]
-    ) -> list[tuple[int, int, int, int]]:
+    def _dihedrals_from_bonds(n_atoms: int, bonds: list[tuple[int, int]]) -> list[tuple[int, int, int, int]]:
         """Enumerate unique graph dihedrals from bond pairs."""
 
         neighbors = [set() for _ in range(n_atoms)]
@@ -951,45 +836,24 @@ class AllAtomDPDBuilder:
 
         rng = np.random.default_rng(self.settings.random_seed)
         frame = frame_cls()
-        missing_types = [
-            idx
-            for idx in range(len(atoms))
-            if idx not in parameters.atom_types_by_global
-        ]
+        missing_types = [idx for idx in range(len(atoms)) if idx not in parameters.atom_types_by_global]
         if missing_types:
-            raise ValueError(
-                f"AA-DPD parameterization did not assign particle types for atom indices {missing_types}."
-            )
+            raise ValueError(f"AA-DPD parameterization did not assign particle types for atom indices {missing_types}.")
         particle_types = sorted(set(parameters.atom_types_by_global.values()))
         type_id = {name: idx for idx, name in enumerate(particle_types)}
         frame.particles.N = len(atoms)
         frame.particles.types = particle_types
         frame.particles.typeid = np.array(
-            [
-                type_id[parameters.atom_types_by_global[idx]]
-                for idx in range(len(atoms))
-            ],
+            [type_id[parameters.atom_types_by_global[idx]] for idx in range(len(atoms))],
             dtype=np.uint32,
         )
         frame.particles.mass = masses
         frame.particles.position = self._initial_positions(records, box_lengths, rng)
-        frame.configuration.box = [float(length) for length in box_lengths] + [
-            0.0,
-            0.0,
-            0.0,
-        ]
-        self._set_bonded_frame_data(
-            frame.bonds, bonds, parameters.bond_type_by_group, width=2
-        )
-        self._set_bonded_frame_data(
-            frame.angles, angles, parameters.angle_type_by_group, width=3
-        )
-        self._set_bonded_frame_data(
-            frame.dihedrals, dihedrals, parameters.dihedral_type_by_group, width=4
-        )
-        self._set_bonded_frame_data(
-            frame.impropers, impropers, parameters.improper_type_by_group, width=4
-        )
+        frame.configuration.box = [float(length) for length in box_lengths] + [0.0, 0.0, 0.0]
+        self._set_bonded_frame_data(frame.bonds, bonds, parameters.bond_type_by_group, width=2)
+        self._set_bonded_frame_data(frame.angles, angles, parameters.angle_type_by_group, width=3)
+        self._set_bonded_frame_data(frame.dihedrals, dihedrals, parameters.dihedral_type_by_group, width=4)
+        self._set_bonded_frame_data(frame.impropers, impropers, parameters.improper_type_by_group, width=4)
         return frame
 
     def _initial_positions(
@@ -1010,14 +874,10 @@ class AllAtomDPDBuilder:
 
         if box_lengths is None:
             if box_length is None:
-                raise TypeError(
-                    "AA-DPD _initial_positions requires box_lengths or box_length."
-                )
+                raise TypeError("AA-DPD _initial_positions requires box_lengths or box_length.")
             box_lengths = box_length
         elif box_length is not None:
-            raise TypeError(
-                "AA-DPD _initial_positions accepts only one of box_lengths or box_length."
-            )
+            raise TypeError("AA-DPD _initial_positions accepts only one of box_lengths or box_length.")
         if rng is None:
             raise TypeError("AA-DPD _initial_positions requires rng.")
         box_lengths = self._as_box_lengths(box_lengths)
@@ -1032,9 +892,7 @@ class AllAtomDPDBuilder:
                 )
             placement_segment, residue_handles = self._placement_segment(record)
 
-            for residue_handle, residue_local_indices in zip(
-                residue_handles, record.residue_atom_indices
-            ):
+            for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
                 residue_template = placement_segment.children_by_handle[residue_handle]
                 residue_atoms = self._particle_leaves(residue_template)
                 if len(residue_atoms) != len(residue_local_indices):
@@ -1042,48 +900,31 @@ class AllAtomDPDBuilder:
                         "AA-DPD residue template atom count changed while preparing PlacementGenerator input."
                     )
                 residue_template.shape = PointCloud(
-                    positions=np.array(
-                        [atom.shape.centroid for atom in residue_atoms], dtype=float
-                    )
+                    positions=np.array([atom.shape.centroid for atom in residue_atoms], dtype=float)
                 )
 
             if self._uses_default_placement_generator and len(residue_handles) == 1:
                 residue_handle = residue_handles[0]
                 residue_template = placement_segment.children_by_handle[residue_handle]
-                target_centroid = rng.uniform(
-                    -box_lengths / 2.0, box_lengths / 2.0, size=3
-                )
-                translation = target_centroid - np.asarray(
-                    residue_template.shape.centroid, dtype=float
-                )
+                target_centroid = rng.uniform(-box_lengths / 2.0, box_lengths / 2.0, size=3)
+                translation = target_centroid - np.asarray(residue_template.shape.centroid, dtype=float)
                 residue_atoms = self._particle_leaves(residue_template)
-                for local_idx, atom in zip(
-                    record.residue_atom_indices[0], residue_atoms
-                ):
+                for local_idx, atom in zip(record.residue_atom_indices[0], residue_atoms):
                     global_idx = record.local_to_global[local_idx]
-                    positions[global_idx] = self._wrap(
-                        np.asarray(atom.shape.centroid, dtype=float) + translation,
-                        box_lengths,
-                    )
+                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float) + translation, box_lengths)
                 continue
 
             if self._uses_default_placement_generator:
-                placement_generator = self._default_placement_generator(
-                    rng, box_lengths
-                )
+                placement_generator = self._default_placement_generator(rng, box_lengths)
             else:
                 placement_generator = self.placement_generator
                 if placement_generator is None:
-                    raise RuntimeError(
-                        "AA-DPD placement generator was unexpectedly unset."
-                    )
+                    raise RuntimeError("AA-DPD placement generator was unexpectedly unset.")
             placements_by_handle = {}
             duplicate_handles = []
             unknown_handles = []
             expected_handles = set(residue_handles)
-            for residue_handle, placement in placement_generator.generate_placements(
-                placement_segment
-            ):
+            for residue_handle, placement in placement_generator.generate_placements(placement_segment):
                 if residue_handle not in expected_handles:
                     unknown_handles.append(residue_handle)
                     continue
@@ -1092,11 +933,7 @@ class AllAtomDPDBuilder:
                     continue
                 placements_by_handle[residue_handle] = placement
 
-            missing_handles = [
-                handle
-                for handle in residue_handles
-                if handle not in placements_by_handle
-            ]
+            missing_handles = [handle for handle in residue_handles if handle not in placements_by_handle]
             if missing_handles or duplicate_handles or unknown_handles:
                 raise ValueError(
                     "AA-DPD PlacementGenerator output must yield exactly one placement "
@@ -1106,28 +943,18 @@ class AllAtomDPDBuilder:
                 )
 
             for residue_handle in residue_handles:
-                placement_segment.children_by_handle[residue_handle].rigidly_transform(
-                    placements_by_handle[residue_handle]
-                )
+                placement_segment.children_by_handle[residue_handle].rigidly_transform(placements_by_handle[residue_handle])
 
-            for residue_handle, residue_local_indices in zip(
-                residue_handles, record.residue_atom_indices
-            ):
-                residue_atoms = self._particle_leaves(
-                    placement_segment.children_by_handle[residue_handle]
-                )
+            for residue_handle, residue_local_indices in zip(residue_handles, record.residue_atom_indices):
+                residue_atoms = self._particle_leaves(placement_segment.children_by_handle[residue_handle])
                 for local_idx, atom in zip(residue_local_indices, residue_atoms):
                     global_idx = record.local_to_global[local_idx]
                     # HOOMD periodic snapshots require wrapped particle positions;
                     # bonded molecules are unwrapped again after relaxation.
-                    positions[global_idx] = self._wrap(
-                        np.asarray(atom.shape.centroid, dtype=float), box_lengths
-                    )
+                    positions[global_idx] = self._wrap(np.asarray(atom.shape.centroid, dtype=float), box_lengths)
         return positions
 
-    def _placement_segment(
-        self, record: _SegmentRecord
-    ) -> tuple[Primitive, list[object]]:
+    def _placement_segment(self, record: _SegmentRecord) -> tuple[Primitive, list[object]]:
         """Return a direct-residue segment adapted for ``PlacementGenerator``.
 
         PlacementGenerator intentionally knows nothing about SAAMR roles: it
@@ -1144,9 +971,7 @@ class AllAtomDPDBuilder:
         # Primitive.expand() can reparent transparent-node children in registry
         # order that differs from DFS order when direct RESIDUE children and
         # transparent grouping nodes are mixed under the same SEGMENT.
-        residue_templates = self._role_descendants(
-            placement_segment, PrimitiveRole.RESIDUE
-        )
+        residue_templates = self._role_descendants(placement_segment, PrimitiveRole.RESIDUE)
         if len(residue_templates) != len(record.residues):
             raise ValueError(
                 "AA-DPD could not mirror role-aware RESIDUE traversal in the "
@@ -1162,25 +987,15 @@ class AllAtomDPDBuilder:
                 break
             for handle in transparent_handles:
                 child = placement_segment.children_by_handle[handle]
-                if child.is_leaf or child.role in {
-                    PrimitiveRole.SEGMENT,
-                    PrimitiveRole.PARTICLE,
-                }:
+                if child.is_leaf or child.role in {PrimitiveRole.SEGMENT, PrimitiveRole.PARTICLE}:
                     raise ValueError(
                         "AA-DPD frame-0 PlacementGenerator adaptation expects only "
                         "transparent grouping nodes between SEGMENT and RESIDUE roles."
                     )
                 placement_segment.expand(handle)
 
-        handle_by_child_id = {
-            id(child): handle
-            for handle, child in placement_segment.children_by_handle.items()
-        }
-        residue_handles = [
-            handle_by_child_id[id(residue)]
-            for residue in residue_templates
-            if id(residue) in handle_by_child_id
-        ]
+        handle_by_child_id = {id(child): handle for handle, child in placement_segment.children_by_handle.items()}
+        residue_handles = [handle_by_child_id[id(residue)] for residue in residue_templates if id(residue) in handle_by_child_id]
         if len(residue_handles) != len(record.residues):
             raise ValueError(
                 "AA-DPD could not adapt role-aware residues into a direct-child "
@@ -1255,15 +1070,8 @@ class AllAtomDPDBuilder:
         unique_types = sorted(set(group_types)) or ["default"]
         container.N = len(expanded_groups)
         container.types = unique_types
-        container.group = (
-            np.array(expanded_groups, dtype=np.uint32)
-            if expanded_groups
-            else np.zeros((0, width), dtype=np.uint32)
-        )
-        container.typeid = np.array(
-            [unique_types.index(group_type) for group_type in group_types],
-            dtype=np.uint32,
-        )
+        container.group = np.array(expanded_groups, dtype=np.uint32) if expanded_groups else np.zeros((0, width), dtype=np.uint32)
+        container.typeid = np.array([unique_types.index(group_type) for group_type in group_types], dtype=np.uint32)
 
     def _simulation(
         self,
@@ -1278,9 +1086,7 @@ class AllAtomDPDBuilder:
         """Create and configure a HOOMD simulation from the initial frame."""
 
         integrator = hoomd.md.Integrator(dt=self.settings.dt)
-        integrator.methods.append(
-            hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
-        )
+        integrator.methods.append(hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All()))
         if bonds:
             harmonic = hoomd.md.bond.Harmonic()
             for name in frame.bonds.types:
@@ -1322,29 +1128,17 @@ class AllAtomDPDBuilder:
                 )
             integrator.forces.append(periodic_improper)
 
-        nlist = hoomd.md.nlist.Cell(
-            buffer=0.4, exclusions=self.settings.nlist_exclusions
-        )
-        dpd = hoomd.md.pair.DPD(
-            nlist, default_r_cut=self.settings.r_cut_a, kT=self.settings.kT
-        )
-        pair_params = self._dpd_pair_params(
-            frame.particles.types, parameters.epsilon_by_type
-        )
+        nlist = hoomd.md.nlist.Cell(buffer=0.4, exclusions=self.settings.nlist_exclusions)
+        dpd = hoomd.md.pair.DPD(nlist, default_r_cut=self.settings.r_cut_a, kT=self.settings.kT)
+        pair_params = self._dpd_pair_params(frame.particles.types, parameters.epsilon_by_type)
         for pair, param in pair_params.items():
             dpd.params[pair] = param
         integrator.forces.append(dpd)
 
-        simulation = hoomd.Simulation(
-            device=self._hoomd_device(hoomd), seed=self.settings.random_seed or 1
-        )
+        simulation = hoomd.Simulation(device=self._hoomd_device(hoomd), seed=self.settings.random_seed or 1)
         simulation.operations.integrator = integrator
         simulation.create_state_from_snapshot(frame)
-        if (
-            self.settings.write_gsd
-            and self.settings.output_name
-            and self.settings.report_interval
-        ):
+        if self.settings.write_gsd and self.settings.output_name and self.settings.report_interval:
             simulation.operations.writers.append(
                 hoomd.write.GSD(
                     trigger=hoomd.trigger.Periodic(self.settings.report_interval),
@@ -1399,9 +1193,7 @@ class AllAtomDPDBuilder:
             return hoomd.device.GPU()
         return hoomd.device.auto_select()
 
-    def _dpd_pair_params(
-        self, particle_types: list[str], epsilon_by_type: dict[str, float]
-    ) -> dict[tuple[str, str], dict[str, float]]:
+    def _dpd_pair_params(self, particle_types: list[str], epsilon_by_type: dict[str, float]) -> dict[tuple[str, str], dict[str, float]]:
         """Return DPD pair parameters scaled by a simple epsilon heuristic."""
 
         reducer = max if self.settings.epsilon_reference_mode == "max" else np.mean
@@ -1415,9 +1207,7 @@ class AllAtomDPDBuilder:
             for type_j in particle_types[i:]:
                 epsilon_i = epsilon_by_type.get(type_i, 1.0)
                 epsilon_j = epsilon_by_type.get(type_j, 1.0)
-                scale = (
-                    np.sqrt(epsilon_i * epsilon_j) / reference if reference > 0 else 1.0
-                )
+                scale = np.sqrt(epsilon_i * epsilon_j) / reference if reference > 0 else 1.0
                 params[(type_i, type_j)] = {
                     "A": self.settings.A_base * scale,
                     "gamma": self.settings.gamma_base * scale,
@@ -1447,9 +1237,7 @@ class AllAtomDPDBuilder:
             diagnostics[f"{kind}_energy"] = energy
             if kind in counts:
                 count = counts[kind]
-                diagnostics[f"{kind}_energy_per_term"] = (
-                    energy / count if energy is not None and count else None
-                )
+                diagnostics[f"{kind}_energy_per_term"] = energy / count if energy is not None and count else None
         if parameters is not None and settings is not None:
             diagnostics["bond_energy_threshold"] = cls._bond_energy_threshold(
                 frame,
@@ -1470,15 +1258,12 @@ class AllAtomDPDBuilder:
                 diagnostics["angle_energy_threshold"],
             )
             diagnostics["bonded_energy_converged"] = bool(
-                diagnostics["bond_energy_converged"]
-                and diagnostics["angle_energy_converged"]
+                diagnostics["bond_energy_converged"] and diagnostics["angle_energy_converged"]
             )
         return diagnostics
 
     @staticmethod
-    def _energy_below_threshold(
-        energy: Optional[float], threshold: Optional[float]
-    ) -> bool:
+    def _energy_below_threshold(energy: Optional[float], threshold: Optional[float]) -> bool:
         """Return whether an energy is finite and at or below a threshold."""
 
         if threshold is None:
@@ -1532,9 +1317,7 @@ class AllAtomDPDBuilder:
     def _force_by_kind(simulation: Any) -> dict[str, Any]:
         """Group configured HOOMD force objects by the AA-DPD role they play."""
 
-        integrator = getattr(
-            getattr(simulation, "operations", None), "integrator", None
-        )
+        integrator = getattr(getattr(simulation, "operations", None), "integrator", None)
         forces = getattr(integrator, "forces", []) if integrator is not None else []
         force_by_kind = {}
         for force in forces:
@@ -1580,21 +1363,16 @@ class AllAtomDPDBuilder:
         simulation.run(1)
         if self.settings.write_gsd and self.settings.output_name:
             import hoomd
-
             hoomd.write.GSD.write(
-                state=simulation.state,
-                mode="wb",
-                filename=f"{self.settings.output_name}_first_frame.gsd",
+                    state=simulation.state,
+                    mode='wb',
+                    filename=f'{self.settings.output_name}_first_frame.gsd'
             )
-
+        
         excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
         self._initialize_diagnostics_log()
-        spacing_converged = self._spacing_ok(
-            simulation.state.get_snapshot(), freud, box_lengths, excluded
-        )
-        diagnostics = self._energy_diagnostics(
-            simulation, frame, parameters, self.settings
-        )
+        spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
+        diagnostics = self._energy_diagnostics(simulation, frame, parameters, self.settings)
         diagnostics["spacing_converged"] = bool(spacing_converged)
         converged = self._convergence_ok(spacing_converged, diagnostics)
         diagnostics["converged"] = bool(converged)
@@ -1602,12 +1380,8 @@ class AllAtomDPDBuilder:
         while not converged and steps < self.settings.n_steps_max:
             simulation.run(self.settings.n_steps_per_interval)
             steps += self.settings.n_steps_per_interval
-            spacing_converged = self._spacing_ok(
-                simulation.state.get_snapshot(), freud, box_lengths, excluded
-            )
-            diagnostics = self._energy_diagnostics(
-                simulation, frame, parameters, self.settings
-            )
+            spacing_converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
+            diagnostics = self._energy_diagnostics(simulation, frame, parameters, self.settings)
             diagnostics["spacing_converged"] = bool(spacing_converged)
             converged = self._convergence_ok(spacing_converged, diagnostics)
             diagnostics["converged"] = bool(converged)
@@ -1624,10 +1398,10 @@ class AllAtomDPDBuilder:
             self._write_diagnostics_record(steps, diagnostics, force=True)
         if self.settings.write_gsd and self.settings.output_name:
             hoomd.write.GSD.write(
-                state=simulation.state,
-                mode="wb",
-                filename=f"{self.settings.output_name}_last_frame.gsd",
-            )
+                    state=simulation.state,
+                    mode='wb',
+                    filename=f'{self.settings.output_name}_last_frame.gsd'
+            ) 
         return steps, time.perf_counter() - start, converged, diagnostics
 
     def _diagnostics_log_path(self) -> Optional[str]:
@@ -1645,9 +1419,7 @@ class AllAtomDPDBuilder:
             with open(path, "w", encoding="utf-8"):
                 pass
 
-    def _write_diagnostics_record(
-        self, steps: int, diagnostics: dict[str, Any], *, force: bool = False
-    ) -> None:
+    def _write_diagnostics_record(self, steps: int, diagnostics: dict[str, Any], *, force: bool = False) -> None:
         """Append one convergence diagnostics record when logging is enabled."""
 
         path = self._diagnostics_log_path()
@@ -1660,9 +1432,7 @@ class AllAtomDPDBuilder:
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
 
-    def _convergence_ok(
-        self, spacing_converged: bool, diagnostics: dict[str, Any]
-    ) -> bool:
+    def _convergence_ok(self, spacing_converged: bool, diagnostics: dict[str, Any]) -> bool:
         """Return whether AA-DPD stopping criteria are satisfied."""
 
         if not spacing_converged:
@@ -1689,40 +1459,24 @@ class AllAtomDPDBuilder:
         steps = 0
         simulation.run(1)
         excluded = {tuple(sorted(pair)) for pair in excluded_pairs}
-        converged = self._spacing_ok(
-            simulation.state.get_snapshot(), freud, box_lengths, excluded
-        )
+        converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
         while not converged and steps < self.settings.n_steps_max:
             simulation.run(self.settings.n_steps_per_interval)
             steps += self.settings.n_steps_per_interval
             if steps % self.settings.report_interval == 0:
                 LOGGER.debug("Integrated %s all-atom DPD steps", steps)
-            converged = self._spacing_ok(
-                simulation.state.get_snapshot(), freud, box_lengths, excluded
-            )
+            converged = self._spacing_ok(simulation.state.get_snapshot(), freud, box_lengths, excluded)
         return steps, time.perf_counter() - start, converged
 
-    def _spacing_ok(
-        self,
-        snapshot: Any,
-        freud: Any,
-        box_lengths: np.ndarray,
-        excluded: set[tuple[int, int]],
-    ) -> bool:
+    def _spacing_ok(self, snapshot: Any, freud: Any, box_lengths: np.ndarray, excluded: set[tuple[int, int]]) -> bool:
         """Return whether non-excluded pairs exceed the spacing threshold."""
 
         positions = snapshot.particles.position[:]
         box_lengths = self._as_box_lengths(box_lengths)
-        box = freud.box.Box(
-            float(box_lengths[0]), float(box_lengths[1]), float(box_lengths[2])
-        )
+        box = freud.box.Box(float(box_lengths[0]), float(box_lengths[1]), float(box_lengths[2]))
         query = freud.locality.AABBQuery(box, positions).query(
             positions,
-            {
-                "r_min": 0.0,
-                "r_max": self.settings.particle_spacing_a,
-                "exclude_ii": True,
-            },
+            {"r_min": 0.0, "r_max": self.settings.particle_spacing_a, "exclude_ii": True},
         )
         neighbors = query.toNeighborList()
         if len(neighbors) == 0:
@@ -1733,11 +1487,7 @@ class AllAtomDPDBuilder:
         return True
 
     @staticmethod
-    def _unwrap_positions(
-        positions: np.ndarray,
-        bonds: list[tuple[int, int]],
-        box_lengths: float | np.ndarray,
-    ) -> np.ndarray:
+    def _unwrap_positions(positions: np.ndarray, bonds: list[tuple[int, int]], box_lengths: float | np.ndarray) -> np.ndarray:
         """Unwrap coordinates along the bond graph using minimum-image edges."""
 
         if len(positions) == 0:
@@ -1767,9 +1517,7 @@ class AllAtomDPDBuilder:
         return unwrapped
 
     @staticmethod
-    def _write_positions(
-        root: Primitive, atoms: list[Primitive], positions: np.ndarray
-    ) -> None:
+    def _write_positions(root: Primitive, atoms: list[Primitive], positions: np.ndarray) -> None:
         """Write atom PointCloud positions and recompute composite PointClouds."""
 
         for atom, position in zip(atoms, positions):
@@ -1800,23 +1548,17 @@ class AllAtomDPDBuilder:
         """Wrap one position into a centered orthorhombic periodic box."""
 
         box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths)
-        return position - box_lengths * np.floor(
-            (position + box_lengths / 2.0) / box_lengths
-        )
+        return position - box_lengths * np.floor((position + box_lengths / 2.0) / box_lengths)
 
     @staticmethod
-    def _as_box_lengths(
-        box_lengths: float | np.ndarray | tuple[float, float, float],
-    ) -> np.ndarray:
+    def _as_box_lengths(box_lengths: float | np.ndarray | tuple[float, float, float]) -> np.ndarray:
         """Return a length-3 box vector from a scalar or orthorhombic lengths."""
 
         array = np.asarray(box_lengths, dtype=float)
         if array.ndim == 0:
             return np.repeat(float(array), 3)
         if array.shape != (3,):
-            raise ValueError(
-                "AA-DPD box lengths must be a scalar or a length-3 vector."
-            )
+            raise ValueError("AA-DPD box lengths must be a scalar or a length-3 vector.")
         return array
 
     @staticmethod

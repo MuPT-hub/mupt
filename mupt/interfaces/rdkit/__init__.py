@@ -1,4 +1,4 @@
-"""Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects"""
+'''Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects'''
 
 from .selection import (
     # Atom selection
@@ -49,9 +49,8 @@ from ...chemistry.sanitization import (
     SANITIZE_ALL,
     SANITIZE_NONE,
 )
-
 # DEFAULT DRAWING CONFIG
-set_rdkdraw_size(400, aspect=3 / 2)
+set_rdkdraw_size(400, aspect=3/2)
 show_atom_indices()
 show_substruct_highlights()
 disable_kekulized_drawing()

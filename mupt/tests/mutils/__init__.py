@@ -1,1 +1,2 @@
-"""Unit tests for general MuPT utilities"""
+'''Unit tests for general MuPT utilities'''
+

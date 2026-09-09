@@ -1,1 +1,2 @@
-"""Tests for the MuPT/RDKit interface"""
+'''Tests for the MuPT/RDKit interface'''
+

@@ -2,11 +2,7 @@
 
 import numpy as np
 
-from mupt.geometry.coordinates.directions import (
-    random_orthogonal_vector,
-    random_unit_vector,
-    random_vector,
-)
+from mupt.geometry.coordinates.directions import random_orthogonal_vector, random_unit_vector, random_vector
 
 
 def test_random_vector_accepts_repeatable_rng():

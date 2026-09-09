@@ -34,21 +34,17 @@ class RDKitMolData:
     atom_particle_labels: list[str] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
-    bond_refs: list[tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]] = (
-        field(default_factory=list)
-    )
-    linker_refs: list[tuple[int, Primitive, ConnectorReference]] = field(
-        default_factory=list
-    )
+    bond_refs: list[
+        tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]
+    ] = field(default_factory=list)
+    linker_refs: list[tuple[int, Primitive, ConnectorReference]] = field(default_factory=list)
 
 
 class RDKitExportStrategy(ABC):
     """Abstract strategy for collecting RDKit-exportable topology data."""
 
     @abstractmethod
-    def iter_mol_data(
-        self, root: Primitive, resname_map: dict[str, str]
-    ) -> Iterator[RDKitMolData]:
+    def iter_mol_data(self, root: Primitive, resname_map: dict[str, str]) -> Iterator[RDKitMolData]:
         """Yield one topology dataset per RDKit Mol to build."""
 
     @property
@@ -66,7 +62,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         else:
             default_atom_position = np.asarray(default_atom_position, dtype=float)
             if default_atom_position.shape != (3,):
-                raise ValueError("default_atom_position must be a 3-dimensional vector")
+                raise ValueError('default_atom_position must be a 3-dimensional vector')
             self.default_atom_position = default_atom_position
 
     @property
@@ -74,17 +70,13 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         """Human-readable strategy name."""
         return "All-atom"
 
-    def iter_mol_data(
-        self, root: Primitive, resname_map: dict[str, str]
-    ) -> Iterator[RDKitMolData]:
+    def iter_mol_data(self, root: Primitive, resname_map: dict[str, str]) -> Iterator[RDKitMolData]:
         """Yield one RDKit topology dataset per SEGMENT-role node."""
         index = build_saamr_role_topology_index(root)
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
         residue_records_by_segment = {id(segment): [] for segment in index.segments}
         for residue_record in iter_saamr_residue_records(index):
-            residue_records_by_segment[id(residue_record.segment)].append(
-                residue_record
-            )
+            residue_records_by_segment[id(residue_record.segment)].append(residue_record)
 
         for segment in index.segments:
             data = RDKitMolData(segment=segment)
@@ -104,13 +96,7 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
                     else:
                         data.atom_positions.append(self.default_atom_position)
                     data.atom_resnames.append(resname)
-                    data.atom_insertion_codes.append(
-                        str(
-                            residue_record.residue.metadata.get(
-                                "pdb_insertion_code", ""
-                            )
-                        )
-                    )
+                    data.atom_insertion_codes.append(str(residue_record.residue.metadata.get("pdb_insertion_code", "")))
                     data.atom_residue_labels.append(str(residue_record.residue.label))
                     data.atom_particle_labels.append(str(atom.label))
                     data.atom_resids.append(residue_record.residue_idx)

@@ -1,1 +1,2 @@
-"""Unit tests for core MuPT representation components"""
+'''Unit tests for core MuPT representation components'''
+

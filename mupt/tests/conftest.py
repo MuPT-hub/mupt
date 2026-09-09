@@ -3,7 +3,6 @@ File to house various fixtures that are used by multiple tests.
 """
 
 import logging
-
 logger = logging.getLogger(__name__)
 
 import pytest
@@ -28,7 +27,6 @@ from ..roles import assign_SAAMR_roles, PrimitiveRole
 # DEV:JRL The following functions are useful helpers to streamline the building
 # of copolymer systems from SMILES. They were taken from the ellipsoidal_chain_placement.ipynb
 # tutorial notebook authored by @timbernat
-
 
 def sequence_repeat_units(
     chain_len: int,
@@ -204,18 +202,15 @@ def build_SAAMR_polymer_system(
     Build a PSU/PES copolymer system:
 
     >>> rep_unit_smiles = {
-    ...     "head": "[H]-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*",
-    ...     "bisphenol_S": "*-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*",
-    ...     "bisphenol_A": "*-[O:1]c1ccc(cc1)C(-C)(-C)c1cc[c:2](cc1)-*",
-    ...     "tail": "*-[O:1]c1ccc(cc1)S(=O)(=O)c1ccc(cc1)[O:2]-[H]",
+    ...     'head': '[H]-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*',
+    ...     'bisphenol_S': '*-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*',
+    ...     'bisphenol_A': '*-[O:1]c1ccc(cc1)C(-C)(-C)c1cc[c:2](cc1)-*',
+    ...     'tail': '*-[O:1]c1ccc(cc1)S(=O)(=O)c1ccc(cc1)[O:2]-[H]',
     ... }
-    >>> mid_distrib = {"bisphenol_S": 0.4, "bisphenol_A": 0.6}
+    >>> mid_distrib = {'bisphenol_S': 0.4, 'bisphenol_A': 0.6}
     >>> univprim = build_SAAMR_polymer_system(
-    ...     rep_unit_smiles,
-    ...     mid_distrib,
-    ...     n_chains=10,
-    ...     chain_len_min=5,
-    ...     chain_len_max=10,
+    ...     rep_unit_smiles, mid_distrib,
+    ...     n_chains=10, chain_len_min=5, chain_len_max=10,
     ... )
     """
     if random_seed is not None:

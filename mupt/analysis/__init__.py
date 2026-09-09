@@ -1,1 +1,2 @@
-"""Polymer property analysis methods"""
+'''Polymer property analysis methods'''
+

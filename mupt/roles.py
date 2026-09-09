@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 class PrimitiveRole(Enum):
     """Labeled roles that Primitives can play in an exportable hierarchy.
-
+    
     These roles map to the standard levels expected by molecular analysis
     toolkits such as MDAnalysis:
-
+    
     - UNASSIGNED: No role has been assigned (default)
     - UNIVERSE:  Root container of the entire system
     - SEGMENT:   Non-covalently bonded entity (chain, molecule)
@@ -29,7 +29,7 @@ class PrimitiveRole(Enum):
 
     Primitives at intermediate depths between role-tagged levels should
     use ``UNASSIGNED`` to indicate transparent grouping nodes.
-
+    
     Examples
     --------
     >>> from mupt.mupr.roles import PrimitiveRole
@@ -38,15 +38,14 @@ class PrimitiveRole(Enum):
     >>> PrimitiveRole.UNIVERSE is not PrimitiveRole.UNASSIGNED
     True
     """
-
     UNASSIGNED = "unassigned"
     UNIVERSE = "universe"
-    SEGMENT = "segment"
-    RESIDUE = "residue"
+    SEGMENT  = "segment"
+    RESIDUE  = "residue"
     PARTICLE = "particle"
 
 
-def has_SAAMR_roles(prim: "Primitive") -> bool:
+def has_SAAMR_roles(prim: 'Primitive') -> bool:
     """Check whether a Primitive hierarchy has all four SAAMR roles assigned.
 
     This checks for role *presence* in the tree, not structural depth.
@@ -78,7 +77,7 @@ def has_SAAMR_roles(prim: "Primitive") -> bool:
     return required.issubset(present)
 
 
-def assign_SAAMR_roles(prim: "Primitive") -> None:
+def assign_SAAMR_roles(prim: 'Primitive') -> None:
     """Assign canonical export roles for a strict depth-3 SAAMR hierarchy.
 
     Walks the tree by depth (0/1/2/3) and assigns UNIVERSE, SEGMENT,
@@ -101,14 +100,12 @@ def assign_SAAMR_roles(prim: "Primitive") -> None:
     has_SAAMR_roles : Checks that roles are already assigned.
     has_strict_SAAMR_depth : The structural precondition for this function.
     """
-    from .mupr.properties import (
-        has_strict_SAAMR_depth,
-    )  # imported at runtime to avoid circular reference with Primitive
+    from .mupr.properties import has_strict_SAAMR_depth # imported at runtime to avoid circular reference with Primitive
 
     if not has_strict_SAAMR_depth(prim):
         raise ValueError(
-            "Cannot assign SAAMR roles: hierarchy does not have strict "
-            "SAAMR depth (all leaves must be atoms at depth 3)"
+            'Cannot assign SAAMR roles: hierarchy does not have strict '
+            'SAAMR depth (all leaves must be atoms at depth 3)'
         )
 
     prim.role = PrimitiveRole.UNIVERSE

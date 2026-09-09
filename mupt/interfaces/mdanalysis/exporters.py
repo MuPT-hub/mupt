@@ -93,7 +93,9 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
             order_counts = Counter(data.bond_orders)
             LOGGER.info(f"Bond order distribution: {dict(order_counts)}")
         else:
-            universe.add_TopologyAttr("bonds", np.asarray(data.bonds, dtype=np.int32))
+            universe.add_TopologyAttr(
+                "bonds", np.asarray(data.bonds, dtype=np.int32)
+            )
             LOGGER.info(f"Added {len(data.bonds)} bonds (no bond orders)")
     else:
         LOGGER.info("No bonds to add")
