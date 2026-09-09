@@ -28,36 +28,27 @@ dependencies:
   - matplotlib
   - ipympl
 
-  # Molecular libraries
-  - rdkit
-  - py3Dmol
-  - openbabel>=3.0
-  - mbuild >=1.0
-  - periodictable
-
-  # MD libraries
-  - openff-toolkit
-  - openff-interchange
-  - hoomd=5.3.0
-  - freud=3.0
-  # - fresnel
   # Chemistry
   - rdkit
   - periodictable
 
   # Molecular Dynamics toolkits
+  ## Visualization
+  - py3Dmol
+  - openbabel>=3.0
+
   ## OpenFF
   - openff-toolkit>=0.18
   - openff-interchange>=0.5
 
   ## HOOMD
-  - hoomd
+  - hoomd>=5.3.0
   - gsd>=3.0
-  - freud
+  - freud>=3.0
   - fresnel
 
   ## MoSDeF
-  # - mbuild # DEV: dependencies and env solve really don't play nice w/ OpenFF - hiding for now, since unused in code + examples
+  # - mbuild>=1.0 # DEV: dependencies and env solve really don't play nice w/ OpenFF - hiding for now, since unused in code + examples
   - gmso
 
   ## Analysis
