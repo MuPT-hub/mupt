@@ -218,7 +218,7 @@ class Primitive(
         for conn in self.connections.connectors_bound:
             # TB TODO: figure out how to type this so HoldsConnector "knows" about NodeMixin
             # methods without explicitly mentioning base Primitive type in ..connections
-            neighbor_branch : tuple[Primitive] = conn.holder.path,# may include explicit check for has_holder to avoid errants NoneTypes passed
+            neighbor_branch : tuple[Primitive] = conn.neighbor.holder.path,# may include explicit check for has_holder to avoid errants NoneTypes passed
             if self in neighbor_branch:
                 continue # avoid "internal" neighbors (of whom this Primitive is also a parent)
 
