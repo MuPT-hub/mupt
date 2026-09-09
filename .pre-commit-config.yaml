@@ -1,4 +1,7 @@
 # See https://pre-commit.com for more information
+ci:
+  autofix_prs: false # Prevent pre-commit.ci Application from making rogue fixes
+
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
