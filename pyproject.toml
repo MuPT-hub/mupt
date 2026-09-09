@@ -114,8 +114,10 @@ file = "mupt/_version.py"
 # Linting and formatting rules
 [tool.ruff]
 target-version = "py312"
-# line limit of 79 is common, 88 is default for black, >100 becomes tricky to view side-by-side
-line-length = 88 
+
+# line limit of 79 is common, 88 is default for black,
+# >100 becomes tricky to view side-by-side
+line-length = 88
 # exclude = ['*.py']
 
 show-fixes = true
@@ -128,24 +130,25 @@ select = [
     "E", # show errors
     "W", # show warnings
     "F", # flake8
-    # "I", # isort
+    # TB: disabled isort, as its import ordering contradicts with the convention
+    # put forth in this codebase so far (typing -> stdlib -> 3rd-party -> internal)
+    # "I", # isort 
     "D", # docstring format
     "E501", # check too long lines
     "C90",  # McCabe (cyclomatic) complexity
-    "NPY",  # Numpy-specific rules"
+    "NPY",  # Numpy-specific rules
 ]
+# extend-select = ["E501"]
 ignore = [
     "D401", # prevent rejection of docstrings with "non-imperative mood"
     #"E501", # allow format to fix long lines (theoretically)
 ]
-# extend-select = ["E501"]
 
 [tool.ruff.lint.pydocstyle]
-# convention = "google"
 convention = "numpy"
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10 # Flag errors (`C901`) whenever the complexity level exceeds 5.
+max-complexity = 10 # Flag errors (`C901`) on excessive complexity
 
 [tool.ruff.format]
 preview = true
@@ -158,4 +161,4 @@ nested-string-quote-style = "alternating"
 
 [tool.ruff.analyze]
 preview = true
-type-checking-imports = true # Include type-checking-only imports from the graph
+type-checking-imports = true
