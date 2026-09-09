@@ -140,6 +140,7 @@ select = [
 ]
 # extend-select = ["E501"]
 ignore = [
+    "D400", # prevent rejection of docstrings without period ending first line
     "D401", # prevent rejection of docstrings with "non-imperative mood"
     #"E501", # allow format to fix long lines (theoretically)
 ]
