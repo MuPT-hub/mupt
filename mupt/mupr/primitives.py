@@ -276,9 +276,9 @@ class Primitive(
         return tree_to_networkx(self, *args)
 
     # Depiction
-    def __hash__(self) -> int:
-        # NOTE: !CRITICAL! this be implemented if Primitives are to be used as nodes in networkx graphs
-        raise NotImplementedError
+    # def __hash__(self) -> int:
+    #     # NOTE: !CRITICAL! this be implemented if Primitives are to be used as nodes in networkx graphs
+    #     raise NotImplementedError
 
     def __str__(self) -> str:
         # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
