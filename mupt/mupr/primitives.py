@@ -337,10 +337,6 @@ class SupportsChildren(Primitive):
             msg='Hierarchy modification is frozen on this Primitive; cannot detach extant outgoing node(s)'
         )
     
-    def _post_detach(self, parent : 'SupportsChildren') -> None:
-        '''Post-actions to take once attachment is verified and parent is bound'''
-        ...
-
     def detach_child(self, prim_addr : PrimitiveAddress) -> Primitive:
         child = self.children_by_address.pop(prim_addr)
         child.parent = None
