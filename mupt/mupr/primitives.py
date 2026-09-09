@@ -280,13 +280,13 @@ class Primitive(
     #     # NOTE: !CRITICAL! this be implemented if Primitives are to be used as nodes in networkx graphs
     #     raise NotImplementedError
 
-    def __str__(self) -> str:
-        # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
-        # return self.canonical_form() # self.canonical_form_salted()
-        raise NotImplementedError
+    # def __str__(self) -> str:
+    #     # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
+    #     # return self.canonical_form() # self.canonical_form_salted()
+    #     raise NotImplementedError
     
-    def __repr__(self) -> str:
-        raise NotImplementedError # TODO - will likely have to change for subtypes
+    # def __repr__(self) -> str:
+    #     raise NotImplementedError # TODO - will likely have to change for subtypes
     
 class SupportsChildren(Primitive):
     '''
