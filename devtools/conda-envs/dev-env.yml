@@ -18,6 +18,7 @@ dependencies:
   - numpy
   - scipy>=1.16.0 # required to allow use of RigidTransform
   - sympy
+  - unyt
 
   # Graphs
   - anytree
