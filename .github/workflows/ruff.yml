@@ -19,5 +19,5 @@ jobs:
         if: always()
       - uses: astral-sh/ruff-action@v3
       # See astral repo for config details: https://github.com/astral-sh/ruff-action
-      - run: ruff format
-      - run: ruff check --fix
+      - run: ruff format --check
+      - run: ruff check
