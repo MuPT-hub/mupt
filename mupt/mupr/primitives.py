@@ -527,6 +527,8 @@ class SimplePrimitive(SupportsParents):
         if connections is None:
             connections = ConnectorManagerMutable()
 
+        ## TODO: register self as the holder of connectors
+
         self.connections = connections
         self._shape = shape
         self.metadata = metadata or dict()
@@ -548,6 +550,8 @@ class SimplePrimitive(SupportsParents):
             # TB: label is irrelevant w/ addresses; keeping in case handles prove useful to add later
             label=(label or Connector.DEFAULT_LABEL),
         )
+        connector.holder = self
+        
         for anc in self.ancestors:
             # direct access here, because .inject_connector will NOT be supported on non-simple Primitives
             anc.connections.add_connector(connector) 
@@ -566,7 +570,9 @@ class SimplePrimitive(SupportsParents):
         for ancestor in self.path:
             # TB: these all point to the same Connector instance, so collecting
             # is technically redundant for all but the last iter of the loop
-            connector = ancestor.connections.remove_connector(connector_address) 
+            connector = ancestor.connections.remove_connector(connector_address)
+        del connector.holder # will be self, since this Simple is at end of Path
+            
         return connector
 
     # Explicit ban on attachment of children (already simple)
@@ -575,6 +581,8 @@ class SimplePrimitive(SupportsParents):
 
     def _pre_detach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
+    
+    ## TODO: register all Connectors held by self to parents (once set) and all its ancestors
     
 class AtomicPrimitive(SimplePrimitive):
     '''
