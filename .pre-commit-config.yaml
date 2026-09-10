@@ -9,10 +9,16 @@ repos:
   hooks:
     # Run the linter.
     - id: ruff-check
-      types_or: [ python, pyi ] # excluding markdown for now; may add later
-      args: [ "--exclude", "['*.py']" ]
+      types_or: [
+        # python,
+        pyi
+        # excluding markdown for now; may add later
+      ] 
       # args: [ --fix ]
     # Run the formatter.
     - id: ruff-format
-      types_or: [ python, pyi ] # excluding markdown for now; may add later
-      args: [ "--check",  "--exclude",  "['*.py']" ]
+      types_or: [
+        # python,
+        pyi,
+      ] # excluding markdown for now; may add later
+      args: ["--check"]
