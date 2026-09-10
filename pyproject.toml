@@ -143,6 +143,7 @@ select = [
 ]
 # extend-select = ["E501"]
 ignore = [
+    "D205", # don't require blank line after first docstring line (for long line splits)
     "D400", # prevent rejection of docstrings without period ending first line
     "D401", # prevent rejection of docstrings with "non-imperative mood"
     #"E501", # allow format to fix long lines (theoretically)
