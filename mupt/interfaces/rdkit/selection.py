@@ -13,8 +13,13 @@ from rdkit.Chem.rdchem import Mol, Bond, Atom
 AtomCondition = Callable[Concatenate[Atom, ...], bool]
 AtomLike = Union[int, Atom]
 
-all_atoms: AtomCondition = lambda atom: True
-no_atoms: AtomCondition = lambda atom: False
+def all_atoms(atom : Atom) -> bool:
+    """Select all atoms unconditionally"""
+    return True
+
+def no_atoms(atom : Atom) -> bool:
+    """Reject all atoms unconditionally"""
+    return False
 
 
 # ATOM SELECTION FUNCTIONS
@@ -113,8 +118,13 @@ has_atom_neighbors = has_atom_neighbors_by_condition
 BondCondition = Callable[Concatenate[Bond, ...], bool]
 BondLike = Union[int, Bond, tuple[int, int], tuple[Atom, Atom]]
 
-all_bonds: BondCondition = lambda bond: True
-no_bonds: BondCondition = lambda bond: False
+def all_bonds(bond : Bond) -> bool:
+    """Select all bonds unconditionally"""
+    return True
+
+def no_bonds(bond : Bond) -> bool:
+    """Reject all bonds unconditionally"""
+    return False
 
 
 # BOND SELECTION FUNCTIONS
@@ -192,8 +202,13 @@ def bond_condition_by_atom_condition_factory(
 
 
 # QUERIES BY PREDEFINED CONDITIONS
-atom_is_mapped: AtomCondition = lambda atom: atom.GetAtomMapNum() != 0
-atom_is_linker: AtomCondition = lambda atom: atom.GetAtomicNum() == 0
+def atom_is_mapped(atom : Atom) -> bool:
+    """Select atom if it has been assigned an atom map number"""
+    return atom.GetAtomMapNum() != 0
+
+def atom_is_linker(atom : Atom) -> bool:
+    """Select atom if it has null atomic number (i.e. no element, wild-card atom)"""
+    return atom.GetAtomicNum() == 0
 
 
 def mapped_atoms(mol: Mol, as_indices: bool = False) -> Generator[AtomLike, None, None]:
