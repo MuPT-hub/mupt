@@ -140,6 +140,7 @@ select = [
     "E501", # check too long lines
     "C90",  # McCabe (cyclomatic) complexity
     "NPY",  # Numpy-specific rules
+    "TRY",  # try-except clause formatting
 ]
 # extend-select = ["E501"]
 ignore = [
@@ -149,6 +150,7 @@ ignore = [
     "E402", # ignore "module import not at top of file" (contradicts conventions here)
     #"E501", # allow format to fix long lines (theoretically)
     "NPY002", # suppress suggestions to replace np.random.<x> w/ np.random.Generator
+    "TRY003", # allow passing long msgs to Exceptions at init, rather than in class def
 ]
 
 [tool.ruff.lint.pydocstyle]
