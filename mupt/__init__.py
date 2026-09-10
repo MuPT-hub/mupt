@@ -3,6 +3,6 @@
 # Add imports here
 from .mupt import *
 
-from ._version import __version__
+from ._version import __version__ as __version__
 
 TOOLKIT_NAME: str = "The Multiscale Polymer Toolkit (MuPT)"

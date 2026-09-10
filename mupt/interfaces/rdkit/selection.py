@@ -17,7 +17,7 @@ all_atoms: AtomCondition = lambda atom: True
 no_atoms: AtomCondition = lambda atom: False
 
 
-## ATOM SELECTION FUNCTIONS
+# ATOM SELECTION FUNCTIONS
 def atoms_by_condition(
     mol: Mol,
     condition: Optional[AtomCondition] = None,
@@ -117,7 +117,7 @@ all_bonds: BondCondition = lambda bond: True
 no_bonds: BondCondition = lambda bond: False
 
 
-## BOND SELECTION FUNCTIONS
+# BOND SELECTION FUNCTIONS
 def bonds_by_condition(
     mol: Mol,
     condition: Optional[BondCondition] = None,

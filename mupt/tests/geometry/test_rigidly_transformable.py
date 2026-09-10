@@ -75,7 +75,7 @@ def points_non_copyable(sample_positions: np.ndarray) -> PointsNonCopyable:
 
 
 # Tests
-## Test in-place methods
+# Test in-place methods
 def test_rigidly_transform(
     points: Points,
     transform: RigidTransform,
@@ -119,7 +119,7 @@ def test_reset_transform(points: Points, transform: RigidTransform):
     )
 
 
-## Test read-only variants of methods
+# Test read-only variants of methods
 def test_rigidly_transformed(
     points: Union[Points, PointsNonCopyable],
     transform: RigidTransform,

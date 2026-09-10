@@ -24,7 +24,6 @@ PrimitiveHandle = tuple[PrimitiveLabel, int]  # (label, uniquification index)
 from dataclasses import dataclass
 from itertools import product as cartesian
 
-from networkx import Graph
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
@@ -185,7 +184,7 @@ def infer_connections_from_topology(
 
         for edge_labels in unpaired_edges:
             owner_handle1, owner_handle2 = edge_labels
-            ## attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
+            # attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
             pair_choice_ambiguous: bool = False
             compatible_class_labels: Optional[tuple[Connector, Connector]] = None
             for (class_label1, eq_class_1), (class_label2, eq_class_2) in cartesian(
@@ -218,7 +217,7 @@ def infer_connections_from_topology(
                     f"No compatible Connector pairs found for edge {edge_labels}"
                 )
 
-            ## if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
+            # if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
             chosen_representatives: set[ConnectorReference] = set()
             for class_label, owner_label in zip(compatible_class_labels, edge_labels):
                 equiv_class = connector_equiv_classes[owner_label][class_label]
@@ -237,7 +236,7 @@ def infer_connections_from_topology(
             )
             n_paired_new += 1
 
-        ## tee up next iteration; halt if no further connections can be made
+        # tee up next iteration; halt if no further connections can be made
         unpaired_edges = unpaired_updated
         n_iter += 1
 
@@ -245,7 +244,7 @@ def infer_connections_from_topology(
             f"Paired up {n_paired_new} new edges after {n_iter} iteration(s); {len(unpaired_edges)}/{num_total_edges} edges remain unpaired"
         )
         if n_paired_new == 0:
-            LOGGER.info(f"No new edges paired, halting registration loop")
+            LOGGER.info("No new edges paired, halting registration loop")
             break
         # TODO: log exceedance of max number of loops?
 
@@ -254,8 +253,8 @@ def infer_connections_from_topology(
             f"Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors"
         )
 
-    ## DEV: with the refactor to have all Child Connectors be external by default in Primitive...
-    ## ...it's no longer necessary to compute which are external here (though we have enough info to do so, as shown)
+    # DEV: with the refactor to have all Child Connectors be external by default in Primitive...
+    # ...it's no longer necessary to compute which are external here (though we have enough info to do so, as shown)
     # collate remaining unpaired Connectors as external
     # external_connectors : dict[PrimitiveHandle, tuple[Connector]] = {
     #     owner_handle : tuple(chain.from_iterable(eq_classes.values()))

@@ -90,8 +90,8 @@ class RigidlyTransformable(Copyable, Protocol):
         self.rigidly_transform(self.resetting_transformation)
 
     # copying and out-of-place applications of transformations
-    ## DEV: _copy_untransformed() is deliberately NOT an abstract method, as it's not required that child classes implement it;
-    ## ...if children don't implement it, they simply won't be able to perform copying or out-of-place transformations
+    # DEV: _copy_untransformed() is deliberately NOT an abstract method, as it's not required that child classes implement it;
+    # ...if children don't implement it, they simply won't be able to perform copying or out-of-place transformations
     def _copy_untransformed(self) -> Self:
         """Defines how to make a copy of an object with the same internal parts, but  without preserving it's cumulative transformation"""
         raise NotCopyableError(

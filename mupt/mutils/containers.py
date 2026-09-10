@@ -106,7 +106,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
 
         return handle
 
-    ## Composite registration methods
+    # Composite registration methods
     def register_from_mapping(
         self,
         collection: Mapping[LabelT, Iterable[T]],

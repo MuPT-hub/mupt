@@ -99,21 +99,21 @@ def cylindrical_mesh(
     n_points = len(mesh_points)
 
     # triangulate mesh points
-    ## bottom face
+    # bottom face
     triangles_face_bottom = np.zeros((n_theta, 3), dtype=int)
     face_bottom_edge_idxs = np.arange(1, n_theta + 1)
     triangles_face_bottom[:, 0] = 0
     triangles_face_bottom[:, 1] = face_bottom_edge_idxs
     triangles_face_bottom[:, 2] = np.roll(face_bottom_edge_idxs, -1)
 
-    ## top face
+    # top face
     triangles_face_top = np.zeros((n_theta, 3), dtype=int)
     face_top_edge_idxs = np.arange(n_points - n_theta - 1, n_points - 1)
     triangles_face_top[:, 0] = n_points - 1
     triangles_face_top[:, 1] = face_top_edge_idxs
     triangles_face_top[:, 2] = np.roll(face_top_edge_idxs, -1)
 
-    ## walls
+    # walls
     triangles_wall = (
         Delaunay(params.reshape(2, -1).T).simplices + 1
     )  # offset accounts for base point prepended to mesh positions

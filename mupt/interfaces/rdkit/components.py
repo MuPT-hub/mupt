@@ -26,7 +26,7 @@ from rdkit.Chem.rdchem import (
 )
 from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
 
-## Custom
+# Custom
 from ...chemistry.linkers import anchor_and_linker_idxs
 from .selection import (
     AtomCondition,
@@ -42,7 +42,6 @@ from ...mupr.connection import (
     Connector,
     ConnectorLabel,
     AttachmentPoint,
-    AttachmentLabel,
 )
 
 
@@ -214,7 +213,7 @@ def connector_between_rdatoms(
     )
     connector.label = connector_labeller(connector)
 
-    ## inject spatial info, if present
+    # inject spatial info, if present
     connector_positions = atom_positions_from_rdkit(
         parent_mol, conformer_idx=conformer_idx, atom_idxs=[from_atom_idx, to_atom_idx]
     )

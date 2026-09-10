@@ -1,12 +1,13 @@
 """Utilities for creating rigid transformations and applying them to points in 3D space
-i.e. for working with the Special Euclidean group SE(3)"""
+i.e. for working with the Special Euclidean group SE(3)
+"""
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from .application import apply_rigid_transformation_recursive, RigidlyTransformable
-from .rotations import rotator, rodrigues, alignment_rotation
-from .alignment import rigid_vector_coalignment
+from .application import apply_rigid_transformation_recursive as apply_rigid_transformation_recursive, RigidlyTransformable as RigidlyTransformable
+from .rotations import rotator as rotator, rodrigues as rodrigues, alignment_rotation as alignment_rotation
+from .alignment import rigid_vector_coalignment as rigid_vector_coalignment
 
 
 def random_rigid_transformation(translation_bound: float = 0.0) -> RigidTransform:

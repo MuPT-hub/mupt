@@ -3,7 +3,7 @@
 from typing import Union
 
 from rdkit.Chem.rdchem import Atom
-from periodictable.core import Element, Ion, Isotope, isatom
+from periodictable.core import Ion, Isotope, isatom
 
 from .core import ELEMENTS, ElementLike
 

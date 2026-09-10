@@ -112,7 +112,6 @@ def _multi_residue_chain_record(n_residues: int = 3):
 
 def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     """Return universe -> segment -> residue -> H-C-H with two bonds."""
-
     h1 = Primitive(
         label="H1",
         shape=PointCloud(np.array([0.0, 0.0, 0.0])),

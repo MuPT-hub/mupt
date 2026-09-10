@@ -43,7 +43,6 @@ from .connection import (
     ConnectorLabel,
     ConnectorHandle,
     ConnectorSelector,
-    select_first,
     make_second_resemble_first,
     IncompatibleConnectorError,
     MissingConnectorError,
@@ -124,17 +123,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
         role: PrimitiveRole = PrimitiveRole.UNASSIGNED,
     ) -> None:
         # essential components
-        ## external bounded shape
+        # external bounded shape
         self._shape = None
         if shape is not None:
             self.shape = shape
 
-        ## atomic chemistry (when applicable)
+        # atomic chemistry (when applicable)
         self._element = None
         if element is not None:
             self.element = element
 
-        ## child Primitives
+        # child Primitives
         self._topology = TopologicalStructure()
         # self._topology = self.compatible_indiscrete_topology()
         self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
@@ -143,7 +142,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if children is not None:
             self._children_by_handle.register_from(children)
 
-        ## off-body connections
+        # off-body connections
         self._connectors: UniqueRegistry[ConnectorHandle, Connector] = UniqueRegistry()
         if connectors is not None:
             self._connectors.register_from(connectors)
@@ -300,7 +299,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             for conn_handle, conn in child.connectors.items()
         })
 
-    ## Internal "between-child" connections
+    # Internal "between-child" connections
     @property
     def internal_connections(self) -> set[frozenset[ConnectorReference]]:
         """
@@ -424,7 +423,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self._internal_connections.add(frozenset(conn_refs))
         LOGGER.debug(f"Paired {conn_ref1!s} with {conn_ref2!s}")
 
-    ## External "off-body" connections
+    # External "off-body" connections
     @property
     def external_connectors(self) -> dict[ConnectorHandle, ConnectorReference]:
         """Mapping between the Connector handles found on self and their analogues on child Primitives"""
@@ -517,7 +516,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return ext_conn_traces
 
-    ## Consistency checks on Connections
+    # Consistency checks on Connections
     def check_external_connector_references_valid(self) -> None:
         """
         Check that the mapped Connectors on self are each represented in the mapping to the associated external Connectors on children
@@ -601,7 +600,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             )
 
     # Child Primitives
-    ## DEV: override __children_or_empty with values of self._children_by_handle?
+    # DEV: override __children_or_empty with values of self._children_by_handle?
     @property
     def children_by_handle(self) -> UniqueRegistry[PrimitiveHandle, "Primitive"]:
         """
@@ -648,7 +647,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     fetch_subprimitive = fetch_child
 
-    ## Attachment (fulfilling NodeMixin contract)
+    # Attachment (fulfilling NodeMixin contract)
     def _pre_attach(self, parent: "Primitive") -> None:
         """Preconditions prior to attempting attachment of this Primitive to a parent"""
         # DEV: insert any preconditions beyond checking parent is self or one of self's children (already done by NodeMixin)
@@ -734,7 +733,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             handles.append(handle)
         return handles
 
-    ## Detachment (fulfilling NodeMixin contract)
+    # Detachment (fulfilling NodeMixin contract)
     def _pre_detach(self, parent: "Primitive") -> None:
         """Preconditions prior to attempting detachment of this Primitive from a parent"""
         # DEV: insert any preconditions from detachment
@@ -748,14 +747,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         target_child = self.fetch_child(target_handle)
 
         # unbind connections
-        ## disconnect target from sibling neighbors internally
+        # disconnect target from sibling neighbors internally
         for nb_handle in self.neighbor_handles(target_handle):
             self.disconnect_children(target_handle, nb_handle)
         assert self.num_internal_connections_on_child(target_handle) == 0, (
             f'Failed to disconnect all internal connections on child Primitive "{target_handle}"'
         )
 
-        ## remove external connections on self (corresponding 1:1 with those on target after internal disconnection)
+        # remove external connections on self (corresponding 1:1 with those on target after internal disconnection)
         assert (
             self.num_external_connectors_on_child(target_handle)
             == target_child.functionality
@@ -789,7 +788,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     # DEV: also include attach/detach_parent() methods?
 
-    ## Internal linkage
+    # Internal linkage
     def connect_children(
         self,  # TODO: include call signature overload with pair of ConnectorReferences
         child_1_handle: PrimitiveHandle,
@@ -846,7 +845,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 conn_ref.connector_handle,
             )
 
-    ## Search
+    # Search
     def search_hierarchy_by(
         self,
         condition: Callable[["Primitive"], bool],
@@ -871,7 +870,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         )
 
     # Topology
-    ## Consistency checks between topology and other internal attributes
+    # Consistency checks between topology and other internal attributes
     def check_children_bijective_to_topology_nodes(
         self, topology: TopologicalStructure
     ) -> None:
@@ -928,7 +927,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self.check_children_bijective_to_topology_nodes(topology)
         self.check_internal_connections_bijective_to_topology_edges(topology)
 
-    ## Topology access and modification
+    # Topology access and modification
     @property
     def is_simple(self) -> bool:
         """Whether a Primitive has no internal structure"""
@@ -1025,7 +1024,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         )  # verify that all edges have been accounted for
 
     # Resolution shift methods
-    ## TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
+    # TODO: make out-of-place versions of these methods (via optional_in_place for a start)?
     def check_self_consistent(self) -> None:
         """
         Check sufficient conditions for whether the children of this Primitive, their
@@ -1105,7 +1104,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             target_handle
         )  # detach target from self
 
-        ## 2a) compatibilize Connectors by collapsing correspondent pairs from external Connectors into single, representative Connector on each grandchild
+        # 2a) compatibilize Connectors by collapsing correspondent pairs from external Connectors into single, representative Connector on each grandchild
         for (
             child_conn_handle,
             grandchild_conn_ref,
@@ -1121,7 +1120,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 grandchild_conn_ref.connector_handle
             )
 
-            ### register modified connector to (what ought to be) the same handle
+            # register modified connector to (what ought to be) the same handle
             new_grandchild_conn_handle = grandchild.register_connector(
                 connector_selector(child_conn, grandchild_conn),
                 label=grandchild_conn_ref_label,  # use identical label to immediately recover handle from "freed" buffer in internal registry
@@ -1130,7 +1129,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 "Connector handle changed unexpectedly during merging"
             )
 
-        ## 2b) reassign grandchildren as direct children of self and discard twitching corpse of target child (we have no further use for it from here on)
+        # 2b) reassign grandchildren as direct children of self and discard twitching corpse of target child (we have no further use for it from here on)
         for (
             old_handle,
             grandchild,
@@ -1232,7 +1231,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         self._shape = new_shape_clone
 
-    ## applying rigid transformations (fulfilling RigidlyTransformable contracts)
+    # applying rigid transformations (fulfilling RigidlyTransformable contracts)
     def _copy_untransformed(self) -> "Primitive":
         """Return a new Primitive with the same information and children as this one, but which has no parent"""
         clone_primitive = self.__class__(
@@ -1311,7 +1310,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         raise NotImplementedError
 
     # Representation methods
-    ## Canonical forms for core components
+    # Canonical forms for core components
     def canonical_form_connectors(self, separator: str = ":", joiner: str = "-") -> str:
         """A canonical string representing this Primitive's Connectors"""
         return lex_order_multiset_str(
@@ -1360,7 +1359,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         return f"{self.canonical_form()}-{self.label}"  # {self.metadata}'
 
-    ## Printing and textual representations
+    # Printing and textual representations
     def __str__(
         self,
     ) -> (
@@ -1429,7 +1428,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             maxlevel=to_depth,
         ).by_attr(render_attr)
 
-    ## Graph drawing
+    # Graph drawing
     def visualize_topology(
         self,
         ax: Optional[Axes] = None,

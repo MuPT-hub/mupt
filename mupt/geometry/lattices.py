@@ -29,10 +29,10 @@ class LatticeParameters:  # TODO : incorporate unit-awareness
 
     @classmethod
     def from_lattice_vectors(cls, lattice_vectors: Array3x3) -> "LatticeParameters":
-        raise NotImplemented
+        raise NotImplementedError
 
     def to_lattice_vectors(self) -> Array3x3:
-        raise NotImplemented
+        raise NotImplementedError
 
 
 # Coordinate subclasses

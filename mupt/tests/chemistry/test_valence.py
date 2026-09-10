@@ -16,7 +16,7 @@ from mupt.chemistry.core import valence_allowed
         (6, 0, 5, False),  # pentavalent carbon
         (7, 0, 3, True),  # freebase nitrogen
         (8, 0, 2, True),  # carbonxyl oxygen
-        ## sulfur - many accessible valence states thru d-block electrons
+        # sulfur - many accessible valence states thru d-block electrons
         (16, 0, 2, True),
         (16, 0, 4, True),
         (16, 0, 6, True),

@@ -164,11 +164,11 @@ class Connector(RigidlyTransformable):
         self._tangent_position = None  # DEV: no call to setter; must be assigned via protected tangent_vector property
 
     # Geometric properties
-    ## DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
-    ## preserving relative orientations for local orthogonal basis under general rigid transformations; key observation is that
-    ## a DIFFERENCE between positions is invariant under shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b),
+    # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking endpoint positions under the hood to get them to
+    # preserving relative orientations for local orthogonal basis under general rigid transformations; key observation is that
+    # a DIFFERENCE between positions is invariant under shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b),
 
-    ## Attachment site position wrappers - DEV: necessary for backward compatibility with attr reference, though could be deprecated eventually
+    # Attachment site position wrappers - DEV: necessary for backward compatibility with attr reference, though could be deprecated eventually
     @property
     def anchor_position(self) -> Vector3:
         """The central position that this Connector is anchored to"""
@@ -187,7 +187,7 @@ class Connector(RigidlyTransformable):
         )
         return self.linker.position
 
-    ## Bond vector
+    # Bond vector
     @property
     def has_bond_vector(self) -> bool:
         """Determine whether this Connector has a bond vector (i.e. definite spanning direction away from anchor) defined"""
@@ -226,7 +226,7 @@ class Connector(RigidlyTransformable):
         """Adjust length of bond vector by moving linker position along the bond vector's span, keeping the anchor fixed in place"""
         self.bond_vector = new_bond_length * self.unit_bond_vector
 
-    ## Tangent vector
+    # Tangent vector
     @property
     def has_tangent_position(self) -> bool:
         """Determine whether this Connector has a tangent position (i.e. point defining dihedral orientation) defined"""
@@ -280,7 +280,7 @@ class Connector(RigidlyTransformable):
             self.bond_vector, normal_point - self.anchor.position
         )
 
-    ## Normal vector
+    # Normal vector
     @property
     def normal_vector(self) -> Vector3:
         """A vector normal to the dihedral plane and orthogonal to both the bond and tangent vectors"""
@@ -290,7 +290,7 @@ class Connector(RigidlyTransformable):
         """Unit vector in the same direction as the normal vector"""
         return self.normal_vector / np.linalg.norm(self.normal_vector)
 
-    ## Local orthonormal basis (formed from unit bond, tangent, and normal vectors)
+    # Local orthonormal basis (formed from unit bond, tangent, and normal vectors)
     @property
     def has_dihedral_orientation(self) -> bool:
         """Determine whether this Connector has a dihedral orientation (i.e. tangent position) defined"""
@@ -339,10 +339,10 @@ class Connector(RigidlyTransformable):
             self._tangent_position = transformation.apply(self._tangent_position)
 
     # Anti-aligning Connectors to one another (simulates bonding in 3D space)
-    ## DEV: eventually try to move as much of the implementation of these transforms to geometry.transforms.rigid as possible
+    # DEV: eventually try to move as much of the implementation of these transforms to geometry.transforms.rigid as possible
     def are_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
-        ## DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
-        ## that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
+        # DEV: was unsure of whether or not to make this a classmethod; opted for instance method instead, with the understanding
+        # that you can still call it like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
         """
         Whether this Connector is anti-aligned with another Connector, i.e. whether
         the anchor of this Connector is within some cutoff distance of the linker
@@ -358,7 +358,7 @@ class Connector(RigidlyTransformable):
             radius=within,
         )
 
-    ## Dihedral angle
+    # Dihedral angle
     def dihedral_assignment_transform(
         self,
         other: "Connector",
@@ -433,7 +433,7 @@ class Connector(RigidlyTransformable):
 
         return new_connector
 
-    ## Rigid alignment
+    # Rigid alignment
     def rigid_antialignment_to(
         self,
         other: "Connector",
@@ -506,7 +506,7 @@ class Connector(RigidlyTransformable):
 
         return new_connector
 
-    ## Ballistic alignment
+    # Ballistic alignment
     def ballistic_antialignment_to(self, other: "Connector") -> RigidTransform:
         """
         Compute a rigid transformation which aligns a pair of Connectors by turning
@@ -557,9 +557,9 @@ class Connector(RigidlyTransformable):
 
         return new_connector
 
-    ### DEV: asymmetry relative to rigid alignment viz dihedral angles is no accident;
-    ### Rigid alignment results in antialignment after one application with bond length matching,
-    ### whereas ballistic alignment in general requires both Connecters to be mutually transformed to guarantee antialignment
+    # DEV: asymmetry relative to rigid alignment viz dihedral angles is no accident;
+    # Rigid alignment results in antialignment after one application with bond length matching,
+    # whereas ballistic alignment in general requires both Connecters to be mutually transformed to guarantee antialignment
     def mutually_antialign_ballistically(
         self,
         other: "Connector",
@@ -637,7 +637,7 @@ class Connector(RigidlyTransformable):
         """Whether this connector can replace other without any change to programs which involve it"""
         return self.coincides_with(other) and self.resembles(other)
 
-    ## Labelling and representation methods
+    # Labelling and representation methods
     @property
     def label(self) -> ConnectorLabel:
         """Identifying label for this Connector"""
@@ -725,7 +725,7 @@ class Connector(RigidlyTransformable):
         return counterpart
 
 
-## Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
+# Selection between pairs of Connectors (useful, for example, for resolution-shift operations)
 ConnectorSelector: TypeAlias = Callable[[Connector, Connector], Connector]
 
 

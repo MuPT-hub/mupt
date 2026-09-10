@@ -5,7 +5,6 @@ from itertools import product as cartesian
 
 import numpy as np
 import numpy.testing as nptest
-from scipy.spatial.transform import Rotation, RigidTransform
 
 from mupt.geometry.transforms.rigid import random_rigid_transformation
 from mupt.geometry.shapes import (

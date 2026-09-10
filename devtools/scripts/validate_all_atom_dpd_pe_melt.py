@@ -40,13 +40,11 @@ PE_RESNAME_MAP = {"head": "HEA", "ethane": "EAN", "tail": "TYL"}
 
 def sequence_repeat_units(chain_len: int) -> list[str]:
     """Return a deterministic PE chain sequence including terminal caps."""
-
     return ["head", *("ethane" for _ in range(chain_len - 2)), "tail"]
 
 
 def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
     """Build oriented PE repeat-unit primitives from the script SMILES table."""
-
     lexicon = {}
     with suppress_rdkit_logs():
         for unit_name, smiles in PE_SMILES.items():
@@ -86,7 +84,6 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
     topology only. ``AllAtomDPDBuilder`` owns frame-0 chain placement through the
     shared PlacementGenerator abstraction before running HOOMD relaxation.
     """
-
     np.random.seed(args.seed)
     lexicon = build_pe_lexicon()
     root = Primitive(label="pe_melt")
@@ -414,7 +411,6 @@ def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
 
 def system_mass_da(system: Any, omm_unit: Any) -> float:
     """Return total OpenMM system mass in daltons."""
-
     return float(
         sum(
             system.getParticleMass(i).value_in_unit(omm_unit.dalton)
@@ -425,14 +421,12 @@ def system_mass_da(system: Any, omm_unit: Any) -> float:
 
 def box_density_g_cm3(box_vectors_nm: np.ndarray, mass_da: float) -> float:
     """Return mass density from OpenMM box vectors in nm."""
-
     volume_nm3 = abs(float(np.linalg.det(box_vectors_nm)))
     return mass_da * DA_PER_NM3_TO_G_CM3 / volume_nm3
 
 
 def assign_openff_charges(molecules: list[Any], charge_method: str) -> None:
     """Assign OpenFF partial charges, using NAGL explicitly for AshGC models."""
-
     if charge_method.endswith(".pt") or charge_method.startswith("openff-gnn"):
         from openff.toolkit.utils import ToolkitRegistry
         from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
@@ -458,7 +452,6 @@ def run_openmm_validation(
     root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace
 ) -> None:
     from mupt.interfaces.rdkit import primitive_to_rdkit_mols
-    from openff.interchange import Interchange
     from openff.toolkit import ForceField, Molecule, Topology
     from openff.units import unit as off_unit
     from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, Vec3
@@ -551,7 +544,6 @@ def run_nvt_smoke(
     simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace
 ) -> None:
     """Run a short regular-NVT stability check after minimization."""
-
     if args.md_steps == 0:
         LOGGER.info("NVT diagnostics: skipped (--md-steps 0)")
         return
@@ -602,7 +594,6 @@ def run_npt_smoke(
     args: argparse.Namespace,
 ) -> None:
     """Continue from the NVT state under regular NPT conditions."""
-
     if args.npt_steps == 0:
         LOGGER.info("NPT diagnostics: skipped (--npt-steps 0)")
         return

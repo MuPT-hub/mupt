@@ -8,11 +8,8 @@ from typing import (
 from rdkit.Chem.rdchem import (
     Atom,
     Mol,
-    Conformer,
-    StereoInfo,
 )
-from rdkit.Chem.rdmolops import FindPotentialStereo, GetMolFrags
-from rdkit.Chem.rdDistGeom import EmbedMolecule
+from rdkit.Chem.rdmolops import GetMolFrags
 
 from ...chemistry.linkers import is_linker
 from .components import atom_positions_from_rdkit, connector_between_rdatoms
@@ -103,7 +100,7 @@ def primitive_from_rdkit_chain(
         label=label,
         metadata=rdmol_chain.GetPropsAsDict(includePrivate=True, includeComputed=False),
     )
-    ## DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
+    # DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
     # stereo_info_map : dict[int, StereoInfo] = {
     #     stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
     #         for stereo_info in FindPotentialStereo(rdmol_chain, cleanIt=True, flagPossible=True)
@@ -134,7 +131,7 @@ def primitive_from_rdkit_chain(
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
 
-        ## Primitive 1 + associated Connector
+        # Primitive 1 + associated Connector
         begin_prim_handle = atom_idx_to_handle_map[begin_idx]
         begin_prim = rdmol_primitive.fetch_child(begin_prim_handle)
         begin_conn = connector_between_rdatoms(
@@ -149,7 +146,7 @@ def primitive_from_rdkit_chain(
             begin_prim_handle, begin_conn_handle, label=external_linker_label
         )
 
-        ### Primitive 2 + associated Connector
+        # Primitive 2 + associated Connector
         end_prim_handle = atom_idx_to_handle_map[end_idx]
         end_prim = rdmol_primitive.fetch_child(end_prim_handle)
         end_conn = connector_between_rdatoms(
@@ -164,7 +161,7 @@ def primitive_from_rdkit_chain(
             end_prim_handle, end_conn_handle, label=external_linker_label
         )
 
-        ### joining of the pair of Connectors
+        # joining of the pair of Connectors
         rdmol_primitive.connect_children(
             begin_prim_handle,
             begin_conn_handle,
@@ -176,7 +173,7 @@ def primitive_from_rdkit_chain(
     for linker_idx in linker_idxs:
         rdmol_primitive.detach_child(atom_idx_to_handle_map[linker_idx])
 
-    ## 3a) insert traversal direction info based on 1-2 map number convention
+    # 3a) insert traversal direction info based on 1-2 map number convention
     for ext_conn_handle, conn_ref in rdmol_primitive.external_connectors.items():
         atom_primitive = rdmol_primitive.fetch_child(conn_ref.primitive_handle)
         ext_conn = rdmol_primitive.fetch_connector(ext_conn_handle)

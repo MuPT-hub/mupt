@@ -428,7 +428,7 @@ def iter_primitives_from_mupt_sdf(
         distance convention as the source SDF records, conventionally angstroms.
 
     Yields
-    -------
+    ------
     Primitive
         Rebuilt ``SEGMENT -> RESIDUE -> PARTICLE`` hierarchy for one SDF record.
         Per-record SDF metadata is preserved on rebuilt SEGMENT nodes. Bonds

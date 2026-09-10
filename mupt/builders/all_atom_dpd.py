@@ -282,7 +282,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         resname_map
             Optional residue-name map overriding builder settings.
         """
-
         self.force_field = force_field
         self.resname_map = resname_map
 
@@ -297,7 +296,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         The returned tables are builder-facing numeric parameters; downstream
         AA-DPD code does not depend on OpenFF objects after this method returns.
         """
-
         from openff.toolkit import ForceField, Molecule, Topology
         from openff.units import unit
 
@@ -341,7 +339,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     @staticmethod
     def _quantity_value(value: Any, target_unit: Any, default: float) -> float:
         """Return a float from an OpenFF quantity, tolerating missing labels."""
-
         if value is None:
             return default
         if hasattr(value, "m_as"):
@@ -356,7 +353,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         unit: Any,
     ) -> None:
         """Collect per-atom vdW epsilon labels for DPD pair scaling."""
-
         for key, parameter in labels.get("vdW", {}).items():
             local_idx = self._atom_indices_from_openff_key(key)[0]
             global_idx = record.local_to_global[int(local_idx)]
@@ -378,7 +374,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         scale: float,
     ) -> None:
         """Collect harmonic bond parameters from OpenFF labels."""
-
         for key, parameter in labels.get("Bonds", {}).items():
             local_pair = self._atom_indices_from_openff_key(key)
             i, j = (
@@ -408,7 +403,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         scale: float,
     ) -> None:
         """Collect harmonic angle parameters from OpenFF labels."""
-
         for key, parameter in labels.get("Angles", {}).items():
             local_triplet = self._atom_indices_from_openff_key(key)
             name = getattr(parameter, "id", None) or "a-" + "-".join(
@@ -438,7 +432,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         scale: float,
     ) -> None:
         """Collect periodic torsion parameters from OpenFF labels."""
-
         for key, parameter in labels.get("ProperTorsions", {}).items():
             local_quad = self._atom_indices_from_openff_key(key)
             group = tuple(record.local_to_global[int(idx)] for idx in local_quad)
@@ -476,7 +469,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         scale: float,
     ) -> None:
         """Collect periodic improper torsion parameters from OpenFF labels."""
-
         for key, parameter in labels.get("ImproperTorsions", {}).items():
             local_quad = self._atom_indices_from_openff_key(key)
             group = tuple(record.local_to_global[int(idx)] for idx in local_quad)
@@ -505,7 +497,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     @staticmethod
     def _periodic_idivf(parameter: Any, n_terms: int) -> list[float]:
         """Return OpenFF periodic torsion idivf values, defaulting missing values."""
-
         idivf = getattr(parameter, "idivf", None)
         if idivf is None:
             return [1.0] * n_terms
@@ -514,7 +505,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     @staticmethod
     def _atom_indices_from_openff_key(key: Any) -> tuple[int, ...]:
         """Return atom indices from OpenFF label keys across toolkit versions."""
-
         if hasattr(key, "atom_indices"):
             return tuple(int(idx) for idx in key.atom_indices)
         if hasattr(key, "this_atom_index"):
@@ -551,7 +541,6 @@ class AllAtomDPDBuilder:
         resname_map
             Optional residue-name map overriding ``settings.resname_map``.
         """
-
         self.settings = settings or AllAtomDPDSettings()
         if resname_map is not None:
             self.settings.resname_map = dict(resname_map)
@@ -564,7 +553,6 @@ class AllAtomDPDBuilder:
 
     def _validate_settings(self) -> None:
         """Reject invalid settings before optional HOOMD/OpenFF work starts."""
-
         positive_fields = {
             "density_g_cm3": self.settings.density_g_cm3,
             "r_cut_a": self.settings.r_cut_a,
@@ -660,7 +648,6 @@ class AllAtomDPDBuilder:
         self, rng: np.random.Generator, box_length: float | np.ndarray
     ) -> PlacementGenerator:
         """Return the default frame-0 residue placement generator."""
-
         box_lengths = self._as_box_lengths(box_length)
         initial_point = rng.uniform(-box_lengths / 2.0, box_lengths / 2.0, size=3)
         return AngleConstrainedRandomWalk(
@@ -673,7 +660,6 @@ class AllAtomDPDBuilder:
 
     def build(self, root: Primitive) -> AllAtomDPDResult:
         """Mutate atom leaf coordinates in-place using an all-atom DPD run."""
-
         records = self._segment_records(root)
         atoms = [atom for record in records for atom in record.atoms]
         if not atoms:
@@ -755,7 +741,6 @@ class AllAtomDPDBuilder:
 
     def _segment_records(self, root: Primitive) -> list[_SegmentRecord]:
         """Return atom and bond records in role-aware traversal order."""
-
         index = build_saamr_role_topology_index(root)
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
         records = []
@@ -805,7 +790,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _atom_mass_amu(atom: Primitive) -> float:
         """Return an atom mass in amu from its periodictable element."""
-
         mass = getattr(atom.element, "mass", None)
         if mass is None:
             raise ValueError(
@@ -815,7 +799,6 @@ class AllAtomDPDBuilder:
 
     def _box_length_a(self, total_mass_amu: float) -> float:
         """Return cubic box length in Angstrom from total mass and target density."""
-
         volume_cm3 = total_mass_amu * AMU_TO_G / self.settings.density_g_cm3
         density_length = float((volume_cm3 / ANGSTROM3_TO_CM3) ** (1.0 / 3.0))
         minimum_length = 3.0 * self.settings.r_cut_a
@@ -830,7 +813,6 @@ class AllAtomDPDBuilder:
 
     def _box_lengths_a(self, total_mass_amu: float) -> np.ndarray:
         """Return orthorhombic box lengths in Angstrom for the active path."""
-
         if self.settings.box_lengths_a is not None:
             return np.asarray(self.settings.box_lengths_a, dtype=float)
         box_length = self._box_length_a(total_mass_amu)
@@ -839,7 +821,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _effective_box_length_a(box_lengths: np.ndarray) -> float:
         """Return a volume-equivalent cubic length for legacy summary fields."""
-
         return float(np.prod(box_lengths) ** (1.0 / 3.0))
 
     @staticmethod
@@ -847,7 +828,6 @@ class AllAtomDPDBuilder:
         density_g_cm3: float, box_lengths_a: tuple[float, float, float]
     ) -> float:
         """Return target mass in amu for a density and orthorhombic AA-DPD box."""
-
         if density_g_cm3 <= 0.0:
             raise ValueError("AA-DPD target density_g_cm3 must be positive.")
         box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths_a)
@@ -874,7 +854,6 @@ class AllAtomDPDBuilder:
         can later be extended to sample from a PDI-driven molecular-weight
         distribution instead of a uniform integer range.
         """
-
         if repeat_unit_mass_amu <= 0.0:
             raise ValueError("AA-DPD repeat_unit_mass_amu must be positive.")
         if chain_length_min < 1 or chain_length_max < chain_length_min:
@@ -903,7 +882,6 @@ class AllAtomDPDBuilder:
         n_atoms: int, bonds: list[tuple[int, int]]
     ) -> list[tuple[int, int, int]]:
         """Enumerate unique graph angles from bond pairs."""
-
         neighbors = [set() for _ in range(n_atoms)]
         for i, j in bonds:
             neighbors[i].add(j)
@@ -921,7 +899,6 @@ class AllAtomDPDBuilder:
         n_atoms: int, bonds: list[tuple[int, int]]
     ) -> list[tuple[int, int, int, int]]:
         """Enumerate unique graph dihedrals from bond pairs."""
-
         neighbors = [set() for _ in range(n_atoms)]
         for i, j in bonds:
             neighbors[i].add(j)
@@ -948,7 +925,6 @@ class AllAtomDPDBuilder:
         box_lengths: np.ndarray,
     ) -> Any:
         """Build a HOOMD frame with atom particles and bonded groups."""
-
         rng = np.random.default_rng(self.settings.random_seed)
         frame = frame_cls()
         missing_types = [
@@ -1007,7 +983,6 @@ class AllAtomDPDBuilder:
         builder cohesive with the repository placement APIs and avoids a second,
         AA-DPD-specific placement abstraction.
         """
-
         if box_lengths is None:
             if box_length is None:
                 raise TypeError(
@@ -1138,7 +1113,6 @@ class AllAtomDPDBuilder:
         from its residue atom templates and written back to the original atom
         leaves after DPD relaxation.
         """
-
         placement_segment = self._copy_untransformed_preserving_roles(record.segment)
         # Preserve the role-aware residue traversal order from _segment_records().
         # Primitive.expand() can reparent transparent-node children in registry
@@ -1199,7 +1173,6 @@ class AllAtomDPDBuilder:
         grouping nodes from RESIDUE templates before handing direct children to a
         role-agnostic PlacementGenerator.
         """
-
         clone = node._copy_untransformed()
 
         def copy_roles(source: Primitive, target: Primitive) -> None:
@@ -1213,7 +1186,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _role_descendants(node: Primitive, role: PrimitiveRole) -> list[Primitive]:
         """Return descendants with ``role`` in deterministic child traversal order."""
-
         matches = []
         for child in node.children:
             if child.role == role:
@@ -1224,7 +1196,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _particle_leaves(node: Primitive) -> list[Primitive]:
         """Return PARTICLE leaves below ``node`` in deterministic child order."""
-
         if node.is_leaf:
             return [node]
         atoms = []
@@ -1240,7 +1211,6 @@ class AllAtomDPDBuilder:
         width: int,
     ) -> None:
         """Populate a HOOMD bonded container with group and type ids."""
-
         expanded_groups = []
         group_types = []
         for group in groups:
@@ -1276,7 +1246,6 @@ class AllAtomDPDBuilder:
         parameters: _ParameterTables,
     ) -> Any:
         """Create and configure a HOOMD simulation from the initial frame."""
-
         integrator = hoomd.md.Integrator(dt=self.settings.dt)
         integrator.methods.append(
             hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
@@ -1361,7 +1330,6 @@ class AllAtomDPDBuilder:
         term_kind: str,
     ) -> dict[str, float]:
         """Return bonded parameters, loudly falling back to the stiffest known set."""
-
         if name in params_by_type:
             return params_by_type[name]
         if params_by_type:
@@ -1392,7 +1360,6 @@ class AllAtomDPDBuilder:
 
     def _hoomd_device(self, hoomd: Any) -> Any:
         """Return the requested HOOMD device object."""
-
         if self.settings.device == "CPU":
             return hoomd.device.CPU()
         if self.settings.device == "GPU":
@@ -1403,7 +1370,6 @@ class AllAtomDPDBuilder:
         self, particle_types: list[str], epsilon_by_type: dict[str, float]
     ) -> dict[tuple[str, str], dict[str, float]]:
         """Return DPD pair parameters scaled by a simple epsilon heuristic."""
-
         reducer = max if self.settings.epsilon_reference_mode == "max" else np.mean
         if self.settings.epsilon_reference_mode not in {"max", "mean"}:
             reference = float(self.settings.epsilon_reference_mode)
@@ -1433,7 +1399,6 @@ class AllAtomDPDBuilder:
         settings: Optional[AllAtomDPDSettings] = None,
     ) -> dict[str, Any]:
         """Return final HOOMD force energies and per-term normalizations."""
-
         force_by_kind = cls._force_by_kind(simulation)
         counts = {
             "bond": int(getattr(frame.bonds, "N", 0)),
@@ -1480,7 +1445,6 @@ class AllAtomDPDBuilder:
         energy: Optional[float], threshold: Optional[float]
     ) -> bool:
         """Return whether an energy is finite and at or below a threshold."""
-
         if threshold is None:
             return True
         if energy is None:
@@ -1495,7 +1459,6 @@ class AllAtomDPDBuilder:
         tolerance_a: float,
     ) -> Optional[float]:
         """Return total harmonic bond energy threshold for convergence."""
-
         if int(getattr(frame.bonds, "N", 0)) == 0:
             return None
         threshold = 0.0
@@ -1512,7 +1475,6 @@ class AllAtomDPDBuilder:
         tolerance_deg: float,
     ) -> Optional[float]:
         """Return total harmonic angle energy threshold for convergence."""
-
         if int(getattr(frame.angles, "N", 0)) == 0:
             return None
         tolerance_rad = float(np.deg2rad(tolerance_deg))
@@ -1525,13 +1487,11 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _container_type_names(container: Any) -> list[str]:
         """Return one bonded type name per group/term in a HOOMD container."""
-
         return [container.types[int(typeid)] for typeid in container.typeid]
 
     @staticmethod
     def _force_by_kind(simulation: Any) -> dict[str, Any]:
         """Group configured HOOMD force objects by the AA-DPD role they play."""
-
         integrator = getattr(
             getattr(simulation, "operations", None), "integrator", None
         )
@@ -1555,7 +1515,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _force_energy(force: Any) -> Optional[float]:
         """Return a HOOMD force energy as a float, or ``None`` when absent."""
-
         if force is None:
             return None
         try:
@@ -1573,7 +1532,6 @@ class AllAtomDPDBuilder:
         excluded_pairs: list[tuple[int, int]],
     ) -> tuple[int, float, bool, dict[str, Any]]:
         """Run HOOMD intervals until spacing and bonded energies converge."""
-
         box_lengths = self._as_box_lengths(box_lengths)
         start = time.perf_counter()
         steps = 0
@@ -1632,14 +1590,12 @@ class AllAtomDPDBuilder:
 
     def _diagnostics_log_path(self) -> Optional[str]:
         """Return the JSONL diagnostics path, if diagnostics logging is enabled."""
-
         if not (self.settings.write_log and self.settings.output_name):
             return None
         return f"{self.settings.output_name}_diagnostics.jsonl"
 
     def _initialize_diagnostics_log(self) -> None:
         """Truncate the diagnostics JSONL file at the start of a run."""
-
         path = self._diagnostics_log_path()
         if path is not None:
             with open(path, "w", encoding="utf-8"):
@@ -1649,7 +1605,6 @@ class AllAtomDPDBuilder:
         self, steps: int, diagnostics: dict[str, Any], *, force: bool = False
     ) -> None:
         """Append one convergence diagnostics record when logging is enabled."""
-
         path = self._diagnostics_log_path()
         if path is None:
             return
@@ -1664,7 +1619,6 @@ class AllAtomDPDBuilder:
         self, spacing_converged: bool, diagnostics: dict[str, Any]
     ) -> bool:
         """Return whether AA-DPD stopping criteria are satisfied."""
-
         if not spacing_converged:
             return False
         if not self.settings.require_bonded_energy_convergence:
@@ -1683,7 +1637,6 @@ class AllAtomDPDBuilder:
         This legacy helper is retained for focused tests and external callers.
         ``build()`` uses ``_run_until_converged()``.
         """
-
         box_lengths = self._as_box_lengths(box_lengths)
         start = time.perf_counter()
         steps = 0
@@ -1710,7 +1663,6 @@ class AllAtomDPDBuilder:
         excluded: set[tuple[int, int]],
     ) -> bool:
         """Return whether non-excluded pairs exceed the spacing threshold."""
-
         positions = snapshot.particles.position[:]
         box_lengths = self._as_box_lengths(box_lengths)
         box = freud.box.Box(
@@ -1739,7 +1691,6 @@ class AllAtomDPDBuilder:
         box_lengths: float | np.ndarray,
     ) -> np.ndarray:
         """Unwrap coordinates along the bond graph using minimum-image edges."""
-
         if len(positions) == 0:
             return positions
         box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths)
@@ -1771,7 +1722,6 @@ class AllAtomDPDBuilder:
         root: Primitive, atoms: list[Primitive], positions: np.ndarray
     ) -> None:
         """Write atom PointCloud positions and recompute composite PointClouds."""
-
         for atom, position in zip(atoms, positions):
             atom.shape = PointCloud(positions=np.asarray(position, dtype=float))
 
@@ -1790,7 +1740,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _random_unit_vector(rng: np.random.Generator) -> np.ndarray:
         """Draw a deterministic random unit vector from a NumPy generator."""
-
         vector = rng.normal(size=3)
         norm = np.linalg.norm(vector)
         return vector / norm if norm else np.array([1.0, 0.0, 0.0])
@@ -1798,7 +1747,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _wrap(position: np.ndarray, box_lengths: float | np.ndarray) -> np.ndarray:
         """Wrap one position into a centered orthorhombic periodic box."""
-
         box_lengths = AllAtomDPDBuilder._as_box_lengths(box_lengths)
         return position - box_lengths * np.floor(
             (position + box_lengths / 2.0) / box_lengths
@@ -1809,7 +1757,6 @@ class AllAtomDPDBuilder:
         box_lengths: float | np.ndarray | tuple[float, float, float],
     ) -> np.ndarray:
         """Return a length-3 box vector from a scalar or orthorhombic lengths."""
-
         array = np.asarray(box_lengths, dtype=float)
         if array.ndim == 0:
             return np.repeat(float(array), 3)
@@ -1822,7 +1769,6 @@ class AllAtomDPDBuilder:
     @staticmethod
     def _serializable_summary(result: AllAtomDPDResult) -> dict[str, Any]:
         """Return JSON-like metadata summary values from a result."""
-
         return {
             "n_atoms": len(result.atoms),
             "n_bonds": len(result.bonds),

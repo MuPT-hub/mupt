@@ -4,7 +4,6 @@ import pytest
 
 import numpy as np
 
-from mupt.geometry.measure import normalize, normalized
 from mupt.geometry.arraytypes import Shape, N, M
 
 

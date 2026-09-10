@@ -30,7 +30,8 @@ def optional_in_place(
     funct: Callable[[Concatenate[object, Params]], None],
 ) -> Callable[[Concatenate[object, Params]], Optional[object]]:
     """Decorator function for allowing in-place (writeable) functions which modify object attributes
-    to be not performed in-place (i.e. read-only), specified by a boolean flag"""
+    to be not performed in-place (i.e. read-only), specified by a boolean flag
+    """
     # TODO : add assertion that the wrapped function has at least one arg AND that the first arg is of the desired (limited) type
     old_sig = signature(funct)
 

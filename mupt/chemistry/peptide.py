@@ -119,7 +119,7 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
         assert num_linkers(middle_fragment) == 2
         assert num_linkers(term_O_fragment) == 1
 
-        ## check functional groups
+        # check functional groups
         # NOTE: can't directly check for presence of amine, since proline is a pig-headed, nonconformist idiot - also can't check for no carboxyls due to aspartic acid
         assert len(term_O_fragment.GetSubstructMatches(CARBOXYL_QUERY)) > 0
 

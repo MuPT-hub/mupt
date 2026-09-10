@@ -268,7 +268,8 @@ class Ellipsoid(BoundedTransformableShape):
     @property
     def principal_axes(self) -> Array3x3:
         """The principal axes of the ellipsoid, represented as a 3x3 matrix
-        whose rows are the axis vectors emanating from the Ellipsoid's center"""
+        whose rows are the axis vectors emanating from the Ellipsoid's center
+        """
         return self.cumulative_transformation.apply(
             self.scaling_matrix(as_affine=False)
         )

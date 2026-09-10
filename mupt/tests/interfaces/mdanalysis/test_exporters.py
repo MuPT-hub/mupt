@@ -184,7 +184,8 @@ def non_SAAMR_hierarchy_non_atom_leaf() -> Primitive:
 @pytest.fixture(scope="function")
 def SAAMR_hierarchy_helium() -> Primitive:
     """Minimal valid SAAMR structure for testing resname_map validation.
-    Hierarchy: Universe -> Molecule -> Repeat-Unit ('unit') -> He atom."""
+    Hierarchy: Universe -> Molecule -> Repeat-Unit ('unit') -> He atom.
+    """
     universe = Primitive(label="universe")
     molecule = Primitive(label="mol")
     repeat_unit = Primitive(label="unit")

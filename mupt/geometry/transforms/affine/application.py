@@ -1,6 +1,6 @@
 """Utilities for applying affine transformations to other objects (not necessarily just points!)"""
 
-from typing import Any, Literal, Mapping, Optional, Sequence, Union
+from typing import Any, Mapping, Sequence, Union
 from typing import Protocol, runtime_checkable
 
 import numpy as np

@@ -6,7 +6,6 @@ from mupt.chemistry.core import BondType
 from mupt.mupr.connection import (
     Connector,
     AttachmentPoint,
-    AttachmentLabel,
     TraversalDirection,
 )
 

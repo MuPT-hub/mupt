@@ -3,7 +3,7 @@
 from typing import Generator
 
 from rdkit import Chem
-from rdkit.Chem import Atom, Bond, Mol
+from rdkit.Chem import Atom, Mol
 
 
 # DEVNOTE: unclear whether X (total connections) or D (explicit connections) is the right choice for this query...

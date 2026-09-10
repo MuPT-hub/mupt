@@ -240,7 +240,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 primitive.children_by_handle[tail_handle].shape.centroid
             )
 
-            ## extract step sizes from conntions point - NOTE: by design, makes no reference to the shape of the body
+            # extract step sizes from conntions point - NOTE: by design, makes no reference to the shape of the body
             step_sizes: list[float] = []
             for handle in path:  # NOTE: iterating over path (rather than connection_points.items()) to guarantee traversal order
                 conn_start, conn_end = connection_points[handle]

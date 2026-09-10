@@ -6,43 +6,34 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
 
 import freud
-import gsd, gsd.hoomd
+import gsd.hoomd
 import time
 import hoomd
-from hoomd.write import DCD
 from hoomd.write import GSD
-from hoomd.trigger import Periodic
 
 from typing import (
     Generator,
     Hashable,
-    Iterable,
     Iterator,
     Optional,
-    Sized,
-    Union,
     Sequence,
 )
-from numbers import Number
-from collections import defaultdict
 from itertools import count
 
 import numpy as np
-from scipy.spatial.transform import RigidTransform, Rotation
 from networkx import all_simple_paths
 
 from .base import PlacementGenerator
-from ..mutils.iteration import flexible_iterator, sliding_window
+from ..mutils.iteration import sliding_window
 
-from ..geometry.arraytypes import Shape, Dims, N
+from ..geometry.arraytypes import Shape, N
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
-from ..geometry.coordinates.reference import origin
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
 from ..mupr.topology import TopologicalStructure
-from ..mupr.connection import Connector, TraversalDirection
+from ..mupr.connection import TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
@@ -214,7 +205,7 @@ class DPDRandomWalk(PlacementGenerator):
         # Initialize HOOMD Frame (initial snapshot) and periodic box
         frame = gsd.hoomd.Frame()
 
-        ## Pre-allocate space for particles
+        # Pre-allocate space for particles
         frame.particles.types = ["A"]  # TODO: introduce HMT's?
         frame.particles.N = primitive.topology.number_of_nodes()  # TB: would be nice to set after iterating over children, but needed to size box
         frame.particles.typeid = np.zeros(frame.particles.N)
@@ -223,7 +214,7 @@ class DPDRandomWalk(PlacementGenerator):
             3,
         ))  # populate with random walks
 
-        ## size (for now cubic) periodic box
+        # size (for now cubic) periodic box
         L = np.cbrt(frame.particles.N / self.density)
         if L < 3 * self.r_cut:
             L: float = 3 * self.r_cut
@@ -312,13 +303,13 @@ class DPDRandomWalk(PlacementGenerator):
                 )
 
         # Specify system for HOOMD Simulation
-        ## define integrator
+        # define integrator
         integrator = hoomd.md.Integrator(dt=self.dt)
         const_vol = hoomd.md.methods.ConstantVolume(filter=hoomd.filter.All())
         integrator.methods.append(const_vol)
         LOGGER.debug(f"Defined constant-volume integrator with time step={self.dt}")
 
-        ## assign bonded index pairs and bond parameters
+        # assign bonded index pairs and bond parameters
         frame.bonds.group = bonds
         frame.bonds.N = len(bonds)
         LOGGER.debug(f"Assigned {frame.bonds.N} bonded pairs to HOOMD topology")
@@ -332,7 +323,7 @@ class DPDRandomWalk(PlacementGenerator):
                 f'Set harmonic bond parameters for bond type "{bond_type}": r0={self.bond_length}, k={self.k}'
             )
 
-        ## set periodic box based on initial positions and target density
+        # set periodic box based on initial positions and target density
         R_max = max(effective_radii.values())  # for scaling out of LJ units at the end
         frame.configuration.box = [
             L,
@@ -395,7 +386,7 @@ class DPDRandomWalk(PlacementGenerator):
         )
 
         # apply proper scaling to LJ beads and post-process final snapshot
-        ## determine on-body (assumed spherical) secant points for each LJ sphere
+        # determine on-body (assumed spherical) secant points for each LJ sphere
         snap = simulation.state.get_snapshot()
         scale_factor: float = (
             2 * R_max + self.bead_separation
@@ -411,7 +402,7 @@ class DPDRandomWalk(PlacementGenerator):
                 effective_radii[idx] for idx in particle_indices
             ])  # shape[N]
 
-            ## determine steps to secant points on spheres forward and backward along chain relative to bead centers
+            # determine steps to secant points on spheres forward and backward along chain relative to bead centers
             unit_step_vectors = normalized(
                 np.diff(chain_particle_centers, axis=0)
             )  # shape [N - 1]
@@ -426,7 +417,7 @@ class DPDRandomWalk(PlacementGenerator):
                 bwd_steps,
             ])  # first step would "step before" the head bead by same amount as outgoing from head (but in opposite direction)
 
-            ## take steps to set incoming and outgoing positions for all beads
+            # take steps to set incoming and outgoing positions for all beads
             orient_marker_points[particle_indices, 0, :] = (
                 chain_particle_centers + fwd_steps
             )
@@ -436,7 +427,7 @@ class DPDRandomWalk(PlacementGenerator):
             )
             # LOGGER.debug(f'Chain #{chain_idx} has markers {orient_marker_points[particle_indices,:,:]}')
 
-        ## determine and cache final PBC unit cell parameters
+        # determine and cache final PBC unit cell parameters
         Lx, Ly, Lz, alpha, beta, gamma = snap.configuration.box
         box_scaled = [
             float(

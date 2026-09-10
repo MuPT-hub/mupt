@@ -32,10 +32,10 @@ BoolNP = TypeVar("BoolNP", bound=np.dtype[np.bool_])
 Shape = tuple
 DType = TypeVar("DType", bound=np.dtype)
 
-## types accepted by 'order' arg of np.linalg.norm()
+# types accepted by 'order' arg of np.linalg.norm()
 OrderType = Optional[Union[int, Literal["fro"], Literal["nuc"]]]
 
-## Typehints for indeterminate size of a given array dimension
+# Typehints for indeterminate size of a given array dimension
 M = TypeVar("M", bound=int)
 N = TypeVar("N", bound=int)
 P = TypeVar("P", bound=int)
@@ -45,7 +45,7 @@ DimsPlus = TypeVar(
 )  # intended to typehint the number of dimensions +1 (no easy way to do arithmetic to generic types yet)
 
 # Fixed-size vector and array type annotations - consider deprecating, since they're not currently being used anywhere
-## TB DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
+# TB DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
 Vector2 = np.ndarray[Shape[Literal[2]], NumericNP]
 Vector3 = np.ndarray[Shape[Literal[3]], NumericNP]
 Vector4 = np.ndarray[Shape[Literal[4]], NumericNP]

@@ -85,7 +85,8 @@ def register_abstract_class_attrs(
     *attr_names: list[str],
 ) -> Callable[[C], C]:  # TODO: add mechanism for typehinting
     """Register a list of string attribute names as abstract class attributes,
-    which MUST be implemented by child classes of the wrapped class"""
+    which MUST be implemented by child classes of the wrapped class
+    """
 
     def class_decorator(klass: C) -> C:
         """The actual (argument-free) class decorator"""

@@ -71,8 +71,8 @@ def primitive_to_rdkit(
         primitive.flattened()
     )  # collapse hierarchy out-of-place to avoid mutating original
 
-    ## DEV: modelled assembly in part by OpenFF RDKit TK wrapper
-    ## https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
+    # DEV: modelled assembly in part by OpenFF RDKit TK wrapper
+    # https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
 
     # 0) prepare Primitive source and RDKit destination
     mol = RWMol()
@@ -81,7 +81,7 @@ def primitive_to_rdkit(
     )  # preallocate space for all atoms (including linkers)
     atom_idx_map: dict[int, PrimitiveHandle] = {}
 
-    ## special case for atomic Primitives; easier to contract into hierarchy containing that single atom as child (less casework)
+    # special case for atomic Primitives; easier to contract into hierarchy containing that single atom as child (less casework)
     temp_prim: Optional[Primitive] = None
     lone_atom_label: Optional[PrimitiveHandle] = None
     if primitive.is_atom:
@@ -112,7 +112,7 @@ def primitive_to_rdkit(
         )  # geometric centroid is defined for all BoundedShape subtypes
 
     # 2) insert bonds
-    ## 2a) bonds from internal connections
+    # 2a) bonds from internal connections
     for conn_ref1, conn_ref2 in primitive.internal_connections:
         atom_idx1: int = atom_idx_map[conn_ref1.primitive_handle]
         conn1: Connector = primitive.fetch_connector_on_child(conn_ref1)
@@ -134,7 +134,7 @@ def primitive_to_rdkit(
                 preserve_type=True,
             )
 
-    ## 2b) insert and bond linker atoms for each external Connector
+    # 2b) insert and bond linker atoms for each external Connector
     for conn_ref in primitive.external_connectors.values():  # TODO: generalize to work for atomic (i.e. non-hierarchical) Primitives w/o external_connectors
         linker_atom = Atom(0)
         linker_idx: int = mol.AddAtom(
@@ -153,7 +153,7 @@ def primitive_to_rdkit(
         # else:
         # conf.SetAtomPosition(linker_idx, default_atom_position[:])
 
-    ## 3) transfer Primitive-level metadata (atom metadata should already be transferred)
+    # 3) transfer Primitive-level metadata (atom metadata should already be transferred)
     assign_property_to_rdobj(
         mol, "origin", TOOLKIT_NAME, preserve_type=True
     )  # mark MuPT export for provenance

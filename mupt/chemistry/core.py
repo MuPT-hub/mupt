@@ -7,12 +7,12 @@ LOGGER = logging.getLogger(__name__)
 from typing import Union
 
 from rdkit.Chem.rdmolfiles import MolFromSmiles
-from rdkit.Chem.rdchem import Atom, BondType, GetPeriodicTable
+from rdkit.Chem.rdchem import BondType, GetPeriodicTable
 
 RDKitPeriodicTable = GetPeriodicTable()
 
 from periodictable import elements
-from periodictable.core import Element, Ion, Isotope, isatom
+from periodictable.core import Element, Ion, Isotope
 
 ELEMENTS = elements
 ElementLike = Union[Element, Ion, Isotope]
@@ -55,8 +55,8 @@ def valence_allowed(atomic_num: int, charge: int, valence: int) -> bool:
     if atomic_num == 0:
         return True  # skip checks for linkers (should not be interpreted as neutrons, which they would be if passed thru the logic below)
 
-    ## Calculation based on RDKit's valence prescription (https://www.rdkit.org/docs/RDKit_Book.html#valence-calculation-and-allowed-valences)
-    ## ..., down to the treatment of charged atoms by their isoelectronic equivalents
+    # Calculation based on RDKit's valence prescription (https://www.rdkit.org/docs/RDKit_Book.html#valence-calculation-and-allowed-valences)
+    # ..., down to the treatment of charged atoms by their isoelectronic equivalents
     effective_atomic_num = atomic_num - charge  # e.g. treat [N+] as C, [N-] as O, etc.
     allowed_valences = RDKitPeriodicTable.GetValenceList(effective_atomic_num)
 

@@ -50,7 +50,7 @@ RDPROP_SETTERS = {
 }
 
 # PROPERTY INSPECTION AND TRANSFER FUNCTIONS
-## TODO: implement generic "smart" getters and setter which are type-aware
+# TODO: implement generic "smart" getters and setter which are type-aware
 
 
 def isrdobj(obj: Any) -> bool:

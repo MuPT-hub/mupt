@@ -1,12 +1,12 @@
 """For assigning and deriving labels for RDKit objects (e.g. Mols, Bonds, and Atoms)"""
 
-from rdkit.Chem.rdchem import Atom, Mol
+from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles, SmilesWriteParams
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS
 
 
 # Static reference for RDKit mol naming
-## Following Postel's Law here; many options for valid name to read, but only one prescribed for write
+# Following Postel's Law here; many options for valid name to read, but only one prescribed for write
 RDMOL_NAME_READ_PROP_PRECEDENCE: tuple[str] = (
     "_Name",
     "_name",
@@ -17,7 +17,7 @@ RDMOL_NAME_READ_PROP_PRECEDENCE: tuple[str] = (
     "label",
     "Label",
 )
-## "magic" property used to write molecule name to CTABs (https://www.rdkit.org/docs/RDKit_Book.html#romol-mol-in-python)
+# "magic" property used to write molecule name to CTABs (https://www.rdkit.org/docs/RDKit_Book.html#romol-mol-in-python)
 RDMOL_NAME_WRITE_PROP: str = "_Name"
 
 

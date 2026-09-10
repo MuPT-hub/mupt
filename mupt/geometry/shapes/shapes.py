@@ -7,7 +7,6 @@ from abc import abstractmethod
 from ..arraytypes import (
     NumberLike,
     Vector3,
-    ArrayNxN,
     ArrayNx3,
     TriangulationIndices,
     BitVectorN,

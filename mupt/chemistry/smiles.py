@@ -9,13 +9,13 @@ from rdkit.Chem.rdmolfiles import SmilesParserParams, SmilesWriteParams
 
 
 # LIBRARY-WIDE DEFAULTS FOR SMILES I/O
-## Reading
+# Reading
 DEFAULT_SMILES_READ_PARAMS = SmilesParserParams()
 DEFAULT_SMILES_READ_PARAMS.sanitize = False
 DEFAULT_SMILES_READ_PARAMS.removeHs = False
 DEFAULT_SMILES_READ_PARAMS.allowCXSMILES = True
 
-## Writing
+# Writing
 DEFAULT_SMILES_WRITE_PARAMS = SmilesWriteParams()
 DEFAULT_SMILES_WRITE_PARAMS.doIsomericSmiles = True
 DEFAULT_SMILES_WRITE_PARAMS.doKekule = False
@@ -51,5 +51,6 @@ def is_valid_SMARTS(smarts: Smarts) -> bool:
 # UPCONVERSION
 def make_chemically_explicit(smiles: Smiles) -> Smiles:
     """Insert all hydrogens, bond indicators, formal charges and
-    other chemical info implicit in a "bare" SMILES string"""
+    other chemical info implicit in a "bare" SMILES string
+    """
     ...

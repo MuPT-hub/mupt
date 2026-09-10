@@ -8,7 +8,7 @@ from mupt.geometry.transforms.affine.homogeneous import (
     to_homogeneous_coords,
     from_homogeneous_coords,
 )
-from mupt.geometry.arraytypes import Shape, N, M, Dims, DimsPlus, Numeric
+from mupt.geometry.arraytypes import Shape, N, Numeric
 
 
 N: int = 10

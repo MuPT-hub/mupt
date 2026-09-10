@@ -3,16 +3,14 @@
 import pytest
 
 from rdkit.Chem.rdchem import Atom
-from periodictable.core import Element, Ion, Isotope
+from periodictable.core import Ion, Isotope
 from mupt.chemistry.core import (
     ELEMENTS,
     ElementLike,
-    isatom,
 )
 from mupt.chemistry.conversion import (
     rdkit_atom_to_element,
     element_to_rdkit_atom,
-    flexible_elementlike,
 )
 
 

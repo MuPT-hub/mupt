@@ -8,11 +8,7 @@ from itertools import product as cartesian
 from rdkit import Chem
 from mupt.interfaces.rdkit.rdprops import (
     RDObj,
-    isrdobj,
     assign_property_to_rdobj,
-    copy_rdobj_props,
-    RDPROP_GETTERS,
-    RDPROP_SETTERS,
 )
 
 

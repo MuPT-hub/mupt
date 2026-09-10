@@ -3,7 +3,7 @@
 from typing import Iterable
 from abc import ABC, abstractmethod
 
-from scipy.spatial.transform import Rotation, RigidTransform
+from scipy.spatial.transform import RigidTransform
 
 from ..mupr.primitives import Primitive, PrimitiveHandle
 

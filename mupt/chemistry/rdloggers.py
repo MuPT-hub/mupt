@@ -4,7 +4,7 @@
 
 from typing import Literal, Generator
 
-from rdkit.RDLogger import DisableLog, EnableLog, LogMessage, _levels as RDLoggerNames
+from rdkit.RDLogger import DisableLog, EnableLog, _levels as RDLoggerNames
 from contextlib import contextmanager
 
 
