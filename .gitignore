@@ -64,6 +64,9 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+# these get copied in on sphinx build
+docs/how_to/*.ipynb
+docs/tutorials/*.ipynb
 
 # PyBuilder
 target/
@@ -122,3 +125,6 @@ ENV/
 */_version.py
 # Cookiecutter-CMS Test Artifacts
 /tests/CI_files
+# pixi environments
+.pixi/*
+!.pixi/config.toml

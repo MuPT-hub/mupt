@@ -47,6 +47,14 @@ test = [
   "codecov",
   "nbval",
 ]
+docs = [
+  "sphinx",
+  "sphinx-autoapi",
+  "pydata-sphinx-theme",
+  "sphinx-design",
+  "sphinx-copybutton",
+  "nbsphinx",
+]
 
 # Front-facing URLs to project sites
 [project.urls]
