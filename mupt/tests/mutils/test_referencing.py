@@ -10,10 +10,13 @@ from mupt.mutils.referencing import Addressed, Addressable
 
 
 # dummy Addressed classes
-class DummyNoArgs(Addressed): ...
+class DummyNoArgs(Addressed): 
+    """Dummy Addressed class with no init args"""
+    ...
 
 
 class DummyWithArgs(Addressed):
+    """Dummy Addressed class with SOME init args"""
     def __init__(self, foo: str, bar: int = 123) -> None:
         self.foo = foo
         self.bar = bar
@@ -21,6 +24,7 @@ class DummyWithArgs(Addressed):
 
 @dataclass  # want to ensure addr registration mechanisms plays nice w/ dataclasses
 class DummyDataclass(Addressed):
+    """Dummy Addressed dataclass with SOME init args"""
     baz: str
     boo: float
 

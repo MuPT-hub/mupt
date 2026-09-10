@@ -19,6 +19,10 @@ from mupt.mutils.containers import UniqueRegistry, LabelT
 
 @dataclass
 class DummyRelation:
+    """
+    Dummy class to test if label extraction in UniqueRegistry
+    works from classes which satisfy the Labelled Protocol
+    """
     DEFAULT_LABEL: ClassVar[str] = "default"
     label: Hashable = field(default_factory=str)
 
