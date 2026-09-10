@@ -1,3 +1,31 @@
 # .git-blame-ignore-revs
-# Mass reformat after initial run of ruff linter+formatter (2026/MM/DD)
-# <hash goes here, include after ruff run before merge>
+
+## Applied ruff changes to create_conda_env.py (2026/09/09)
+06597ac7f62553aade20ef0972491ab490588bee
+
+## [pre-commit.ci] auto fixes from pre-commit.com hooks (2026/09/09)
+e054f8c24e71f41da37bc099e39352a2a55cb14a
+
+## Revert "[pre-commit.ci] auto fixes from pre-commit.com hooks" (2026/09/09)
+83d1bf0afcdcbf70d722ecfc661e15f24af90c60
+
+## Ran ruff formatter (2026/09/09)
+b736008191e3bc1bc82bf873f529ee40c8248195
+
+## Made fixable changes recommended by ruff linter (2026/09/09)
+0d074714bb332c9269fb43830ea95e2c37202ccd
+
+## Fixed D200 (unnecessary multiline docstring) lint issues (2026/09/09)
+8ca4e028ca4e02105062629eb71612068b0fb1a8e926e64
+
+## Fixed E731 (lambda assignment) linter issues (2026/09/09)
+e45b6510ef8c4346cb7e2fbab532e886fbcd1cdb
+
+## Fixed F811 (variable override) and typing issues in test_homogeneous.py (2026/09/09)
+6512924ca4cdb508ba54484714af59e90cc192ce
+
+## Fixed D104 (undocumented public module) linter issue (2026/09/09)
+75a03634584ae779c1f3efe4340767c65fc196a7
+
+## Fixed F403 (star imports) linter issue (2026/09/09)
+75ea0d7df365f8db00dedc2912c18b03d3356814
