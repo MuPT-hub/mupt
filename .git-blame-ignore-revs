@@ -29,3 +29,12 @@ e45b6510ef8c4346cb7e2fbab532e886fbcd1cdb
 
 ## Fixed F403 (star imports) linter issue (2026/09/09)
 75ea0d7df365f8db00dedc2912c18b03d3356814
+
+## Fixed E721 (== vs is on Type comparison) linter issue
+b5b259abd109bdb27c0ee43e1d4ece32b8c2f99e
+
+## Fixed E741 (ambiguous varname 'I'/'l') linter issue
+08a425a0b0697a940f1f39a1fa7a647e8bda2fd5
+
+## Fixed D101 (no class docstring) linter issues
+6d963bb3a5b3cc637a4361cbc0072e605886e9f6
