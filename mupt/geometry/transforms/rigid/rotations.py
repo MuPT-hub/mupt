@@ -24,11 +24,11 @@ def rotator(
     Returns an orthogonal matrix which represents the rotation transformation.
     """
     (dims,) = rotation_axis.shape  # implicitly enforce 1D shape for vector
-    I = np.eye(dims, dtype=rotation_axis.dtype)
+    identity_matrix = np.eye(dims, dtype=rotation_axis.dtype)
     K = orthogonalizer(rotation_axis)
 
     return Rotation.from_matrix(
-        I + np.sin(angle_rad) * K + (1 - np.cos(angle_rad)) * (K @ K)
+        identity_matrix + np.sin(angle_rad) * K + (1 - np.cos(angle_rad)) * (K @ K)
     )
 
 

@@ -906,8 +906,8 @@ class AllAtomDPDBuilder:
         dihedrals = set()
         for j, k in bonds:
             for i in neighbors[j] - {k}:
-                for l in neighbors[k] - {j}:
-                    quad = (i, j, k, l)
+                for ll in neighbors[k] - {j}:
+                    quad = (i, j, k, ll)
                     dihedrals.add(min(quad, tuple(reversed(quad))))
         return sorted(dihedrals)
 
