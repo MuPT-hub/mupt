@@ -90,6 +90,9 @@ mupt = [
 # mupt.data = [
     # 'foo.txt'
 # ]
+"mupt.tests.data" = [
+    "**/*.*"
+]
 
 # Semantic version autoinference via versioningit
 [tool.versioningit]
