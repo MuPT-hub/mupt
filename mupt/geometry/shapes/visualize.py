@@ -31,17 +31,24 @@ def visualize_shape(
         Provided to support chained plotting workflows (i.e. plot shape onto axes with other meshes)
     grid : bool, default True
         Whether or not to show the coordinate axis gridlines when plotting
-    **kwargs
-        Keyword arguments accepted by the shape's ``surface_mesh()`` method
-        or by Matplotlib's ``Axes3D.plot_trisurf()`` method. For example,
-        ``n_theta`` and ``n_phi`` control the mesh for spheres and ellipsoids,
-        while ``color`` and ``alpha`` control the plotted surface.
+    **kwargs 
+        Contains keyword arguments which are passed on to:
+        * The particular implementation of BoundedShape.surface_mesh() for the subtype
+          of shape being plotted (e.g. Sphere and Ellipsoid accept "n_theta" and "n_phi" mesh parameters)
+          
+          For example:
+          >> from mupt.geometry.shapes.ellipsoid import Sphere
+          >> shape = Sphere(1)
+          >> visualize_shape(shape, n_theta=50)
 
-    Examples
-    --------
-    >>> from mupt.geometry.shapes.ellipsoid import Sphere
-    >>> shape = Sphere(1)
-    >>> visualize_shape(shape, n_theta=50, color='b', alpha=0.5)
+        * Axes3D.plot_trisurf() (https://matplotlib.org/stable/api/_as_gen/mpl_toolkits.mplot3d.axes3d.Axes3D.plot_trisurf.html)
+          
+          Acceptable values are anything arguments which can be passed into a
+          matplotlib.collections.Collection, namely attributes assignable by Collection.set() 
+          (https://matplotlib.org/stable/api/collections_api.html#matplotlib.collections.Collection.set)
+
+          "color", "alpha", and "grid" are commonly-used args, viz.:
+          >> visualize_shape(shape, color='b', alpha=0.5)
 
     Returns
     -------

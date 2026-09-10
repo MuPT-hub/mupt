@@ -10,13 +10,7 @@ Once installed, you can use the `Makefile` in this directory to compile static H
 make html
 ```
 
-From the repository root, a strict build that treats warnings as errors can be
-run with:
-```bash
-pixi run -e dev sphinx-build -W --keep-going -b html docs docs/_build/html
-```
-
-The documentation contains sections for "Getting Started", "Tutorials", "How-To", "Explanation", "Reference", and "Developing".
+The documentation contains default pages for "Getting Started", "User Guide", "Developer Guide" and API reference. 
 We recommend adopting these sections of documentation for your project to ensure comprehensive documentation for all aspects of your project.
 
 The compiled docs will be in the `_build` directory and can be viewed by opening `index.html` (which may itself 
