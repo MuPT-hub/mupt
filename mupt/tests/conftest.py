@@ -1,6 +1,4 @@
-"""
-File to house various fixtures that are used by multiple tests.
-"""
+"""File to house various fixtures that are used by multiple tests."""
 
 import logging
 

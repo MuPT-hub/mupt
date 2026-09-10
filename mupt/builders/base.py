@@ -18,9 +18,7 @@ class PlacementGenerator(ABC):
 
     @abstractmethod
     def __init__(self) -> None:
-        """
-        Implementation-specific parameters (e.g. force constants, target bond lengths, etc.) should be bound here
-        """
+        """Implementation-specific parameters (e.g. force constants, target bond lengths, etc.) should be bound here"""
         ...
 
     def check_preconditions(

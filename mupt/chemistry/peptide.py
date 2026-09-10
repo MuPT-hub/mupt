@@ -64,9 +64,7 @@ class AminoAcidSubstructure:
 
 
 def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
-    """
-    Procedurally generate amino acid terminal and middle fragment substructures
-    """
+    """Procedurally generate amino acid terminal and middle fragment substructures"""
     aa_substructs: set[AminoAcidSubstructure] = set()
 
     for letter, ptabmol in AMINO_ACID_CODES.items():

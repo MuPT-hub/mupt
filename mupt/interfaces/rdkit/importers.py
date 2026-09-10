@@ -213,9 +213,7 @@ def primitive_from_rdkit(
     denest: bool = True,
     **kwargs,
 ) -> Primitive:
-    """
-    Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules
-    """
+    """Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules"""
     chains = GetMolFrags(
         rdmol,
         asMols=True,

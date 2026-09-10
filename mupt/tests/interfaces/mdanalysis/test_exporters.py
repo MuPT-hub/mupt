@@ -1,6 +1,4 @@
-"""
-Tests to ensure export from MuPT to MDAnalysis preserves molecular identity and connectivity.
-"""
+"""Tests to ensure export from MuPT to MDAnalysis preserves molecular identity and connectivity."""
 
 # Shortcut to run tests for this file:
 # python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py -v

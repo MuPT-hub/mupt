@@ -5,9 +5,7 @@ import numpy as np
 
 
 def origin(dimension: int = 3, dtype: type = float) -> np.ndarray:
-    """
-    Return the origin in the specified number of dimensions
-    """
+    """Return the origin in the specified number of dimensions"""
     _origin = np.zeros(dimension, dtype=dtype)
     _origin.setflags(write=False)  # make immutable
 

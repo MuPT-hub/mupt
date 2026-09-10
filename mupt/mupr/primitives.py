@@ -332,9 +332,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def num_internal_connectors(
         self,
     ) -> int:  # DEV: this is potentially confusing/easily mixed up w/ "num_internal_connections" - revisit naming
-        """
-        Number of Connectors bound up in internal connections - equal to twice the number of internal connections
-        """
+        """Number of Connectors bound up in internal connections - equal to twice the number of internal connections"""
         return 2 * self.num_internal_connections
 
     def internal_connections_on_child(
@@ -409,9 +407,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def pair_connectors_internally(
         self, conn_ref1: ConnectorReference, conn_ref2: ConnectorReference
     ) -> None:
-        """
-        Associate a pair of Connectors between two adjacent children to the edge joining those children
-        """
+        """Associate a pair of Connectors between two adjacent children to the edge joining those children"""
         conn_refs = (conn_ref1, conn_ref2)
         self.check_internally_connectable(*conn_refs)
         for conn_ref in conn_refs:
@@ -433,9 +429,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def external_connectors_by_children(
         self,
     ) -> dict[PrimitiveHandle, dict[ConnectorHandle, ConnectorHandle]]:
-        """
-        Mapping from child Primitive handles to (child Connector, own Connector) handle pairs defined by the external Connector map
-        """
+        """Mapping from child Primitive handles to (child Connector, own Connector) handle pairs defined by the external Connector map"""
         ext_conn_by_child = defaultdict(dict)
         for own_conn_handle, child_conn_ref in self.external_connectors.items():
             ext_conn_by_child[child_conn_ref.primitive_handle][
@@ -447,9 +441,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def external_connectors_on_child(
         self, child_handle: PrimitiveHandle
     ) -> dict[ConnectorHandle, ConnectorHandle]:
-        """
-        Mapping between Connector handles on a given child and the corresponding Connector handles on self, if that connection is external
-        """
+        """Mapping between Connector handles on a given child and the corresponding Connector handles on self, if that connection is external"""
         return self.external_connectors_by_children.get(child_handle, dict())
 
     def num_external_connectors_on_child(self, child_handle: PrimitiveHandle) -> int:
@@ -462,9 +454,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         child_connector_handle: ConnectorHandle,
         label: Optional[ConnectorLabel] = None,
     ) -> ConnectorHandle:
-        """
-        Mirror an external connector on one of self's children to self
-        """
+        """Mirror an external connector on one of self's children to self"""
         conn = self.fetch_connector_on_child(child_handle, child_connector_handle)
         conn_counterpart = conn.copy()
         own_conn_handle = self.register_connector(conn_counterpart, label=label)
@@ -518,9 +508,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     # Consistency checks on Connections
     def check_external_connector_references_valid(self) -> None:
-        """
-        Check that the mapped Connectors on self are each represented in the mapping to the associated external Connectors on children
-        """
+        """Check that the mapped Connectors on self are each represented in the mapping to the associated external Connectors on children"""
         if self.is_leaf:
             return  # these checks only make sense for Primitives with children
 
@@ -538,9 +526,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             )
 
     def check_internal_connection_references_valid(self) -> None:
-        """
-        Check that each pair of internal connections references a pair of Connectors which exist on their respective child Primitive
-        """
+        """Check that each pair of internal connections references a pair of Connectors which exist on their respective child Primitive"""
         for conn_refs in self.internal_connections:
             self.check_internally_connectable(*conn_refs)
 
@@ -1435,9 +1421,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         layout: GraphLayout = nx.kamada_kawai_layout,
         **draw_kwargs,
     ) -> None:
-        """
-        Draw the connectivity of this Primitive's children to the passed Axes
-        """
+        """Draw the connectivity of this Primitive's children to the passed Axes"""
         self.topology.visualize(ax=ax, layout=layout, **draw_kwargs)
 
     def _hierarchy_tree(
@@ -1468,9 +1452,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         layout: GraphLayout = nx.shell_layout,
         **draw_kwargs,
     ) -> None:
-        """
-        Draw the hierarchy of this Primitive and all its descendants to the passed Axes
-        """
+        """Draw the hierarchy of this Primitive and all its descendants to the passed Axes"""
         hier_tree = self._hierarchy_tree()
         nx.draw(
             hier_tree,

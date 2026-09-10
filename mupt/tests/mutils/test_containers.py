@@ -228,9 +228,7 @@ def test_unique_reg_purge() -> None:
     reg_examples(),
 )
 def test_reset_ticker_total(reg: UniqueRegistry) -> None:
-    """
-    Test that resetting running ticker counts for ALL keys sets all counts to 0
-    """
+    """Test that resetting running ticker counts for ALL keys sets all counts to 0"""
     orig_keys = set(
         reg._ticker.keys()
     )  # wrap in new container to prevent any chance of accidentally referencing original

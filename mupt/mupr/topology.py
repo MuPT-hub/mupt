@@ -102,9 +102,7 @@ class TopologicalStructure(nx.Graph):
         layout: GraphLayout = nx.kamada_kawai_layout,
         **draw_kwargs,
     ) -> None:
-        """
-        Draw the topology's graph
-        """
+        """Draw the topology's graph"""
         if "with_labels" not in draw_kwargs:
             draw_kwargs["with_labels"] = True
 
@@ -122,9 +120,7 @@ def path_graphs(
     node_labels: Optional[Iterator[Hashable]] = None,
     create_using: type[nx.Graph] = TopologicalStructure,
 ) -> Generator[nx.Graph, None, None]:
-    """
-    Generate a sequence of path graphs according to a provided sequence of lengths and labelling scheme
-    """
+    """Generate a sequence of path graphs according to a provided sequence of lengths and labelling scheme"""
     if node_labels is None:
         node_labels = count(start=0, step=1)
 
