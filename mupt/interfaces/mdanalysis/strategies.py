@@ -39,7 +39,9 @@ class MDAExportStrategy(ABC):
     """Abstract strategy for collecting MDAnalysis-exportable topology data."""
 
     @abstractmethod
-    def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
+    def collect_topology(
+        self, root: Primitive, resname_map: dict[str, str]
+    ) -> MDATopologyData:
         """Collect topology attributes from a Primitive hierarchy."""
 
     @property
@@ -67,7 +69,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
         else:
             default_atom_position = np.asarray(default_atom_position, dtype=float)
             if default_atom_position.shape != (3,):
-                raise ValueError('default_atom_position must be a 3-dimensional vector')
+                raise ValueError("default_atom_position must be a 3-dimensional vector")
             self.default_atom_position = default_atom_position
 
     @property
@@ -75,7 +77,9 @@ class AllAtomExportStrategy(MDAExportStrategy):
         """Human-readable strategy name."""
         return "All-atom"
 
-    def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
+    def collect_topology(
+        self, root: Primitive, resname_map: dict[str, str]
+    ) -> MDATopologyData:
         """Walk the hierarchy once and gather MDAnalysis topology arrays/lists."""
         index = build_saamr_role_topology_index(root)
         data = MDATopologyData()
@@ -165,6 +169,8 @@ class CoarseGrainedExportStrategy(MDAExportStrategy):
         """Human-readable strategy name."""
         raise NotImplementedError("Coarse-grained export is not yet implemented")
 
-    def collect_topology(self, root: Primitive, resname_map: dict[str, str]) -> MDATopologyData:
+    def collect_topology(
+        self, root: Primitive, resname_map: dict[str, str]
+    ) -> MDATopologyData:
         """Collect topology for coarse-grained export."""
         raise NotImplementedError("Coarse-grained export is not yet implemented")

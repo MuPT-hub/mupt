@@ -16,6 +16,7 @@ LOGGER = logging.getLogger(__name__)
 # YAML imports
 try:
     import yaml  # PyYAML
+
     loader = yaml.safe_load
 except ImportError:
     try:
@@ -124,7 +125,7 @@ LOGGER.info(f"CONDA PATH      {conda_path}")
 # Write to a temp directory which will always be cleaned up
 with temp_cd():
     temp_file_name = "temp_script.yaml"
-    with open(temp_file_name, 'w') as f:
+    with open(temp_file_name, "w") as f:
         f.write(yaml.dump(yaml_script))
     sp.call(
         f"{conda_path} env create -n {args.name} -f {temp_file_name}",
