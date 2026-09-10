@@ -81,12 +81,12 @@ def copy_rdobj_props(
 ) -> None:  # NOTE : no need to incorporate typing info, as RDKit objects can correctly interpret typed strings
     """For copying properties between a pair of RDKit Atoms or Mols"""
     # NOTE : avoid use of GetPropsAsDict() to avoid errors from restrictive C++ typing
-    assert isrdobj(from_rdobj) and isrdobj(
-        to_rdobj
-    )  # verify that both objects passed are RDKit objects...
-    assert type(from_rdobj) == type(
-        to_rdobj
-    )  # ...AND that both objects are the same type of RDKit object
+    
+    
+    # verify that both objects passed are RDKit objects...
+    assert isrdobj(from_rdobj) and isrdobj(to_rdobj)
+    # ...AND that both objects are the same type of RDKit object
+    assert type(from_rdobj) is type(to_rdobj)
 
     for prop in from_rdobj.GetPropNames():
         to_rdobj.SetProp(prop, from_rdobj.GetProp(prop))

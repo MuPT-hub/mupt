@@ -54,7 +54,7 @@ def compare_optional_positions(
     * Both defined AND within a set in distance in a given p-norm (returns True if both conditions are met)
     * One defined and one undefined, in either order (returns False)
     """
-    if type(position_1) != type(position_2):
+    if type(position_1) is not type(position_2):
         return False
 
     if position_1 is None:  # both are None
