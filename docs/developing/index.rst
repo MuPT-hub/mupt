@@ -13,10 +13,3 @@ Non-underscore members in the supported ``builders``, ``chemistry``,
 automatically. Keep implementation details in underscore-prefixed members or
 private modules. Adding another supported top-level package requires updating
 ``public_api_prefixes`` in ``docs/conf.py``.
-
-To validate the complete documentation locally with warnings treated as
-errors, run this command from the repository root:
-
-.. code-block:: console
-
-   pixi run -e dev sphinx-build -W --keep-going -b html docs docs/_build/html
