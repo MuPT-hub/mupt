@@ -47,3 +47,6 @@ b5b259abd109bdb27c0ee43e1d4ece32b8c2f99e
 
 ## Fixed TryCeratops-related linter issues (TRY004, TRY400, and TRY401)
 6c5bb125a4bf40ef286d374772278a38d5d9724d
+
+## Fixed D103 (Missing docstring in public function) linter issues
+876e30cec89e4b294297be631a668abb26987fa1
