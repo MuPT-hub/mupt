@@ -44,3 +44,6 @@ b5b259abd109bdb27c0ee43e1d4ece32b8c2f99e
 
 ## Fixed F841 (unused variable) linter issue
 11049f8a871498e2c57968393dd58f0d4810b8a2
+
+## Fixed TryCeratops-related linter issues (TRY004, TRY400, and TRY401)
+6c5bb125a4bf40ef286d374772278a38d5d9724d
