@@ -132,7 +132,7 @@ def primitive_to_rdkit(
 
         # DEV: bondtypes must be compatible, so will take first for now 
         ## TODO: find less order-dependent way of accessing bondtype)
-        new_num_bonds: int = mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype)
+        _new_num_bonds: int = mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype)
         bond_metadata: dict[str, RDPropType] = {
             **conn1.metadata,
             **conn2.metadata,
@@ -178,7 +178,7 @@ def primitive_to_rdkit(
     if not ((temp_prim is None) or (lone_atom_label is None)):
         primitive.detach_child(lone_atom_label)
     # DEV: return this index?
-    conformer_idx: int = mol.AddConformer(conf, assignId=True)  
+    _conformer_idx: int = mol.AddConformer(conf, assignId=True)  
 
     mol = Mol(mol)  # freeze writable Mol before returning
     if primitive.label is not None:

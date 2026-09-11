@@ -60,7 +60,7 @@ def primitive_from_rdkit_atom(
         # TODO: decide how bond Props should be split
         # among metadata of the two bonded atoms
         for nb_atom in atom.GetNeighbors():  
-            conn_handle = atom_primitive.register_connector(
+            _conn_handle = atom_primitive.register_connector(
                 connector_between_rdatoms(
                     parent_mol=parent_mol,
                     from_atom_idx=atom_idx,

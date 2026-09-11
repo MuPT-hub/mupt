@@ -252,7 +252,7 @@ class DPDRandomWalk(PlacementGenerator):
 
         particle_indexer: Iterator[int] = count(0)
         for chain_idx, chain in enumerate(primitive.topology.chains):
-            head_handle, tail_handle = termini = self.get_termini_handles(chain)
+            head_handle, tail_handle = self.get_termini_handles(chain)
             path: list[PrimitiveHandle] = next(
                 all_simple_paths(chain, source=head_handle, target=tail_handle)
             )  # raise StopIteration if no path exists

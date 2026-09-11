@@ -213,7 +213,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             # DEV: taking extra care to ensure chain is oriented from end-to-end,
             # because there's no requirement (or indeed, reason to believe)
             # that the order of nodes in chain.nodes is meaningful
-            head_handle, tail_handle = termini = self.get_termini_handles(chain)
+            head_handle, tail_handle = self.get_termini_handles(chain)
             path: list[PrimitiveHandle] = next(
                 all_simple_paths(chain, source=head_handle, target=tail_handle)
             )  # raise StopIteration if no path exists

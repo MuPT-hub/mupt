@@ -477,7 +477,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         conn_refs = (conn_ref1, conn_ref2)
         self.check_internally_connectable(*conn_refs)
         for conn_ref in conn_refs:
-            own_conn = self.unbind_external_connector(
+            _own_conn = self.unbind_external_connector(
                 connector_handle=self.external_connectors_on_child(
                     conn_ref.primitive_handle
                 )[conn_ref.connector_handle]

@@ -228,7 +228,7 @@ class Ellipsoid(BoundedTransformableShape):
         assert basis.shape == (4, 4)
         # TODO: find more elegant way to do this splitting
         axes = basis[:-1, :-1]
-        center = basis[:-1, -1]
+        _center = basis[:-1, -1]
         projective_part = basis[-1, :-1]
         w = basis[-1, -1]
 

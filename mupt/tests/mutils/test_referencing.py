@@ -14,20 +14,17 @@ class DummyNoArgs(Addressed):
     """Dummy Addressed class with no init args"""
     ...
 
-
 class DummyWithArgs(Addressed):
     """Dummy Addressed class with SOME init args"""
     def __init__(self, foo: str, bar: int = 123) -> None:
         self.foo = foo
         self.bar = bar
 
-
 @dataclass  # want to ensure addr registration mechanisms plays nice w/ dataclasses
 class DummyDataclass(Addressed):
     """Dummy Addressed dataclass with SOME init args"""
     baz: str
     boo: float
-
 
 def addressed_object_examples() -> tuple[tuple[Type[Addressed], dict[str, Any]], ...]:
     """
@@ -45,8 +42,7 @@ def addressed_object_examples() -> tuple[tuple[Type[Addressed], dict[str, Any]],
 def test_addressed_base_non_instantiable() -> None:
     """Test that Addressed mixin base cannot be instantiated directly"""
     with pytest.raises(TypeError):
-        obj = Addressed()
-
+        _obj = Addressed()
 
 @pytest.mark.parametrize("addr_typ,kwargs", addressed_object_examples())
 def test_considered_addressable(
@@ -59,14 +55,12 @@ def test_considered_addressable(
     obj = addr_typ(**kwargs)
     assert isinstance(obj, Addressable)  # depends on having @runtime_checkable Protocol
 
-
 @pytest.mark.parametrize("addr_typ,kwargs", addressed_object_examples())
 def test_has_address(addr_typ: Type[Addressed], kwargs: dict[str, Any]) -> None:
     """Test that Addressed objects indeed implement the address they claim to"""
     obj = addr_typ(**kwargs)
     assert hasattr(obj, "address")
     assert hasattr(obj, "_uuid") and isinstance(obj._uuid, UUID)
-
 
 @pytest.mark.parametrize("addr_typ,kwargs", addressed_object_examples())
 def test_address_registration(
@@ -82,7 +76,6 @@ def test_address_registration(
     assert (obj.address in addr_typ.registry_addresses) and (
         len(addr_typ.registry_addresses) == (num_obj_registered_init + 1)
     )
-
 
 def test_weak_address_refs() -> None:
     """
@@ -100,7 +93,6 @@ def test_weak_address_refs() -> None:
     del obj
     garbage_collect()  # force garbage collector to run for deterministic tests
     assert len(DummyLocal.registry_addresses) == 0
-
 
 def test_object_registries_distinct() -> None:
     """
