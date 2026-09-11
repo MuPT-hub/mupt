@@ -1,4 +1,5 @@
 """Tests for random coordinate direction utilities."""
+# ruff: noqa: D103 ("undocumented public function")
 
 import numpy as np
 
@@ -15,7 +16,6 @@ def test_random_vector_accepts_repeatable_rng():
 
     np.testing.assert_allclose(first, second)
 
-
 def test_random_vector_rng_does_not_mutate_global_numpy_rng():
     np.random.seed(5678)
     expected = np.random.uniform(low=-1.0, high=1.0, size=3)
@@ -26,12 +26,10 @@ def test_random_vector_rng_does_not_mutate_global_numpy_rng():
 
     np.testing.assert_allclose(actual, expected)
 
-
 def test_random_unit_vector_accepts_rng_and_normalizes():
     vector = random_unit_vector(rng=np.random.default_rng(1234))
 
     np.testing.assert_allclose(np.linalg.norm(vector), 1.0)
-
 
 def test_random_orthogonal_vector_accepts_repeatable_rng():
     vector = np.array([1.0, 0.0, 0.0])

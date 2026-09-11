@@ -1,4 +1,5 @@
 """Test that Protocol for RigidlyTransformable objects is implemented correctly"""
+# ruff: noqa: D103 ("undocumented public function")
 
 import pytest
 from typing import Union

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-"""Manual dense polyethylene AA-DPD/OpenMM smoke-test harness.
+# ruff: noqa: D103 ("undocumented public function")
+"""
+Manual dense polyethylene AA-DPD/OpenMM smoke-test harness.
 
 Run this from an environment where MuPT is installed. For local development,
 install the checkout first with ``pip install -e .``.
@@ -42,7 +44,6 @@ def sequence_repeat_units(chain_len: int) -> list[str]:
     """Return a deterministic PE chain sequence including terminal caps."""
     return ["head", *("ethane" for _ in range(chain_len - 2)), "tail"]
 
-
 def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
     """Build oriented PE repeat-unit primitives from the script SMILES table."""
     lexicon = {}
@@ -76,7 +77,6 @@ def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
             lexicon[unit_name] = unit
     return lexicon
 
-
 def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
     """Build a deterministic all-atom PE primitive without pytest fixtures.
 
@@ -100,7 +100,6 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
         root.attach_child(segment)
     assign_SAAMR_roles(root)
     return root
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -226,7 +225,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 def validate_args(args: argparse.Namespace) -> None:
     if args.n_chains < 1:
         raise ValueError("--n-chains must be >= 1")
@@ -261,10 +259,8 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.barostat_frequency < 1:
         raise ValueError("--barostat-frequency must be >= 1")
 
-
 def build_pe_melt(args: argparse.Namespace) -> Any:
     return build_pe_melt_primitive(args)
-
 
 def run_dpd(root: Any, args: argparse.Namespace) -> Any:
     settings = AllAtomDPDSettings(
@@ -292,7 +288,6 @@ def run_dpd(root: Any, args: argparse.Namespace) -> Any:
             f"Missing import: {missing}"
         ) from exc
 
-
 def atom_positions(atoms: list[Any]) -> np.ndarray:
     positions = []
     for atom in atoms:
@@ -302,15 +297,12 @@ def atom_positions(atoms: list[Any]) -> np.ndarray:
             positions.append(np.asarray(atom.shape.centroid, dtype=float))
     return np.asarray(positions, dtype=float)
 
-
 def total_mass_amu(atoms: list[Any]) -> float:
     return float(sum(float(atom.element.mass) for atom in atoms))
-
 
 def density_g_cm3(total_mass: float, box_length_a: float) -> float:
     volume_cm3 = box_length_a**3 * ANGSTROM3_TO_CM3
     return total_mass * AMU_TO_G / volume_cm3
-
 
 def min_distinct_distance_a(
     positions: np.ndarray, box_length_a: float | None = None
@@ -323,7 +315,6 @@ def min_distinct_distance_a(
     distances = np.linalg.norm(deltas, axis=-1)
     distances[np.tril_indices(len(positions))] = np.inf
     return float(np.min(distances))
-
 
 def log_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     positions = atom_positions(result.atoms)
@@ -361,7 +352,6 @@ def log_dpd_diagnostics(result: Any) -> tuple[bool, float]:
         LOGGER.info("  dpd_energy: %s", diagnostics.get("dpd_energy"))
     return finite_coords, minimum_distance
 
-
 def validate_dpd_diagnostics(
     result: Any, finite_coords: bool, minimum_distance: float, args: argparse.Namespace
 ) -> None:
@@ -377,7 +367,6 @@ def validate_dpd_diagnostics(
     if not args.allow_unconverged_dpd and not result.converged:
         raise RuntimeError("AA-DPD did not satisfy the DPD convergence criterion.")
 
-
 def openmm_system_from_interchange(interchange: Any) -> Any:
     for method_name in ("to_openmm_system", "to_openmm"):
         method = getattr(interchange, method_name, None)
@@ -391,13 +380,11 @@ def openmm_system_from_interchange(interchange: Any) -> Any:
         "OpenFF Interchange has no to_openmm_system() or to_openmm() method."
     )
 
-
 def openmm_topology_from_interchange(interchange: Any, topology: Any) -> Any:
     method = getattr(interchange, "to_openmm_topology", None)
     if method is not None:
         return method()
     return topology.to_openmm()
-
 
 def rdkit_positions_angstrom(rdkit_mols: list[Any]) -> np.ndarray:
     positions = []
@@ -408,12 +395,10 @@ def rdkit_positions_angstrom(rdkit_mols: list[Any]) -> np.ndarray:
             positions.append((position.x, position.y, position.z))
     return np.asarray(positions, dtype=float)
 
-
 def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
     state = simulation.context.getState(getEnergy=True)
     energy = state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole)
     return float(energy)
-
 
 def system_mass_da(system: Any, omm_unit: Any) -> float:
     """Return total OpenMM system mass in daltons."""
@@ -424,12 +409,10 @@ def system_mass_da(system: Any, omm_unit: Any) -> float:
         )
     )
 
-
 def box_density_g_cm3(box_vectors_nm: np.ndarray, mass_da: float) -> float:
     """Return mass density from OpenMM box vectors in nm."""
     volume_nm3 = abs(float(np.linalg.det(box_vectors_nm)))
     return mass_da * DA_PER_NM3_TO_G_CM3 / volume_nm3
-
 
 def assign_openff_charges(molecules: list[Any], charge_method: str) -> None:
     """Assign OpenFF partial charges, using NAGL explicitly for AshGC models."""
@@ -452,7 +435,6 @@ def assign_openff_charges(molecules: list[Any], charge_method: str) -> None:
 
     for molecule in molecules:
         molecule.assign_partial_charges(partial_charge_method=charge_method)
-
 
 def run_openmm_validation(
     root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace
@@ -545,7 +527,6 @@ def run_openmm_validation(
         args=args,
     )
 
-
 def run_nvt_smoke(
     simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace
 ) -> None:
@@ -587,7 +568,6 @@ def run_nvt_smoke(
         )
         if not finite:
             raise RuntimeError("NVT stability check produced nonfinite energy.")
-
 
 def run_npt_smoke(
     simulation: Any,
@@ -670,7 +650,6 @@ def run_npt_smoke(
             raise RuntimeError(
                 "NPT stability check produced nonfinite energy or density."
             )
-
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")

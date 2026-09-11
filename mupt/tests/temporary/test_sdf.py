@@ -1,4 +1,5 @@
 """Tests for temporary MuPT SDF interoperability export."""
+# ruff: noqa: D103 ("undocumented public function")
 
 import subprocess
 import sys

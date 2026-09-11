@@ -8,11 +8,10 @@ from mupt.geometry.arraytypes import (
     VectorN,
 )
 
-
 @pytest.fixture
-def vector_expected() -> VectorN:
+def vector_3X1_expected() -> VectorN:
+    '''A sample 3-vector to compare against many variations of itself'''
     return np.array([1.0, 2.0, 3.0])
-
 
 @pytest.mark.parametrize(
     "vectorlike",
@@ -43,7 +42,7 @@ def vector_expected() -> VectorN:
         ),
     ],
 )
-def test_as_n_vector_shape(vectorlike, vector_expected: VectorN) -> None:
+def test_as_n_vector_shape(vectorlike, vector_3X1_expected: VectorN) -> None:
     """
     Test that permissive vector ingestion accepts 
     the kinds of numeric data structures it advertises
@@ -51,4 +50,4 @@ def test_as_n_vector_shape(vectorlike, vector_expected: VectorN) -> None:
     vector_actual = as_n_vector(
         vectorlike, dimension=None
     )  # suppress internal shape validation
-    assert vector_actual.size == (vector_expected.size)
+    assert vector_actual.size == (vector_3X1_expected.size)

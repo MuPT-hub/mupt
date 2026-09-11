@@ -7,11 +7,10 @@ from rdkit.Chem.rdmolops import AddHs
 
 from mupt.chemistry.core import valence_allowed
 from mupt.mupr.primitives import Primitive
-from mupt.interfaces.rdkit import importers
+from mupt.interfaces.rdkit.importers import primitive_from_rdkit
+
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
-
-
 @pytest.fixture(scope="function")
 def mol() -> Mol:
     """A simple test molecule with nontrivial chemical features"""
@@ -23,7 +22,8 @@ def mol() -> Mol:
 
 @pytest.fixture(scope="function")
 def primitive(mol: Mol) -> Primitive:
-    return importers.primitive_from_rdkit(mol)
+    """Example MuPT repr instance created from example RDKit Mol"""
+    return primitive_from_rdkit(mol)
 
 def test_valences_permissible(primitive: Primitive) -> None:
     """
@@ -33,7 +33,9 @@ def test_valences_permissible(primitive: Primitive) -> None:
     assert (
         all(  # DEV: break off into parameterized test for individual atomic Primitive?
             valence_allowed(
-                atomprim.element.number, atomprim.element.charge, atomprim.valence
+                atomprim.element.number,
+                atomprim.element.charge,
+                atomprim.valence,
             )
             for atomprim in primitive.children
         )

@@ -4,7 +4,7 @@ import pytest
 
 import numpy as np
 
-from mupt.geometry.arraytypes import Shape, N, M
+from mupt.geometry.arraytypes import ArrayMxN
 
 
 @pytest.mark.parametrize(
@@ -17,6 +17,9 @@ from mupt.geometry.arraytypes import Shape, N, M
         # TODO: test 2D array of vectors
     ],
 )
-def test_normalize(
-    vector: np.ndarray[Shape[N, M], float],
-) -> np.ndarray[Shape[N, M]]: ...
+def test_normalize(vector: ArrayMxN) -> ArrayMxN:
+    """
+    Test that normalize() properly normalizes
+    various vector and array-like objects
+    """
+    ...

@@ -155,10 +155,10 @@ def test_containment_centroidal(shape: BoundedShape) -> None:
 # Transformable shape tests
 @pytest.mark.parametrize("shape", shapes())
 def test_equality(shape: BoundedTransformableShape) -> None:
+    """Test that copies of shapes compare equal to their originals"""
     # NB: not checking direct equality with self, since that would be
     # true even if no __eq__ was implemented! (defaults to "is" behavior)
     assert shape.copy() == shape
-
 
 @pytest.mark.parametrize("shape,volume_expected", shapes_with_volumes())
 def test_volume_transformed(

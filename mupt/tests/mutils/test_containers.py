@@ -1,4 +1,5 @@
 """Unit tests for containers module"""
+# ruff: noqa: D103 ("undocumented public function")
 
 import pytest
 

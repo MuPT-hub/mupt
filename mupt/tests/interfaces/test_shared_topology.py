@@ -1,4 +1,5 @@
 """Tests for shared SAAMR role topology traversal helpers."""
+# ruff: noqa: D103 ("undocumented public function")
 
 import pytest
 
@@ -13,7 +14,6 @@ from mupt.roles import PrimitiveRole
 
 def _particle(label: str) -> Primitive:
     return Primitive(label=label, element=ELEMENTS[1], role=PrimitiveRole.PARTICLE)
-
 
 def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
@@ -34,14 +34,12 @@ def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
     assert index.particles_by_residue[id(residue)] == [atom]
     assert index.segment_of_node[id(atom)] is segment
 
-
 def test_build_saamr_role_topology_index_rejects_empty_segment():
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(Primitive(label="empty", role=PrimitiveRole.SEGMENT))
 
     with pytest.raises(ValueError, match="contains no RESIDUE"):
         build_saamr_role_topology_index(universe)
-
 
 def test_build_saamr_role_topology_index_rejects_nested_residue():
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
@@ -57,7 +55,6 @@ def test_build_saamr_role_topology_index_rejects_nested_residue():
 
     with pytest.raises(ValueError, match="nested RESIDUE"):
         build_saamr_role_topology_index(universe)
-
 
 def test_pdb_resname_prefers_residue_metadata_for_instance_labels():
     resname = _pdb_resname(
