@@ -1,5 +1,6 @@
 """
-Transformations from the more general affine group, which allows scaling, origin shifts, and projections,
+Transformations from the more general affine group,
+which allows scaling, origin shifts, and projections,
 as well as utilities from converting to and from homogeneous coordinates.
 """
 

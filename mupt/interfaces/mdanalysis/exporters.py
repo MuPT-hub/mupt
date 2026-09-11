@@ -87,7 +87,8 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
             )
             universe.add_TopologyAttr(bond_attr)
             LOGGER.info(
-                f"Added {len(data.bonds)} bonds with {len(data.bond_orders)} bond orders"
+                f"Added {len(data.bonds)} bonds with "
+                "{len(data.bond_orders)} bond orders"
             )
 
             order_counts = Counter(data.bond_orders)

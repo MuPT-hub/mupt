@@ -20,13 +20,17 @@ def mol() -> Chem.Mol:
 @pytest.mark.parametrize("prop", RDMOL_NAME_READ_PROP_PRECEDENCE)
 def test_rdmol_name_from_prop(mol: Chem.Mol, prop: str) -> None:
     """Test that a Mol with a given name property set is labelled with that property"""
-    expected_name: str = f"test_name_for_{prop}"  # ensure names are different to guarantee no false-positive from prior name sets
+    # ensure names are different to guarantee no false-positive from prior name sets
+    expected_name: str = f"test_name_for_{prop}"  
     mol.SetProp(prop, expected_name)
     assert name_for_rdkit_mol(mol) == expected_name
 
 
 def test_rdmol_name_smiles_fallback(mol: Chem.Mol) -> None:
-    """Test that a Mol with no explicit name set is labelled with its SMILES (according to default writer params)"""
+    """
+    Test that a Mol with no explicit name set is labelled
+    with its SMILES (according to default writer params)
+    """
     expected_name: str = Chem.MolToSmiles(mol, params=DEFAULT_SMILES_WRITE_PARAMS)
     assert name_for_rdkit_mol(mol) == expected_name
 
@@ -36,7 +40,10 @@ def test_rdmol_name_smiles_fallback(mol: Chem.Mol) -> None:
     reason="Not enough precedence levels to test",
 )
 def test_higher_precedence_overrides_lower(mol: Chem.Mol) -> None:
-    """Test that, when multiple name properties are set, the one with the highest precedence is returned by the labeller"""
+    """
+    Test that, when multiple name properties are set, the one 
+    with the highest precedence is returned by the labeller
+    """
     primary_prop_attr = RDMOL_NAME_READ_PROP_PRECEDENCE[0]
     secondary_prop_attr = RDMOL_NAME_READ_PROP_PRECEDENCE[-1]
 

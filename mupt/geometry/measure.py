@@ -21,11 +21,11 @@ def normalize(
     norms = np.atleast_1d(  # ensure shape is broadcastable, even for scalars
         np.linalg.norm(vector, ord=order, axis=-1, keepdims=True)
     )
-    # DEVNOTE: thought about setting 0 entries in norm vector to 1's to avoid division by zero,
-    # but opted instead for clear Exception being raised by numpy when attempting division by zero
+    # DEVNOTE: thought about setting 0 entries in norm vector to 1's 
+    # to avoid division by zero, but opted instead for clear Exception
+    # being raised by numpy when attempting division by zero
     # norms[np.isclose(norms, 0.0)] = 1.0  # avoid division by zero
     vector /= norms
-
 
 def normalized(
     # DEV: using generic here to indicate return has same dtype
@@ -51,7 +51,8 @@ def compare_optional_positions(
     """
     Check that two positional values are either:
     * Both undefined (returns True)
-    * Both defined AND within a set in distance in a given p-norm (returns True if both conditions are met)
+    * Both defined AND within a set in distance in a given p-norm
+      (returns True if both conditions are met)
     * One defined and one undefined, in either order (returns False)
     """
     if type(position_1) is not type(position_2):

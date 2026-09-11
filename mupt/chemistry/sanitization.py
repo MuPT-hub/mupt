@@ -1,5 +1,7 @@
 """
-Wrappers and reference for RDKit Mol sanitization operations, aromaticity handling, and hydrogen addition/removal
+Wrappers and reference for RDKit Mol sanitization operations,
+aromaticity handling, and hydrogen addition/removal
+
 Intended to ensure consistent rules are applied when sanitizing within MuPT
 """
 
@@ -26,7 +28,8 @@ def sanitized_mol(
     aromaticity_model: Optional[AromaticityModel] = AROMATICITY_MDL,
 ) -> Mol:
     """
-    Return a copy of an RDKit Mol with the specified hydrogen cleanup, sanitization, and aromaticity inference applied
+    Return a copy of an RDKit Mol with the specified hydrogen
+    cleanup, sanitization, and aromaticity inference applied
 
     Parameters
     ----------
@@ -41,8 +44,9 @@ def sanitized_mol(
     aromaticity_model : Optional[AromaticityModel], default=AROMATICITY_MDL
         The aromaticity model to use for determining bond orders and conjugation
 
-        Chosen as AROMATICITY_MDL to avoid valence errors which RDKit's default AROMATICITY_RDKIT model
-        is known to introduce on certain classes of molecules (e.g. PMDA or indoles such as tryptophan)
+        Chosen as AROMATICITY_MDL to avoid valence errors which RDKit's
+        default AROMATICITY_RDKIT model is known to introduce on certain
+        classes of molecules (e.g. PMDA or indoles such as tryptophan)
 
     Returns
     -------
@@ -72,8 +76,8 @@ def sanitized_mol(
         SetAromaticity(cleanmol, model=aromaticity_model)
 
     # miscellaneous sanitization operations
-    SanitizeMol(
-        cleanmol, sanitizeOps=sanitize_ops
-    )  # regardless of settings, sanitization should be done last to give greatest likelihodd of molecule validity
+    ## NOTE: regardless of settings, sanitization should be done
+    # last to give greatest likelihodd of molecule validity
+    SanitizeMol(cleanmol, sanitizeOps=sanitize_ops)  
 
     return cleanmol

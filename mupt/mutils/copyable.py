@@ -25,6 +25,8 @@ class Copyable(Protocol):
 
 
 class NotCopyableError(NotImplementedError):
-    """Raised when a copy-based operation is invokes on an object whose class doesn't implement it"""
-
+    """
+    Raised when a copy-based operation is invoked on
+    an object whose class doesn't implement it
+    """
     ...

@@ -1,4 +1,7 @@
-"""Utilities for conditional selection of chemical objects such as atoms and bonds from RDKit molecules"""
+"""
+Utilities for conditional selection of chemical objects
+such as atoms and bonds from RDKit molecules
+"""
 
 from typing import Callable, Concatenate, Generator, Container, Optional, Union
 from operator import (
@@ -56,9 +59,7 @@ def atoms_by_condition(
         if logical_xor(condition(atom), negate):
             yield atom.GetIdx() if as_indices else atom
 
-
 atoms = atoms_by_condition
-
 
 def atom_neighbors_by_condition(
     atom: Atom,
@@ -67,7 +68,8 @@ def atom_neighbors_by_condition(
     negate: bool = False,
 ) -> Generator[AtomLike, None, None]:
     """
-    Generate all neighboring atoms (i.e. atoms bonded to the passed atom) satisfying a condition
+    Generate all neighboring atoms (i.e. atoms bonded 
+    to the provided atom) satisfying a condition
 
     Parameters
     ----------
@@ -93,9 +95,7 @@ def atom_neighbors_by_condition(
         if logical_xor(condition(nb_atom), negate):
             yield nb_atom.GetIdx() if as_indices else nb_atom
 
-
 atom_neighbors = atom_neighbors_by_condition
-
 
 def has_atom_neighbors_by_condition(
     atom: Atom,
@@ -109,7 +109,6 @@ def has_atom_neighbors_by_condition(
         return False
     else:
         return True
-
 
 has_atom_neighbors = has_atom_neighbors_by_condition
 
@@ -148,8 +147,11 @@ def bonds_by_condition(
     as_indices : bool, default True
         Whether to return results as Bond objects or their indices (default)
     as_pairs : bool, default True
-        Whether to return bonds as the pair of bondss they connect (default) or the bond itself
-        Note that if as_pairs=True and as_indices=False, will return as pairs of Bonds objects
+        Whether to return bonds as the pair of bonds
+        they connect (default) or the bond itself
+        
+        Note that if as_pairs=True and as_indices=False,
+        will return as pairs of Bonds objects
     negate : bool, default False
         Whether to invert the condition provided (by default False)
 
@@ -177,19 +179,21 @@ def bonds_by_condition(
             else:
                 yield bond.GetIdx() if as_indices else bond
 
-
 bonds = bonds_by_condition
-
 
 def bond_condition_by_atom_condition_factory(
     atom_condition: AtomCondition,
     binary_operator: Callable[[bool, bool], bool] = logical_or,
 ) -> BondCondition:
     """
-    Dynamically define a bond condition based on an atom condition applied to the pair of atom a bond connects
+    Dynamically define a bond condition based on an 
+    atom condition applied to the pair of atom a bond connects
 
-    Evaluation over bond determined by a specified atom condition and a binary logical comparison made between the pair of atom condition evaluations
-    By default, this binary condition is OR (i.e. the bond will evaluate True if either of its atoms meets the atom condition)
+    Evaluation over bond determined by a specified atom condition and a
+    inary logical comparison made between the pair of atom condition evaluations
+    
+    By default, this binary condition is OR (i.e. the bond will 
+    evaluate True if either of its atoms meets the atom condition)
     """
 
     def bond_condition(bond: Bond) -> bool:
@@ -200,7 +204,6 @@ def bond_condition_by_atom_condition_factory(
 
     return bond_condition
 
-
 # QUERIES BY PREDEFINED CONDITIONS
 def atom_is_mapped(atom : Atom) -> bool:
     """Select atom if it has been assigned an atom map number"""
@@ -210,16 +213,20 @@ def atom_is_linker(atom : Atom) -> bool:
     """Select atom if it has null atomic number (i.e. no element, wild-card atom)"""
     return atom.GetAtomicNum() == 0
 
-
-def mapped_atoms(mol: Mol, as_indices: bool = False) -> Generator[AtomLike, None, None]:
-    """Return all atoms (either as Atom objects or as indices) which have been assigned a nonzero atom map number"""
+def mapped_atoms(
+    mol: Mol,
+    as_indices: bool = False,
+) -> Generator[AtomLike, None, None]:
+    """
+    Return all atoms (either as Atom objects or as indices)
+    which have been assigned a nonzero atom map number
+    """
     return atoms_by_condition(
         mol,
         condition=atom_is_mapped,
         as_indices=as_indices,
         negate=False,
     )
-
 
 def mapped_neighbors(
     atom: Atom, as_indices: bool = False
@@ -232,11 +239,16 @@ def mapped_neighbors(
         negate=False,
     )
 
-
 def bonded_pairs(
-    mol: Mol, *atom_idxs: Container[int], as_indices: bool = True, as_pairs: bool = True
+    mol: Mol,
+    *atom_idxs: Container[int],
+    as_indices: bool = True,
+    as_pairs: bool=True,
 ) -> Generator[BondLike, None, None]:
-    """Returns all bonds in a Mol which connect a pair of atoms whose indices both lie within the given atom indices"""
+    """
+    Returns all bonds in a Mol which connect a pair of atoms
+    whose indices both lie within the given atom indices
+    """
     return bonds_by_condition(
         mol,
         condition=bond_condition_by_atom_condition_factory(
@@ -245,21 +257,26 @@ def bonded_pairs(
         ),
         as_indices=as_indices,
         as_pairs=as_pairs,
-        negate=False,  # NOTE: negate doesn't behave exactly as one might expect here due to de Morgan's laws (i.e. ~(A^B) != (~A^~B))
+        # NOTE: negate doesn't behave exactly as one might expect
+        # here due to de Morgan's laws (i.e. ~(A^B) != (~A^~B))
+        negate=False,  
     )
-
 
 def bonds_between_mapped_atoms(
     mol: Mol, as_indices: bool = True, as_pairs: bool = True
 ) -> Generator[BondLike, None, None]:
-    """Returns all bonds spanning between two mapped (i.e. nonzero atom map number) atoms"""
+    """
+    Returns all bonds spanning between two mapped atom
+    i.e. atoms with nonzero atom map number assigned
+    """
     return bonds_by_condition(
         mol,
+        # only return bond when BOTH atoms are unmapped
         condition=bond_condition_by_atom_condition_factory(
             atom_condition=atom_is_mapped,
-            binary_operator=logical_and,  # only return bond when BOTH atoms are unmapped
+            binary_operator=logical_and, 
         ),
         as_indices=as_indices,
         as_pairs=as_pairs,
-        negate=False,  # NOTE: negate doesn't behave exactly as one might expect here due to de Morgan's laws (i.e. ~(A^B) != (~A^~B))
+        negate=False, 
     )

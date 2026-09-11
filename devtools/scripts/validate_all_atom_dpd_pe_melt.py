@@ -129,7 +129,10 @@ def parse_args() -> argparse.Namespace:
         "--particle-spacing-a",
         type=float,
         default=0.75,
-        help="Minimum nonbonded atom spacing required for DPD convergence, in Angstrom.",
+        help=(
+            "Minimum nonbonded atom spacing required "
+            "for DPD convergence, in Angstroms."
+        ),
     )
     parser.add_argument(
         "--dpd-steps-per-interval",
@@ -169,7 +172,10 @@ def parse_args() -> argparse.Namespace:
         "--min-distance-a",
         type=float,
         default=0.0,
-        help="Exit nonzero if the distinct atom minimum distance is at or below this Angstrom threshold.",
+        help=(
+            "Exit nonzero if the distinct atom minimum distance "
+            "distance is at or below this Angstrom threshold."
+        ),
     )
     parser.add_argument(
         "--charge-method",

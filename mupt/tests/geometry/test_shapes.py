@@ -27,22 +27,26 @@ def shapes() -> list[BoundedTransformableShape]:
         Ellipsoid.from_components(1, 1, 2),
     ]
 
-
 def shapes_transformed() -> list[BoundedTransformableShape]:
-    """Transformed versions of the sample test BoundedTransformableShape instances returned by `shapes()`"""
+    """
+    Transformed versions of the sample test 
+    BoundedTransformableShape instances returned by `shapes()`
+    """
     return [
         shape.rigidly_transformed(random_rigid_transformation(translation_bound=1.0))
         for shape in shapes()
     ]
 
-
 def shapes_mixed() -> list[BoundedTransformableShape]:
     """Combined collection of transformed and untransformed example shapes"""
     return [*shapes(), *shapes_transformed()]
 
-
 def shapes_with_volumes() -> list[tuple[BoundedTransformableShape, float]]:
-    """Collection of shapes with known volumes, returned as (shape, expected volume) pairs"""
+    """
+    Collection of shapes with known volumes
+    
+    Returned as (shape, expected volume) pairs
+    """
     # DEV: only made function because multiple tests use these inputs
     return [
         (PointCloud.cubic(2.0), 8),
@@ -81,12 +85,10 @@ def test_comparison(
     """Test that __eq__ is able to discern shape instances as expected"""
     assert (shape == other) == expected_equal
 
-
 @pytest.mark.parametrize("shape,volume_expected", shapes_with_volumes())
 def test_volume(shape: BoundedShape, volume_expected: float) -> None:
     """Test that volume calculation is accurate"""
     nptest.assert_allclose(shape.volume, volume_expected)
-
 
 @pytest.mark.parametrize(
     "shape,scaling_factor,shape_scaled_expected",
@@ -134,7 +136,6 @@ def test_scaling(
     shape.scale(scaling_factor)
     assert shape == shape_scaled_expected
 
-
 @pytest.mark.parametrize("shape,scaling_factor", cartesian(shapes(), (0.5, 1.0, 2.0)))
 def test_volume_scaling(shape: BoundedShape, scaling_factor: float) -> None:
     """Test that computed volume of shapes changes as expected with scaling"""
@@ -142,7 +143,6 @@ def test_volume_scaling(shape: BoundedShape, scaling_factor: float) -> None:
     v_scaled: float = shape.scaled(scaling_factor).volume
 
     nptest.assert_allclose(v_scaled / v_orig, scaling_factor**3)
-
 
 @pytest.mark.parametrize("shape", shapes_mixed())
 def test_containment_centroidal(shape: BoundedShape) -> None:
@@ -172,7 +172,6 @@ def test_volume_transformed(
         shape_transformed.volume, volume_expected
     )  # rigid motions have unit determinant and shouldn't affect volumes
 
-
 @pytest.mark.parametrize(
     "shape,scaling_factor,all_inside",
     [
@@ -193,10 +192,14 @@ def test_containment_scaled(
     scaling_factor: float,
     all_inside: bool,
 ) -> None:
-    """Test containment checks on shapes, relative to dilated and compressed versions of themselves"""
-    # NB: in this SPECIFIC case, uniform scaling of convex shapes about center by non-unity scaling factor
-    # means either the scaled copy contains the original (if factor >1) or vice-versa (if <1)
-    mesh_points, triangles = shape.scaled(
-        scaling_factor
-    ).surface_mesh()  # implicitly also tests surface_mesh() - convenient, but not very atomic
+    """
+    Test containment checks on shapes, relative to
+    dilated and compressed versions of themselves
+    """
+    # NB: in this SPECIFIC case, uniform scaling of convex shapes about center
+    # by non-unity scaling factor means either the scaled copy contains the
+    # original (if factor >1) or vice-versa (if <1)
+    
+    # implicitly also tests surface_mesh() - convenient, but not very atomic
+    mesh_points, triangles = shape.scaled(scaling_factor).surface_mesh() 
     assert np.all(shape.contains(mesh_points) == all_inside)

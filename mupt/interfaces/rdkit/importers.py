@@ -1,4 +1,7 @@
-"""Readers which convert RDKit Atoms and Mols into the MuPT molecular representation"""
+"""
+Readers which convert RDKit Atoms and Mols
+into the MuPT molecular representation
+"""
 
 from typing import (
     Hashable,
@@ -37,7 +40,9 @@ def primitive_from_rdkit_atom(
         label=atom_idx,
         metadata=atom.GetPropsAsDict(
             includePrivate=True,
-            includeComputed=False,  # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors
+            # NOTE: computed props suppressed to avoid
+            # "unpicklable RDKit vector" errors
+            includeComputed=False,  
         ),
     )
     if (map_num := atom.GetAtomMapNum()) != 0:
@@ -52,7 +57,9 @@ def primitive_from_rdkit_atom(
         )  # extract as vector from 2D array
 
     if attach_connectors:
-        for nb_atom in atom.GetNeighbors():  # TODO: decide how bond Props should be split among metadata of the two bonded atoms
+        # TODO: decide how bond Props should be split
+        # among metadata of the two bonded atoms
+        for nb_atom in atom.GetNeighbors():  
             conn_handle = atom_primitive.register_connector(
                 connector_between_rdatoms(
                     parent_mol=parent_mol,
@@ -98,20 +105,33 @@ def primitive_from_rdkit_chain(
         )
     rdmol_primitive = Primitive(
         label=label,
-        metadata=rdmol_chain.GetPropsAsDict(includePrivate=True, includeComputed=False),
+        metadata=rdmol_chain.GetPropsAsDict(
+            includePrivate=True,
+            includeComputed=False,
+        ),
     )
-    # DEV: opting to not inject stereochemical metadata for now, since that may change as Primitive repr is transformed geometrically
+    ## DEV: opting to not inject stereochemical metadata for now, 
+    ## since that may change as Primitive repr is transformed geometrically
     # stereo_info_map : dict[int, StereoInfo] = {
-    #     stereo_info.centeredOn : stereo_info # TODO: determine most appropriate choice of flags to use in FindPotentialStereo
-    #         for stereo_info in FindPotentialStereo(rdmol_chain, cleanIt=True, flagPossible=True)
+    ## TODO: determine most appropriate choice of flags to use in FindPotentialStereo
+    #     stereo_info.centeredOn : stereo_info 
+    #        for stereo_info in FindPotentialStereo(
+    #            rdmol_chain,
+    #            cleanIt=True,
+    #            flagPossible=True,
+    #        )
     # }
 
-    # 1) Insert child Primitives for each atom (EVEN linkers - this keeps indices in sync for final handle assignment)
+    # 1) Insert child Primitives for each atom (EVEN linkers - 
+    # this keeps indices in sync for final handle assignment)
+    ## DEV: as-implemented, handle idx **SHOULD** match 
+    ## atom idx, but it never hurts to be explicit :P
     linker_idxs: set[int] = set()
-    atom_idx_to_handle_map: dict[int, PrimitiveHandle] = (
-        dict()
-    )  # DEV: as-implemented, handle idx **SHOULD** match atom idx, but it never hurts to be explicit :P
-    for atom in rdmol_chain.GetAtoms():  # DEV: opting not to get atoms implicitly from bonds to handle single, unbonded atom (e.g. noble gas) uniformly
+    atom_idx_to_handle_map: dict[int, PrimitiveHandle] = dict()  
+    
+    # DEV: opting not to get atoms implicitly from bonds to
+    # handle single, unbonded atom (e.g. noble gas) uniformly
+    for atom in rdmol_chain.GetAtoms():  
         atom_idx = atom.GetIdx()
         if is_linker(atom):
             linker_idxs.add(atom_idx)
@@ -120,13 +140,15 @@ def primitive_from_rdkit_chain(
             rdmol_chain,
             atom_idx,
             conformer_idx=conformer_idx,
-            attach_connectors=False,  # will attach per-bond to avoid needing to match connector handles to bond idxs
+            # will attach per-bond to avoid matching connector handles to bond idxs
+            attach_connectors=False,  
         )
         atom_idx_to_handle_map[atom_idx] = rdmol_primitive.attach_child(
             atom_prim, label=atom_label
         )
 
-    # 2) forge connections between Primitives corresponding to bonded atoms (propagating external Connectors up to mol primitive)
+    # 2) forge connections between Primitives corresponding to bonded atoms
+    # (propagating external Connectors up to mol primitive)
     for bond in rdmol_chain.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
@@ -185,7 +207,10 @@ def primitive_from_rdkit_chain(
                 TraversalDirection.complement(chain_direction)
             )
 
-    # 4) Inject conformer info - DEV: there are many avenues to do this (e.g. collate shape from children, if not None on all), but opted for the simplest for now
+    # 4) Inject conformer info
+    ##- DEV: there are many avenues to do this 
+    ## (e.g. collate shape from children, if not None on all),
+    ## but opted for the simplest for now
     non_linker_conformer = atom_positions_from_rdkit(
         rdmol_chain,
         conformer_idx=conformer_idx,
@@ -213,12 +238,16 @@ def primitive_from_rdkit(
     denest: bool = True,
     **kwargs,
 ) -> Primitive:
-    """Initialize a Primitive hierarchy from an RDKit Mol representing one or more molecules"""
+    """
+    Initialize a Primitive hierarchy from an
+    RDKit Mol representing one or more molecules
+    """
     chains = GetMolFrags(
         rdmol,
         asMols=True,
         sanitizeFrags=sanitize_frags,
-        # DEV: leaving these None for now, but highlighting that we can spigot more info out of this eventually
+        # DEV: leaving these None for now, but highlighting 
+        # that we can spigot more info out of this eventually
         frags=None,
         fragsMolAtomMapping=None,
     )
@@ -234,10 +263,9 @@ def primitive_from_rdkit(
         )
     # otherwise, bind Primitives for each chain to "universal" root Primitive
     else:
-        universe_primitive = Primitive(
-            label=label
-            # DEV: deliberately excluding metadata here to avoid squashing that of individual chains
-        )
+        # DEV: deliberately excluding metadata here to
+        # avoid squashing that of individual chains
+        universe_primitive = Primitive(label=label)
         for chain in chains:
             universe_primitive.attach_child(
                 primitive_from_rdkit_chain(

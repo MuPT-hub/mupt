@@ -14,12 +14,18 @@ def set_rdkdraw_size(dim: int = 300, aspect: float = 3 / 2):
 
 
 def show_substruct_highlights() -> None:
-    """Turns on highlighting of found substructures when performing substructure matches"""
+    """
+    Turns on highlighting of found substructures
+     when performing substructure matches
+     """
     IPythonConsole.highlightSubstructs = True
 
 
 def hide_substruct_highlights() -> None:
-    """Turns off highlighting of found substructures when performing substructure matches"""
+    """
+    Turns off highlighting of found substructures
+     when performing substructure matches
+     """
     IPythonConsole.highlightSubstructs = False
 
 
@@ -34,12 +40,18 @@ def hide_atom_indices() -> None:
 
 
 def enable_kekulized_drawing() -> None:
-    """Turns on automatic kekulization of aromatic bonds before drawing molecules in Jupyter Notebooks"""
+    """
+    Turns on automatic kekulization of aromatic bonds 
+    before drawing molecules in Jupyter Notebooks
+    """
     IPythonConsole.kekulizeStructures = True
 
 
 def disable_kekulized_drawing() -> None:
-    """Turns off automatic kekulization of aromatic bonds before drawing molecules in Jupyter Notebooks"""
+    """
+    Turns off automatic kekulization of aromatic bonds 
+    before drawing molecules in Jupyter Notebooks
+    """
     IPythonConsole.kekulizeStructures = False
 
 

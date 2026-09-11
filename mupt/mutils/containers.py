@@ -32,8 +32,10 @@ class Labelled(Protocol):
 
 class UniqueRegistry(UserDict, Generic[LabelT, T]):
     """
-    A registry of Labelled objects which are each assigned a unique "handle",
-    comprising the object's label and a unique integer index determined by its time of insertion
+    A registry of Labelled objects which are each assigned a unique "handle".
+    
+    Handle comprises the object's label and a unique 
+    integer index determined by its time of insertion
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -73,7 +75,10 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         )
 
     def _setitem(self, key: LabelT, item: T) -> None:
-        """Privatized version of __setitem__ - intend for internal use when copying UniqueRegistry objects"""
+        """
+        Privatized version of __setitem__ - intend for
+        internal use when copying UniqueRegistry objects
+        """
         super(UniqueRegistry, self).__setitem__(key, item)
 
     @overload
@@ -88,21 +93,23 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     def register(
         self, obj: T | Labelled, label: Optional[Callable[[T], LabelT] | LabelT] = None
     ) -> HandleT:
-        """Generate a new, unique handle for the given object and register it, then return the handle"""
+        """
+        Generate a new, unique handle for the given
+        object and register it, then return the handle
+        """
         if label is None:
             if isinstance(obj, Labelled):
                 label = obj.label
             else:
                 raise TypeError(f"Cannot infer label from unlabelled object {obj!r}")
-        elif isinstance(
-            label, Callable
-        ):  # N.B.: all Callables are Hashable, so order matters in any isinstance checks for the latter
+        # N.B.: all Callables are Hashable, so order
+        # matters in isinstance checks for the latter
+        elif isinstance(label, Callable): 
             label = label(obj)
 
+        # TODO: reconcile types between the bound GEneric T and the external "Labelled"
         handle: HandleT = (label, self._get_uniquifying_index(label))
-        self._setitem(
-            handle, obj
-        )  # TODO: reconcile types between the bound GEneric T and the external "Labelled"
+        self._setitem(handle, obj)  
 
         return handle
 
@@ -141,9 +148,11 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         label: Optional[Callable[[T], LabelT] | LabelT] = None,
     ) -> list[HandleT]:
         """
-        Register all objects from an iterable collection,
-        with labels assigned according to a labeller rule which acts on those objects or,
-        if no rule is provided BUT the objects are Labelled, the label attribute on those objects
+        Register all objects from an iterable collection.
+        
+        Labels are assigned according to a labeller rule which acts
+        on those objects or, if no rule is provided BUT the objects
+        are Labelled type, the label attribute on those objects
         """
         handles: list[HandleT] = []
         for obj in collection:
@@ -174,24 +183,30 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         collection: Iterable[T],
         label: Optional[Callable[[T], LabelT] | LabelT] = None,
     ) -> list[HandleT]:
-        """Register multiple objects at once, returning a list of their assigned handles"""
+        """
+        Register multiple objects at once,
+        returning a list of their assigned handles
+        """
         if isinstance(collection, Mapping):
             if label is not None:
                 raise ValueError(
-                    'Registration from mapping received unexpected "labeller" argument'
+                    "Registration from mapping received unexpected 'labeller' argument"
                 )
             return self.register_from_mapping(collection)
         elif isinstance(collection, Iterable):
             return self.register_from_collection(collection, label=label)
         else:
             raise TypeError(
-                f'Collection to be registered must either be Mapping or non-Mapping Iterable, not "{type(collection).__name__}"'
+                "Collection to be registered must either be Mapping or "
+                f"non-Mapping Iterable, not '{type(collection).__name__}'"
             )
 
     # Object deregistration
     def deregister(self, handle: HandleT) -> T:
         """
-        Unregister the object with the given handle and free the index assigned to that object
+        Unregister the object with the given handle 
+        and free the index assigned to that object
+        
         Returns the objects bound to that handle
         """
         obj = self.pop(handle)
@@ -207,19 +222,26 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             self.deregister(handle)
 
     # Read access
+    ## DEV: eventually would like to make sets (since order is irrelevant), 
+    # but that relies on assumptions about hashability of T
     @property
     def by_labels(self) -> dict[LabelT, tuple[T, ...]]:
-        # DEV: eventually would like to make sets (since order is irrelevant), but that relies on assumptions about hashability of T
         """
-        Mapping from labels (without uniquifying handle index) to classes of objects registered to those labels
-        Can be thought of as the equivalence classes of objects under the relation "o1.handle[0] == o2.handle[0]"
+        Mapping from labels (without uniquifying handle index)
+        to classes of objects registered to those labels
+        
+        Can be thought of as the equivalence classes of objects 
+        under the relation "o1.handle[0] == o2.handle[0]"
         """
         label_classes = defaultdict(list)
         for (label, idx), child in self.items():
             label_classes[label].append(child)
 
-        return {  # downconvert from defaultdict -> dict and make values collections immutable by tuple-ifying them
-            label: tuple(child_class) for label, child_class in label_classes.items()
+        # downconvert from defaultdict -> dict and make values
+        # collections immutable by tuple-ifying them
+        return {
+            label: tuple(child_class)
+                for label, child_class in label_classes.items()
         }
 
     # Partitioning
@@ -239,8 +261,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             3 : <reg with element of form 4n + 3>
         }
 
-        It is expected that the categorizer will return some value for EVERY object in the registry;
-        the caller is responsible for ensuring this is the case
+        It is expected that the categorizer will return some value for EVERY object
+        in the registry; the caller is responsible for ensuring this is the case
         """
         # TB NOTE: slightly problematic is that re-merging splits may
         # scramble labels in final dict as-implemented (want to be invertible)
@@ -258,10 +280,14 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         concise_mapping: bool = True,
     ) -> Mapping[HandleT, HandleT]:
         """
-        Merge another registry into this one, collapsing distinguishing indices serially
+        Merge another registry into this one, 
+        collapsing distinguishing indices serially
 
-        Returns a mapping from the handles in the other registry to the handles assigned in this registry
-        If concise_mapping=True (by default), returns only the handles which changes; otherwise, maps all
+        Returns a mapping from the handles in the other 
+        registry to the handles assigned in this registry
+        
+        If concise_mapping=True (by default), returns only
+        the handles which changes; otherwise, maps all
         """
         handle_map: dict[HandleT, HandleT] = dict()
         for prior_handle, obj in other.items():
@@ -298,17 +324,23 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
 
     # Copying
     def copy(
-        self, value_copy_method: Callable[[T], T] = deepcopy
+        self,
+        value_copy_method: Callable[[T], T]=deepcopy,
     ) -> "UniqueRegistry[LabelT, T]":
         """
-        Create a deep copy of this UniqueRegistry, with the same (key, value) pairs and internal state
-        Requires a method for copying values in general, since their complete type is not explicit a priori
+        Create a deep copy of this UniqueRegistry, with
+        the same (key, value) pairs and internal state
+        
+        Requires a method for copying values in general, 
+        since their complete type is not explicit a priori
         """
         new_registry = UniqueRegistry()
         new_registry._ticker = Counter(self._ticker)
         new_registry._freed = defaultdict(
             set,
-            **{  # DEV: this looks elaborate, but is necessary to ensure copy doesn't share state with self after creation
+            # DEV: this looks elaborate, but is necessary to ensure
+            # copy doesn't share state with self after creation
+            **{  
                 label: set(free_idxs) for label, free_idxs in self._freed.items()
             },
         )

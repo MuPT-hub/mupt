@@ -87,7 +87,10 @@ def test_unique_reg_register_explicit_label() -> None:
 
 
 def test_unique_reg_register_implicit_label() -> None:
-    """Test that registering with implicit label (inferred from registered object) works as expected"""
+    """
+    Test that registering with implicit label
+    (inferred from registered object) works as expected
+    """
     obj = DummyRelation(label="p")
     reg = UniqueRegistry()
     reg.register(obj)
@@ -184,7 +187,10 @@ def test_register_from(
 
 # Deregistration tests
 def test_unique_reg_deregister() -> None:
-    """Test that deregistering an item removes it from the registry and returns the object"""
+    """
+    Test that deregistering an item removes
+    it from the registry and returns the object
+    """
     obj = DummyRelation(label="p")
     reg = UniqueRegistry()
     handle = reg.register(obj)
@@ -233,9 +239,8 @@ def test_unique_reg_purge() -> None:
 )
 def test_reset_ticker_total(reg: UniqueRegistry) -> None:
     """Test that resetting running ticker counts for ALL keys sets all counts to 0"""
-    orig_keys = set(
-        reg._ticker.keys()
-    )  # wrap in new container to prevent any chance of accidentally referencing original
+    # wrap in new container to prevent any chance of accidentally referencing original
+    orig_keys = set(reg._ticker.keys())
     reg.reset_ticker()
     assert all(reg._ticker[key] == 0 for key in orig_keys)
 
@@ -243,11 +248,11 @@ def test_reset_ticker_total(reg: UniqueRegistry) -> None:
 @pytest.mark.parametrize(
     "reg,key",
     [
-        # Test for kets previously present in tickers
+        # Test for keys previously present in tickers
         *reg_ticker_examples(reg_example_a),
         *reg_ticker_examples(reg_example_b),
         *reg_ticker_examples(reg_example_c),
-        # Test for non-included key; shouldn't err (just set that unseen key's count to 0)
+        # Test for non-included key; shouldn't err, instead set unseen key's count to 0)
         (reg_example_a(), "totally-made-up-key"),
         (reg_example_b(), "totally-made-up-key"),
         (reg_example_c(), "totally-made-up-key"),
@@ -271,7 +276,10 @@ def test_reset_ticker_indiv(reg: UniqueRegistry, key: LabelT) -> None:
 
 # Internal state update tests
 def test_freed_labels_reinserted() -> None:
-    """Test that freed unique indices are reused upon reinsertion before continuing to use incremented labels"""
+    """
+    Test that freed unique indices are reused upon
+    reinsertion before continuing to use incremented labels
+    """
     obj = DummyRelation(label="p")
     reg = UniqueRegistry()
     for _ in range(4):
@@ -315,7 +323,10 @@ def test_unique_reg_copy() -> None:
 
 
 def test_unique_reg_copy_ticker_indep() -> None:
-    """Test that the ticker state of a copied UniqueRegistry is independent of the ticker of the original"""
+    """
+    Test that the ticker state of a copied UniqueRegistry
+    is independent of the ticker of the original
+    """
     reg = UniqueRegistry()
     a = DummyRelation(label="a")
 
@@ -327,7 +338,9 @@ def test_unique_reg_copy_ticker_indep() -> None:
 
 
 def test_unique_reg_copy_freed_indep() -> None:
-    """Test that the freed labels state of a copied UniqueRegistry is independent of the original"""
+    """Test that the freed labels state of a copied
+    UniqueRegistry is independent of the original
+    """
     reg = UniqueRegistry()
     a = DummyRelation(label="a")
 
@@ -340,7 +353,10 @@ def test_unique_reg_copy_freed_indep() -> None:
 
 # Label access tests
 def test_unique_reg_by_labels() -> None:
-    """Test that by_labels property returns correct mapping from labels to tuples of registered objects"""
+    """
+    Test that by_labels property returns correct 
+    mapping from labels to tuples of registered objects
+    """
     reg = UniqueRegistry()
     a = DummyRelation(label="a")
     b = DummyRelation(label="b")

@@ -1,5 +1,10 @@
-"""Interfaces between the hierarchical MuPT molecular representation and RDKit Mol objects"""
+"""
+Interfaces between the hierarchical MuPT 
+molecular representation and RDKit Mol objects
+"""
 
+## TB DEV: "from Y import X as X" looks pretty silly and redundant,
+## but skirts around the "unused variable" flag otherwise raised by linter
 from .selection import (
     # Atom selection
     AtomCondition as AtomCondition,
@@ -13,7 +18,8 @@ from .selection import (
     all_bonds as all_bonds,
     no_bonds as no_bonds,
     bonds_by_condition as bonds_by_condition,
-    bond_condition_by_atom_condition_factory as bond_condition_by_atom_condition_factory,
+    bond_condition_by_atom_condition_factory as \
+        bond_condition_by_atom_condition_factory,
 )
 from .components import (
     chemical_graph_from_rdkit as chemical_graph_from_rdkit,
@@ -22,7 +28,10 @@ from .components import (
     connectors_from_rdkit as connectors_from_rdkit,
 )
 from .importers import primitive_from_rdkit as primitive_from_rdkit
-from .exporters import primitive_to_rdkit as primitive_to_rdkit, primitive_to_rdkit_mols as primitive_to_rdkit_mols
+from .exporters import (
+    primitive_to_rdkit as primitive_to_rdkit,
+    primitive_to_rdkit_mols as primitive_to_rdkit_mols,
+)
 from .strategies import (
     RDKitExportStrategy as RDKitExportStrategy,
     AllAtomRDKitExportStrategy as AllAtomRDKitExportStrategy,

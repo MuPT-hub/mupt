@@ -1,6 +1,8 @@
 """For providing support and validation for chemical line notations"""
-# DEV: resist the temptation to merge this into interfaces.smiles; will cause a circular import own the line
-# Namely, interfaces.rdkit depends on utils here, and importers/exports in interfaces.smileslib depend in turn on those RDKit utils
+# DEV: resist the temptation to merge this into interfaces.smiles;
+# that will cause a circular import own the line
+# Namely, interfaces.rdkit depends on utils here, and mporters/exporters
+# in interfaces.smileslib depend in turn on those RDKit utils
 
 from typing import Union
 from rdkit import Chem
@@ -30,7 +32,9 @@ SmilesLike = Union[Smiles, Smarts]
 
 # BOND PRIMITIVES AND RELATED OBJECTS
 BOND_PRIMITIVES = "~-=#$:"
-BOND_PRIMITIVES_FOR_REGEX = r"[~\-=#$:]"  # any of the SMARTS bond primitive chars, with a space to differentiate single-bond hyphen for the regex range char
+# any of the SMARTS bond primitive chars, with a space to
+# differentiate single-bond hyphen for the regex range char
+BOND_PRIMITIVES_FOR_REGEX = r"[~\-=#$:]"  
 BOND_INITIALIZERS = {
     "SMILES": (Chem.Bond, Chem.BondFromSmiles),
     "SMARTS": (Chem.QueryBond, Chem.BondFromSmarts),

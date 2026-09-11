@@ -1,4 +1,7 @@
-"""Tools for simplifying transfer and modification of wrapped function type signatures"""
+"""
+Tools for simplifying transfer and modification
+of wrapped function type signatures
+"""
 
 from inspect import Parameter, Signature
 
@@ -32,11 +35,14 @@ def insert_parameter_at_index(
 def modify_param_annotation_by_index(
     sig: Signature, index: int, new_type: type
 ) -> Signature:
-    """Returns a copy of a Signature with the type annotation of the Parameter at a given index swapped out"""
+    """
+    Returns a copy of a Signature with the type annotation
+    of the Parameter at a given index swapped out
+    """
     params = list(sig.parameters.values())
-    old_param = params[
-        index
-    ]  # will raise IndexError if position is given; IT IS UP TO THE CALLER TO ENSURE THIS IS CORRECT!
+    # will raise IndexError if position is given;
+    # IT IS UP TO THE CALLER TO ENSURE THIS IS CORRECT!
+    old_param = params[index]  
 
     new_param = Parameter(  # copy everything expect type annotation from old Parameter
         name=old_param.name,
@@ -52,7 +58,10 @@ def modify_param_annotation_by_index(
 def modify_param_annotation_by_name(
     sig: Signature, param_name: str, new_type: type
 ) -> Signature:
-    """Returns a copy of a Signature with the type annotation of the Parameter with a given name swapped out"""
+    """
+    Returns a copy of a Signature with the type annotation of
+    the Parameter with a given name swapped out
+    """
     return modify_param_annotation_by_index(
         sig,
         index=list(sig.parameters.keys()).index(

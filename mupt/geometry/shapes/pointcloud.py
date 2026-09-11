@@ -1,4 +1,7 @@
-"""For representing clusters of positional coordinate, as one might find in a molecular conformer"""
+"""
+For representing clusters of positional coordinate, 
+as one might find in a molecular conformer
+"""
 
 from typing import Iterable, Literal, Optional
 
@@ -32,7 +35,9 @@ class PointCloud(BoundedTransformableShape):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={self.positions.shape})"
 
-    @classmethod  # TODO: per DS review, would make sense to eventually move this into dedicated Cubic subtype of BoundedTransformableShape
+    # TODO: per DS review, would make sense to eventually move this
+    # into dedicated Cubic subtype of BoundedTransformableShape
+    @classmethod  
     def cubic(cls, sidelen: float = 1.0, centered: bool = True) -> "PointCloud":
         """
         Initialize a PointCloud whose point lie on the
@@ -73,7 +78,10 @@ class PointCloud(BoundedTransformableShape):
 
     @cached_property
     def triangulation(self) -> Delaunay:
-        """Delauney triangulation into simplicial facets whose vertiecs are the positions within"""
+        """
+        Delauney triangulation into simplicial 
+        facets whose vertiecs are the positions within
+        """
         return Delaunay(self.positions)
 
     # fulfilling BoundedShape contracts

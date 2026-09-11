@@ -1,4 +1,7 @@
-"""Placement generators based in HOOMD's dissipative particle dynamics (DPD) simulations"""
+"""
+Placement generators based in HOOMD's 
+dissipative particle dynamics (DPD) simulations
+"""
 
 import logging
 
@@ -54,7 +57,9 @@ def pbc(
             a[a > box[i] / 2] -= box[i]
             pos_max = np.max(a)
             pos_min = np.min(a)
-    return positions  # TB: is "a" acted on in-place here? If so, why return the array that's already been modified in-place?
+    # TB: is "a" acted on in-place here? If so, why return
+    # the array that's already been modified in-place?
+    return positions  
 
 
 def check_inter_particle_distance(
@@ -136,7 +141,8 @@ class DPDRandomWalk(PlacementGenerator):
         n_steps_per_interval : int
             Number of simulation steps to run between convergence checks
         n_steps_max : int
-            Maximum number of simulation steps to run before returning (regardless of convergence)
+            Maximum number of simulation steps to run 
+            before returning (regardless of convergence)
         report_interval : int
             Number of steps between debug logging reports during simulation
         output_name : Optional[str]
@@ -165,7 +171,9 @@ class DPDRandomWalk(PlacementGenerator):
     ) -> tuple[Hashable, Hashable]:
         """
         Find the terminal node(s) of what is assumed to be a linear (path) graph
-        Returns the pair of node labels of the termini (a pair of the same value twice for single-node graphs)
+        
+        Returns the pair of node labels of the termini, i.e.
+        a pair of the same value twice for single-node graphs
         """
         termini = tuple(chain.termini)
         LOGGER.debug(termini)
@@ -190,7 +198,8 @@ class DPDRandomWalk(PlacementGenerator):
         for subprim in primitive.children:
             if not isinstance(subprim.shape, (Ellipsoid, Sphere)):
                 raise ValueError(
-                    "Random walk chain builder requires ellipsoidal or spherical beads to determine step sizes"
+                    "Random walk chain builder requires ellipsoidal "
+                    "or spherical beads to determine step sizes"
                 )
 
     def _generate_placements(
@@ -198,16 +207,20 @@ class DPDRandomWalk(PlacementGenerator):
     ) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         """
         Trying to use universe of chains to set monomer positions
-        primitive passed in here should be a universe primitive that has chains to loop over
-        paths are lists of handles
-        If we assume chains are looped over in the same way, we can map from handles to indices
+        
+        Primitive passed here should be a root that has
+        chains to loop over; paths are lists of handles
+        
+        If we assume chains are looped over in the
+        same way, we can map from handles to indices
         """
         # Initialize HOOMD Frame (initial snapshot) and periodic box
         frame = gsd.hoomd.Frame()
 
         # Pre-allocate space for particles
         frame.particles.types = ["A"]  # TODO: introduce HMT's?
-        frame.particles.N = primitive.topology.number_of_nodes()  # TB: would be nice to set after iterating over children, but needed to size box
+        ## TB: would be nice to set AFTER iterating over children, but need to size box
+        frame.particles.N = primitive.topology.number_of_nodes()  
         frame.particles.typeid = np.zeros(frame.particles.N)
         frame.particles.position = np.zeros((
             frame.particles.N,
@@ -220,12 +233,13 @@ class DPDRandomWalk(PlacementGenerator):
             L: float = 3 * self.r_cut
             V_new: float = L**3
             LOGGER.warning(
-                f"Small number of particles, lowering density to {frame.particles.N / V_new}, and L={L}"
+                "Small number of particles, lowering density to "
+                f"{frame.particles.N / V_new}, and L={L}"
             )
 
         # Read info from chains in universe topology into HOOMD Frame
         # frame.bonds.N = self.primitive.topology.number_of_edges()
-        # frame.bonds.group = np.zeros((frame.bonds.N,2)) # populate this with bond indices
+        # frame.bonds.group = np.zeros((frame.bonds.N,2)) # populate with bond indices
         bonds: list[tuple[int, int]] = []
         bond_types: list[str] = ["a"]
 
@@ -253,7 +267,8 @@ class DPDRandomWalk(PlacementGenerator):
                 chain_indices.append(particle_idx)
                 handle_to_particle_idx[bead_handle] = particle_idx
 
-                # determine reference anchor points for effective radius scaling and orientation back-calculation post-simulation
+                # determine reference anchor points for effective radius
+                # scaling and orientation back-calculation post-simulation
                 anchor_positions = np.zeros((2, 3), dtype=float)
                 bead_prim: Primitive = primitive.fetch_child(bead_handle)
                 for conn_handle, conn in bead_prim.connectors.items():
@@ -294,7 +309,8 @@ class DPDRandomWalk(PlacementGenerator):
                     handle_to_particle_idx[prim_handle_outgoing],
                     handle_to_particle_idx[prim_handle_incoming],
                 )
-                # LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
+                # LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx
+                # {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
                 bonds.append(idx_pair)
 
                 delta = self.bond_length * random_unit_vector()
@@ -320,19 +336,14 @@ class DPDRandomWalk(PlacementGenerator):
             harmonic.params[bond_type] = dict(r0=self.bond_length, k=self.k)
             integrator.forces.append(harmonic)
             LOGGER.debug(
-                f'Set harmonic bond parameters for bond type "{bond_type}": r0={self.bond_length}, k={self.k}'
+                f"Set harmonic bond parameters for bond type "
+                f"'{bond_type}': r0={self.bond_length}, k={self.k}"
             )
 
         # set periodic box based on initial positions and target density
         R_max = max(effective_radii.values())  # for scaling out of LJ units at the end
-        frame.configuration.box = [
-            L,
-            L,
-            L,
-            0,
-            0,
-            0,
-        ]  # monoclinic cubic box with scale L
+        ## monoclinic cubic box with scale L
+        frame.configuration.box = [L,L,L,0,0,0]
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
 
         # Initialize HOOMD Simulation
@@ -377,20 +388,21 @@ class DPDRandomWalk(PlacementGenerator):
 
             if total_steps_run >= self.n_steps_max:
                 LOGGER.warning(
-                    f"Some particles are still too close after maximum simulation step {self.n_steps_max} reached; terminating simulation early"
+                    "Some particles are still too close after maximum simulation step "
+                    f"{self.n_steps_max} reached; terminating simulation early"
                 )
                 break
         end_time = time.perf_counter()
         LOGGER.info(
-            f"HOOMD simulation concluded after {total_steps_run} steps ({end_time - hoomd_time}s walltime)"
+            f"HOOMD simulation concluded after {total_steps_run} "
+            f"steps ({end_time - hoomd_time}s walltime)"
         )
 
-        # apply proper scaling to LJ beads and post-process final snapshot
+        # Apply proper scaling to LJ beads and post-process final snapshot
         # determine on-body (assumed spherical) secant points for each LJ sphere
+        # Scaling by max ensures beads never intersect, even with 0 bead separation
         snap = simulation.state.get_snapshot()
-        scale_factor: float = (
-            2 * R_max + self.bead_separation
-        )  # NOTE: scaling by max ensures beads never intersect, even with 0 bead separation
+        scale_factor: float = 2 * R_max + self.bead_separation
         positions_scaled = scale_factor * snap.particles.position
 
         orient_marker_points = np.zeros(
@@ -402,20 +414,19 @@ class DPDRandomWalk(PlacementGenerator):
                 effective_radii[idx] for idx in particle_indices
             ])  # shape[N]
 
-            # determine steps to secant points on spheres forward and backward along chain relative to bead centers
+            # determine steps to secant points on spheres forward
+            # and backward along chain relative to bead centers
             unit_step_vectors = normalized(
                 np.diff(chain_particle_centers, axis=0)
             )  # shape [N - 1]
             fwd_steps = chain_radii[:-1, np.newaxis] * unit_step_vectors
             bwd_steps = -chain_radii[1:, np.newaxis] * unit_step_vectors
-            fwd_steps = np.vstack([
-                fwd_steps,
-                -bwd_steps[-1],
-            ])  # final step would "step past" the tail bead by same amount as incoming into tail (but in opposite direction)
-            bwd_steps = np.vstack([
-                -fwd_steps[-1],
-                bwd_steps,
-            ])  # first step would "step before" the head bead by same amount as outgoing from head (but in opposite direction)
+            ## final step would "step past" the tail bead by same amount
+            ## as incoming into tail (but in opposite direction)
+            fwd_steps = np.vstack([fwd_steps, -bwd_steps[-1]])  
+            ## first step would "step before" the head bead by same amount
+            ## as outgoing from head (but in opposite direction)
+            bwd_steps = np.vstack([-fwd_steps[-1], bwd_steps])  
 
             # take steps to set incoming and outgoing positions for all beads
             orient_marker_points[particle_indices, 0, :] = (
@@ -425,14 +436,12 @@ class DPDRandomWalk(PlacementGenerator):
             orient_marker_points[particle_indices, 2, :] = (
                 chain_particle_centers + bwd_steps
             )
-            # LOGGER.debug(f'Chain #{chain_idx} has markers {orient_marker_points[particle_indices,:,:]}')
 
         # determine and cache final PBC unit cell parameters
         Lx, Ly, Lz, alpha, beta, gamma = snap.configuration.box
         box_scaled = [
-            float(
-                scale_factor * Lx
-            ),  # coerce from numpy float for eventual SD file storage
+            # coerce from numpy float for eventual SD file storage
+            float(scale_factor * Lx),  
             float(scale_factor * Ly),
             float(scale_factor * Lz),
             alpha,

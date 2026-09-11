@@ -12,7 +12,6 @@ from ...roles import PrimitiveRole
 @dataclass
 class SAAMRRoleTopologyIndex:
     """Role-indexed view of a SAAMR-like Primitive hierarchy."""
-
     segments: list[Primitive] = field(default_factory=list)
     residues_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
     particles_by_residue: dict[int, list[Primitive]] = field(default_factory=dict)
@@ -20,11 +19,9 @@ class SAAMRRoleTopologyIndex:
     bond_nodes: list[Primitive] = field(default_factory=list)
     bond_nodes_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
 
-
 @dataclass(frozen=True)
 class SAAMRResidueRecord:
     """One RESIDUE-role node and its role-aware traversal context."""
-
     segment_idx: int
     segment: Primitive
     residue_idx: int
@@ -100,17 +97,20 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         if node.is_leaf:
             if role == PrimitiveRole.SEGMENT:
                 raise ValueError(
-                    f"SEGMENT-role Primitive '{node.label}' contains no RESIDUE-role descendants."
+                    f"SEGMENT-role Primitive '{node.label}' "
+                    "contains no RESIDUE-role descendants."
                 )
             if role == PrimitiveRole.RESIDUE:
                 raise ValueError(
-                    f"RESIDUE-role Primitive '{node.label}' contains no PARTICLE leaves."
+                    f"RESIDUE-role Primitive '{node.label}' "
+                    "contains no PARTICLE leaves."
                 )
             if role != PrimitiveRole.PARTICLE:
                 raise ValueError("All leaves must have role=PrimitiveRole.PARTICLE.")
             if node.element is None:
                 raise ValueError(
-                    f"Leaf Primitive '{node}' has role=PARTICLE but no element assigned. "
+                    f"Leaf Primitive '{node}' has role=PARTICLE "
+                    "but no element assigned. "
                     "All-atom export requires atomic PARTICLE leaves."
                 )
             if current_segment is None or current_residue is None:
@@ -133,7 +133,8 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         residues = index.residues_by_segment[id(segment)]
         if not residues:
             raise ValueError(
-                f"SEGMENT-role Primitive '{segment.label}' contains no RESIDUE-role descendants."
+                f"SEGMENT-role Primitive '{segment.label}' "
+                "contains no RESIDUE-role descendants."
             )
         empty_residues = [
             residue.label
@@ -147,7 +148,6 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
             )
 
     return index
-
 
 def iter_saamr_residue_records(
     index: SAAMRRoleTopologyIndex,
@@ -169,7 +169,6 @@ def iter_saamr_residue_records(
             )
             residue_global_idx += 1
 
-
 def _pdb_resname(
     label: Hashable,
     resname_map: dict[str, str],
@@ -190,11 +189,9 @@ def _pdb_resname(
         )
     return name.upper()
 
-
 def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str]:
     """Return a deterministic key for connector refs with arbitrary hashable handles."""
     return (repr(conn_ref.primitive_handle), repr(conn_ref.connector_handle))
-
 
 def _resolve_to_atom(
     parent: Primitive,
@@ -235,7 +232,6 @@ def _resolve_to_atom(
 
     return _resolve_to_atom(child, next_ref, _depth=_depth + 1, _max_depth=_max_depth)
 
-
 def resolve_to_atom_cached(
     parent: Primitive,
     conn_ref: ConnectorReference,
@@ -246,7 +242,6 @@ def resolve_to_atom_cached(
     if cache_key not in cache:
         cache[cache_key] = _resolve_to_atom(parent, conn_ref)
     return cache[cache_key]
-
 
 def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
     """Infer numeric bond order from a connection reference."""

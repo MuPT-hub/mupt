@@ -52,7 +52,10 @@ def test_addressed_base_non_instantiable() -> None:
 def test_considered_addressable(
     addr_typ: Type[Addressed], kwargs: dict[str, Any]
 ) -> None:
-    """Test behavioral interface outlined by Addressable is implemented by Addressed subtypes"""
+    """
+    Test that the behavioral interface outlined by 
+    Addressable is implemented by Addressed subtypes
+    """
     obj = addr_typ(**kwargs)
     assert isinstance(obj, Addressable)  # depends on having @runtime_checkable Protocol
 
@@ -69,7 +72,10 @@ def test_has_address(addr_typ: Type[Addressed], kwargs: dict[str, Any]) -> None:
 def test_address_registration(
     addr_typ: Type[Addressed], kwargs: dict[str, Any]
 ) -> None:
-    """Test that newly-minted objects are also registered by their address in the classwide registry"""
+    """
+    Test that newly-minted objects are also registered
+    by their address in the classwide registry
+    """
     num_obj_registered_init: int = len(addr_typ.registry_addresses)
     obj = addr_typ(**kwargs)
 
@@ -79,11 +85,14 @@ def test_address_registration(
 
 
 def test_weak_address_refs() -> None:
-    """Test that records of objects in classwide registry automatically vanish when object is garbage collected"""
-
-    class DummyLocal(
-        Addressed
-    ): ...  # N.B.: defined locally to ensure reference counter to instances is not contaminated by other tests
+    """
+    Test that records of objects in classwide registry
+    automatically vanish when object is garbage collected
+    """
+    # N.B.: DummyLocal defined locally to ensure reference counter
+    # to instances is not contaminated by other tests
+    class DummyLocal(Addressed):
+        ...  
 
     obj = DummyLocal()
     assert len(DummyLocal.registry_addresses) == 1
@@ -94,11 +103,15 @@ def test_weak_address_refs() -> None:
 
 
 def test_object_registries_distinct() -> None:
-    """Test that distinct subtypes of Addressed do not share their classwide object registries"""
+    """
+    Test that distinct subtypes of Addressed do
+    not share their classwide object registries
+    """
+    class DummyLocal1(Addressed): 
+        ...
 
-    class DummyLocal1(Addressed): ...
-
-    class DummyLocal2(Addressed): ...
+    class DummyLocal2(Addressed):
+        ...
 
     obj1 = DummyLocal1()
     assert obj1.address not in DummyLocal2.registry_addresses

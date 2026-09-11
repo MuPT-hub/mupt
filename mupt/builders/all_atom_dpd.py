@@ -1,4 +1,5 @@
-"""All-atom DPD coordinate builder for SAAMR-compliant Primitive hierarchies.
+"""
+All-atom DPD coordinate builder for SAAMR-compliant Primitive hierarchies.
 
 The builder uses OpenFF labels to construct bonded restraints and heuristic DPD
 repulsions for dense coordinate initialization. The HOOMD simulation is meant to
@@ -29,7 +30,6 @@ production state. A typical handoff is:
    volume, potential energy, and kinetic energy are bounded and stationary.
 6. Use the equilibrated NPT density for later NVT production if cleaner
    structural or dynamical statistics are needed.
-
 """
 
 from __future__ import annotations
@@ -57,6 +57,7 @@ from ..roles import PrimitiveRole
 
 LOGGER = logging.getLogger(__name__)
 
+## TB: these should be sourced from a units package or scipy.constants
 AMU_TO_G = 1.66053906660e-24
 ANGSTROM3_TO_CM3 = 1.0e-24
 
@@ -125,7 +126,8 @@ class AllAtomDPDSettings:
     random_seed
         Optional deterministic seed for initialization and HOOMD.
     write_gsd
-        Whether to write initial and trajectory GSD files. Will write only first and last unless report_interval is provided.
+        Whether to write initial and trajectory GSD files. 
+        Will write only first and last unless report_interval is provided.
     write_log
         Whether to write AA-DPD convergence diagnostics as JSON lines. Requires
         ``output_name``.
@@ -257,7 +259,6 @@ class AllAtomDPDParameterProvider(ABC):
         Implementations should fill bonded parameter dictionaries and atom vdW
         epsilon/type mappings for every atom record they can parameterize.
         """
-
 
 class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     """Parameter provider backed by OpenFF ``ForceField.label_molecules``.
@@ -511,7 +512,6 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
             return (int(key.this_atom_index),)
         return tuple(int(idx) for idx in key)
 
-
 class AllAtomDPDBuilder:
     """All-atom DPD builder for SAAMR Primitive hierarchies."""
 
@@ -590,8 +590,9 @@ class AllAtomDPDBuilder:
             minimum_length = 3.0 * self.settings.r_cut_a
             if min(box_lengths) < minimum_length:
                 raise ValueError(
-                    "AA-DPD explicit box_lengths_a values must each be at least "
-                    f"3 * r_cut_a ({minimum_length:.3f} A) for HOOMD neighbor-list safety."
+                    "For HOOMD neighbor-list safety, each of the values of "
+                    "AA-DPD explicit box_lengths_a values must be at least "
+                    f"3 * r_cut_a ({minimum_length:.3f} A) "
                 )
             self.settings.box_lengths_a = box_lengths
         if self.settings.n_steps_per_interval < 1:
@@ -614,7 +615,8 @@ class AllAtomDPDBuilder:
                 reference = float(self.settings.epsilon_reference_mode)
             except (TypeError, ValueError) as exc:
                 raise ValueError(
-                    "AA-DPD epsilon_reference_mode must be 'max', 'mean', or a positive number."
+                    "AA-DPD epsilon_reference_mode must be "
+                    "'max', 'mean', or a positive number."
                 ) from exc
             if reference <= 0.0:
                 raise ValueError(
@@ -934,7 +936,8 @@ class AllAtomDPDBuilder:
         ]
         if missing_types:
             raise ValueError(
-                f"AA-DPD parameterization did not assign particle types for atom indices {missing_types}."
+                f"AA-DPD parameterization did not assign "
+                "particle types for atom indices {missing_types}."
             )
         particle_types = sorted(set(parameters.atom_types_by_global.values()))
         type_id = {name: idx for idx, name in enumerate(particle_types)}
@@ -949,22 +952,31 @@ class AllAtomDPDBuilder:
         )
         frame.particles.mass = masses
         frame.particles.position = self._initial_positions(records, box_lengths, rng)
-        frame.configuration.box = [float(length) for length in box_lengths] + [
-            0.0,
-            0.0,
-            0.0,
-        ]
+        frame.configuration.box = [float(length) for length in box_lengths] + [0.0]*3
+        
         self._set_bonded_frame_data(
-            frame.bonds, bonds, parameters.bond_type_by_group, width=2
+            frame.bonds,
+            bonds,
+            parameters.bond_type_by_group,
+            width=2,
         )
         self._set_bonded_frame_data(
-            frame.angles, angles, parameters.angle_type_by_group, width=3
+            frame.angles,
+            angles,
+            parameters.angle_type_by_group,
+            width=3,
         )
         self._set_bonded_frame_data(
-            frame.dihedrals, dihedrals, parameters.dihedral_type_by_group, width=4
+            frame.dihedrals,
+            dihedrals,
+            parameters.dihedral_type_by_group,
+            width=4,
         )
         self._set_bonded_frame_data(
-            frame.impropers, impropers, parameters.improper_type_by_group, width=4
+            frame.impropers,
+            impropers,
+            parameters.improper_type_by_group,
+            width=4,
         )
         return frame
 
@@ -991,7 +1003,7 @@ class AllAtomDPDBuilder:
             box_lengths = box_length
         elif box_length is not None:
             raise TypeError(
-                "AA-DPD _initial_positions accepts only one of box_lengths or box_length."
+                "AA-DPD _initial_positions accepts either box_lengths or box_length."
             )
         if rng is None:
             raise TypeError("AA-DPD _initial_positions requires rng.")
@@ -1002,8 +1014,8 @@ class AllAtomDPDBuilder:
             missing_shapes = [atom.label for atom in record.atoms if atom.shape is None]
             if missing_shapes:
                 raise ValueError(
-                    "AA-DPD initialization requires atom coordinates; missing shapes for "
-                    f"{missing_shapes}."
+                    "AA-DPD initialization requires atom coordinates; "
+                    f"missing shapes for {missing_shapes}."
                 )
             placement_segment, residue_handles = self._placement_segment(record)
 
@@ -1014,7 +1026,8 @@ class AllAtomDPDBuilder:
                 residue_atoms = self._particle_leaves(residue_template)
                 if len(residue_atoms) != len(residue_local_indices):
                     raise ValueError(
-                        "AA-DPD residue template atom count changed while preparing PlacementGenerator input."
+                        "AA-DPD residue template atom count changed "
+                        "while preparing PlacementGenerator input."
                     )
                 residue_template.shape = PointCloud(
                     positions=np.array(

@@ -1,4 +1,7 @@
-"""Drafting repository for the core functionality of the Multiscale Polymer Toolkit (MuPT)"""
+"""
+Drafting repository for the core functionality
+of the Multiscale Polymer Toolkit (MuPT)
+"""
 
 # Add imports here
 from .mupt import canvas

@@ -1,4 +1,6 @@
-"""Utilities for verifying (and producing) relationships between Topologies and other MuPT core components"""
+"""
+Utilities for verifying (and producing) relationships
+between Topologies and other MuPT core components"""
 
 # DEVNOTE: this is not a submodule under topology to avoid circular imports
 # and to shelter MID Graphs from needing to know about HOW they're embedded
@@ -34,19 +36,20 @@ from .topology import TopologicalStructure
 
 class GraphEmbeddingError(ValueError):
     """Raised when an invalid mapping to a graph is encountered"""
-
     ...
-
 
 class NodeEmbeddingError(GraphEmbeddingError):
-    """Raised when an invalid mapping between an object and a graph node is encountered"""
-
+    """
+    Raised when an invalid mapping between
+    an object and a graph node is encountered
+    """
     ...
 
-
 class EdgeEmbeddingError(GraphEmbeddingError):
-    """Raised when an invalid mapping between a pair of objects and a graph edge is encountered"""
-
+    """
+    Raised when an invalid mapping between a pair
+    of objects and a graph edge is encountered
+    """
     ...
 
 
@@ -61,8 +64,9 @@ def mapped_equivalence_classes(
     Return dict whose values are the equivalence classes and
     whose keys are unique labels for each class
     """
-    # DEV: more-or-less reimplements networkx's equivalence_classes but w/o the frozenset collapsing at the end - find way to incorporate going forward
-    # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.minors.equivalence_classes.html
+    # DEV: more-or-less reimplements networkx's equivalence_classes but w/o the
+    # frozenset collapsing at the end - find way to incorporate going forward
+    # See docs on networkx.algorithms.minors.equivalence_classes for more detail
     equiv_classes: list[list[T]] = []
     for obj in objects:
         for equiv_class in equiv_classes:
@@ -72,16 +76,19 @@ def mapped_equivalence_classes(
         else:
             equiv_classes.append([obj])
 
+    # DEV: opting for index as default unique label for now; 
+    # eventually want labels to be semantically-related to each class
     return {
-        i: equiv_class  # DEV: opting for index as default unique label for now; eventually want labels to be semantically-related to each class
-        for i, equiv_class in enumerate(equiv_classes)
+        i: equiv_class  
+            for i, equiv_class in enumerate(equiv_classes)
     }
 
 
 @dataclass(frozen=True)  # needed for hashability
 class ConnectorReference:
-    """Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle"""
-
+    """
+    Lightweight reference to a Connector on a Primitive, 
+    identified by the Primitive's handle and the Connector's handle"""
     primitive_handle: PrimitiveHandle
     connector_handle: ConnectorHandle
 
@@ -95,7 +102,8 @@ class ConnectorReference:
         )
 
     def __str__(self) -> str:
-        return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
+        return f"Connector '{self.connector_handle}' " \
+            f"attached to Primitive '{self.primitive_handle}'"
 
 
 @overload
@@ -115,16 +123,21 @@ def flexible_connector_reference(
     primitive_handle: Union[PrimitiveHandle, ConnectorReference],
     connector_handle: Optional[ConnectorHandle] = None,
 ) -> ConnectorReference:
-    """Utility to interchangeably handle cases of passing a (PrimitiveHandle, ConnectorHandle) pair or a ConnectorReference"""
+    """
+    Utility to interchangeably handle cases of passing a
+    (PrimitiveHandle, ConnectorHandle) pair or a ConnectorReference
+    """
     if isinstance(primitive_handle, ConnectorReference):
         if connector_handle is not None:
             raise ValueError(
-                "If passing a ConnectorReference as the first argument, the second argument must be omitted"
+                "If passing a ConnectorReference as the first "
+                "argument, the second argument must be omitted"
             )
         return primitive_handle
     elif connector_handle is None:
         raise ValueError(
-            "If passing a PrimitiveHandle as the first argument, the second argument (ConnectorHandle) must be provided"
+            "If passing a PrimitiveHandle as the first argument, "
+            "the second argument (ConnectorHandle) must be provided"
         )
     else:
         return ConnectorReference(
@@ -139,17 +152,18 @@ def infer_connections_from_topology(
     n_iter_max: int = 25,  # DEV: this is just a number I made up :P
 ) -> dict[frozenset[PrimitiveHandle], frozenset[ConnectorReference]]:
     """
-    Deduce if a collection of Connectors associated to each node in a topology
-    can be identified with the edges in that topology, such that each pair of Connectors is bondable
+    Deduce if a collection of Connectors associated to each node in
+    a topology can be identified with the edges in that topology, 
+    such that each pair of Connectors is bondable
 
-    Returns a first mapping of pairs of node labels (one pair for each edge)
-    to a mapping from node labels to the Connector associated to that edge,
-    and a second mapping of node labels to remaining external Connectors, if any remain unpaired
+    Returns a first mapping of pairs of node labels (one pair for each edge) to a 
+    mapping from node labels to the Connector associated to that edge, and a second
+    mapping of node labels to remaining external Connectors, if any remain unpaired
 
     If pairing is impossible, will raise Exception instead
     """
+    # weaker requirement of containment (rather than equality) to vertex set suffices
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())):
-        # weaker requirement of containing (rather than being equal) to vertex set suffices
         raise NodeEmbeddingError(
             "Connector collection labels do not match topology node labels"
         )
@@ -184,7 +198,8 @@ def infer_connections_from_topology(
 
         for edge_labels in unpaired_edges:
             owner_handle1, owner_handle2 = edge_labels
-            # attempt to identify if there is a UNIQUE pair of bondable classes of Connectors along the edge
+            # attempt to identify if there is a UNIQUE pair 
+            # of bondable classes of Connectors along the edge
             pair_choice_ambiguous: bool = False
             compatible_class_labels: Optional[tuple[Connector, Connector]] = None
             for (class_label1, eq_class_1), (class_label2, eq_class_2) in cartesian(
@@ -204,11 +219,14 @@ def infer_connections_from_topology(
                     )  # take note of first compatible pair found
                 else:
                     pair_choice_ambiguous = True
-                    break  # further search can't disambiguate choice, stop early to save computation
+                    # further search can't disambiguate choice;
+                    # stop early to save computation
+                    break  
 
             if pair_choice_ambiguous:
                 LOGGER.debug(
-                    f"Choice of Connector pair ambiguous for edge {edge_labels}, skipping"
+                    f"Choice of Connector pair ambiguous "
+                    "for edge {edge_labels}, skipping"
                 )
                 unpaired_updated.add(edge_labels)  # "try again next time!"
                 continue
@@ -217,14 +235,17 @@ def infer_connections_from_topology(
                     f"No compatible Connector pairs found for edge {edge_labels}"
                 )
 
-            # if unambiguous pairing is present, draw representatives of respective compatible classes and bind them
+            # if unambiguous pairing is present, draw representatives
+            # of respective compatible classes and bind them
             chosen_representatives: set[ConnectorReference] = set()
             for class_label, owner_label in zip(compatible_class_labels, edge_labels):
                 equiv_class = connector_equiv_classes[owner_label][class_label]
                 chosen_representatives.add(
+                    # DEV: index here shouldn't matter, but will be 
+                    # standardized to match arbitrary element selection
                     ConnectorReference(
                         primitive_handle=owner_label,
-                        connector_handle=equiv_class.pop(),  # DEV: index here shouldn't matter, but will standardized to match arbitrary element selection
+                        connector_handle=equiv_class.pop(),  
                     )
                 )
                 if (
@@ -241,7 +262,8 @@ def infer_connections_from_topology(
         n_iter += 1
 
         LOGGER.info(
-            f"Paired up {n_paired_new} new edges after {n_iter} iteration(s); {len(unpaired_edges)}/{num_total_edges} edges remain unpaired"
+            f"Paired up {n_paired_new} new edges after {n_iter} iteration(s); "
+            f"{len(unpaired_edges)}/{num_total_edges} edges remain unpaired"
         )
         if n_paired_new == 0:
             LOGGER.info("No new edges paired, halting registration loop")
@@ -250,16 +272,17 @@ def infer_connections_from_topology(
 
     if any(unpaired_edges):
         raise EdgeEmbeddingError(
-            f"Could not identify connection for every edge; try running registration procedure for >{n_iter_max} iterations, or check topology/Connectors"
+            f"Could not identify connection for every edge; try running registration "
+            f"procedure for >{n_iter_max} iterations, or check topology/Connectors"
         )
 
-    # DEV: with the refactor to have all Child Connectors be external by default in Primitive...
-    # ...it's no longer necessary to compute which are external here (though we have enough info to do so, as shown)
-    # collate remaining unpaired Connectors as external
+    ## DEV: with the refactor to have all Child Connectors be external by default
+    ## in Primitive it's no longer necessary to compute which are external here 
+    ## (though we have enough info to do so, as shown)
     # external_connectors : dict[PrimitiveHandle, tuple[Connector]] = {
     #     owner_handle : tuple(chain.from_iterable(eq_classes.values()))
     #         for owner_handle, eq_classes in connector_equiv_classes.items()
-    #             if eq_classes # skip over nodes whose equivalence classes have been exhausted
+    #             if eq_classes # skip nodes whose equiv classes have been exhausted
     # }
     # return paired_connectors, external_connectors
 

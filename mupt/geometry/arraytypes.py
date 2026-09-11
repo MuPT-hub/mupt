@@ -18,9 +18,9 @@ from numbers import Number  # , Real
 
 
 # Numeric typehints
-NumberLike = Union[
-    np.number, Number, float
-]  # DEV: stupidly, but "float" does not typehint as Number in static type checkers, so have to add it manually
+## DEV: stupidly, but "float" does not typehint as Number
+## in static type checkers, so have to add it manually
+NumberLike = Union[np.number, Number, float]  
 Numeric = TypeVar("Numeric", bound=Number)
 NumericNP = TypeVar("NumericNP", bound=np.dtype[np.number])
 BoolNP = TypeVar("BoolNP", bound=np.dtype[np.bool_])
@@ -40,12 +40,14 @@ M = TypeVar("M", bound=int)
 N = TypeVar("N", bound=int)
 P = TypeVar("P", bound=int)
 Dims = TypeVar("Dims", bound=int)  # intended to typehint the number of dimensions
-DimsPlus = TypeVar(
-    "DimsPlus", bound=int
-)  # intended to typehint the number of dimensions +1 (no easy way to do arithmetic to generic types yet)
+## intended to typehint the number of dimensions +1
+## (no easy way to do arithmetic to generic types yet)
+DimsPlus = TypeVar("DimsPlus", bound=int)  
 
-# Fixed-size vector and array type annotations - consider deprecating, since they're not currently being used anywhere
-# TB DEV: this type of hard-coding sucks, but is the best we can do with the current Python type system
+# Fixed-size vector and array type annotations.
+# Consider deprecating, since they're not currently being used anywhere
+## TB DEV: this type of hard-coding sucks, but is the best
+## we can do with the current Python type system
 Vector2 = np.ndarray[Shape[Literal[2]], NumericNP]
 Vector3 = np.ndarray[Shape[Literal[3]], NumericNP]
 Vector4 = np.ndarray[Shape[Literal[4]], NumericNP]
@@ -85,12 +87,14 @@ def as_n_vector(
 
     Enables permissive ingestion of vector-shaped objects
     """
-    # N.B.: strings and byte-like are TECHNICALLY also Sequences, but not the kind we want here
+    # N.B.: strings and byte-like are TECHNICALLY 
+    # also Sequences, but not the kind we want here
     if isinstance(vectorlike, (str, bytes)) or (
         not isinstance(vectorlike, (np.ndarray, Sequence))
     ):
         raise TypeError(
-            f"Vectorlike must be a numpy array of Sequence of Numerics, not {type(vectorlike).__name__}"
+            f"Vectorlike must be a numpy array of Sequence "
+            f"of Numerics, not {type(vectorlike).__name__}"
         )
 
     vector_column = np.atleast_2d(vectorlike).reshape(

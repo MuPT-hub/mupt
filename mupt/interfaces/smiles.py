@@ -31,7 +31,11 @@ def primitive_from_smiles(
     smiles_reader_params=DEFAULT_SMILES_READ_PARAMS,
     smiles_writer_params=DEFAULT_SMILES_WRITE_PARAMS,
 ) -> Primitive:
-    """Create a Primitive from a SMILES string, optionally embedding positions if selected"""
+    """
+    Create a Primitive from a SMILES string.
+    
+    Optionally embed positions, if specified
+    """
     rdmol = sanitized_mol(
         MolFromSmiles(smiles, params=smiles_reader_params),
         add_Hs=ensure_explicit_Hs,
@@ -40,15 +44,16 @@ def primitive_from_smiles(
     )
     conformer_idx: Optional[int] = None
     if embed_positions:
-        conformer_idx = EmbedMolecule(
-            rdmol, clearConfs=False
-        )  # NOTE: don't clobber existing conformers for safety (though new Mol shouldn't have any anyway)
+        # NOTE: don't clobber existing conformers for safety
+        # (though new Mol shouldn't have any anyway)
+        conformer_idx = EmbedMolecule(rdmol, clearConfs=False)  
 
     return primitive_from_rdkit(
         rdmol,
         conformer_idx=conformer_idx,
         label=label,
-        smiles_writer_params=smiles_writer_params,  # DEV: needed to generate SMILES from mol in case no explicit label is provided
+        # DEV: needed to generate SMILES from mol in case no explicit label is provided
+        smiles_writer_params=smiles_writer_params, 
     )
 
 

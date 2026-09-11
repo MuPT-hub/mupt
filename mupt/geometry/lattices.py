@@ -1,4 +1,7 @@
-"""Representations and calculation methods for crystallographic unit cells, lattice parameters, and lattice coordinates"""
+"""
+Representations and calculation methods for crystallographic 
+unit cells, lattice parameters, and lattice coordinates
+"""
 
 from typing import Generic
 from dataclasses import dataclass, field
@@ -10,10 +13,11 @@ from .arraytypes import Numeric, Array3x3
 
 
 class Coordinates(Generic[Numeric]):
-    """Encapsulation class for storing sets of coordinates and performing transfomations on those coordinates"""
-
+    """
+    Encapsulation class for storing sets of coordinates
+    and performing transfomations on those coordinates
+    """
     pass
-
 
 @dataclass
 class LatticeParameters:  # TODO : incorporate unit-awareness

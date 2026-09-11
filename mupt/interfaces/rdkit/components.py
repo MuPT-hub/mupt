@@ -88,14 +88,14 @@ def chemical_graph_from_rdkit(
         )
     )
 
-
 def atom_positions_from_rdkit(
     rdmol: Mol,
     conformer_idx: Optional[int] = None,
     atom_idxs: Optional[Iterable[int]] = None,
 ) -> Optional[np.ndarray[Shape[N, 3], float]]:
     """
-    Boilerplate for fetching a subset of atom positions (if conformer it set) from an RDKit Mol
+    Boilerplate for fetching a subset of atom positions
+    (if conformer it set) from an RDKit Mol
 
     Parameters
     ----------
@@ -121,18 +121,17 @@ def atom_positions_from_rdkit(
     if atom_idxs is None:
         atom_idxs = (atom.GetIdx() for atom in rdmol.GetAtoms())
 
-    conformer = rdmol.GetConformer(
-        conformer_idx
-    )  # DEVNOTE: will raise Exception if bad ID is provided; no need to check locally
+    # DEVNOTE: will raise Exception if bad ID is provided; no need to check locally
     # return conformer.GetPositions()[[idx for idx in atom_idxs], :]
+    conformer = rdmol.GetConformer(conformer_idx)  
     atom_positions = tuple(
         np.array(conformer.GetAtomPosition(atom_idx), dtype=float)
         for atom_idx in atom_idxs
     )
     if atom_positions:
         return np.vstack(atom_positions)
-    return None  # making explicit just to clarify that None return can still happen at this stage
-
+    # making None return explicit just to clarify it can still happen at this stage
+    return None  
 
 def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     """Create an AttachmentPoint labelling both by atom index and element symbol"""
@@ -143,7 +142,6 @@ def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
         attachables={atom_idx, atom_symbol},
         attachment=atom_idx,
     )
-
 
 def connector_between_rdatoms(
     parent_mol: Mol,
@@ -157,37 +155,47 @@ def connector_between_rdatoms(
     ),
 ) -> Connector:
     """
-    Create a Connector object representing a (one-way) connection between two RDKit atoms
+    Create a Connector object representing a 
+    one-way connection between two RDKit atoms
 
     Parameters
     ----------
     parent_mol : Mol
         The RDKit Mol containing the atoms of interest
     from_atom_idx : int
-        The index of the "anchor" atom of the pair (on which the Connector will be anchored)
+        The index of the "anchor" atom of the pair
+        on which the Connector will be anchored
     to_atom_idx : int
-        The index of the "linker" atom of the pair (the neighbor atom of the anchor)
+        The index of the "linker" atom of the pair,
+        the neighbor atom of the anchor
     conformer_idx : Optional[int], optional, default None
         The ID of the conformer from which to extract 3D positions
         If None is supplied, will leave all spatial fields of the Connector unset
-    anchor_factory : Callable[[Atom], AttachmentPoint], default: attachment_with_idx_and_symbol
-        A function which takes an RDKit Atom and returns an AttachmentPoint to use as the anchor point
-    linker_factory : Callable[[Atom], AttachmentPoint], default: attachment_with_idx_and_symbol
-        A function which takes an RDKit Atom and returns an AttachmentPoint to use as the linker point
-    connector_labeller : Callable[[Connector], ConnectorLabel], default: Connector.DEFAULT_LABEL
+    anchor_factory : Callable[[Atom], AttachmentPoint], \
+            default: attachment_with_idx_and_symbol
+        A function which takes an RDKit Atom and 
+        returns an AttachmentPoint to use as the anchor point
+    linker_factory : Callable[[Atom], AttachmentPoint], \
+            default: attachment_with_idx_and_symbol
+        A function which takes an RDKit Atom and 
+        returns an AttachmentPoint to use as the linker point
+    connector_labeller : Callable[[Connector], ConnectorLabel], \
+            default: Connector.DEFAULT_LABEL
         A function which takes a Connector object and returns an appropriate label
         This is called after all other fields of the Connector have been set
         (i.e. can make use of those fields in determination of the label)
 
-    anchor_factory and linker_factory should only define how the attachment and attachables of each AttachmentPoint are defined;
-    positions of each point will be set later if conformer information is available
+    anchor_factory and linker_factory should only define how the
+    attachment and attachables of each AttachmentPoint are defined.
+    Positions of each point will be set later if conformer information is available
 
     Returns
     -------
     connector : Connector
         The initialized Connector object
     """
-    # extract RDKit components - NOTE: will raise Exception immediately if pair of atoms are not, in fact, bonded
+    # extract RDKit components -
+    ## NOTE: will raise Exception immediately if pair of atoms are not bonded
     bond: Bond = parent_mol.GetBondBetweenAtoms(from_atom_idx, to_atom_idx)
     anchor_atom: Atom = parent_mol.GetAtomWithIdx(from_atom_idx)
     linker_atom: Atom = parent_mol.GetAtomWithIdx(to_atom_idx)
@@ -202,20 +210,27 @@ def connector_between_rdatoms(
             atomsToUse=[from_atom_idx, to_atom_idx],
             bondsToUse=[bond.GetIdx()],
         ),
-        # NOTE: not assigning label here just yet, since labeller in general requires the Connector to be initialized first
+        
+        # NOTE: not assigning label here just yet, since labeller will
+        # generally require the Connector to be initialized first
         metadata={
             "bond_stereo": bond.GetStereo(),
             "bond_stereo_atoms": tuple(bond.GetStereoAtoms()),
             **bond.GetPropsAsDict(
-                includePrivate=True, includeComputed=False
-            ),  # NOTE: computed props suppressed to avoid "unpicklable RDKit vector" errors
+                includePrivate=True,
+                # NOTE: computed props suppressed to avoid
+                # "unpicklable RDKit vector" errors
+                includeComputed=False
+            ),  
         },
     )
     connector.label = connector_labeller(connector)
 
     # inject spatial info, if present
     connector_positions = atom_positions_from_rdkit(
-        parent_mol, conformer_idx=conformer_idx, atom_idxs=[from_atom_idx, to_atom_idx]
+        parent_mol,
+        conformer_idx=conformer_idx,
+        atom_idxs=[from_atom_idx, to_atom_idx],
     )
     if connector_positions is not None:
         connector.anchor.position = connector_positions[0, :]
@@ -239,14 +254,18 @@ def connector_between_rdatoms(
 
     return connector
 
-
 def connectors_from_rdkit(
     rdmol: Mol,
     conformer_idx: Optional[int] = None,
     **kwargs,
 ) -> Generator["Connector", None, None]:
-    """Determine all Connectors contained in an RDKit Mol, as specified by wild-type linker atoms"""
-    rdmol.UpdatePropertyCache()  # avoids implicitValence errors on substructure match
+    """
+    Determine all Connectors contained in an RDKit Mol
+    as specified by wild-type linker atoms
+    """
+    # avoids implicitValence errors on substructure match
+    rdmol.UpdatePropertyCache()  
+    
     for anchor_idx, linker_idx in anchor_and_linker_idxs(rdmol):
         yield connector_between_rdatoms(
             rdmol,

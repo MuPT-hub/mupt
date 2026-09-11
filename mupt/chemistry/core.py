@@ -1,4 +1,7 @@
-"""Reference for fundamental chemical units, namely elements, ions, isotopes, and bond types"""
+"""
+Reference for fundamental chemical units, namely
+elements, ions, isotopes, and bond types
+"""
 
 import logging
 
@@ -25,23 +28,25 @@ def _compile_bond_order_reference() -> dict[BondType, float]:
     Generate reference table of BondType to corresponding electronic bond order
     (e.g. aromatic = 1.5, double = 2, etc.), consistent with RDKit's definition
     """
+    # DEV: can't directly initialize Bond from Python,
+    # so using this hacky aprroach to setup instead
     dummy = MolFromSmiles("*-*")
-    bond = dummy.GetBondWithIdx(
-        0
-    )  # DEV: can't directly initialize Bond from Python, so using this hacky aprroach to setup instead
+    bond = dummy.GetBondWithIdx(0)  
 
     bond_orders_by_bond_type: dict[BondType, float] = dict()
     for bondtype in BondType.names.values():
         bond.SetBondType(bondtype)
         with suppress_rdkit_logs("rdApp.error"):
             try:
-                # N.B.: these values are NOT the same as the keys of BondType.values; those are arbitrary indices,
-                # whereas the bond order here conveys info loosely about the number of electrons per bond
+                # N.B.: these values are NOT the same as the keys of BondType.values; 
+                # those are arbitrary indices, whereas the bond order here conveys
+                # info loosely about the number of electrons per bond
                 bond_orders_by_bond_type[bondtype] = bond.GetBondTypeAsDouble()
             except RuntimeError:
                 # DEV: functions as a warning, but want this to be suppressed nominally
                 LOGGER.debug(
-                    f"RDKit BondType {bondtype!s} does not have a double-valued bond order defined"
+                    f"RDKit BondType {bondtype!s} does not "
+                    "have a double-valued bond order defined"
                 )
 
     return bond_orders_by_bond_type
@@ -53,10 +58,13 @@ BOND_ORDER: dict[BondType, float] = _compile_bond_order_reference()
 def valence_allowed(atomic_num: int, charge: int, valence: int) -> bool:
     """Check if the given valence is allowed for the specified element"""
     if atomic_num == 0:
-        return True  # skip checks for linkers (should not be interpreted as neutrons, which they would be if passed thru the logic below)
+        # skip checks for linkers (should NOT be interpreted as neutrons,
+        # which they would be if passed thru the logic below)
+        return True  
 
-    # Calculation based on RDKit's valence prescription (https://www.rdkit.org/docs/RDKit_Book.html#valence-calculation-and-allowed-valences)
-    # ..., down to the treatment of charged atoms by their isoelectronic equivalents
+    # Calculation based on RDKit's valence prescription, down to
+    # the treatment of charged atoms by their isoelectronic equivalents
+    # (https://www.rdkit.org/docs/RDKit_Book.html#valence-calculation-and-allowed-valences)
     effective_atomic_num = atomic_num - charge  # e.g. treat [N+] as C, [N-] as O, etc.
     allowed_valences = RDKitPeriodicTable.GetValenceList(effective_atomic_num)
 

@@ -36,14 +36,18 @@ def vector_expected() -> VectorN:
             "[1,2,3]",
             marks=pytest.mark.xfail(
                 raises=TypeError,
-                reason="String of numerics is not a valid Sequence of numerics for interpretation as a vector",
+                reason="String of numerics is not a valid Sequence "
+                "of numerics for interpretation as a vector",
                 strict=True,
             ),
         ),
     ],
 )
 def test_as_n_vector_shape(vectorlike, vector_expected: VectorN) -> None:
-    """Test that permissive vector ingestion accepts the kinds of numeric data structures it advertises"""
+    """
+    Test that permissive vector ingestion accepts 
+    the kinds of numeric data structures it advertises
+    """
     vector_actual = as_n_vector(
         vectorlike, dimension=None
     )  # suppress internal shape validation

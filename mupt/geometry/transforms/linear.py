@@ -1,4 +1,7 @@
-"""Application and construction of common linear transformations from planar normal vectors"""
+"""
+Application and construction of common linear
+transformations from planar normal vectors
+"""
 
 import numpy as np
 from ..arraytypes import Shape, Dims, NumericNP, Vector3, Array3x3
@@ -18,9 +21,7 @@ def projector(
         normal_vector, normal_vector
     )
 
-
 parallel = projector
-
 
 def rejector(
     normal_vector: np.ndarray[Shape[Dims], NumericNP],
@@ -32,13 +33,11 @@ def rejector(
     Returns matrix which represents the orthogonal projector transformation
     """
     (dim,) = normal_vector.shape  # implicitly enforce 1D shape for vector
-    return np.eye(dim, dtype=normal_vector.dtype) - projector(
-        normal_vector
-    )  # equivalent to substracting parallel part off of vector transform is applied to
-
+    
+    # equivalent to substracting parallel part off of vector transform is applied to
+    return np.eye(dim, dtype=normal_vector.dtype) - projector(normal_vector)  
 
 orthogonal = rejector
-
 
 def reflector(
     normal_vector: np.ndarray[Shape[Dims], NumericNP],

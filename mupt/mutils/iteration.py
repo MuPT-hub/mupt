@@ -18,7 +18,8 @@ from itertools import count, islice
 
 def iter_len(itera: Iterable[T]) -> int:
     """
-    Get number of elements in an iterable object, even if unsized (namely a generator)
+    Get number of elements in an iterable object,
+    even if unsized (namely a generator)
 
     Note that this will "use up" an iterator on call, i.e.
     DON'T call this on collections you intend to iterate over later
@@ -27,7 +28,10 @@ def iter_len(itera: Iterable[T]) -> int:
 
 
 def ad_infinitum(value: Any) -> Generator[Any, None, None]:
-    """Wrap a single value in an inexhaustible generator which always returns that value"""
+    """
+    Wrap a single value in an inexhaustible generator
+    which always returns that same value
+    """
     while True:
         yield value
 
@@ -43,7 +47,8 @@ def flexible_iterator(
     Behavior depends on the type of "values", namely:
     * Generator: returned as-is
     * Iterable: return as iterator
-    * Single value: an infinite stream of that value if it is one of the allowed types, or Exception otherwise
+    * Single value: an infinite stream of that value if it is
+      one of the allowed types, or Exception otherwise
     """
     if isinstance(values, Generator):
         return values
@@ -53,7 +58,8 @@ def flexible_iterator(
         return ad_infinitum(values)
     else:
         raise TypeError(
-            f"Singleton values converted to iterator must be an instance of {allowed_types}, not {type(values)}"
+            "Singleton values converted to iterator must be "
+            f"an instance of {allowed_types}, not {type(values)}"
         )
 
 
@@ -67,9 +73,8 @@ def sliding_window(items: Iterable[T], n: int = 1) -> Generator[tuple[T], None, 
         yield tuple(window)
 
     for x in it:  # implicit else
-        window.append(
-            x
-        )  # owing to maxlen constraint, the first item in the is automatically discarded
+        # owing to maxlen constraint, the first item in the is automatically discarded
+        window.append(x)  
         yield tuple(window)
 
 
@@ -77,11 +82,13 @@ def int_complement(
     integers: Sequence[int], bounded: bool = False
 ) -> Generator[int, None, None]:
     """
-    Given a sequence of integers, generates the complement of that sequence within the natural numbers,
-    i.e. all non-negative integers which don't appear in that sequence, in ascending order
+    Given a sequence of integers, generates from the
+    complement of that sequence within the natural numbers,
+    I.e. all non-negative integers which DON'T
+    appear in that sequence, in ascending order
 
-    By default, has no upper limit and will continue to generate integers indefinitely;
-    however, generation can be capped at the maximum of the sequence by setting `bounded=True`
+    By default, has no upper limit and will continue to generate integers indefinitely.
+    However, generation can be capped at the sequence maximum by setting `bounded=True`
 
     Parameters
     ----------
@@ -93,7 +100,8 @@ def int_complement(
     Returns
     -------
     complement : Generator[int, None, None]
-        A generator yielding all integers not present in the provided sequence, in ascending order
+        A generator yielding all integers not present
+        in the provided sequence, in ascending order
     """
     _max = max(integers)  # cache maximum (precludes use of generator-like sequence)
     for i in range(_max):  # TODO: include choice for minimum?

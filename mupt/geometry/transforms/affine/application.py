@@ -1,4 +1,9 @@
-"""Utilities for applying affine transformations to other objects (not necessarily just points!)"""
+# TB DEV: consider deprecating, due to similarity to .rigid.application
+# unclear if projective transformations (affine vs rigid) will ever be needed
+"""
+Utilities for applying affine transformations 
+to other objects (not necessarily just points!)
+"""
 
 from typing import Any, Mapping, Sequence, Union
 from typing import Protocol, runtime_checkable
@@ -16,7 +21,8 @@ class AffineTransformable(Protocol):
     def affine_transformation(
         self, transformation: np.ndarray[Shape[N, N], float]
     ) -> Any:
-        # DEVNOTE: regarding typehints, returned type may be different to type of self, and is not necessarily transformable either
+        # DEVNOTE: regarding typehints, returned type may be different
+        # to type of self, and is not necessarily transformable either
         ...
 
 
@@ -24,13 +30,18 @@ def apply_affine_transformation_recursive(
     obj: Union[object, Sequence[Any], Mapping[str, Any]],
     affine_matrix: np.ndarray[Shape[N, N], float],
 ) -> Union[object, Sequence[Any], dict[str, Any]]:
-    """Apply an affine transformation to an object, if it supports such a transformation,
-    and, if the object is a Sequence or Mapping, attempt to transform its members recursively
+    """
+    Apply an affine transformation to an object,
+    if it supports such a transformation,
+    
+    If the object is a Sequence or Mapping,
+    attempt to transform its members recursively
 
     Parameters
     ----------
     obj : Any
-        The object to be transformed, which may be a single object, a Sequence, or a Mapping
+        The object to be transformed, which may be
+        a single object, a Sequence, or a Mapping
     affine_matrix : Array[[N, N], float]
         The affine transformation matrix to apply to the object
 
@@ -46,13 +57,14 @@ def apply_affine_transformation_recursive(
         obj = obj.affine_transformation(affine_matrix)
 
     # recursive iteration, as necessary
-    if isinstance(
-        obj, Sequence
-    ):  # DEVNOTE: specifically opted for Sequence over Iterable here to avoid double-covering Mappings and unpacking generators
-        return type(
-            obj
-        )(  # DEVNOTE: most common Sequence types (e.g. tuple, str, list) support init from comprehension; may revisit if this is not always the case
-            apply_affine_transformation_recursive(value, affine_matrix) for value in obj
+    ## DEVNOTE: specifically opted for Sequence over Iterable here
+    ## to avoid double-covering Mappings and unpacking generators
+    if isinstance(obj, Sequence):  
+        ## Most common Sequence types (e.g. tuple, str, list) support init
+        ## from comprehension; may revisit if this is not always the case
+        return type(obj)(
+            apply_affine_transformation_recursive(value, affine_matrix) 
+                for value in obj
         )
     elif isinstance(obj, Mapping):
         return {
@@ -61,7 +73,6 @@ def apply_affine_transformation_recursive(
         }
 
     return obj
-
 
 def apply_affine_transformation_to_points(
     positions: np.ndarray[Shape[Any, Dims], Numeric],

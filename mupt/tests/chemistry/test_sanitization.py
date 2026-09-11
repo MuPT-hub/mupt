@@ -4,7 +4,11 @@ import pytest
 
 from typing import Union, Optional
 from rdkit.Chem import Mol, MolFromSmiles
-from rdkit.Chem.rdmolops import AromaticityModel, AROMATICITY_RDKIT, AROMATICITY_MDL
+from rdkit.Chem.rdmolops import (
+    AromaticityModel,
+    AROMATICITY_RDKIT,
+    AROMATICITY_MDL,
+)
 
 from mupt.chemistry.sanitization import sanitized_mol
 
@@ -16,7 +20,8 @@ def get_rdatom_with_mapnum(
     as_index: bool = True,
 ) -> Optional[Union[int, Mol]]:
     """
-    Get the RDKit atom index of the atom with the specified atom map number in the given molecule.
+    Get the RDKit atom index of the atom with the 
+    specified atom map number in the given molecule.
 
     Parameters
     ----------
@@ -28,7 +33,8 @@ def get_rdatom_with_mapnum(
     Returns
     -------
     atom_idx : Optional[int]
-        The RDKit atom index of the atom with the specified atom map number, or None if not found
+        The RDKit atom index of the atom with the specified
+        atom map number, or None if not found
     """
     for atom in mol.GetAtoms():
         if atom.GetAtomMapNum() == mapnum:
@@ -41,26 +47,32 @@ def get_rdatom_with_mapnum(
 @pytest.mark.parametrize(
     "smiles,arom_model,expected_valence",
     [
+        # tryptophan (targetting carboxyl oxygen) - +1 net valence
         (
             "c1[nH:1]c2ccccc2c1C[C@H](N)C(=O)O",
             AROMATICITY_RDKIT,
             4,
-        ),  # tryptophan (targetting carboxyl oxygen) - +1 net valence
+        ),  
+        # tryptophan (targetting carboxyl oxygen)
+        # Expected electronically-consistent valence
         (
             "c1[nH:1]c2ccccc2c1C[C@H](N)C(=O)O",
             AROMATICITY_MDL,
             3,
-        ),  # tryptophan (targetting carboxyl oxygen) - expected electronically-consistent valence
+        ),  
+        # pmda (targetting amide nitrogen) - +1 net valence
         (
             "c12C(=O)[O:1]C(=O)c2cc3C(=O)OC(=O)c3c1",
             AROMATICITY_RDKIT,
             3,
-        ),  # pmda (targetting amide nitrogen) - +1 net valence
+        ),
+        # pmda (targetting amide nitrogen
+        # Expected electronically-consistent valence
         (
             "c12C(=O)[O:1]C(=O)c2cc3C(=O)OC(=O)c3c1",
             AROMATICITY_MDL,
             2,
-        ),  # pmda (targetting amide nitrogen) - expected electronically-consistent valence
+        ),
     ],
 )
 def test_ringed_system_aromaticity_by_model(
@@ -70,7 +82,8 @@ def test_ringed_system_aromaticity_by_model(
     targ_atom_map_num: int = 1,
 ) -> None:
     """
-    Test that the choice of aromaticity model yields different aromaticity assignments on known pathological molecules
+    Test that the choice of aromaticity model yields different 
+    aromaticity assignments on known pathological molecules
 
     Primarily intended as sanity check that AROMATICITY_MDL assigns bond orders
     consistent with atomic valence, while AROMATICITY_RDKIT sometimes does not.

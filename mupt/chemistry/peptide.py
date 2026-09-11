@@ -22,16 +22,18 @@ from .linkers import num_linkers
 from .sanitization import sanitized_mol
 
 
-PEPTIDE_BOND_QUERY: Mol = MolFromSmarts(
-    "[$([CX3](=[OX1]))]-[$([NX3,NX4+](-C)(-C))]"
-)  # NOTE: final pair of carbons avoid overmatching asparagine AND under-matching proline
+# NOTE: final pair of carbons avoid overmatching asparagine AND under-matching proline
+PEPTIDE_BOND_QUERY: Mol = MolFromSmarts("[$([CX3](=[OX1]))]-[$([NX3,NX4+](-C)(-C))]")  
 AMINE_QUERY: Mol = MolFromSmarts("[NH2,NH3+]")
 CARBOXYL_QUERY: Mol = MolFromSmarts("C(=O)[OH,-O+]")
 
 
 @dataclass(frozen=True)
 class AminoAcidSubstructure:
-    """Encapsulation class for amino acid molecule file code and repeat unit substructure info"""
+    """
+    Encapsulation class for amino acid molecule
+    file code and repeat unit substructure info
+    """
 
     name: str
     fasta: str
@@ -68,8 +70,9 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
     aa_substructs: set[AminoAcidSubstructure] = set()
 
     for letter, ptabmol in AMINO_ACID_CODES.items():
-        # DEV: opted for cleaving tripeptide (which is the smallest chain containing all unique linear fragments),
-        # because peptide bond is much more forgiving to SMARTS query match for (no core-replacements needed)
+        # DEV: opted for cleaving tripeptide (which is the smallest chain
+        # containing all unique linear fragments), because peptide bond is much
+        # more forgiving to SMARTS query match for (no core-replacements needed)
         tripeptide = MolFromFASTA(3 * letter)
         if (tripeptide is None) or (tripeptide.GetNumAtoms() == 0):
             LOGGER.debug(
@@ -80,7 +83,8 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
             tripeptide.GetAtomWithIdx(0).GetPDBResidueInfo().GetResidueName()
         )
 
-        # cleave along peptide bonds to produce head, middle, and tail AMINO_ACID fragments
+        # cleave along peptide bonds to produce 
+        # head, middle, and tail AMINO_ACID fragments
         peptide_bond_idxs: list[int] = []
         for match in tripeptide.GetSubstructMatches(PEPTIDE_BOND_QUERY):
             peptide_bond_idxs.append(
@@ -108,9 +112,8 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
             asMols=True,
             sanitizeFrags=False,
         )
-        term_N_fragment, middle_fragment, term_O_fragment = (
-            residue_fragments  # implicitly also enforces that there should be exactly 3 fragments
-        )
+        # implicitly also enforces that there should be exactly 3 fragments
+        term_N_fragment, middle_fragment, term_O_fragment = residue_fragments
 
         # double-check that we have the terminal fragments labelled the right way around
         assert num_linkers(term_N_fragment) == 1
@@ -118,7 +121,9 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
         assert num_linkers(term_O_fragment) == 1
 
         # check functional groups
-        # NOTE: can't directly check for presence of amine, since proline is a pig-headed, nonconformist idiot - also can't check for no carboxyls due to aspartic acid
+        # NOTE: can't directly check for presence of amine, since
+        # proline is a pig-headed, nonconformist idiot.
+        # Also can't check for no carboxyls due to aspartic acid
         assert len(term_O_fragment.GetSubstructMatches(CARBOXYL_QUERY)) > 0
 
         aa_substruct = AminoAcidSubstructure(

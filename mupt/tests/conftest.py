@@ -24,8 +24,8 @@ from ..roles import assign_SAAMR_roles, PrimitiveRole
 
 
 # DEV:JRL The following functions are useful helpers to streamline the building
-# of copolymer systems from SMILES. They were taken from the ellipsoidal_chain_placement.ipynb
-# tutorial notebook authored by @timbernat
+# of copolymer systems from SMILES. They were taken from the
+# ellipsoidal_chain_placement.ipynb tutorial notebook authored by @timbernat
 
 
 def sequence_repeat_units(
@@ -40,7 +40,8 @@ def sequence_repeat_units(
     Parameters
     ----------
     chain_len : int
-        Total length of the polymer chain (number of repeat units, including end groups).
+        Total length of the polymer chain
+        I.e. number of repeat units, including end groups
     head_name : str
         Name of the head repeat unit.
     tail_name : str
@@ -280,7 +281,10 @@ def build_SAAMR_polymer_system(
     total_atoms = len(univprim.leaves)
     total_residues = sum(len(chain.children) for chain in univprim.children)
     logger.info(
-        f"Built system: {n_chains} chains, {total_residues} residues, {total_atoms} atoms"
+        f"Built system: "
+        f"{n_chains} chains, "
+        f"{total_residues} residues, "
+        f"{total_atoms} atoms"
     )
 
     assign_SAAMR_roles(univprim)
@@ -428,7 +432,8 @@ def helium_resname_map() -> dict[str, str]:
 @pytest.fixture
 def single_helium_atom_saamr() -> Primitive:
     """
-    Fixture providing the simplest possible SAAMR-compliant system: a single Helium atom.
+    Fixture providing the simplest possible SAAMR-compliant
+    system, namely a single Helium atom.
 
     This serves as a base case for testing with minimal complexity.
     Hierarchy: [Universe -> Molecule -> Repeat-Unit -> Atom]

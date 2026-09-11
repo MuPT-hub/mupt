@@ -15,7 +15,11 @@ from mupt.chemistry.conversion import (
 
 
 def compile_element_to_atom_params() -> dict[ElementLike, Atom]:
-    """Compile test examples for element to atom conversion tests (since parameterized pytest fixtures still aren't a thing)"""
+    """
+    Compile test examples for element to atom conversion tests
+    
+    Needed because parameterized pytest fixtures still aren't a thing
+    """
     test_examples: dict[ElementLike, Atom] = {}
 
     # "pure" atoms
@@ -112,10 +116,8 @@ def test_rdkit_atom_to_element(atom: Atom, element_expected: ElementLike) -> Non
     element_actual = rdkit_atom_to_element(atom)
 
     assert (
-        type(element_actual)
-        is type(
-            element_expected
-        )  # need additional check to see if right on of {Element, Ion, Isotope} was returned
+        # need extra check to see if right one of {Element, Ion, Isotope} was returned
+        type(element_actual) is type(element_expected)
         and element_actual.number == element_expected.number
         and element_actual.charge == element_expected.charge
     )

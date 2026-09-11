@@ -14,7 +14,8 @@ def affine_matrix_from_linear_and_center(
     dtype: Optional[type] = None,
 ) -> np.ndarray[Shape[DimsPlus, DimsPlus], Numeric]:
     """
-    Instantiate an affine transformation matrix from a linear transformation and a new origin location
+    Instantiate an affine transformation matrix from
+    a linear transformation and a new origin location
 
     Parameters
     ----------
@@ -48,12 +49,15 @@ def affine_matrix_from_linear_and_center(
 
     return affine_matrix
 
-
 def translation(
-    x: float = 0.0, y: float = 0.0, z: float = 0.0, dtype: Union[str, type] = "float64"
+    x: float = 0.0,
+    y: float = 0.0,
+    z: float = 0.0,
+    dtype: Union[str, type]="float64",
 ) -> AffineMatrix4x4:
     """
-    Generates an affine matrix which translated the origin (and all points in space along with it) to the point (x, y, z)
+    Generates an affine matrix which translated the origin
+    (and all points in space along with it) to the point (x, y, z)
 
     Parameters
     ----------
@@ -81,7 +85,6 @@ def translation(
         ],
         dtype=dtype,
     )
-
 
 def scaling(
     sx: float = 1.0,
@@ -120,12 +123,13 @@ def scaling(
         dtype=dtype,
     )
 
-
 def rotation_x(
-    angle_rad: float = 0.0, dtype: Union[str, type] = "float64"
+    angle_rad: float = 0.0,
+    dtype: Union[str, type]="float64",
 ) -> AffineMatrix4x4:
     """
-    Generates an affine matrix which rotates about the positive x-axis by "angle_rad" radians
+    Generates an affine matrix which rotates about
+    the positive x-axis by "angle_rad" radians
 
     Parameters
     ----------
@@ -153,12 +157,13 @@ def rotation_x(
         dtype=dtype,
     )
 
-
 def rotation_y(
-    angle_rad: float = 0.0, dtype: Union[str, type] = "float64"
+    angle_rad: float = 0.0,
+    dtype: Union[str, type]="float64",
 ) -> AffineMatrix4x4:
     """
-    Generates an affine matrix which rotates about the positive y-axis by "angle_rad" radians
+    Generates an affine matrix which rotates about
+    the positive y-axis by "angle_rad" radians
 
     Parameters
     ----------
@@ -186,12 +191,13 @@ def rotation_y(
         dtype=dtype,
     )
 
-
 def rotation_z(
-    angle_rad: float = 0.0, dtype: Union[str, type] = "float64"
+    angle_rad: float = 0.0,
+    dtype: Union[str, type]="float64",
 ) -> AffineMatrix4x4:
     """
-    Generates an affine matrix which rotates about the positive z-axis by "angle_rad" radians
+    Generates an affine matrix which rotates about
+    the positive z-axis by "angle_rad" radians
 
     Parameters
     ----------
@@ -219,12 +225,11 @@ def rotation_z(
         dtype=dtype,
     )
 
-
 def rotation_random(
     about_x: bool = True,
     about_y: bool = True,
     about_z: bool = True,
-    dtype: Union[str, type] = "float64",
+    dtype: Union[str, type]="float64",
 ) -> AffineMatrix4x4:
     """
     Generates an affine matrix which rotates by a random amount [0, 2pi)
@@ -247,7 +252,9 @@ def rotation_random(
     rotation_matrix : Array[[4, 4], float]
         The affine transformation matrix representing the rotation
     """
-    rot_dir = {  # concise way to encapsulate what rotations can be performed and whther to perform them
+    # concise way to encapsulate what rotations 
+    # can be performed and whether to perform them
+    rot_dir = {  
         rotation_x: about_x,
         rotation_y: about_y,
         rotation_z: about_z,
@@ -256,11 +263,10 @@ def rotation_random(
     matrix = np.eye(4, dtype=float)
     for rot_fn, should_rotate in rot_dir.items():
         if should_rotate:
-            matrix = (
-                rot_fn(2 * np.pi * np.random.rand(), dtype=dtype) @ matrix
-            )  # generate random angle and multiply rotation into overall transform matrix (in order)
+            # generate random angle and multiply rotation
+            #  into overall transform matrix (in order)
+            matrix = (rot_fn(2 * np.pi * np.random.rand(), dtype=dtype) @ matrix)  
 
     return matrix
-
 
 # TODO: define shear transforms

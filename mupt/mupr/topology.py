@@ -1,4 +1,7 @@
-"""Monomer Interconnectivity and Degree (MID) graphs, for encoding the topological connectivity of a polymer system"""
+"""
+Monomer Interconnectivity and Degree (MID) graphs, for
+encoding the topological connectivity of a polymer system
+"""
 
 from typing import (
     Callable,
@@ -32,7 +35,10 @@ class TopologicalStructure(nx.Graph):
     # network properties
     @property
     def is_indiscrete(self) -> bool:
-        """Whether the current topology represents an indiscrete topology (i.e. a "trivial topology", one without connections)"""
+        """
+        Whether the current topology represents an indiscrete topology 
+        (i.e. a "trivial topology", one without connections)
+        """
         return self.number_of_edges() == 0
 
     is_trivial = is_indiscrete
@@ -61,7 +67,10 @@ class TopologicalStructure(nx.Graph):
 
     @property
     def termini(self) -> Generator[int, None, None]:
-        """Generates the indices of all nodes corresponding to terminal primitives (i.e. those with only one outgoing bond)"""
+        """
+        Generates the indices of all nodes corresponding to terminal primitives
+        (i.e. those with only one outgoing bond)
+        """
         for node_idx, degree in self.degree:
             if degree == 1:
                 yield node_idx
@@ -82,19 +91,27 @@ class TopologicalStructure(nx.Graph):
     # depiction
     def canonical_form(self) -> str:
         """
-        Return a canonical form based on the graph structure and coloring iduced by the canonical forms of internal Primitives
+        Return a canonical form based on the graph structure and coloring 
+        induced by the canonical forms of internal Primitives
         Tantamount to solving the graph isomorphism problem
         """
         # raise NotImplementedError('Graph canonicalization is not implemented yet')
-        # return nx.weisfeiler_lehman_graph_hash(self) # stand-in for more specific implementation to follow
-        return hash(
-            tuple(Counter(deg for node, deg in self.degree).items())
-        )  # temporary, quick-to-compute stand-in for eventual "real-deal" canonical form
+        # return nx.weisfeiler_lehman_graph_hash(self) 
+        # # stand-in for more specific implementation to follow
+        
+        return str(hash(
+            # temporary, quick-to-compute stand-in
+            # for eventual "real-deal" canonical form
+            tuple(
+                Counter(deg for node, deg in self.degree).items())
+        ))
 
     def __repr__(self) -> str:
         # TODO: make this more descriptive
         # return super().__repr__()
-        return f"{self.__class__.__name__}(num_objects={self.number_of_nodes()}, indiscrete={self.is_indiscrete})"
+        return f"{self.__class__.__name__}" \
+            f"(num_objects={self.number_of_nodes()}, " \
+            f"indiscrete={self.is_indiscrete})"
 
     def visualize(
         self,
@@ -113,14 +130,16 @@ class TopologicalStructure(nx.Graph):
             **draw_kwargs,
         )
 
-
 # graph generators
 def path_graphs(
     chain_lengths: Iterable[int],
     node_labels: Optional[Iterator[Hashable]] = None,
     create_using: type[nx.Graph] = TopologicalStructure,
 ) -> Generator[nx.Graph, None, None]:
-    """Generate a sequence of path graphs according to a provided sequence of lengths and labelling scheme"""
+    """
+    Generate a sequence of path graphs according to a
+    provided sequence of lengths and labelling scheme
+    """
     if node_labels is None:
         node_labels = count(start=0, step=1)
 
@@ -129,7 +148,6 @@ def path_graphs(
             (next(node_labels) for _ in range(chain_length)),
             create_using=create_using,
         )
-
 
 def noodle_graph(
     chain_lengths: Iterable[int],

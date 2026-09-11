@@ -18,11 +18,15 @@ from rdkit.Geometry import Point3D
 from .rdprops import RDPropType, assign_property_to_rdobj
 from .labelling import RDMOL_NAME_WRITE_PROP
 from ... import TOOLKIT_NAME
-from ...geometry.arraytypes import Shape
+from ...geometry.arraytypes import Vector3
 from ...chemistry.conversion import element_to_rdkit_atom
 from ...mupr.connection import Connector
 from ...mupr.primitives import Primitive, PrimitiveHandle
-from .strategies import AllAtomRDKitExportStrategy, RDKitExportStrategy, RDKitMolData
+from .strategies import (
+    AllAtomRDKitExportStrategy,
+    RDKitExportStrategy,
+    RDKitMolData,
+)
 
 
 def rdkit_atom_from_atomic_primitive(atomic_primitive: Primitive) -> Atom:
@@ -30,49 +34,53 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive: Primitive) -> Atom:
     if not (atomic_primitive.is_atom and atomic_primitive.is_simple):
         raise ValueError("Cannot export non-atomic Primitive to RDKit Atom")
 
-    atom = element_to_rdkit_atom(atomic_primitive.element)
     # TODO: decide how (if at all) to handle aromaticity and stereo
+    atom = element_to_rdkit_atom(atomic_primitive.element)
     for key, value in atomic_primitive.metadata.items():
         assign_property_to_rdobj(atom, key, value, preserve_type=True)
 
     return atom
 
-
 def primitive_to_rdkit(
     primitive: Primitive,
-    default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
+    default_atom_position: Optional[Vector3] = None,
 ) -> Mol:
+    ## JL DEV: This is the legacy flattened exporter. We recommend replacing downstream
+    ## workflows with primitive_to_rdkit_mols() and removing this path after reviewer
+    ## approval, rather than abstracting shared bond or metadata helpers around code
+    ## that is likely to be retired.
     """
     Convert a Primitive hierarchy to an RDKit Mol
-    Will return as single Mol instance, even is underlying Primitive represents a collection of multiple disconnected molecules
+    
+    Returns a single Mol instance, even is underlying Primitive 
+    represents a collection of multiple disconnected molecules
 
-    DEV: This is the legacy flattened exporter. We recommend replacing downstream
-    workflows with primitive_to_rdkit_mols() and removing this path after reviewer
-    approval, rather than abstracting shared bond or metadata helpers around code
-    that is likely to be retired.
 
-    Will set spatial positions for each atom ("default_atom_position" if not assigned per atom) to a Conformer bound to the returned Mol
+    Will set spatial positions for each atom ("default_atom_position" if
+    not assigned per-atom) to a Conformer bound to the returned Mol
     """
     warnings.warn(
-        "primitive_to_rdkit() is deprecated; use the role-aware "
+        "To skip flattening step; use the role-aware "
         "primitive_to_rdkit_mols() exporter instead.",
         DeprecationWarning,
         stacklevel=2,
     )
     if default_atom_position is None:
-        # DEV: opted to not make this a call to geometry.reference.origin() to decrease coupling and allow choice for differently-determined default down the line
+        # DEV: opted to not make this a call to geometry.reference.origin() to decrease
+        #coupling and allow choice for differently-determined default down the line
         default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float)
     if default_atom_position.shape != (3,):
         raise ValueError("Default atom position must be a 3-dimensional vector")
 
-    if not primitive.is_atomizable:  # TODO: include provision (when no flattening is performed) to preserve atom order with Primitive handle indices
+    # TODO: include provision (when no flattening is performed)
+    # to preserve atom order with Primitive handle indices
+    if not primitive.is_atomizable:  
         raise ValueError("Cannot export Primitive with non-atomic parts to RDKit Mol")
-    primitive = (
-        primitive.flattened()
-    )  # collapse hierarchy out-of-place to avoid mutating original
+    # collapse hierarchy out-of-place to avoid mutating original
+    primitive = primitive.flattened()
 
-    # DEV: modelled assembly in part by OpenFF RDKit TK wrapper
-    # https://github.com/openforcefield/openff-toolkit/blob/5b4941c791cd49afbbdce040cefeb23da298ada2/openff/toolkit/utils/rdkit_wrapper.py#L2330
+    ## DEV: modelled assembly in part by OpenFF RDKit TK wrapper
+    ## namely on RDKitToolkitWrapper._connection_table_to_rdkit()
 
     # 0) prepare Primitive source and RDKit destination
     mol = RWMol()
@@ -81,13 +89,15 @@ def primitive_to_rdkit(
     )  # preallocate space for all atoms (including linkers)
     atom_idx_map: dict[int, PrimitiveHandle] = {}
 
-    # special case for atomic Primitives; easier to contract into hierarchy containing that single atom as child (less casework)
+    # special case for atomic Primitives; easier to contract into hierarchy
+    # containing that single atom as child (less casework)
     temp_prim: Optional[Primitive] = None
     lone_atom_label: Optional[PrimitiveHandle] = None
     if primitive.is_atom:
         if primitive.parent is not None:
             raise NotImplementedError(
-                "Export for unisolated atomic Primitives (i.e. with pre-existing parents) is not supported"
+                "Export for unisolated atomic Primitives "
+                "(i.e. with pre-existing parents) is not supported"
             )
         temp_prim = Primitive(label="temp")
         lone_atom_label: PrimitiveHandle = temp_prim.attach_child(primitive)
@@ -120,7 +130,8 @@ def primitive_to_rdkit(
         atom_idx2: int = atom_idx_map[conn_ref2.primitive_handle]
         conn2: Connector = primitive.fetch_connector_on_child(conn_ref2)
 
-        # DEV: bondtypes must be compatible, so will take first for now (TODO: find less order-dependent way of accessing bondtype)
+        # DEV: bondtypes must be compatible, so will take first for now 
+        ## TODO: find less order-dependent way of accessing bondtype)
         new_num_bonds: int = mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype)
         bond_metadata: dict[str, RDPropType] = {
             **conn1.metadata,
@@ -135,11 +146,11 @@ def primitive_to_rdkit(
             )
 
     # 2b) insert and bond linker atoms for each external Connector
-    for conn_ref in primitive.external_connectors.values():  # TODO: generalize to work for atomic (i.e. non-hierarchical) Primitives w/o external_connectors
+    ## TODO: generalize to work for atomic Primitives w/o external_connectors
+    for conn_ref in primitive.external_connectors.values(): 
         linker_atom = Atom(0)
-        linker_idx: int = mol.AddAtom(
-            linker_atom
-        )  # TODO: transpose metadata from external Connector onto 0-number RDKit Atom
+        # TODO: transpose metadata from external Connector onto 0-number RDKit Atom
+        linker_idx: int = mol.AddAtom(linker_atom)  
         conn: Connector = primitive.fetch_connector_on_child(conn_ref)
 
         mol.AddBond(
@@ -148,12 +159,15 @@ def primitive_to_rdkit(
         conf.SetAtomPosition(
             linker_idx, conn.linker.position
         )  # TODO: decide whether unset position (e.g. as NANs) should be supported
-        # if conn.has_linker_position: # NOTE: this "if" check not done in-line, as conn.linker_position raises AttributeError is unset
+        ## NOTE: this "if" check not done in-line, as
+        ## conn.linker_position raises AttributeError is unset
+        # if conn.has_linker_position: 
         # conf.SetAtomPosition(linker_idx, conn.linker_position)
         # else:
         # conf.SetAtomPosition(linker_idx, default_atom_position[:])
 
-    # 3) transfer Primitive-level metadata (atom metadata should already be transferred)
+    # 3) transfer Primitive-level metadata 
+    # (atom metadata should already be transferred)
     assign_property_to_rdobj(
         mol, "origin", TOOLKIT_NAME, preserve_type=True
     )  # mark MuPT export for provenance
@@ -163,9 +177,8 @@ def primitive_to_rdkit(
     # 4) cleanup
     if not ((temp_prim is None) or (lone_atom_label is None)):
         primitive.detach_child(lone_atom_label)
-    conformer_idx: int = mol.AddConformer(
-        conf, assignId=True
-    )  # DEV: return this index?
+    # DEV: return this index?
+    conformer_idx: int = mol.AddConformer(conf, assignId=True)  
 
     mol = Mol(mol)  # freeze writable Mol before returning
     if primitive.label is not None:
@@ -348,7 +361,7 @@ def _mol_from_rdkit_data(
 def primitive_to_rdkit_mols(
     primitive: Primitive,
     resname_map: dict[str, str],
-    default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
+    default_atom_position: Optional[Vector3] = None,
     strategy: Optional[RDKitExportStrategy] = None,
 ) -> Iterator[Mol]:
     """

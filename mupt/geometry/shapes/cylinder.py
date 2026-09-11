@@ -47,13 +47,16 @@ def cylindrical_mesh(
         The axial ("face-to-face") length of the cylinder
     n_theta : int, default 30
         Number of points to sample in the angular direction
-        Will resemble an extruded regular n_theta-gon, e.g. n_theta=4 will be a square prism
+        
+        Will resemble an extruded regular n_theta-gon,
+        e.g. n_theta=4 will be a square prism
     n_z : int, default 5
         Number of points to sample along the cylinder walls in the axial direction
+        
         E.g. n_z=5 will yield a mesh with bands around the bottom
         face, 1/4 way up, 1/2 way up, 3/4 way up, and the top face
     transformation : RigidTransform, default RigidTransform.identity()
-        A rigid transformation (e.g. combined rotation + translation) to apply to the cylinder
+        A rigid transformation (e.g. rotation + translation) to apply to the cylinder
         Used to draw a cylinder which has been rotated and/or displaced from the origin
 
         By default, will apply the identity transformation, resulting in a cylinder
@@ -65,11 +68,11 @@ def cylindrical_mesh(
     mesh_points : ndarray[[P, 3], float]
         The points fo the 3D mesh on the surface of the cylinder
 
-        The first point will be the midpoint of the bottom face, and the
-        n_theta next points will be the band of neighboring points around the bottom face
+        The first point will be the midpoint of the bottom face, and the n_theta
+        next points will be the band of neighboring points around the bottom face
 
-        Likewise, the last point in the array will be the midpoint of the top face,
-        with the preceding n_theta points being its neighbors around the edge of the top face
+        Likewise, the last point in the array will be the midpoint of the top face, with
+        the preceding n_theta points being its neighbors around the edge of the top face
 
         NB: We take "top" here to mean the face in the axial direction,
         and "bottom" to mean the face in the opposite direction
@@ -80,8 +83,8 @@ def cylindrical_mesh(
     half_length: float = length / 2
     params = zs, theta = np.mgrid[
         -half_length : half_length : n_z * 1j,
-        0.0 : 2 * np.pi : (n_theta + 1)
-        * 1j,  # need +1 to get right number of polygon sides (since last is coincident with first)
+        # need +1 to get right number of polygon sides (last is coincident with first)
+        0.0 : 2 * np.pi : (n_theta + 1)* 1j,  
     ]
     xs = radius * np.cos(theta)
     ys = radius * np.sin(theta)
@@ -145,13 +148,19 @@ class Cylinder(BoundedTransformableShape):
             The distance between the two parallel faces of the cylinder
         center : Optional[Vector3], default [0., 0., 0.]
             The absolute position of the geometric center of the cylinder
-            If not explicitly provided, or provided as NoneType, will default to the origin, i.e. [0., 0., 0.]
+            
+            If not explicitly provided, or provided as NoneType,
+            will default to the origin, i.e. [0., 0., 0.]
         axial_direction : Optional[Vector3], default [0., 0., 1.]
-            The direction from the center in which the leading ("top") face of the cylinder lies
-            The length of this vector is inconsequential, and will be normalized to `length / 2`
-            i.e. each face lies half of the Cylinder's length away from its center
+            The direction from the center in which 
+            the leading ("top") face of the cylinder lies
+            
+            The length of this vector is inconsequential, and
+            will be normalized to `length / 2`i.e. each face lies
+            half of the Cylinder's length away from its center
 
-            If not explicitly provided, or provided as NoneType, will default to the +z axis, i.e. [0., 0., 1.]
+            If not explicitly provided, or provided as NoneType, 
+            will default to the +z axis, i.e. [0., 0., 1.]
         """
         if center is None:
             center = np.zeros(3, dtype=float)
@@ -194,13 +203,17 @@ class Cylinder(BoundedTransformableShape):
         radius : float
             The radius of the Cylinder, orthogonal to its central axis
         axial_vector : Vector3
-            A vector whose direction is parallel to the center-to-face direction of the Cylinder
-            and whose length is half of the intended length of the Cylinder
+            A vector whose direction is parallel to the
+            center-to-face direction of the Cylinder and whose
+            length is half of the intended length of the Cylinder
 
-            E.g. axis_vector=np.array([0., 1., 0.,]) yields a Cylinder of length 2 parallel to the y-axis
+            E.g. axis_vector=np.array([0., 1., 0.,]) yields
+            a Cylinder of length 2 parallel to the y-axis
         center : Optional[Vector3], default [0., 0., 0.]
             The absolute position of the geometric center of the Cylinder
-            If not explicitly provided, or provided as NoneType, will default to the origin, i.e. [0., 0., 0.]
+            
+            If not explicitly provided, or provided as NoneType,
+            will default to the origin, i.e. [0., 0., 0.]
 
         Returns
         -------
@@ -239,7 +252,10 @@ class Cylinder(BoundedTransformableShape):
 
     @property
     def axis_normal(self) -> Vector3:
-        """Unit vector in the direction from the centroid to the center of the leading face"""
+        """
+        Unit vector in the direction from the 
+        centroid to the center of the leading face
+        """
         return normalized(self.axis)
 
     @property
@@ -249,7 +265,10 @@ class Cylinder(BoundedTransformableShape):
         Shape[Literal[2], Literal[3]],
         np.dtype[np.floating],
     ]:
-        """The absolute positions of the midpoints of the leading and tailing faces on the cylinder"""
+        """
+        The absolute positions of the midpoints of
+        the leading and tailing faces on the cylinder
+        """
         return np.vstack((self.face_center_top, self.face_center_bottom))
 
     # fulfilling BoundedShape contracts
@@ -308,6 +327,5 @@ class Cylinder(BoundedTransformableShape):
             n_z=n_z,
             transformation=self.cumulative_transformation,
         )
-
 
 Rod = Cylinder  # alias for convenience

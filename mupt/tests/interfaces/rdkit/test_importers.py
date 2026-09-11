@@ -21,14 +21,15 @@ def mol() -> Mol:
 
     return rdmol
 
-
 @pytest.fixture(scope="function")
 def primitive(mol: Mol) -> Primitive:
     return importers.primitive_from_rdkit(mol)
 
-
 def test_valences_permissible(primitive: Primitive) -> None:
-    """Check that chemical valences for all atomic Primitives are among those allowable for their assigned element"""
+    """
+    Check that chemical valences for all atomic Primitives 
+    are among those allowable for their assigned element
+    """
     assert (
         all(  # DEV: break off into parameterized test for individual atomic Primitive?
             valence_allowed(

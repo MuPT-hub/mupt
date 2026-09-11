@@ -1,4 +1,7 @@
-"""For calculation of rigid transforms which force two bodies to be spatially coincident in some way"""
+"""
+For calculation of rigid transforms which force 
+two bodies to be spatially coincident in some way
+"""
 
 from typing import Optional
 
@@ -18,8 +21,10 @@ def rigid_vector_coalignment(
     t2: Optional[float] = None,
 ) -> RigidTransform:
     """
-    Compute a rigid transformation that forces "vector1" (defined by its end points and not necessarily emanating from the origin)
-    onto the span of "vector2" (defined similarly), oriented parallel and with the point some fraction "t1" of the way along vector1
+    Compute a rigid transformation that forces "vector1" (defined by
+    its end points and not necessarily emanating from the origin)
+    onto the span of "vector2" (defined similarly), oriented parallel
+    and with the point some fraction "t1" of the way along vector1
     to be exactly coincident with the point t2 parts along vector2
     """
     # TODO: check compatibility of shapes within AND between vectors

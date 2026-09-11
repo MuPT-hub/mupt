@@ -75,30 +75,29 @@ def ellipsoidal_mesh(
     if rz is None:
         rz = ry
 
+    # (magnitude of) complex step size is interpreted by numpy as a number of points
     angles = theta, phi = np.mgrid[
         0.0 : 2 * np.pi : n_theta * 1j,
         0.0 : np.pi : n_phi * 1j,
-    ]  # (magnitude of) complex step size is interpreted by numpy as a number of points
-    triangulation = Delaunay(
-        angles.reshape(2, -1).T
-    )  # note: .reshape(-1, 2) gives the right shape but NOT the right parity between parametric angles
-
+    ]  
+    
+    # NOTE: .reshape(-1, 2) gives the right shape 
+    # but NOT the right parity between parametric angles
+    triangulation = Delaunay(angles.reshape(2, -1).T)  
     mesh_points = np.zeros((n_theta, n_phi, 3), dtype=float)  # TODO: rewrite as dstack?
     mesh_points[..., 0] = rx * np.sin(phi) * np.cos(theta)
     mesh_points[..., 1] = ry * np.sin(phi) * np.sin(theta)
     mesh_points[..., 2] = rz * np.cos(phi)
 
-    mesh_points = mesh_points.reshape(
-        -1, 3
-    )  # flatten into (n_theta*n_phi)x3 array of XYZ positions
+    # flatten into (n_theta*n_phi)x3 array of XYZ positions
+    mesh_points = mesh_points.reshape(-1, 3)  
     mesh_points = transformation.apply(mesh_points)  # apply transform
 
     return mesh_points, triangulation.simplices
 
-
-class Sphere(
-    BoundedTransformableShape
-):  # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
+# N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem 
+# (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
+class Sphere(BoundedTransformableShape):
     """A spherical body with arbitrary radius and center"""
 
     def __init__(
@@ -172,10 +171,12 @@ class Sphere(
 
 class Ellipsoid(BoundedTransformableShape):
     """
-    A generalized spherical body, with potentially asymmetric orthogonal principal axes and arbitrary centroid
+    A generalized spherical body, with potentially asymmetric
+    orthogonal principal axes and arbitrary centroid
 
-    Representable by a (not necessarily isotropic) scaling of the basis vectors and a rigid transformation,
-    which, together, map the points on a unit sphere at the origin to the surface of the Ellipsoid
+    Representable by a (not necessarily isotropic) scaling of the
+    basis vectors and a rigid transformation which together map the
+    points on a unit sphere at the origin to the surface of the Ellipsoid
     """
 
     def __init__(
@@ -208,7 +209,10 @@ class Ellipsoid(BoundedTransformableShape):
         center_z: NumberLike = 0.0,
         # center coordinate
     ) -> "Ellipsoid":
-        """Instantiate Ellipsoid from array-wise representations of its radii and center"""
+        """
+        Instantiate Ellipsoid from array-wise
+        representations of its radii and center
+        """
         return cls(
             radii=np.array([radius_x, radius_y, radius_z], dtype=float),
             center=np.array([center_x, center_y, center_z], dtype=float),
@@ -278,7 +282,9 @@ class Ellipsoid(BoundedTransformableShape):
 
     def affine_inverse(self) -> Array4x4:
         """
-        Transformation which maps this Ellipsoid to the unit sphere centered at the origin
+        Transformation which maps this Ellipsoid
+        to the unit sphere centered at the origin
+        
         Inverse of the Ellipsoid's affine basis matrix
         """
         return np.linalg.inv(
@@ -288,12 +294,15 @@ class Ellipsoid(BoundedTransformableShape):
     @property
     def inv(self) -> Array4x4:
         """
-        The inverse of the Ellipsoid's affine basis matrix - alias for Ellipsoid.affine_inverse()
+        The inverse of the Ellipsoid's affine basis matrix
         Maps this Ellipsoid to the unit sphere centered at the origin
+        
+        Alias for Ellipsoid.affine_inverse()
         """
         return self.affine_inverse()
 
-    def coincident_with(self, other: "Ellipsoid") -> bool:  # TODO: replace with __eq__
+    # TODO: replace with __eq__
+    def coincident_with(self, other: "Ellipsoid") -> bool:  
         return (
             np.allclose(self.radii, other.radii)
             and np.allclose(self.center, other.center)
@@ -311,9 +320,8 @@ class Ellipsoid(BoundedTransformableShape):
     @property
     def volume(self) -> NumberLike:
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
-        return (
-            4 / 3 * np.pi * np.prod(self.radii)
-        )  # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
+        # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
+        return (4/3 * np.pi * np.prod(self.radii))  
 
     def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:
         # Reduce containment check to comparison with auxiliary unit sphere
@@ -321,7 +329,9 @@ class Ellipsoid(BoundedTransformableShape):
         # matrix in general not a rigid transformation because of axial stretching
         return (
             np.linalg.norm(
-                np.atleast_2d(self.resetting_transformation.apply(points) / self.radii),
+                np.atleast_2d(
+                    self.resetting_transformation.apply(points) / self.radii
+                ),
                 axis=1,
             )
             <= 1

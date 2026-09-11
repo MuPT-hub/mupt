@@ -1,9 +1,13 @@
-"""Tests to ensure export from MuPT to MDAnalysis preserves molecular identity and connectivity."""
+"""
+Tests to ensure export from MuPT to MDAnalysis
+preserves molecular identity and connectivity.
+"""
 
 # Shortcut to run tests for this file:
 # python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py -v
 # With Coverage:
-# python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py --cov=mupt.interfaces.mdanalysis --cov-report=term -v
+# python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py
+# --cov=mupt.interfaces.mdanalysis --cov-report=term -v
 import pytest
 from anytree import PreOrderIter
 
@@ -82,10 +86,11 @@ def test_atom_count_preservation(primitive_fixture, resname_fixture, request):
 
     # Act: Convert to MDAnalysis
     mda_exported_system = primitive_to_mdanalysis(univprim, resname_map=resname_map)
+    num_atoms_mda : int = mda_exported_system.atoms.n_atoms
 
     # Assert: MDAnalysis atom count should match Primitive leaf count
-    assert mda_exported_system.atoms.n_atoms == len(univprim.leaves), (
-        f"Expected {len(univprim.leaves)} atoms, found {mda_exported_system.atoms.n_atoms}"
+    assert num_atoms_mda == len(univprim.leaves), (
+        f"Expected {len(univprim.leaves)} atoms, found {num_atoms_mda}"
     )
 
 
@@ -102,7 +107,7 @@ def test_atom_count_preservation(primitive_fixture, resname_fixture, request):
 )
 def test_bond_connectivity_preservation(primitive_fixture, resname_fixture, request):
     """
-    Parametrized test verifying that primitive_to_mdanalysis preserves bond connectivity.
+    Parametrized test verifying primitive_to_mdanalysis preserves bond connectivity.
 
     This test ensures that the bonding structure (topology) is correctly transferred
     from the MuPT Primitive hierarchy to the MDAnalysis Universe. It separately counts:
@@ -260,7 +265,8 @@ def test_invalid_resname_map_raises_value_error(
     primitive_fixture, resname_map, request
 ):
     """
-    Check that invalid resname_map entries raise ValueError when attempting export to MDAnalysis.
+    Check that invalid resname_map entries raise
+    ValueError when attempting export to MDAnalysis.
 
     The ``_pdb_resname`` helper enforces that residue names are exactly
     3 characters for PDB compliance. This test covers three failure modes:
@@ -691,11 +697,15 @@ class TestDepth4BondedExport:
         ]
         assert len(cross_residue_bonds) == 1
         bond = cross_residue_bonds[0]
+        
+        elem1 = bond.atoms[0].element
         assert bond.atoms[0].element == "C", (
-            f"Expected first atom of inter-residue bond to be C, got '{bond.atoms[0].element}'"
+            f"Expected first atom of inter-residue bond to be C, got '{elem1}'"
         )
+        
+        elem2 = bond.atoms[1].element
         assert bond.atoms[1].element == "C", (
-            f"Expected second atom of inter-residue bond to be C, got '{bond.atoms[1].element}'"
+            f"Expected second atom of inter-residue bond to be C, got '{elem2}'"
         )
 
     def test_depth4_bonded_all_atoms_assigned_to_residues(

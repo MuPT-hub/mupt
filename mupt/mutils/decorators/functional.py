@@ -25,37 +25,48 @@ from . import signatures
 from ..filepaths.pathutils import aspath, asstrpath
 
 
+# TODO: throughout, add assertion that the wrapped function has at least one arg 
+# AND that the first arg is of the desired (limited) type
+
 @extend_to_methods
 def optional_in_place(
     funct: Callable[[Concatenate[object, Params]], None],
 ) -> Callable[[Concatenate[object, Params]], Optional[object]]:
-    """Decorator function for allowing in-place (writeable) functions which modify object attributes
-    to be not performed in-place (i.e. read-only), specified by a boolean flag
     """
-    # TODO : add assertion that the wrapped function has at least one arg AND that the first arg is of the desired (limited) type
+    Decorator function for allowing in-place (writeable) functions
+    which modify object attributes which are not to be performed in-place
+    (i.e. read-only), as specified by a boolean flag
+    """
     old_sig = signature(funct)
 
-    @wraps(funct)  # for preserving docstring and type annotations / signatures
+    @wraps(funct) # preserves docstring and type annotations / signatures
     def in_place_wrapper(
-        obj: object, *args: Params.args, in_place: bool = False, **kwargs: Params.kwargs
-    ) -> Optional[object]:  # read-only by default
-        """If not in-place, create a clone on which the method is executed"""  # NOTE : old_sig.bind screws up arg passing
+        obj: object,
+        *args: Params.args,
+        in_place: bool=False, # read-only by default
+        **kwargs: Params.kwargs,
+    ) -> Optional[object]:
+        # NOTE : old_sig.bind screws up arg passing
+        """If not in-place, create a clone on which the method is executed"""  
         if in_place:
-            funct(
-                obj, *args, **kwargs
-            )  # default call to writeable method - implicitly returns None
+            # default call to writeable method - implicitly returns None
+            funct( obj, *args, **kwargs)
         else:
-            copy_obj = deepcopy(
-                obj
-            )  # clone object to avoid modifying original - TODO: provide option to pass in custom copying method, with deepcopy default
+            # clone object to avoid modifying original
+            # TODO: provide option to pass custom copying method, with deepcopy default
+            copy_obj = deepcopy(obj)
             funct(copy_obj, *args, **kwargs)
+            
             return copy_obj  # return the new object
 
     # ADD IN-PLACE PARAMETER TO FUNCTION SIGNATURE
     new_sig = signatures.insert_parameter_at_index(
         old_sig,
         new_param=Parameter(
-            name="in_place", default=False, annotation=bool, kind=Parameter.KEYWORD_ONLY
+            name="in_place",
+            default=False,
+            annotation=bool,
+            kind=Parameter.KEYWORD_ONLY,
         ),
         index=signatures.get_index_after_positionals(old_sig),
     )
@@ -70,14 +81,17 @@ def optional_in_place(
 
     return in_place_wrapper
 
-
-# TODO : implement support for extend_to_methods (current mechanism is broken by additional deocrator parameters)
+# TODO : implement support for extend_to_methods (current
+# mechanism is broken by additional deocrator parameters)
 def flexible_listlike_input(
-    funct: Callable[[Iterator], T] = None,
+    funct: Callable[[Iterator], T]=None,
     CastType: type[Iterator] = list,
     valid_member_types: Union[type, tuple[type]] = object,
 ) -> Callable[[Iterable], T]:
-    """Wrapper which allows a function which expects a single list-initializable, Container-like object to accept any Iterable (or even star-unpacked arguments)"""
+    """
+    Wrapper which allows a function which expects a single list-initializable,
+    Container-like object to accept any Iterable (or even star-unpacked arguments)
+    """
     if not issubclass(CastType, Iterator):
         raise TypeError(
             f'Cannot wrap listlike input with non-listlike type "{CastType.__name__}"'
@@ -92,17 +106,18 @@ def flexible_listlike_input(
 
         inputs = []
         for member in args:
-            if isinstance(
-                member, valid_member_types
-            ):  # works because isinstance() accepts either a single type or a tuple of types
+            # works because isinstance() accepts either single type or tuple of types
+            if isinstance(member, valid_member_types):  
                 inputs.append(member)
             else:
                 raise TypeError(
-                    f"Item {member!r} of type {type(member).__name__} is not an instance of any of the following valid wrapped types: {valid_member_types}"
+                    f"Item {member!r} of type {type(member).__name__} is not an "
+                    f"instance of any of the valid wrapped types: {valid_member_types}"
                 )
-        inputs = CastType(
-            inputs
-        )  # convert to the expected cast type (this is where the requirement of listlike cast types comes into play)
+        
+        # convert to the expected cast type (this is where the
+        # requirement of listlike cast types comes into play)
+        inputs = CastType(inputs)
 
         return funct(inputs)  # TODO: modify input type signature of wrapper function
 
@@ -114,20 +129,26 @@ def flexible_listlike_input(
         )
     return wrapper
 
-
 @extend_to_methods
 def allow_string_paths(
     funct: Callable[[Concatenate[Path, Params]], T],
 ) -> Callable[[Concatenate[Union[Path, str], Params]], T]:
-    """Modifies a function which expects a Path as its first argument to also accept string-paths"""
-    # TODO : add assertion that the wrapped function has at least one arg AND that the first arg is of the desired (limited) type
+    """
+    Modifies a function which expects a Path as 
+    its first argument to also accept string-paths
+    """
     old_sig = signature(funct)  # lookup old type signature
 
     @wraps(funct)  # for preserving docstring and type annotations / signatures
     def str_path_wrapper(
-        flex_path: Union[str, Path], *args: Params.args, **kwargs: Params.kwargs
+        flex_path: Union[str, Path],
+        *args: Params.args,
+        **kwargs: Params.kwargs,
     ) -> T:
-        """First converts stringy paths into normal Paths, then executes the original function"""
+        """
+        First converts stringy paths into normal Paths,
+        then executes the original function.
+        """
         return funct(aspath(flex_path), *args, **kwargs)
 
     # MODIFY SIGNATURE OF PATH-LIKE FIRST ARGUMENT TO MATCH NEW TYPE FLEXIBILITY
@@ -139,20 +160,24 @@ def allow_string_paths(
 
     return str_path_wrapper
 
-
 @extend_to_methods
 def allow_pathlib_paths(
     funct: Callable[[Concatenate[str, Params]], T],
 ) -> Callable[[Concatenate[Union[Path, str], Params]], T]:
-    """Modifies a function which expects a string path as its first argument to also accept pathlib Paths"""
-    # TODO : add assertion that the wrapped function has at least one arg AND that the first arg is of the desired (limited) type
+    """
+    Modifies a function which expects a string path as
+    its first argument to also accept pathlib Paths
+    """
     old_sig = signature(funct)  # lookup old type signature
 
     @wraps(funct)  # for preserving docstring and type annotations / signatures
     def str_path_wrapper(
         flex_path: Union[str, Path], *args: Params.args, **kwargs: Params.kwargs
     ) -> T:
-        """First converts normal Paths into stringy paths, then executes the original function"""
+        """
+        First converts normal Paths into stringy paths,
+        then executes the original function
+        """
         return funct(asstrpath(flex_path), *args, **kwargs)
 
     # MODIFY SIGNATURE OF PATH-LIKE FIRST ARGUMENT TO MATCH NEW TYPE FLEXIBILITY

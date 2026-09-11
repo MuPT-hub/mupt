@@ -1,5 +1,5 @@
 """
-Tests for ensuring export from MuPT to RDKit preserves chemical information and metadata,
+Tests to ensure export from MuPT to RDKit preserves chemical information and metadata,
 and does not export systems which cannot be interpreted as all-atom molecules
 """
 
