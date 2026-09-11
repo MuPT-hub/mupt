@@ -686,7 +686,7 @@ def main() -> int:
         else:
             run_openmm_validation(root, result.box_length_a, args.charge_method, args)
     except Exception as exc:
-        LOGGER.error("ERROR: %s", exc)
+        LOGGER.exception("ERROR: %s")
         return 1
     return 0
 

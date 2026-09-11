@@ -197,7 +197,7 @@ class DPDRandomWalk(PlacementGenerator):
         # TODO: Add shapes
         for subprim in primitive.children:
             if not isinstance(subprim.shape, (Ellipsoid, Sphere)):
-                raise ValueError(
+                raise TypeError(
                     "Random walk chain builder requires ellipsoidal "
                     "or spherical beads to determine step sizes"
                 )

@@ -31,7 +31,7 @@ def element_to_rdkit_atom(element: ElementLike) -> Atom:
 def rdkit_atom_to_element(atom: Atom) -> ElementLike:
     """Convert an RDKit Atom instance to a periodictable ElementLike instance"""
     if not isinstance(atom, Atom):
-        raise ValueError(
+        raise TypeError(
             f"Expected an RDKit Atom instance, got object of type {type(atom).__name__}"
         )
         
