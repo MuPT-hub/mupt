@@ -3,10 +3,9 @@
 __author__ = "Joseph R. Laforet Jr."
 __email__ = "jola3134@colorado.edu"
 
+from typing import Iterator, Optional
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 

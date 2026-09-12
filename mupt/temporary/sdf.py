@@ -13,12 +13,12 @@ representable in this temporary per-segment format. SDF metadata is record-level
 so imported record metadata is stored on rebuilt SEGMENT nodes.
 """
 
-from collections.abc import Iterator
+from typing import Iterator, Optional
+
 import os
-from pathlib import Path
 import tempfile
-from typing import Optional
-import warnings
+from pathlib import Path
+from warnings import warn
 
 import numpy as np
 
@@ -67,7 +67,7 @@ def _mupt_sdf_path(path: str | Path) -> Path:
         target_path = path.with_suffix(MUPT_SDF_SUFFIX)
     else:
         target_path = Path(f"{path_str}{MUPT_SDF_SUFFIX}")
-    warnings.warn(
+    warn(
         "MuPT temporary SDF files use the '.mupt.sdf' suffix; writing to "
         f"'{target_path}' instead of '{path}'.",
         UserWarning,
