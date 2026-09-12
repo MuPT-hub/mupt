@@ -5,7 +5,6 @@ as well as utilities from converting to and from homogeneous coordinates.
 """
 
 from .matrices import (
-    AffineMatrix4x4 as AffineMatrix4x4,
     affine_matrix_from_linear_and_center as affine_matrix_from_linear_and_center,
     translation as translation,
     scaling as scaling,
