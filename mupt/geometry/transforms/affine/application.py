@@ -11,14 +11,14 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 
 from .homogeneous import from_homogeneous_coords, to_homogeneous_coords
-from ...arraytypes import Shape, Numeric, N, Dims, DimsPlus
+from ...arraytypes import Shape, NumericNP, Dims, DimsPlus, ArrayNxN
 
 
 @runtime_checkable
 class AffineTransformable(Protocol):
     """Interface for objects that can undergo an affine transformation"""
 
-    def affinely_transform(self, transformation: np.ndarray[Shape[N, N], float]) -> Any:
+    def affinely_transform(self, transformation: ArrayNxN) -> Any:
         """
         Return an new, affinely-transformed version of this object
 
@@ -30,7 +30,7 @@ class AffineTransformable(Protocol):
 
 def apply_affine_transformation_recursive(
     obj: Union[object, Sequence[Any], Mapping[str, Any]],
-    affine_matrix: np.ndarray[Shape[N, N], float],
+    affine_matrix: ArrayNxN,
 ) -> Union[object, Sequence[Any], dict[str, Any]]:
     """
     Apply an affine transformation to an object,
@@ -77,9 +77,9 @@ def apply_affine_transformation_recursive(
 
 
 def apply_affine_transformation_to_points(
-    positions: np.ndarray[Shape[Any, Dims], Numeric],
-    transform: np.ndarray[Shape[DimsPlus, DimsPlus], Numeric],
-) -> np.ndarray[Shape[Any, Dims], Numeric]:
+    positions: np.ndarray[Shape[Any, Dims], NumericNP],
+    transform: np.ndarray[Shape[DimsPlus, DimsPlus], NumericNP],
+) -> np.ndarray[Shape[Any, Dims], NumericNP]:
     """
     Take a vector of coordinates in D dimensions, apply a [D + 1] dimensional affine
     transformation, then project back down to D dimensions and return the output

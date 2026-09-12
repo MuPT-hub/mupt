@@ -1,12 +1,12 @@
 """For handling array conversions to and from homogeneous coordinates"""
 
 import numpy as np
-from ...arraytypes import Shape, N, Dims, DimsPlus, Numeric
+from ...arraytypes import Shape, N, Dims, DimsPlus, NumericNP
 
 
 def to_homogeneous_coords(
-    positions: np.ndarray[Shape[N, Dims], Numeric], projection: float = 1.0
-) -> np.ndarray[Shape[N, DimsPlus], Numeric]:
+    positions: np.ndarray[Shape[N, Dims], NumericNP], projection: float = 1.0
+) -> np.ndarray[Shape[N, DimsPlus], NumericNP]:
     """Convert an array of N points in D dimensions to one of N points in
     [D + 1] dimensions, with arbitrary uniform projection (1.0 by default)
     """
@@ -21,8 +21,8 @@ def to_homogeneous_coords(
 
 
 def from_homogeneous_coords(
-    positions: np.ndarray[Shape[N, DimsPlus], Numeric],
-) -> np.ndarray[Shape[N, Dims], Numeric]:
+    positions: np.ndarray[Shape[N, DimsPlus], NumericNP],
+) -> np.ndarray[Shape[N, Dims], NumericNP]:
     """Project down from an array of N points in [D + 1] dimensions to an array
     of N points in D dimensions, normalizing out by the homogeneous coordinate
     """

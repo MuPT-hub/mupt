@@ -33,7 +33,7 @@ Shape = tuple
 DType = TypeVar("DType", bound=np.dtype)
 
 # types accepted by 'order' arg of np.linalg.norm()
-OrderType = Optional[Union[int, Literal["fro"], Literal["nuc"]]]
+OrderType = Optional[Union[int, float, Literal["fro"], Literal["nuc"]]]
 
 # Typehints for indeterminate size of a given array dimension
 M = TypeVar("M", bound=int)
@@ -56,6 +56,11 @@ VectorN = np.ndarray[Shape[N], NumericNP]
 Array2x2 = np.ndarray[Shape[Literal[2], Literal[2]], NumericNP]
 Array3x3 = np.ndarray[Shape[Literal[3], Literal[3]], NumericNP]
 Array4x4 = np.ndarray[Shape[Literal[4], Literal[4]], NumericNP]
+
+Array2x3 = np.ndarray[Shape[Literal[2], Literal[3]], NumericNP]
+Array3x2 = np.ndarray[Shape[Literal[3], Literal[2]], NumericNP]
+Array3x4 = np.ndarray[Shape[Literal[3], Literal[4]], NumericNP]
+Array4x3 = np.ndarray[Shape[Literal[4], Literal[3]], NumericNP]
 
 ArrayNx1 = np.ndarray[Shape[N, Literal[1]], NumericNP]
 ArrayNx2 = np.ndarray[Shape[N, Literal[2]], NumericNP]

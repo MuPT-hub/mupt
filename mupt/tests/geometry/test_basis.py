@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 
-from mupt.geometry.arraytypes import Shape, N
+from mupt.geometry.arraytypes import ArrayNxN
 from mupt.geometry.coordinates.basis import (
     is_rowspace_mutually_orthogonal,
     is_columnspace_mutually_orthogonal,
@@ -41,9 +41,7 @@ ROTATION = np.array([
         (IDENTITY, True),
     ],
 )
-def test_rowspace_orthogonality_check(
-    matrix: np.ndarray[Shape[N, N], float], expected_value: bool
-) -> None:
+def test_rowspace_orthogonality_check(matrix: ArrayNxN, expected_value: bool) -> None:
     """Test that the row space orthogonality check works as expected"""
     assert is_rowspace_mutually_orthogonal(matrix) == expected_value
 
@@ -59,7 +57,8 @@ def test_rowspace_orthogonality_check(
     ],
 )
 def test_columnspace_orthogonality_check(
-    matrix: np.ndarray[Shape[N, N], float], expected_value: bool
+    matrix: ArrayNxN,
+    expected_value: bool,
 ) -> None:
     """Test that the column space orthogonality check works as expected"""
     assert is_columnspace_mutually_orthogonal(matrix) == expected_value
@@ -75,8 +74,6 @@ def test_columnspace_orthogonality_check(
         (IDENTITY, True),
     ],
 )
-def test_orthonormality_check(
-    matrix: np.ndarray[Shape[N, N], float], expected_value: bool
-) -> None:
+def test_orthonormality_check(matrix: ArrayNxN, expected_value: bool) -> None:
     """Test that the orthonormality check works as expected"""
     assert is_orthonormal(matrix) == expected_value

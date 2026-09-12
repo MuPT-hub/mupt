@@ -29,7 +29,7 @@ from networkx import all_simple_paths
 from .base import PlacementGenerator
 from ..mutils.iteration import sliding_window
 
-from ..geometry.arraytypes import Shape, N
+from ..geometry.arraytypes import Vector3, Array2x3
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
@@ -40,10 +40,7 @@ from ..mupr.connection import TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
-def pbc(
-    positions: np.ndarray[Shape[N, 3], float],
-    box: Sequence[float],
-) -> np.ndarray[Shape[N, 3], float]:
+def pbc(positions: Vector3, box: Sequence[float]) -> Vector3:
     """
     Apply periodic boundary conditions to a set of positions,
     "wrapping" them into the box defined by "box"
@@ -250,7 +247,7 @@ class DPDRandomWalk(PlacementGenerator):
             dict()
         )  # for preserving chain order for orientation calc
         handle_to_particle_idx: dict[PrimitiveHandle, int] = dict()
-        reference_anchor_positions: dict[int, np.ndarray[Shape[2, 3], float]] = dict()
+        reference_anchor_positions: dict[int, Array2x3] = dict()
         effective_radii: dict[int, float] = dict()
 
         particle_indexer: Iterator[int] = count(0)

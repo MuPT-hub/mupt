@@ -31,7 +31,7 @@ from rdkit.Chem.rdmolfiles import (
 
 from ..chemistry.conversion import rdkit_atom_to_element
 from ..chemistry.sanitization import sanitized_mol
-from ..geometry.arraytypes import Shape
+from ..geometry.arraytypes import Vector3
 from ..geometry.shapes import PointCloud
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
@@ -80,7 +80,7 @@ def write_primitive_to_sdf(
     primitive: Primitive,
     path: str | Path,
     resname_map: dict[str, str],
-    default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
+    default_atom_position: Optional[Vector3] = None,
     strategy: Optional[RDKitExportStrategy] = None,
 ) -> int:
     """Stream a role-annotated Primitive hierarchy to a multi-record SDF file.

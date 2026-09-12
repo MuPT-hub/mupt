@@ -22,7 +22,7 @@ from networkx import all_simple_paths
 from .base import PlacementGenerator
 from ..mutils.iteration import flexible_iterator, sliding_window
 
-from ..geometry.arraytypes import Shape, Dims
+from ..geometry.arraytypes import Shape, Dims, NumericNP, Vector3
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
@@ -39,12 +39,12 @@ from ..mupr.primitives import Primitive, PrimitiveHandle
 def random_walk_jointed_chain(  # noqa: C901
     step_size: Union[Number, Iterable[Number], Generator[Number, None, None]],
     n_steps_max: Optional[int] = None,
-    initial_point: Optional[np.ndarray[Shape[Dims], float]] = None,
-    initial_direction: Optional[np.ndarray[Shape[Dims], float]] = None,
+    initial_point: Optional[np.ndarray[Shape[Dims], NumericNP]] = None,
+    initial_direction: Optional[np.ndarray[Shape[Dims], NumericNP]] = None,
     clip_angle: float = np.pi / 4,
     dimension: Dims = 3,
     rng: Optional[np.random.Generator] = None,
-) -> Generator[np.ndarray[Shape[Dims], float], None, None]:
+) -> Generator[np.ndarray[Shape[Dims], NumericNP], None, None]:
     """
     Generate consecutive points from a non-self-avoiding random walk
     in continuous N-dimensional space with arbitrary step sizes that
@@ -161,8 +161,8 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         self,
         bond_length: float = 1.0,
         angle_max_rad: float = np.pi / 4,
-        initial_point: Optional[np.ndarray[Shape[3], float]] = None,
-        initial_direction: Optional[np.ndarray[Shape[3], float]] = None,
+        initial_point: Optional[Vector3] = None,
+        initial_direction: Optional[Vector3] = None,
         rng: Optional[np.random.Generator] = None,
     ) -> None:
         self.bond_length = bond_length
@@ -222,8 +222,8 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             )  # raise StopIteration if no path exists
 
             # determine pair of anchor points per-body that alignment is based upon
-            connection_points: dict[PrimitiveHandle, list[np.ndarray, np.ndarray]] = (
-                defaultdict(list)
+            connection_points: dict[PrimitiveHandle, list[np.ndarray]] = defaultdict(
+                list
             )
 
             connection_points[head_handle].append(

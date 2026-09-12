@@ -1,6 +1,6 @@
 """For representing cylindrical, rodlike bodies"""
 
-from typing import Literal, Optional
+from typing import Optional
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -9,9 +9,9 @@ from scipy.spatial.transform import Rotation, RigidTransform
 from .shapes import BoundedTransformableShape
 from ..arraytypes import (
     as_n_vector,
-    Shape,
     NumberLike,
     Vector3,
+    Array2x3,
     ArrayNx3,
     TriangulationIndices,
     BitVectorN,
@@ -260,12 +260,7 @@ class Cylinder(BoundedTransformableShape):
         return normalized(self.axis)
 
     @property
-    def face_centers(
-        self,
-    ) -> np.ndarray[
-        Shape[Literal[2], Literal[3]],
-        np.dtype[np.floating],
-    ]:
+    def face_centers(self) -> Array2x3:
         """
         The absolute positions of the midpoints of
         the leading and tailing faces on the cylinder

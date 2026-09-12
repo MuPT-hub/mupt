@@ -14,7 +14,7 @@ def random_vector(
     high: float = 1.0,
     normalized: bool = False,
     rng: np.random.Generator | None = None,
-) -> np.ndarray[Shape[Dims], float]:
+) -> np.ndarray[Shape[Dims], Numeric]:
     """Generate a random N-dimensional vector of floats, optionally normalized"""
     sampler = np.random if rng is None else rng
     vector = sampler.uniform(low=low, high=high, size=dimension)
@@ -27,7 +27,7 @@ def random_vector(
 def random_unit_vector(
     dimension: Dims = 3,
     rng: np.random.Generator | None = None,
-) -> np.ndarray[Shape[Dims], float]:
+) -> np.ndarray[Shape[Dims], Numeric]:
     """Generate a randomly-oriented unit vector in N-dimensional space"""
     return random_vector(
         dimension=dimension, low=-1.0, high=1.0, normalized=True, rng=rng

@@ -11,7 +11,6 @@ from typing import (
     Generator,
     Hashable,
     Iterable,
-    Literal,
     Optional,
     TypeAlias,
     TypeVar,
@@ -28,7 +27,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from ..chemistry.core import BondType
-from ..geometry.arraytypes import Shape, Vector3, as_n_vector
+from ..geometry.arraytypes import Vector3, Array4x4, as_n_vector
 from ..geometry.measure import compare_optional_positions
 from ..geometry.coordinates.basis import is_orthonormal
 from ..geometry.transforms.linear import rejector
@@ -366,7 +365,7 @@ class Connector(RigidlyTransformable):
 
     has_local_orthogonal_basis = has_dihedral_orientation  # alias
 
-    def local_orthonormal_basis(self) -> np.ndarray[Shape[Literal[3, 3]], float]:
+    def local_orthonormal_basis(self) -> Array4x4:
         """
         Return a 3x3 array representing an orthonormal basis
         for this Connector's local coordinate system

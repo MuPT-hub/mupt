@@ -37,7 +37,7 @@ from .selection import (
     bonds_by_condition,
     bond_condition_by_atom_condition_factory,
 )
-from ...geometry.arraytypes import Shape, N
+from ...geometry.arraytypes import Vector3
 from ...mupr.connection import (
     Connector,
     ConnectorLabel,
@@ -93,7 +93,7 @@ def atom_positions_from_rdkit(
     rdmol: Mol,
     conformer_idx: Optional[int] = None,
     atom_idxs: Optional[Iterable[int]] = None,
-) -> Optional[np.ndarray[Shape[N, 3], float]]:
+) -> Optional[Vector3]:
     """
     Boilerplate for fetching a subset of atom positions
     (if conformer it set) from an RDKit Mol

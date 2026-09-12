@@ -4,7 +4,7 @@ enjoy certian properties, such as orthogonality
 """
 
 import numpy as np
-from ..arraytypes import Shape, N, NumericNP
+from ..arraytypes import Shape, N, M, NumericNP
 
 
 def are_linearly_independent(*vectors: np.ndarray[Shape[N, ...], NumericNP]) -> bool:
@@ -23,7 +23,7 @@ def is_diagonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     return np.allclose(matrix - np.diag(np.diagonal(matrix)), 0.0)
 
 
-def is_rowspace_mutually_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
+def is_rowspace_mutually_orthogonal(matrix: np.ndarray[Shape[N, M], NumericNP]) -> bool:
     """
     Check whether all vectors in the row space
     basis of a matrix are mutually orthogonal
@@ -33,18 +33,17 @@ def is_rowspace_mutually_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) 
 
 
 def is_columnspace_mutually_orthogonal(
-    matrix: np.ndarray[Shape[N, N], NumericNP],
+    matrix: np.ndarray[Shape[N, M], NumericNP],
 ) -> bool:
     """
     Check whether all vectors in the column
     space basis of a matrix are mutually orthogonal
     """
-    return is_diagonal(
-        matrix.T @ matrix
-    )  # note CAREFULLY the order; P_ij = dot(column(i), column(j)) this way
+    # pay careful attention to the order; P_ij = dot(row(i), row(j)) this way
+    return is_diagonal(matrix.T @ matrix)
 
 
-def is_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
+def is_orthogonal(matrix: np.ndarray[Shape[N, M], NumericNP]) -> bool:
     """
     Determine if a matrix is orthogonal, i.e. its
     left and right inverses are both its own transpose
