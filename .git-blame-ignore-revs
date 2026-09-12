@@ -50,3 +50,12 @@ b5b259abd109bdb27c0ee43e1d4ece32b8c2f99e
 
 ## Fixed D103 (Missing docstring in public function) linter issues
 876e30cec89e4b294297be631a668abb26987fa1
+
+## Temporarily suppressed McCabe complexity warnings (C901)
+b0961cebaf4e89d940ed4d82638e1c63f2fe7f75
+
+## Added missing magic method docstrings (linter D105)
+6212d16eb7d4e4ea0724bc177e4c8ba63b867192
+
+## Added missing public method docstrings (linter D102)
+e321d39f270c7bf02194bcc44dea29851e8fdbb3
