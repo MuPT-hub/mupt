@@ -1,4 +1,5 @@
 """Tests for temporary MuPT SDF interoperability export."""
+# ruff: noqa: D103 ("undocumented public function")
 
 import subprocess
 import sys
@@ -25,7 +26,11 @@ from mupt.temporary.sdf import (
 
 
 def _load_sdf(path):
-    return [mol for mol in SDMolSupplier(str(path), removeHs=False, sanitize=False) if mol is not None]
+    return [
+        mol
+        for mol in SDMolSupplier(str(path), removeHs=False, sanitize=False)
+        if mol is not None
+    ]
 
 
 def _mupt_sdf_path(path):
@@ -258,7 +263,10 @@ def test_write_primitive_to_sdf_roundtrip_wraps_pdb_residue_atom_props(
     }.items():
         for atom in atoms_by_residue[mupt_residue_index]:
             assert atom.HasProp("mupt_residue_index")
-            assert (atom.GetProp("chain_id"), int(atom.GetProp("residue_id"))) == expected_surrogate_id
+            assert (
+                atom.GetProp("chain_id"),
+                int(atom.GetProp("residue_id")),
+            ) == expected_surrogate_id
 
 
 def test_write_primitive_to_sdf_roundtrip_preserves_wrapped_boundary_bond(
@@ -318,9 +326,15 @@ def test_primitive_from_mupt_sdf_roundtrips_exportable_hierarchy(
         *([PrimitiveRole.PARTICLE] * 4),
     ]
     assert rebuilt.num_atoms == single_polyethylene_3mer.num_atoms
-    assert _total_internal_bonds(rebuilt) == _total_internal_bonds(single_polyethylene_3mer)
-    assert [mol.GetNumAtoms() for mol in first_mols] == [mol.GetNumAtoms() for mol in second_mols]
-    assert [mol.GetNumBonds() for mol in first_mols] == [mol.GetNumBonds() for mol in second_mols]
+    assert _total_internal_bonds(rebuilt) == _total_internal_bonds(
+        single_polyethylene_3mer
+    )
+    assert [mol.GetNumAtoms() for mol in first_mols] == [
+        mol.GetNumAtoms() for mol in second_mols
+    ]
+    assert [mol.GetNumBonds() for mol in first_mols] == [
+        mol.GetNumBonds() for mol in second_mols
+    ]
     assert [_atom_mupt_props(mol) for mol in first_mols] == [
         _atom_mupt_props(mol) for mol in second_mols
     ]
@@ -330,7 +344,9 @@ def test_primitive_from_mupt_sdf_roundtrips_exportable_hierarchy(
     assert rebuilt.children[0].metadata["root_tag"] == "root-value"
     assert rebuilt.children[0].metadata["segment_tag"] == "segment-value"
     for first_mol, second_mol in zip(first_mols, second_mols):
-        np.testing.assert_allclose(_atom_positions(first_mol), _atom_positions(second_mol))
+        np.testing.assert_allclose(
+            _atom_positions(first_mol), _atom_positions(second_mol)
+        )
 
 
 def test_primitive_from_mupt_sdf_preserves_residue_names_for_instance_labels(
@@ -341,7 +357,9 @@ def test_primitive_from_mupt_sdf_preserves_residue_names_for_instance_labels(
     """Imported generated residue labels remain exportable via metadata names."""
     first_path = tmp_path / "generated-labels-first.mupt.sdf"
     second_path = tmp_path / "generated-labels-second.mupt.sdf"
-    for residue_idx, residue in enumerate(single_polyethylene_3mer.children[0].children):
+    for residue_idx, residue in enumerate(
+        single_polyethylene_3mer.children[0].children
+    ):
         base_label = residue.label
         residue.label = f"{base_label}_{residue_idx:03d}"
         residue.metadata["residue_name"] = polyethylene_resname_map[base_label]
@@ -397,8 +415,12 @@ def test_primitive_from_mupt_sdf_roundtrips_multi_record_system(
 
     assert first_records == second_records == len(multi_polyethylene_system.children)
     assert len(rebuilt.children) == len(multi_polyethylene_system.children)
-    assert [mol.GetNumAtoms() for mol in first_mols] == [mol.GetNumAtoms() for mol in second_mols]
-    assert [mol.GetNumBonds() for mol in first_mols] == [mol.GetNumBonds() for mol in second_mols]
+    assert [mol.GetNumAtoms() for mol in first_mols] == [
+        mol.GetNumAtoms() for mol in second_mols
+    ]
+    assert [mol.GetNumBonds() for mol in first_mols] == [
+        mol.GetNumBonds() for mol in second_mols
+    ]
     assert [_atom_mupt_props(mol) for mol in first_mols] == [
         _atom_mupt_props(mol) for mol in second_mols
     ]
@@ -482,7 +504,9 @@ def test_iter_primitives_from_mupt_sdf_streaming_discard_preserves_counts(
     assert len(streamed_atom_counts) == first_records
     assert streamed_atom_counts == [mol.GetNumAtoms() for mol in source_mols]
     assert streamed_bond_counts == [mol.GetNumBonds() for mol in source_mols]
-    assert streamed_segment_labels == [segment.label for segment in multi_polyethylene_system.children]
+    assert streamed_segment_labels == [
+        segment.label for segment in multi_polyethylene_system.children
+    ]
 
 
 def test_streamed_segment_attached_to_universe_reexports_mupt_props(

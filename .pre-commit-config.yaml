@@ -1,0 +1,24 @@
+# See https://pre-commit.com for more information
+ci:
+  autofix_prs: false # Prevent pre-commit.ci Application from making rogue fixes
+
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.16.6
+  hooks:
+    # Run the linter.
+    - id: ruff-check
+      types_or: [
+        python,
+        pyi
+        # excluding markdown for now; may add later
+      ] 
+      # args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format
+      types_or: [
+        python,
+        pyi,
+      ] # excluding markdown for now; may add later
+      args: ["--check"]

@@ -1,4 +1,4 @@
-'''Unit tests for array size and dtype typehinting'''
+"""Unit tests for array size and dtype typehinting"""
 
 import pytest
 import numpy as np
@@ -10,38 +10,46 @@ from mupt.geometry.arraytypes import (
 
 
 @pytest.fixture
-def vector_expected() -> VectorN:
-    return np.array([1.,2.,3.])
+def vector_3X1_expected() -> VectorN:
+    """A sample 3-vector to compare against many variations of itself"""
+    return np.array([1.0, 2.0, 3.0])
+
 
 @pytest.mark.parametrize(
-    'vectorlike',
+    "vectorlike",
     [
-        ([1,2,3]),
-        [[1,2,3]],
-        tuple([1,2,3]),
-        np.array([1,2,3]),
-        np.array([1.,2.,3.]),
-        np.array([[1,2,3]]),
-        np.array([[1,2,3]]).T,
+        ([1, 2, 3]),
+        [[1, 2, 3]],
+        tuple([1, 2, 3]),
+        np.array([1, 2, 3]),
+        np.array([1.0, 2.0, 3.0]),
+        np.array([[1, 2, 3]]),
+        np.array([[1, 2, 3]]).T,
         pytest.param(
-            [1,2,3,4],
+            [1, 2, 3, 4],
             marks=pytest.mark.xfail(
                 raises=AssertionError,
-                reason='Input vectorlike has the wrong shape',
+                reason="Input vectorlike has the wrong shape",
                 strict=True,
-            )
+            ),
         ),
         pytest.param(
-            '[1,2,3]',
+            "[1,2,3]",
             marks=pytest.mark.xfail(
                 raises=TypeError,
-                reason='String of numerics is not a valid Sequence of numerics for interpretation as a vector',
+                reason="String of numerics is not a valid Sequence "
+                "of numerics for interpretation as a vector",
                 strict=True,
-            )
+            ),
         ),
     ],
 )
-def test_as_n_vector_shape(vectorlike, vector_expected : VectorN) -> None:
-    '''Test that permissive vector ingestion accepts the kinds of numeric data structures it advertises'''
-    vector_actual = as_n_vector(vectorlike, dimension=None) # suppress internal shape validation
-    assert (vector_actual.size == (vector_expected.size))
+def test_as_n_vector_shape(vectorlike, vector_3X1_expected: VectorN) -> None:
+    """
+    Test that permissive vector ingestion accepts
+    the kinds of numeric data structures it advertises
+    """
+    vector_actual = as_n_vector(
+        vectorlike, dimension=None
+    )  # suppress internal shape validation
+    assert vector_actual.size == (vector_3X1_expected.size)

@@ -13,12 +13,12 @@ representable in this temporary per-segment format. SDF metadata is record-level
 so imported record metadata is stored on rebuilt SEGMENT nodes.
 """
 
-from collections.abc import Iterator
+from typing import Iterator, Optional
+
 import os
-from pathlib import Path
 import tempfile
-from typing import Optional
-import warnings
+from pathlib import Path
+from warnings import warn
 
 import numpy as np
 
@@ -31,7 +31,7 @@ from rdkit.Chem.rdmolfiles import (
 
 from ..chemistry.conversion import rdkit_atom_to_element
 from ..chemistry.sanitization import sanitized_mol
-from ..geometry.arraytypes import Shape
+from ..geometry.arraytypes import Vector3
 from ..geometry.shapes import PointCloud
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
@@ -67,7 +67,7 @@ def _mupt_sdf_path(path: str | Path) -> Path:
         target_path = path.with_suffix(MUPT_SDF_SUFFIX)
     else:
         target_path = Path(f"{path_str}{MUPT_SDF_SUFFIX}")
-    warnings.warn(
+    warn(
         "MuPT temporary SDF files use the '.mupt.sdf' suffix; writing to "
         f"'{target_path}' instead of '{path}'.",
         UserWarning,
@@ -80,7 +80,7 @@ def write_primitive_to_sdf(
     primitive: Primitive,
     path: str | Path,
     resname_map: dict[str, str],
-    default_atom_position: Optional[np.ndarray[Shape[3], float]] = None,
+    default_atom_position: Optional[Vector3] = None,
     strategy: Optional[RDKitExportStrategy] = None,
 ) -> int:
     """Stream a role-annotated Primitive hierarchy to a multi-record SDF file.
@@ -241,12 +241,17 @@ def _record_metadata(mol: Mol) -> dict:
     """Return non-atom-list SDF record metadata for segment-level preservation."""
     return {
         key: value
-        for key, value in mol.GetPropsAsDict(includePrivate=True, includeComputed=False).items()
+        for key, value in mol.GetPropsAsDict(
+            includePrivate=True, includeComputed=False
+        ).items()
         if not key.startswith(MUPT_SDF_ATOM_PROP_PREFIX)
     }
 
 
-def _build_segment_from_mol(mol: Mol) -> Primitive:
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
+# and contain less branched business logic in one place
+def _build_segment_from_mol(mol: Mol) -> Primitive:  # noqa: C901
     """Rebuild one SEGMENT hierarchy from one MuPT SDF record."""
     atom_positions = _atom_positions_by_index(mol)
     for atom in mol.GetAtoms():
@@ -335,12 +340,17 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
     for bond in mol.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
-        if begin_idx not in atom_to_residue_index or end_idx not in atom_to_residue_index:
+        if (
+            begin_idx not in atom_to_residue_index
+            or end_idx not in atom_to_residue_index
+        ):
             if not (
                 _is_external_linker_atom(mol.GetAtomWithIdx(begin_idx))
                 or _is_external_linker_atom(mol.GetAtomWithIdx(end_idx))
             ):
-                raise ValueError("MuPT SDF bond references an atom without particle props")
+                raise ValueError(
+                    "MuPT SDF bond references an atom without particle props"
+                )
             continue
         begin_residue_index = atom_to_residue_index[begin_idx]
         end_residue_index = atom_to_residue_index[end_idx]
@@ -354,17 +364,24 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
 
     residue_handles = {}
     for residue_index in sorted(residue_primitives):
-        residue_handles[residue_index] = segment.attach_child(residue_primitives[residue_index])
+        residue_handles[residue_index] = segment.attach_child(
+            residue_primitives[residue_index]
+        )
 
     for bond in mol.GetBonds():
         begin_idx = bond.GetBeginAtomIdx()
         end_idx = bond.GetEndAtomIdx()
-        if begin_idx not in atom_to_residue_index or end_idx not in atom_to_residue_index:
+        if (
+            begin_idx not in atom_to_residue_index
+            or end_idx not in atom_to_residue_index
+        ):
             if not (
                 _is_external_linker_atom(mol.GetAtomWithIdx(begin_idx))
                 or _is_external_linker_atom(mol.GetAtomWithIdx(end_idx))
             ):
-                raise ValueError("MuPT SDF bond references an atom without particle props")
+                raise ValueError(
+                    "MuPT SDF bond references an atom without particle props"
+                )
             continue
         begin_residue_index = atom_to_residue_index[begin_idx]
         end_residue_index = atom_to_residue_index[end_idx]
@@ -379,12 +396,12 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:
             raise ValueError("MuPT SDF bond crosses SEGMENT records")
         begin_residue = residue_primitives[begin_residue_index]
         end_residue = residue_primitives[end_residue_index]
-        begin_residue_conn = begin_residue.external_connectors_on_child(atom_handles[begin_idx])[
-            atom_connector_handles[(begin_idx, end_idx)]
-        ]
-        end_residue_conn = end_residue.external_connectors_on_child(atom_handles[end_idx])[
-            atom_connector_handles[(end_idx, begin_idx)]
-        ]
+        begin_residue_conn = begin_residue.external_connectors_on_child(
+            atom_handles[begin_idx]
+        )[atom_connector_handles[(begin_idx, end_idx)]]
+        end_residue_conn = end_residue.external_connectors_on_child(
+            atom_handles[end_idx]
+        )[atom_connector_handles[(end_idx, begin_idx)]]
         segment.connect_children(
             residue_handles[begin_residue_index],
             begin_residue_conn,
@@ -414,7 +431,7 @@ def iter_primitives_from_mupt_sdf(
         distance convention as the source SDF records, conventionally angstroms.
 
     Yields
-    -------
+    ------
     Primitive
         Rebuilt ``SEGMENT -> RESIDUE -> PARTICLE`` hierarchy for one SDF record.
         Per-record SDF metadata is preserved on rebuilt SEGMENT nodes. Bonds
@@ -436,7 +453,9 @@ def iter_primitives_from_mupt_sdf(
         )
         for record_idx, mol in enumerate(supplier):
             if mol is None:
-                raise ValueError(f"Could not parse MuPT SDF record {record_idx} from '{path}'")
+                raise ValueError(
+                    f"Could not parse MuPT SDF record {record_idx} from '{path}'"
+                )
             if sanitize:
                 mol = sanitized_mol(mol)
             yield _build_segment_from_mol(mol)

@@ -1,4 +1,5 @@
-'''Test that Protocol for RigidlyTransformable objects is implemented correctly'''
+"""Test that Protocol for RigidlyTransformable objects is implemented correctly"""
+# ruff: noqa: D103 ("undocumented public function")
 
 import pytest
 from typing import Union
@@ -10,24 +11,27 @@ from scipy.spatial.transform import Rotation, RigidTransform
 from mupt.mutils.copyable import NotCopyableError
 from mupt.geometry.transforms.rigid.application import (
     transformations_approx_equal,
-    RigidlyTransformable
+    RigidlyTransformable,
 )
 
 
 # dummy classes for testing over
 class Points(RigidlyTransformable):
-    '''Dummy class for testing RigidlyTransformable Protocol'''
+    """Dummy class for testing RigidlyTransformable Protocol"""
+
     def __init__(self, positions: np.ndarray) -> None:
         self.positions = positions
 
     def _rigidly_transform(self, transform: RigidTransform) -> None:
         self.positions = transform.apply(self.positions)
-        
-    def _copy_untransformed(self) -> 'Points':
+
+    def _copy_untransformed(self) -> "Points":
         return self.__class__(positions=np.array(self.positions))
-    
+
+
 class PointsNonCopyable(RigidlyTransformable):
-    '''Dummy class for to test that in-place methods fail when copying is undefined'''
+    """Dummy class for to test that in-place methods fail when copying is undefined"""
+
     def __init__(self, positions: np.ndarray) -> None:
         self.positions = positions
 
@@ -35,40 +39,50 @@ class PointsNonCopyable(RigidlyTransformable):
         self.positions = transform.apply(self.positions)
 
     # NOTE: _copy_untransformed() method deliberately omitted
-    
+
+
 # Fixtures
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def transform() -> RigidTransform:
     direction = np.array([0.0, 1.0, 0.0])
     return RigidTransform.from_components(
-        rotation=Rotation.from_rotvec(np.pi/4 * direction), # rotate an eighth of a turn clockwise about the target direction
-        translation=direction, # slide 1 unit along the target direction
+        rotation=Rotation.from_rotvec(
+            np.pi / 4 * direction
+        ),  # rotate an eighth of a turn clockwise about the target direction
+        translation=direction,  # slide 1 unit along the target direction
     )
-    
-@pytest.fixture(scope='function')
+
+
+@pytest.fixture(scope="function")
 def sample_positions() -> np.ndarray:
     return np.array(list(cartesian([0.0, 1.0], repeat=3)), dtype=float)
 
-@pytest.fixture(scope='function')
-def sample_positions_transformed(transform: RigidTransform, sample_positions: np.ndarray) -> np.ndarray:
+
+@pytest.fixture(scope="function")
+def sample_positions_transformed(
+    transform: RigidTransform, sample_positions: np.ndarray
+) -> np.ndarray:
     return transform.apply(sample_positions)
 
-@pytest.fixture(scope='function')
-def points(sample_positions : np.ndarray) -> Points:
+
+@pytest.fixture(scope="function")
+def points(sample_positions: np.ndarray) -> Points:
     return Points(positions=sample_positions)
 
-@pytest.fixture(scope='function')
-def points_non_copyable(sample_positions : np.ndarray) -> PointsNonCopyable:
+
+@pytest.fixture(scope="function")
+def points_non_copyable(sample_positions: np.ndarray) -> PointsNonCopyable:
     return PointsNonCopyable(positions=sample_positions)
 
+
 # Tests
-## Test in-place methods
+# Test in-place methods
 def test_rigidly_transform(
-    points : Points,
-    transform : RigidTransform,
-    sample_positions_transformed : np.ndarray,
+    points: Points,
+    transform: RigidTransform,
+    sample_positions_transformed: np.ndarray,
 ) -> None:
-    '''Test that rigid transformation are correctly applied in-place'''
+    """Test that rigid transformation are correctly applied in-place"""
     points.rigidly_transform(transform)
     np.testing.assert_allclose(
         points.positions,
@@ -76,25 +90,30 @@ def test_rigidly_transform(
         strict=True,
     )
 
-@pytest.mark.parametrize('num_applications', range(8))
+
+@pytest.mark.parametrize("num_applications", range(8))
 def test_cumulative_transformation(
-    points : Points,
-    transform : RigidTransform,
-    num_applications : int,
+    points: Points,
+    transform: RigidTransform,
+    num_applications: int,
 ) -> None:
-    '''Test that transformed applied one after the other are correctly accumulated'''
+    """Test that transformed applied one after the other are correctly accumulated"""
     cumul_trans = RigidTransform.identity()
     for _ in range(num_applications):
         points.rigidly_transform(transform)
         cumul_trans *= transform
-        
+
     assert transformations_approx_equal(
         points.cumulative_transformation,
         cumul_trans,
     )
 
-def test_reset_transform(points : Points, transform : RigidTransform):
-    '''Test that resetting a rigid transformation in-place return the object to its original state'''
+
+def test_reset_transform(points: Points, transform: RigidTransform):
+    """
+    Test that resetting a rigid transformation in-place
+    return the object to its original state
+    """
     points.rigidly_transform(transform)
     points.reset_transform()
 
@@ -103,53 +122,66 @@ def test_reset_transform(points : Points, transform : RigidTransform):
         RigidTransform.identity(),
     )
 
-## Test read-only variants of methods
+
+# Test read-only variants of methods
 def test_rigidly_transformed(
-    points : Union[Points, PointsNonCopyable],
-    transform : RigidTransform,
+    points: Union[Points, PointsNonCopyable],
+    transform: RigidTransform,
 ) -> None:
-    '''Test that rigid transformation are correctly applied in-place'''
+    """Test that rigid transformation are correctly applied in-place"""
     new_points = points.rigidly_transformed(transform)
     # NOTE: will not compare as expected when transform is within float imprecision
-    # Also, not opting for np.testing functionality, since there is no direct support built in for checking arrays are NOT equal
+    # Also, not opting for np.testing functionality, since there is
+    # no direct support built in for checking arrays are NOT equal
     assert not np.allclose(new_points.positions, points.positions)
 
+
 @pytest.mark.xfail(
-    reason='Can\'t apply out-of-place transformation to objects which can\'t be copied',
+    reason="Can't apply out-of-place transformation to objects which can't be copied",
     raises=NotCopyableError,
     strict=True,
 )
 def test_rigidly_transformed_fails_when_non_copyable(
-    points_non_copyable : Union[Points, PointsNonCopyable],
-    transform : RigidTransform,
+    points_non_copyable: Union[Points, PointsNonCopyable],
+    transform: RigidTransform,
 ) -> None:
-    '''Test that rigid transformation are correctly applied out-of-place'''
-    _ = points_non_copyable.rigidly_transformed(transform) # no asserts needed, since this line should fail
+    """Test that rigid transformation are correctly applied out-of-place"""
+    _ = points_non_copyable.rigidly_transformed(
+        transform
+    )  # no asserts needed, since this line should fail
+
 
 def test_reset_transformed(
-    points : Union[Points, PointsNonCopyable],
-    transform : RigidTransform,
+    points: Union[Points, PointsNonCopyable],
+    transform: RigidTransform,
 ) -> None:
-    '''Test that resetting a rigid transformation in-place return the object to its original state'''
+    """
+    Test that resetting a rigid transformation in-place
+    returns the object to its original state
+    """
     new_points = points.rigidly_transformed(transform)
     resetted_points = new_points.reset_transformed()
 
     np.testing.assert_allclose(
         points.positions,
         resetted_points.positions,
-        rtol=1E-7,
-        atol=1E-10, # DEV: need abs tolerance to be non-zero, since some array values are exactly 0 (fails comparison on MacOS CI)
+        rtol=1e-7,
+        # DEV: need abs tolerance to be non-zero, since some array
+        # values are exactly 0 (fails comparison on MacOS CI)
+        atol=1e-10,
         strict=True,
     )
-    
+
+
 @pytest.mark.xfail(
-    reason='Can\'t apply out-of-place transformation to objects which can\'t be copied',
+    reason="Can't apply out-of-place transformation to objects which can't be copied",
     raises=NotCopyableError,
     strict=True,
 )
 def test_reset_transformed_fails_when_non_copyable(
-        points_non_copyable : Union[Points, PointsNonCopyable],
-    ) -> None:
-    '''Test that rigid transformation are correctly applied out-of-place'''
-    _ = points_non_copyable.reset_transformed() # no asserts needed, since this line should fail
-
+    points_non_copyable: Union[Points, PointsNonCopyable],
+) -> None:
+    """Test that rigid transformation are correctly applied out-of-place"""
+    _ = (
+        points_non_copyable.reset_transformed()
+    )  # no asserts needed, since this line should fail

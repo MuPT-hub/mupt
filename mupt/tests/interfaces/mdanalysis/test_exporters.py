@@ -1,11 +1,13 @@
 """
-Tests to ensure export from MuPT to MDAnalysis preserves molecular identity and connectivity.
+Tests to ensure export from MuPT to MDAnalysis
+preserves molecular identity and connectivity.
 """
 
 # Shortcut to run tests for this file:
 # python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py -v
 # With Coverage:
-# python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py --cov=mupt.interfaces.mdanalysis --cov-report=term -v
+# python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py
+# --cov=mupt.interfaces.mdanalysis --cov-report=term -v
 import pytest
 from anytree import PreOrderIter
 
@@ -84,11 +86,13 @@ def test_atom_count_preservation(primitive_fixture, resname_fixture, request):
 
     # Act: Convert to MDAnalysis
     mda_exported_system = primitive_to_mdanalysis(univprim, resname_map=resname_map)
+    num_atoms_mda: int = mda_exported_system.atoms.n_atoms
 
     # Assert: MDAnalysis atom count should match Primitive leaf count
-    assert mda_exported_system.atoms.n_atoms == len(univprim.leaves), (
-        f"Expected {len(univprim.leaves)} atoms, found {mda_exported_system.atoms.n_atoms}"
+    assert num_atoms_mda == len(univprim.leaves), (
+        f"Expected {len(univprim.leaves)} atoms, found {num_atoms_mda}"
     )
+
 
 @pytest.mark.parametrize(
     "primitive_fixture,resname_fixture",
@@ -103,7 +107,7 @@ def test_atom_count_preservation(primitive_fixture, resname_fixture, request):
 )
 def test_bond_connectivity_preservation(primitive_fixture, resname_fixture, request):
     """
-    Parametrized test verifying that primitive_to_mdanalysis preserves bond connectivity.
+    Parametrized test verifying primitive_to_mdanalysis preserves bond connectivity.
 
     This test ensures that the bonding structure (topology) is correctly transferred
     from the MuPT Primitive hierarchy to the MDAnalysis Universe. It separately counts:
@@ -148,6 +152,7 @@ def test_bond_connectivity_preservation(primitive_fixture, resname_fixture, requ
         f"but MDAnalysis Universe has {actual_bond_count} bonds"
     )
 
+
 # ============================================================================
 # NEGATIVE TEST CASES: Verify proper error handling for invalid inputs
 # ============================================================================
@@ -156,7 +161,8 @@ def test_bond_connectivity_preservation(primitive_fixture, resname_fixture, requ
 # Each returns a fresh Primitive per call to avoid mutation risks from shared
 # mutable anytree NodeMixin state across parametrized test runs.
 
-@pytest.fixture(scope='function')
+
+@pytest.fixture(scope="function")
 def non_SAAMR_hierarchy_shallow() -> Primitive:
     """Universe -> Atom directly (depth=1, should be 3). Violates SAAMR."""
     universe = Primitive(label="universe")
@@ -164,7 +170,8 @@ def non_SAAMR_hierarchy_shallow() -> Primitive:
     universe.attach_child(atom)
     return universe
 
-@pytest.fixture(scope='function')
+
+@pytest.fixture(scope="function")
 def non_SAAMR_hierarchy_non_atom_leaf() -> Primitive:
     """Leaf has no element attribute. Violates SAAMR atom requirement."""
     universe = Primitive(label="universe")
@@ -176,10 +183,12 @@ def non_SAAMR_hierarchy_non_atom_leaf() -> Primitive:
     repeat_unit.attach_child(non_atom)
     return universe
 
-@pytest.fixture(scope='function')
+
+@pytest.fixture(scope="function")
 def SAAMR_hierarchy_helium() -> Primitive:
     """Minimal valid SAAMR structure for testing resname_map validation.
-    Hierarchy: Universe -> Molecule -> Repeat-Unit ('unit') -> He atom."""
+    Hierarchy: Universe -> Molecule -> Repeat-Unit ('unit') -> He atom.
+    """
     universe = Primitive(label="universe")
     molecule = Primitive(label="mol")
     repeat_unit = Primitive(label="unit")
@@ -214,8 +223,8 @@ def test_mda_export_reject_empty_tree():
 @pytest.mark.parametrize(
     "primitive_fixture, resname_map",
     [
-        ('non_SAAMR_hierarchy_shallow', {"He": "HEL"}),         # depth=1, should be 3
-        ('non_SAAMR_hierarchy_non_atom_leaf', {"unit": "UNT"}), # leaf missing element
+        ("non_SAAMR_hierarchy_shallow", {"He": "HEL"}),  # depth=1, should be 3
+        ("non_SAAMR_hierarchy_non_atom_leaf", {"unit": "UNT"}),  # leaf missing element
     ],
     ids=["shallow_depth", "non_atom_leaf"],
 )
@@ -233,18 +242,31 @@ def test_mda_export_reject_non_SAAMR(primitive_fixture, resname_map, request):
     with pytest.raises(ValueError):
         primitive_to_mdanalysis(univprim, resname_map=resname_map)
 
+
 @pytest.mark.parametrize(
     "primitive_fixture, resname_map",
     [
-        ("SAAMR_hierarchy_helium", {"unit": "HE"}),     # 2 chars — too short for PDB 3-char requirement
-        ("SAAMR_hierarchy_helium", {"unit": "HELL"}),   # 4 chars — too long for PDB 3-char requirement
-        ("SAAMR_hierarchy_helium", {}), # missing entry; falls back to label 'unit' (4 chars) → ValueError
+        (
+            "SAAMR_hierarchy_helium",
+            {"unit": "HE"},
+        ),  # 2 chars — too short for PDB 3-char requirement
+        (
+            "SAAMR_hierarchy_helium",
+            {"unit": "HELL"},
+        ),  # 4 chars — too long for PDB 3-char requirement
+        (
+            "SAAMR_hierarchy_helium",
+            {},
+        ),  # missing entry; falls back to label 'unit' (4 chars) → ValueError
     ],
     ids=["too_short", "too_long", "missing_entry"],
 )
-def test_invalid_resname_map_raises_value_error(primitive_fixture, resname_map, request):
+def test_invalid_resname_map_raises_value_error(
+    primitive_fixture, resname_map, request
+):
     """
-    Check that invalid resname_map entries raise ValueError when attempting export to MDAnalysis.
+    Check that invalid resname_map entries raise
+    ValueError when attempting export to MDAnalysis.
 
     The ``_pdb_resname`` helper enforces that residue names are exactly
     3 characters for PDB compliance. This test covers three failure modes:
@@ -268,7 +290,9 @@ def test_mda_export_uses_residue_metadata_name_for_instance_labels():
     segment.attach_child(residue)
     universe.attach_child(segment)
 
-    mda_universe = primitive_to_mdanalysis(universe, resname_map={"head_styrene": "PSH"})
+    mda_universe = primitive_to_mdanalysis(
+        universe, resname_map={"head_styrene": "PSH"}
+    )
 
     assert list(mda_universe.residues.resnames) == ["PSH"]
 
@@ -276,6 +300,7 @@ def test_mda_export_uses_residue_metadata_name_for_instance_labels():
 # ============================================================================
 # STRATEGY-BASED EXPORT TESTS
 # ============================================================================
+
 
 @pytest.mark.parametrize(
     "primitive_fixture,resname_fixture",
@@ -286,7 +311,9 @@ def test_mda_export_uses_residue_metadata_name_for_instance_labels():
     ],
     ids=["2mer_explicit", "3mer_explicit", "helium_explicit"],
 )
-def test_explicit_strategy_produces_same_result(primitive_fixture, resname_fixture, request):
+def test_explicit_strategy_produces_same_result(
+    primitive_fixture, resname_fixture, request
+):
     """
     Verify that passing AllAtomExportStrategy explicitly produces the
     same atom/bond counts as the default strategy path.
@@ -299,15 +326,25 @@ def test_explicit_strategy_produces_same_result(primitive_fixture, resname_fixtu
 
     # Explicit strategy path
     strategy = AllAtomExportStrategy()
-    mda_explicit = primitive_to_mdanalysis(univprim, resname_map=resname_map, strategy=strategy)
+    mda_explicit = primitive_to_mdanalysis(
+        univprim, resname_map=resname_map, strategy=strategy
+    )
 
     assert mda_default.atoms.n_atoms == mda_explicit.atoms.n_atoms
     assert mda_default.residues.n_residues == mda_explicit.residues.n_residues
     assert mda_default.segments.n_segments == mda_explicit.segments.n_segments
 
     # Bond comparison — handle the no-bonds case (e.g. single helium atom)
-    default_has_bonds = hasattr(mda_default, "bonds") and hasattr(mda_default.atoms, "_topology") and "bonds" in mda_default.atoms._topology.attrs
-    explicit_has_bonds = hasattr(mda_explicit, "bonds") and hasattr(mda_explicit.atoms, "_topology") and "bonds" in mda_explicit.atoms._topology.attrs
+    default_has_bonds = (
+        hasattr(mda_default, "bonds")
+        and hasattr(mda_default.atoms, "_topology")
+        and "bonds" in mda_default.atoms._topology.attrs
+    )
+    explicit_has_bonds = (
+        hasattr(mda_explicit, "bonds")
+        and hasattr(mda_explicit.atoms, "_topology")
+        and "bonds" in mda_explicit.atoms._topology.attrs
+    )
     if default_has_bonds and explicit_has_bonds:
         assert len(mda_default.bonds) == len(mda_explicit.bonds)
     else:
@@ -442,6 +479,7 @@ def test_segment_count_preservation(
 # DEPTH-4 (NON-SAAMR) EXPORT TESTS
 # ============================================================================
 
+
 class TestDepth4Export:
     """
     Tests for exporting a depth-4 Primitive tree (Universe→Domain→Chain→Residue→Atom)
@@ -528,35 +566,51 @@ class TestDepth4BondedExport:
     (residue→atom) and inter-residue (chain→residue→atom) depths.
     """
 
-    def test_depth4_bonded_atom_count(self, depth4_bonded_system, polyethylene_resname_map):
+    def test_depth4_bonded_atom_count(
+        self, depth4_bonded_system, polyethylene_resname_map
+    ):
         """Depth-4 bonded export preserves all 8 atoms."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         assert mda_u.atoms.n_atoms == 8
 
-    def test_depth4_bonded_segment_count(self, depth4_bonded_system, polyethylene_resname_map):
+    def test_depth4_bonded_segment_count(
+        self, depth4_bonded_system, polyethylene_resname_map
+    ):
         """Depth-4 bonded export discovers 1 segment."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         assert mda_u.segments.n_segments == 1
 
-    def test_depth4_bonded_residue_count(self, depth4_bonded_system, polyethylene_resname_map):
+    def test_depth4_bonded_residue_count(
+        self, depth4_bonded_system, polyethylene_resname_map
+    ):
         """Depth-4 bonded export discovers 2 residues (head + tail)."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         assert mda_u.residues.n_residues == 2
 
-    def test_depth4_bonded_total_bond_count(self, depth4_bonded_system, polyethylene_resname_map):
+    def test_depth4_bonded_total_bond_count(
+        self, depth4_bonded_system, polyethylene_resname_map
+    ):
         """Depth-4 bonded export produces exactly 7 bonds (6 intra + 1 inter)."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         assert len(mda_u.bonds) == 7
 
@@ -566,7 +620,9 @@ class TestDepth4BondedExport:
         """All bonds in the depth-4 polyethylene fixture are single (order 1)."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         for bond in mda_u.bonds:
             assert bond.order == 1, (
@@ -587,7 +643,9 @@ class TestDepth4BondedExport:
 
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         assert len(mda_u.bonds) == expected_total, (
             f"Expected {expected_total} bonds from Primitive hierarchy, "
@@ -604,11 +662,14 @@ class TestDepth4BondedExport:
         """
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         # Find bonds that span two different residues
         cross_residue_bonds = [
-            bond for bond in mda_u.bonds
+            bond
+            for bond in mda_u.bonds
             if bond.atoms[0].resindex != bond.atoms[1].resindex
         ]
         assert len(cross_residue_bonds) == 1, (
@@ -625,19 +686,26 @@ class TestDepth4BondedExport:
         """
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         cross_residue_bonds = [
-            bond for bond in mda_u.bonds
+            bond
+            for bond in mda_u.bonds
             if bond.atoms[0].resindex != bond.atoms[1].resindex
         ]
         assert len(cross_residue_bonds) == 1
         bond = cross_residue_bonds[0]
+
+        elem1 = bond.atoms[0].element
         assert bond.atoms[0].element == "C", (
-            f"Expected first atom of inter-residue bond to be C, got '{bond.atoms[0].element}'"
+            f"Expected first atom of inter-residue bond to be C, got '{elem1}'"
         )
+
+        elem2 = bond.atoms[1].element
         assert bond.atoms[1].element == "C", (
-            f"Expected second atom of inter-residue bond to be C, got '{bond.atoms[1].element}'"
+            f"Expected second atom of inter-residue bond to be C, got '{elem2}'"
         )
 
     def test_depth4_bonded_all_atoms_assigned_to_residues(
@@ -646,7 +714,9 @@ class TestDepth4BondedExport:
         """Every atom is assigned to a residue (resindex is valid)."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         for atom in mda_u.atoms:
             assert 0 <= atom.resindex < mda_u.residues.n_residues, (
@@ -659,7 +729,9 @@ class TestDepth4BondedExport:
         """Each residue (head, tail) should contain exactly 4 atoms."""
         strategy = AllAtomExportStrategy()
         mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system, resname_map=polyethylene_resname_map, strategy=strategy
+            depth4_bonded_system,
+            resname_map=polyethylene_resname_map,
+            strategy=strategy,
         )
         for res in mda_u.residues:
             assert len(res.atoms) == 4, (
