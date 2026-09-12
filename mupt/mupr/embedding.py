@@ -145,8 +145,9 @@ def flexible_connector_reference(
             connector_handle=connector_handle,
         )
 
-
-def infer_connections_from_topology(
+# TB: suppressing complexity (C901) warning for the time being
+# this is being refactored in PR #56, so should be resolved soon
+def infer_connections_from_topology( # noqa: C901
     topology: TopologicalStructure,
     mapped_connectors: Mapping[PrimitiveHandle, Mapping[ConnectorHandle, Connector]],
     n_iter_max: int = 25,  # DEV: this is just a number I made up :P

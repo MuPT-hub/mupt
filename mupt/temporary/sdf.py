@@ -247,8 +247,10 @@ def _record_metadata(mol: Mol) -> dict:
         if not key.startswith(MUPT_SDF_ATOM_PROP_PREFIX)
     }
 
-
-def _build_segment_from_mol(mol: Mol) -> Primitive:
+# TB: supressing linter complexity (C901) warning for now, 
+# but in the future this should be refactored to be more modular 
+# and contain less branched business logic in one place
+def _build_segment_from_mol(mol: Mol) -> Primitive: # noqa: C901
     """Rebuild one SEGMENT hierarchy from one MuPT SDF record."""
     atom_positions = _atom_positions_by_index(mol)
     for atom in mol.GetAtoms():

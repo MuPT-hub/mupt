@@ -33,7 +33,10 @@ from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
-def random_walk_jointed_chain(
+# TB: supressing linter complexity (C901) warning for now, 
+# but in the future this should be refactored to be more modular 
+# and contain less branched business logic in one place
+def random_walk_jointed_chain( # noqa: C901
     step_size: Union[Number, Iterable[Number], Generator[Number, None, None]],
     n_steps_max: Optional[int] = None,
     initial_point: Optional[np.ndarray[Shape[Dims], float]] = None,

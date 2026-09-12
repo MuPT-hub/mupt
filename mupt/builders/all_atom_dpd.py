@@ -551,7 +551,10 @@ class AllAtomDPDBuilder:
         self._uses_default_placement_generator = placement_generator is None
         self.placement_generator = placement_generator
 
-    def _validate_settings(self) -> None:
+    # TB: supressing linter complexity (C901) warning for now, 
+    # but in the future this should be refactored to be more modular 
+    # and contain less branched business logic in one place
+    def _validate_settings(self) -> None: # noqa: C901
         """Reject invalid settings before optional HOOMD/OpenFF work starts."""
         positive_fields = {
             "density_g_cm3": self.settings.density_g_cm3,
@@ -980,7 +983,10 @@ class AllAtomDPDBuilder:
         )
         return frame
 
-    def _initial_positions(
+    # TB: supressing linter complexity (C901) warning for now, 
+    # but in the future this should be refactored to be more modular 
+    # and contain less branched business logic in one place
+    def _initial_positions( # noqa: C901
         self,
         records: list[_SegmentRecord],
         box_lengths: float | np.ndarray | None = None,
@@ -1248,7 +1254,10 @@ class AllAtomDPDBuilder:
             dtype=np.uint32,
         )
 
-    def _simulation(
+    # TB: supressing linter complexity (C901) warning for now, 
+    # but in the future this should be refactored to be more modular 
+    # and contain less branched business logic in one place
+    def _simulation( # noqa: C901
         self,
         hoomd: Any,
         frame: Any,

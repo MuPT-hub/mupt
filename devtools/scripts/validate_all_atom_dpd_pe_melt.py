@@ -225,7 +225,10 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-def validate_args(args: argparse.Namespace) -> None:
+# TB: supressing linter complexity (C901) warning for now, 
+# but in the future this should be refactored to be more modular 
+# and contain less branched business logic in one place
+def validate_args(args: argparse.Namespace) -> None: # noqa: C901
     if args.n_chains < 1:
         raise ValueError("--n-chains must be >= 1")
     if args.chain_len < 2:

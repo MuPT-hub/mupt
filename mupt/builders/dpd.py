@@ -202,7 +202,10 @@ class DPDRandomWalk(PlacementGenerator):
                     "or spherical beads to determine step sizes"
                 )
 
-    def _generate_placements(
+    # TB: supressing linter complexity (C901) warning for now, 
+    # but in the future this should be refactored to be more modular 
+    # and contain less branched business logic in one place
+    def _generate_placements( # noqa: C901
         self, primitive: Primitive
     ) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         """
