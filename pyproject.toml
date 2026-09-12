@@ -142,13 +142,17 @@ select = [
     "NPY",  # Numpy-specific rules
     "TRY",  # try-except clause formatting
 ]
-# extend-select = ["E501"]
 ignore = [
+    "D204", # prevent requiring spaces after class docstrings - even docs call optional
     "D205", # don't require blank line after first docstring line (for long line splits)
     "D400", # prevent rejection of docstrings without period ending first line
     "D401", # prevent rejection of docstrings with "non-imperative mood"
+    "E226", # extra space makes arithmetic expression LESS readable in some cases
+    "E252", # spaces around equals undesirable for arg defaults and indicating kwargs
+    "E266", # use ##, ### etc. to delineate comments on different "levels" of logic
+    "E302", # double blank lines before and after ANY function look visually disjoint...
+    "E305", # ...use instead to delimit code section (imports, consts, functions, etc.)
     "E402", # ignore "module import not at top of file" (contradicts conventions here)
-    #"E501", # allow format to fix long lines (theoretically)
     "NPY002", # suppress suggestions to replace np.random.<x> w/ np.random.Generator
     "TRY003", # allow passing long msgs to Exceptions at init, rather than in class def
 ]
@@ -161,11 +165,11 @@ max-complexity = 10 # Flag errors (`C901`) on excessive complexity
 
 [tool.ruff.format]
 preview = true
+docstring-code-format = true
 
 indent-style = "space"
 quote-style = "double"
 line-ending = "auto"
-docstring-code-format = true
 nested-string-quote-style = "alternating"
 
 [tool.ruff.analyze]
