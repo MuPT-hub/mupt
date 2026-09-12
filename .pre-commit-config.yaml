@@ -10,7 +10,7 @@ repos:
     # Run the linter.
     - id: ruff-check
       types_or: [
-        # python,
+        python,
         pyi
         # excluding markdown for now; may add later
       ] 
