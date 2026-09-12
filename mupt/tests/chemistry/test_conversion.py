@@ -16,8 +16,7 @@ from mupt.chemistry.conversion import (
 
 def compile_element_to_atom_params() -> dict[ElementLike, Atom]:
     """
-    Compile test examples for element to atom conversion tests
-    
+    Compile test examples for element to atom conversion tests.
     Needed because parameterized pytest fixtures still aren't a thing
     """
     test_examples: dict[ElementLike, Atom] = {}

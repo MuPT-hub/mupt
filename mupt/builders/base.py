@@ -20,7 +20,7 @@ class PlacementGenerator(ABC):
     @abstractmethod
     def __init__(self) -> None:
         """
-        Implementation-specific parameters (e.g. force constants, 
+        Implementation-specific parameters (e.g. force constants,
         target bond lengths, etc.) should be bound here
         """
         ...
@@ -33,7 +33,7 @@ class PlacementGenerator(ABC):
     ) -> None:
         """
         Check that the given Primitive meets any preconditions for this builder
-        E.g. a linear-only chain builder might check 
+        E.g. a linear-only chain builder might check
         that a system's topology has no branches
 
         Implementation provided (if any) should raise detailed Exceptions if
@@ -47,7 +47,7 @@ class PlacementGenerator(ABC):
         primitive: Primitive,
     ) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         """
-        Implement generation of rigid transformations 
+        Implement generation of rigid transformations
         to place each child of the given Primitive here
         """
         ...

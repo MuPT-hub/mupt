@@ -155,7 +155,7 @@ def connector_between_rdatoms(
     ),
 ) -> Connector:
     """
-    Create a Connector object representing a 
+    Create a Connector object representing a
     one-way connection between two RDKit atoms
 
     Parameters
@@ -173,11 +173,11 @@ def connector_between_rdatoms(
         If None is supplied, will leave all spatial fields of the Connector unset
     anchor_factory : Callable[[Atom], AttachmentPoint], \
             default: attachment_with_idx_and_symbol
-        A function which takes an RDKit Atom and 
+        A function which takes an RDKit Atom and
         returns an AttachmentPoint to use as the anchor point
     linker_factory : Callable[[Atom], AttachmentPoint], \
             default: attachment_with_idx_and_symbol
-        A function which takes an RDKit Atom and 
+        A function which takes an RDKit Atom and
         returns an AttachmentPoint to use as the linker point
     connector_labeller : Callable[[Connector], ConnectorLabel], \
             default: Connector.DEFAULT_LABEL

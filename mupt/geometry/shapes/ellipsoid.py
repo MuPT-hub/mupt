@@ -297,7 +297,7 @@ class Ellipsoid(BoundedTransformableShape):
         """
         Transformation which maps this Ellipsoid
         to the unit sphere centered at the origin
-        
+
         Inverse of the Ellipsoid's affine basis matrix
         """
         return np.linalg.inv(
@@ -309,7 +309,7 @@ class Ellipsoid(BoundedTransformableShape):
         """
         The inverse of the Ellipsoid's affine basis matrix
         Maps this Ellipsoid to the unit sphere centered at the origin
-        
+
         Alias for Ellipsoid.affine_inverse()
         """
         return self.affine_inverse()
@@ -317,7 +317,7 @@ class Ellipsoid(BoundedTransformableShape):
     # TODO: replace with __eq__, add options for setting comparison tolerances
     def coincident_with(self, other: "Ellipsoid") -> bool:
         """
-        Whether this Ellipsoid is the same size and 
+        Whether this Ellipsoid is the same size and
         at the same location as another Ellipsoid
         """
         return (

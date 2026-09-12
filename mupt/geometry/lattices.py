@@ -1,5 +1,5 @@
 """
-Representations and calculation methods for crystallographic 
+Representations and calculation methods for crystallographic
 unit cells, lattice parameters, and lattice coordinates
 """
 

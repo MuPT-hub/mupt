@@ -126,7 +126,7 @@ class AllAtomDPDSettings:
     random_seed
         Optional deterministic seed for initialization and HOOMD.
     write_gsd
-        Whether to write initial and trajectory GSD files. 
+        Whether to write initial and trajectory GSD files.
         Will write only first and last unless report_interval is provided.
     write_log
         Whether to write AA-DPD convergence diagnostics as JSON lines. Requires

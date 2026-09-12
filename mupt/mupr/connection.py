@@ -51,7 +51,7 @@ class ConnectionError(Exception):
 
 class IncompatibleConnectorError(ConnectionError):
     """
-    Raised when attempting to connect two Connectors 
+    Raised when attempting to connect two Connectors
     which are, for whatever reason, incompatible
     """
     pass
@@ -62,7 +62,7 @@ class MissingConnectorError(ConnectionError):
 
 class UnboundConnectorError(ConnectionError):
     """
-    Raised when a pair of Connectors are 
+    Raised when a pair of Connectors are
     unexpectedly not bound to one another
     """
     pass
@@ -73,7 +73,7 @@ class TraversalDirection(Enum):
     """
     Uniquifying label indicating whether a connection
     faces "forward" or "backward" along a path graph
-    
+
     Indication is relative to an arbitrary-but-consistent absolute
     direction of traversal along the path from end-to-end
     """
@@ -111,7 +111,7 @@ class AttachmentPoint(RigidlyTransformable):
     """
     A point with an associated attachment, which must come from
     a predefined set (attachables) of allowable designations.
-    
+
     Forms half of a Connector; represents a spatial attachment
     to some other body, identified by its attachment.
     """
@@ -124,7 +124,7 @@ class AttachmentPoint(RigidlyTransformable):
         Protects access to .attachment and .position attrs, namely:
         * Forces .attachment to be a member of .attachables
         * Ensures self.position is a proper 3-vector
-        
+
         Assigns attr with no restrictions on any other key
         """
         if key == "attachment":
@@ -248,7 +248,7 @@ class Connector(RigidlyTransformable):
     def bond_length(self) -> float:
         """
         Distance spanned by the bond vector
-        
+
         I.e. distance from anchor to linker positions
         """
         return np.linalg.norm(self.bond_vector)
@@ -263,7 +263,7 @@ class Connector(RigidlyTransformable):
 
     def set_bond_length(self, new_bond_length: float) -> None:
         """
-        Adjust length of bond vector by moving linker position along 
+        Adjust length of bond vector by moving linker position along
         the bond vector's span, keeping the anchor fixed in place
         """
         self.bond_vector = new_bond_length * self.unit_bond_vector
@@ -315,7 +315,7 @@ class Connector(RigidlyTransformable):
 
     def set_tangent_from_coplanar_point(self, coplanar_point: Vector3) -> None:
         """
-        Set point tangent to the dihedral plane and orthogonal to 
+        Set point tangent to the dihedral plane and orthogonal to
         the linker point from any third point in the dihedral plane
         """
         self.tangent_vector = rejector(self.bond_vector) @ (
@@ -336,7 +336,7 @@ class Connector(RigidlyTransformable):
     @property
     def normal_vector(self) -> Vector3:
         """
-        A vector normal to the dihedral plane and 
+        A vector normal to the dihedral plane and
         orthogonal to both the bond and tangent vectors
         """
         return np.cross(self.bond_vector, self.tangent_vector)
@@ -360,7 +360,7 @@ class Connector(RigidlyTransformable):
         """
         Return a 3x3 array representing an orthonormal basis
         for this Connector's local coordinate system
-        
+
         Columns of the array are the basis vectors,
         which are all mutually orthogonal and of unit length
         Basis vectors are in fact the unit bond, tangent, and
@@ -430,10 +430,10 @@ class Connector(RigidlyTransformable):
         alignment_tolerance: float = 1e-6,
     ) -> RigidTransform:
         """
-        Transformation which, when applied to this Connector, rotates it 
+        Transformation which, when applied to this Connector, rotates it
         so that the dihedral planes between the Connectors subtends the
         desired dihedral angle in radians (by default, 0.0 rad)
-        
+
         It is required (and enforced) for the pair of Connectors
         to be antialigned for this operation to be valid
         """
@@ -523,7 +523,7 @@ class Connector(RigidlyTransformable):
     ) -> RigidTransform:
         """
         Compute a rigid transformation which antialigns a pair of
-        Connectors by making the linker point of this Connector 
+        Connectors by making the linker point of this Connector
         coincident with the anchor of the other Connector
 
         If the two Connectors have the same bond length, the anchor of
@@ -625,7 +625,7 @@ class Connector(RigidlyTransformable):
         """
         Match linker position of this Connector to the anchor
         position of the other Connector (if assigned)
-        
+
         NOTE: does NOT modify the other Connector,
         only acts on the first Connector of the provided pair
         """
@@ -641,9 +641,9 @@ class Connector(RigidlyTransformable):
         match_bond_length: bool = False,
     ) -> None:
         """
-        Return copy of this Connector whose linker positions is aligned to 
+        Return copy of this Connector whose linker positions is aligned to
         the anchor position of the other Connector (if assigned)
-        
+
         NOTE: does NOT modify either Connector of the passed pair;
         returns a modified copy of the first Connector
         """
@@ -670,7 +670,7 @@ class Connector(RigidlyTransformable):
         In the end, the linker of either Connector with be coincident with the
         anchor of the other, and the anchors sites will not have been moved
 
-        If a dihedral angle is provided, will also rotate this 
+        If a dihedral angle is provided, will also rotate this
         Connector along the mutual bond axis to that angle
         """
         self.antialign_ballistically_to(other, match_bond_length=True)
@@ -747,7 +747,7 @@ class Connector(RigidlyTransformable):
 
     def fungible_with(self, other: "Connector") -> bool:
         """
-        Whether this connector can replace other 
+        Whether this connector can replace other
         without any change to programs which involve it
         """
         return self.coincides_with(other) and self.resembles(other)

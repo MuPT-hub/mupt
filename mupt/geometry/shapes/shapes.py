@@ -71,7 +71,7 @@ class BoundedShape(Protocol):
         tri_vertices : Array[[T, 3], int]
             A Tx3 array describing the T triples in the mesh, with each
             row being the triples of array indices of that triangle
-            
+
             For example, a row with [1,3,6] represents the triangle
             traversed counterclockwise from vertices 1 -> 3 -> 6 -> 1
         """

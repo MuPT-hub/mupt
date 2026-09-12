@@ -18,7 +18,7 @@ def suppress_rdkit_logs(
     spec: Literal[*RDLoggerNames] = "rdApp.error",
 ) -> Generator[None, None, None]:
     """
-    Temporarily suppress C++ based RDKit log output 
+    Temporarily suppress C++ based RDKit log output
     Useful in conjunction with handling Exceptions thrown by RDKit
     """
     if spec not in RDLoggerNames:

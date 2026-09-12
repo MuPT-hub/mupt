@@ -134,7 +134,7 @@ def allow_string_paths(
     funct: Callable[[Concatenate[Path, Params]], T],
 ) -> Callable[[Concatenate[Union[Path, str], Params]], T]:
     """
-    Modifies a function which expects a Path as 
+    Modifies a function which expects a Path as
     its first argument to also accept string-paths
     """
     old_sig = signature(funct)  # lookup old type signature

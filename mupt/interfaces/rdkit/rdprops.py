@@ -98,7 +98,7 @@ def assign_property_to_rdobj(
     preserve_type: bool = True,
 ) -> None:
     """
-    Assign a Python object to a property of an 
+    Assign a Python object to a property of an
     RDKit object in a type-respecting manner
     """
     type_setter_name: Optional[str] = RDPROP_SETTERS.get(

@@ -54,8 +54,8 @@ def primitive_to_rdkit(  # noqa: C901
     ## that is likely to be retired.
     """
     Convert a Primitive hierarchy to an RDKit Mol
-    
-    Returns a single Mol instance, even is underlying Primitive 
+
+    Returns a single Mol instance, even is underlying Primitive
     represents a collection of multiple disconnected molecules
 
 

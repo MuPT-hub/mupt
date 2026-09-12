@@ -1,5 +1,5 @@
 """
-Utilities for providing Hashable references to 
+Utilities for providing Hashable references to
 arbitrary objects, along with registries of those objects
 """
 
@@ -21,9 +21,9 @@ class Addressable(Protocol):
 
 class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     """
-    Mixin defining boilerplate for objects which are to be 
+    Mixin defining boilerplate for objects which are to be
     assigned a unique, hashable address during construction.
-    
+
     Objects are also registered to a subclass-wide registry
     (attr named `registry_addresses`) keyed by their addresses.
     """
@@ -33,7 +33,7 @@ class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     def __init_subclass__(cls, /, **kwargs) -> None:
         """
         Initialize subclass-specific address-to-object registry
-        
+
         Done to avoid cross-contamination of instances between disparate classes
         Addressed is intended to behave as a mixin with no other shared behaviors
         """
@@ -47,11 +47,12 @@ class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     _address: str
 
     def __new__(cls, *args, **kwargs) -> "Addressed":
+        # noqa: W293 (docstring line separation deliberate)
         """
-        Create new instance, assign it a unique address, and register
-        the address : instance key-value pair in the class' internal registry
-        
-        Retuirn the created instance
+        Create new instance, assign it a unique address, and register the
+        address : instance key-value pair in the class' internal registry.
+
+        Return the created instance
         """
         if cls is Addressed:
             raise TypeError(

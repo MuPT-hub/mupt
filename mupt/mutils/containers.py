@@ -30,7 +30,7 @@ class Labelled(Protocol):
     def label(self) -> Hashable:
         """
         An identifying label used to distinguish this object
-        
+
         'A name by which you can call me'
         """
         ...
@@ -39,8 +39,8 @@ class Labelled(Protocol):
 class UniqueRegistry(UserDict, Generic[LabelT, T]):
     """
     A registry of Labelled objects which are each assigned a unique "handle".
-    
-    Handle comprises the object's label and a unique 
+
+    Handle comprises the object's label and a unique
     integer index determined by its time of insertion
     """
 
@@ -156,7 +156,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     ) -> list[HandleT]:
         """
         Register all objects from an iterable collection.
-        
+
         Labels are assigned according to a labeller rule which acts
         on those objects or, if no rule is provided BUT the objects
         are Labelled type, the label attribute on those objects
@@ -211,9 +211,9 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     # Object deregistration
     def deregister(self, handle: HandleT) -> T:
         """
-        Unregister the object with the given handle 
+        Unregister the object with the given handle
         and free the index assigned to that object
-        
+
         Returns the objects bound to that handle
         """
         obj = self.pop(handle)
@@ -236,8 +236,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         """
         Mapping from labels (without uniquifying handle index)
         to classes of objects registered to those labels
-        
-        Can be thought of as the equivalence classes of objects 
+
+        Can be thought of as the equivalence classes of objects
         under the relation "o1.handle[0] == o2.handle[0]"
         """
         label_classes = defaultdict(list)
@@ -287,12 +287,12 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         concise_mapping: bool = True,
     ) -> Mapping[HandleT, HandleT]:
         """
-        Merge another registry into this one, 
+        Merge another registry into this one,
         collapsing distinguishing indices serially
 
-        Returns a mapping from the handles in the other 
+        Returns a mapping from the handles in the other
         registry to the handles assigned in this registry
-        
+
         If concise_mapping=True (by default), returns only
         the handles which changes; otherwise, maps all
         """
@@ -337,8 +337,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         """
         Create a deep copy of this UniqueRegistry, with
         the same (key, value) pairs and internal state
-        
-        Requires a method for copying values in general, 
+
+        Requires a method for copying values in general,
         since their complete type is not explicit a priori
         """
         new_registry = UniqueRegistry()

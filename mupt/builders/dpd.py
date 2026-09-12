@@ -1,5 +1,5 @@
 """
-Placement generators based in HOOMD's 
+Placement generators based in HOOMD's
 dissipative particle dynamics (DPD) simulations
 """
 
@@ -141,7 +141,7 @@ class DPDRandomWalk(PlacementGenerator):
         n_steps_per_interval : int
             Number of simulation steps to run between convergence checks
         n_steps_max : int
-            Maximum number of simulation steps to run 
+            Maximum number of simulation steps to run
             before returning (regardless of convergence)
         report_interval : int
             Number of steps between debug logging reports during simulation
@@ -171,7 +171,7 @@ class DPDRandomWalk(PlacementGenerator):
     ) -> tuple[Hashable, Hashable]:
         """
         Find the terminal node(s) of what is assumed to be a linear (path) graph
-        
+
         Returns the pair of node labels of the termini, i.e.
         a pair of the same value twice for single-node graphs
         """
@@ -210,10 +210,10 @@ class DPDRandomWalk(PlacementGenerator):
     ) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         """
         Trying to use universe of chains to set monomer positions
-        
+
         Primitive passed here should be a root that has
         chains to loop over; paths are lists of handles
-        
+
         If we assume chains are looped over in the
         same way, we can map from handles to indices
         """

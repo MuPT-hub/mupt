@@ -27,11 +27,11 @@ def compute_local_coordinates(
     principal_axes : Array[[D, D], float]
         A DxD matrix whose i-th column is the i-th
         basis vector in the local coordinate system
-        
+
         Basis provided is orthonormal (i.e. all columns have
         length 1 and are perpendicular to each other column)
     axis_lengths : Array[[D,], float]
-        The relative length of each axis, if ordered by 
+        The relative length of each axis, if ordered by
         significance (i.e. amount of variation along that axis)
     """
     center = positions.mean(axis=0)

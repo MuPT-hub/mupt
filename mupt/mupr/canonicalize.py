@@ -15,7 +15,7 @@ class Canonicalizable(Protocol):
     def canonical_form(self) -> Hashable:
         """
         Canonical representation for this object
-        
+
         All objects which are equivalence, in some
         sense, will have identical canonicals forms
         """
@@ -48,7 +48,7 @@ def lex_order_multiset_str(
     Generate a lexicographically-ordered presentation
     of a multiset of elements as a string
 
-    Returns as a string of (element, count) pairs, where "ties" on 
+    Returns as a string of (element, count) pairs, where "ties" on
     any ordering by elements are broken by the totally-ordered counts
     """
     return joiner.join(

@@ -44,7 +44,7 @@ def vector_3X1_expected() -> VectorN:
 )
 def test_as_n_vector_shape(vectorlike, vector_3X1_expected: VectorN) -> None:
     """
-    Test that permissive vector ingestion accepts 
+    Test that permissive vector ingestion accepts
     the kinds of numeric data structures it advertises
     """
     vector_actual = as_n_vector(

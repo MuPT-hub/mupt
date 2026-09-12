@@ -41,7 +41,7 @@ def hide_atom_indices() -> None:
 
 def enable_kekulized_drawing() -> None:
     """
-    Turns on automatic kekulization of aromatic bonds 
+    Turns on automatic kekulization of aromatic bonds
     before drawing molecules in Jupyter Notebooks
     """
     IPythonConsole.kekulizeStructures = True
@@ -49,7 +49,7 @@ def enable_kekulized_drawing() -> None:
 
 def disable_kekulized_drawing() -> None:
     """
-    Turns off automatic kekulization of aromatic bonds 
+    Turns off automatic kekulization of aromatic bonds
     before drawing molecules in Jupyter Notebooks
     """
     IPythonConsole.kekulizeStructures = False

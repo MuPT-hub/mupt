@@ -87,7 +87,7 @@ def mapped_equivalence_classes(
 @dataclass(frozen=True)  # needed for hashability
 class ConnectorReference:
     """
-    Lightweight reference to a Connector on a Primitive, 
+    Lightweight reference to a Connector on a Primitive,
     identified by the Primitive's handle and the Connector's handle
     """
     primitive_handle: PrimitiveHandle
@@ -153,10 +153,10 @@ def infer_connections_from_topology(  # noqa: C901
 ) -> dict[frozenset[PrimitiveHandle], frozenset[ConnectorReference]]:
     """
     Deduce if a collection of Connectors associated to each node in
-    a topology can be identified with the edges in that topology, 
+    a topology can be identified with the edges in that topology,
     such that each pair of Connectors is bondable
 
-    Returns a first mapping of pairs of node labels (one pair for each edge) to a 
+    Returns a first mapping of pairs of node labels (one pair for each edge) to a
     mapping from node labels to the Connector associated to that edge, and a second
     mapping of node labels to remaining external Connectors, if any remain unpaired
 

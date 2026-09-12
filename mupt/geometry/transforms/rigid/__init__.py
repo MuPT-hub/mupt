@@ -1,5 +1,5 @@
 """
-Utilities for creating rigid transformations and applying them to 
+Utilities for creating rigid transformations and applying them to
 points in 3D space i.e. for working with the Special Euclidean group SE(3)
 """
 
@@ -27,11 +27,11 @@ def random_rigid_transformation(translation_bound: float = 0.0) -> RigidTransfor
     ----------
     translation_bound : float, default 0.0
         Uniform bound along all Cartesian axes for translation component
-        
+
         E.g. translation_bound=5.0 will pick a random
         translation vector from the set [-5.0, 5.0]**3
 
-        If 0.0 bound is provided (as is default), resulting 
+        If 0.0 bound is provided (as is default), resulting
         transformation will have NO translational component
 
     Returns

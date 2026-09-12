@@ -49,7 +49,7 @@ def test_considered_addressable(
     addr_typ: Type[Addressed], kwargs: dict[str, Any]
 ) -> None:
     """
-    Test that the behavioral interface outlined by 
+    Test that the behavioral interface outlined by
     Addressable is implemented by Addressed subtypes
     """
     obj = addr_typ(**kwargs)

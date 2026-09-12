@@ -68,7 +68,7 @@ def atom_neighbors_by_condition(
     negate: bool = False,
 ) -> Generator[AtomLike, None, None]:
     """
-    Generate all neighboring atoms (i.e. atoms bonded 
+    Generate all neighboring atoms (i.e. atoms bonded
     to the provided atom) satisfying a condition
 
     Parameters
@@ -149,7 +149,7 @@ def bonds_by_condition(
     as_pairs : bool, default True
         Whether to return bonds as the pair of bonds
         they connect (default) or the bond itself
-        
+
         Note that if as_pairs=True and as_indices=False,
         will return as pairs of Bonds objects
     negate : bool, default False
@@ -186,13 +186,13 @@ def bond_condition_by_atom_condition_factory(
     binary_operator: Callable[[bool, bool], bool] = logical_or,
 ) -> BondCondition:
     """
-    Dynamically define a bond condition based on an 
+    Dynamically define a bond condition based on an
     atom condition applied to the pair of atom a bond connects
 
     Evaluation over bond determined by a specified atom condition and a
     inary logical comparison made between the pair of atom condition evaluations
-    
-    By default, this binary condition is OR (i.e. the bond will 
+
+    By default, this binary condition is OR (i.e. the bond will
     evaluate True if either of its atoms meets the atom condition)
     """
 

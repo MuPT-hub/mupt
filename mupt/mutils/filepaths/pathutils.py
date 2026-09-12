@@ -8,7 +8,7 @@ from pathlib import Path
 def _dotless(extension: str) -> str:
     """
     Separate the dot from a SINGLE extension file suffix.
-    
+
     Returns the original suffix if not dot is present
     """
     return extension.split(".")[-1]
@@ -16,8 +16,8 @@ def _dotless(extension: str) -> str:
 
 def dotless(path: Path) -> str:
     """
-    Separate the dot from file path. 
-    
+    Separate the dot from file path.
+
     Returns the original suffix if not dot is present
     """
     return _dotless(path.suffix)
@@ -48,9 +48,9 @@ def is_empty_file(filepath: Path) -> bool:
 
 def is_empty(path: Path) -> bool:
     """Flexibly check whether a path is "empty"
-    
+
     * If path point to a file, returns whether the file contains data
-    * If path points to a directory, returns whether 
+    * If path points to a directory, returns whether
     the directory contains any files (empty or otherwise)
     """
     if path.is_dir():
@@ -130,7 +130,7 @@ def local_rename(path: Path, new_name: str) -> Path:
 
 def local_restem(path: Path, new_stem: str) -> Path:
     """
-    Performs file rename relative to the parent directory 
+    Performs file rename relative to the parent directory
     (NOT the cwd), preserving the extension of the original file
     """
     return path.rename(path.with_stem(new_stem))

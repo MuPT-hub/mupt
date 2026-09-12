@@ -1,5 +1,5 @@
 """
-For calculation of rigid transforms which force 
+For calculation of rigid transforms which force
 two bodies to be spatially coincident in some way
 """
 

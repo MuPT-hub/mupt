@@ -57,11 +57,11 @@ def register_subclasses(
     reg_attr: str = "subclass_registry",
 ) -> Union[C, Callable[[C], C]]:
     """
-    Parametric class decorator for automatically 
+    Parametric class decorator for automatically
     generating a registry of subclasses of a target class
-    
+
     Binds registry to the "registry" class property in the target class
-    Subclasses are keyed by lookup of a target attribute <key_attr> 
+    Subclasses are keyed by lookup of a target attribute <key_attr>
     in the child classes (by default just the name of the subclass),
     while the resulting registry class property is bound
     to the <reg_attr> attribute of the parent class

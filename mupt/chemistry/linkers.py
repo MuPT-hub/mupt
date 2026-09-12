@@ -48,7 +48,7 @@ def real_and_linker_atom_idxs(rdmol: Mol) -> tuple[list[int], list[int]]:
     """
     Partition the atom indices of a Mol by whether
     or not their corresponding atom is a linker atom
-    
+
     Returns a pair of lists, the first containing the indices of non-linker
     (i.e. "real") atoms and the second containing indices of linkers
     """
@@ -61,9 +61,9 @@ def real_and_linker_atom_idxs(rdmol: Mol) -> tuple[list[int], list[int]]:
 def renumber_linkers_as_last(rdmol: Mol) -> Mol:  # TODO: make optionally in-place
     """
     Returns a copy of a Mol whose atom indices are renumbered such that:
-    * all #L linker atoms are assigned the last L indices 
+    * all #L linker atoms are assigned the last L indices
       (i.e. those which occur after all real atoms in order)
-    * all non-linker (i.e. "real") atom are numbered 
+    * all non-linker (i.e. "real") atom are numbered
       in the order they appear in the original Mol
     """
     real_atom_idxs, linker_idxs = real_and_linker_atom_idxs(rdmol)

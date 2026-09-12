@@ -28,14 +28,14 @@ def visualize_shape(
         The 3-dimensional matplotlib Axes to plot the mesh onto
         If NoneType is provided, will generate a new Axes3D and return it
 
-        Provided to support chained plotting workflows 
+        Provided to support chained plotting workflows
         (i.e. plot shape onto axes with other meshes)
     grid : bool, default True
         Whether or not to show the coordinate axis gridlines when plotting
     **kwargs
         Contains keyword arguments which are passed on to:
-        * The particular implementation of BoundedShape.surface_mesh() 
-          for the subtype of shape being plotted (e.g. Sphere and 
+        * The particular implementation of BoundedShape.surface_mesh()
+          for the subtype of shape being plotted (e.g. Sphere and
           Ellipsoid accept "n_theta" and "n_phi" mesh parameters)
 
           For example:
@@ -43,10 +43,10 @@ def visualize_shape(
           >> shape = Sphere(1)
           >> visualize_shape(shape, n_theta=50)
 
-        * Axes3D.plot_trisurf() 
+        * Axes3D.plot_trisurf()
           (https://matplotlib.org/stable/api/_as_gen/mpl_toolkits.mplot3d.axes3d.Axes3D.plot_trisurf.html)
 
-          Acceptable values are anything arguments which can be 
+          Acceptable values are anything arguments which can be
           passed into a matplotlib.collections.Collection,
           namely attributes assignable by Collection.set()
           (https://matplotlib.org/stable/api/collections_api.html#matplotlib.collections.Collection.set)

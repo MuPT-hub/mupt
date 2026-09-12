@@ -1,5 +1,5 @@
 """
-Utilities for handling stereochemistry, including 
+Utilities for handling stereochemistry, including
 CIP assignment and enumeration of stereoisomers
 """
 

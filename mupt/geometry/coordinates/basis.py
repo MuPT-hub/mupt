@@ -33,7 +33,7 @@ def is_columnspace_mutually_orthogonal(
     matrix: np.ndarray[Shape[N, N], NumericNP],
 ) -> bool:
     """
-    Check whether all vectors in the column 
+    Check whether all vectors in the column
     space basis of a matrix are mutually orthogonal
     """
     return is_diagonal(
@@ -44,7 +44,7 @@ def is_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
     Determine if a matrix is orthogonal, i.e. its
     left and right inverses are both its own transpose
-    
+
     Note that the matrix does not necessarily have
     to be square in order for it to be orthogonal
     """

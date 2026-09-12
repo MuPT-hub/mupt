@@ -1,5 +1,5 @@
 """
-Interfaces between the hierarchical MuPT 
+Interfaces between the hierarchical MuPT
 molecular representation and RDKit Mol objects
 """
 

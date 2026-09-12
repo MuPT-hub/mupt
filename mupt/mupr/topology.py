@@ -36,7 +36,7 @@ class TopologicalStructure(nx.Graph):
     @property
     def is_indiscrete(self) -> bool:
         """
-        Whether the current topology represents an indiscrete topology 
+        Whether the current topology represents an indiscrete topology
         (i.e. a "trivial topology", one without connections)
         """
         return self.number_of_edges() == 0
@@ -91,7 +91,7 @@ class TopologicalStructure(nx.Graph):
     # depiction
     def canonical_form(self) -> str:
         """
-        Return a canonical form based on the graph structure and coloring 
+        Return a canonical form based on the graph structure and coloring
         induced by the canonical forms of internal Primitives
         Tantamount to solving the graph isomorphism problem
         """

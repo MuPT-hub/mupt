@@ -82,20 +82,20 @@ class MissingSubprimitiveError(KeyError):
 
 class Primitive(NodeMixin, RigidlyTransformable):
     """
-    Represents a fundamental (but not necessarily irreducible) 
+    Represents a fundamental (but not necessarily irreducible)
     building block of a polymer system in the abstract
-    
-    Note that, by default ALL fields are optional; this is to reflect 
+
+    Note that, by default ALL fields are optional; this is to reflect
     the fact that use-cases and levels of info provided may vary
 
-    For example, one might object that functionality and number of atoms 
+    For example, one might object that functionality and number of atoms
     could be derived from the SMILES string and are therefore redundant.
-    However, in the case where no chemistry is explicitly provided, 
+    However, in the case where no chemistry is explicitly provided,
     it's still perfectly valid to define numbers of atoms present
     E.g. a coarse-grained sticker-and-spacer model
 
-    As another example, a 0-functionality primitive is also 
-    totally legal (ex. as a complete small molecule in an admixture). 
+    As another example, a 0-functionality primitive is also
+    totally legal (ex. as a complete small molecule in an admixture).
     However, that comes with the obvious caveat that,
     in a network, it cannot be incorporated into a larger component
 
@@ -170,8 +170,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def element(self) -> Optional[ElementLike]:
         """
         The chemical element, ion, or isotope associated with this Primitive
-        
-        Setting an element is an aknowledgement that 
+
+        Setting an element is an aknowledgement that
         this Primitive represents a single atom
         """
         return self._element
@@ -237,7 +237,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def connectors(self) -> UniqueRegistry[ConnectorHandle, Connector]:
         """
-        Mutable collection of all connections this Primitive 
+        Mutable collection of all connections this Primitive
         is able to make, represented by Connector instances
         """
         return self._connectors
@@ -268,7 +268,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         Register a new Connector to this Primitive by the passed label,
         or if None is provided, the label on the Connector instance
-        
+
         Generates a unique handle and binds the Connector
         to that handle, then returns the handle bound
         """
@@ -337,7 +337,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def internal_connections(self) -> set[frozenset[ConnectorReference]]:
         """
-        Collections of all connected pairs of child Connections, identified by the 
+        Collections of all connected pairs of child Connections, identified by the
         handle of the child they're attached to and the Connector handle on that child
 
         Each entry corresponds 1-to-1 with an edge in the topology
@@ -364,7 +364,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def num_internal_connections(self) -> int:
         """
-        Number of internal connections (i.e. bonded 
+        Number of internal connections (i.e. bonded
         pairs of Connectors) between child Primitives
         """
         return len(self._internal_connections)
@@ -375,7 +375,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def num_internal_connectors(self) -> int:
         """
         Number of Connectors bound up in internal connections.
-        
+
         Equal to twice the number of internal connections
         """
         return 2 * self.num_internal_connections
@@ -384,9 +384,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self, child_handle: PrimitiveHandle
     ) -> dict[ConnectorHandle, ConnectorReference]:
         """
-        Fetch all referenced siblings which are registered 
+        Fetch all referenced siblings which are registered
         as internally-connected to the given child Primitive
-        
+
         Returns as dict keyed by the connector handles on the target child
         whose values are the corresponding ConnectorReference on the sibling
         """
@@ -407,7 +407,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         Fetch the ORDERED pair of Connectors making up an
         internal connection between two given child Primitives.
-        I.e. reversing the order of input Primitive labels 
+        I.e. reversing the order of input Primitive labels
         correspondingly reversed the order of output Connectors handles
 
         Returns a tuple of the form :
@@ -423,7 +423,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def num_internal_connections_on_child(self, child_handle: PrimitiveHandle) -> int:
         """
-        Number of internal connections the given 
+        Number of internal connections the given
         child Primitive has made with its siblings
         """
         return len(self.internal_connections_on_child(child_handle))
@@ -516,7 +516,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self, child_handle: PrimitiveHandle
     ) -> dict[ConnectorHandle, ConnectorHandle]:
         """
-        Mapping between Connector handles on a given child and the 
+        Mapping between Connector handles on a given child and the
         corresponding  Connector handles on self, if that connection is external
         """
         return self.external_connectors_by_children.get(child_handle, dict())
@@ -552,9 +552,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def unbind_external_connector(self, connector_handle: ConnectorHandle) -> Connector:
         """
-        Remove an external connector from self, leaving the 
+        Remove an external connector from self, leaving the
         corresponding Connector on the child Primitive intact
-        
+
         Returns the now-unbound connector instance
         """
         _ = self.fetch_connector(connector_handle)  # verify existence
@@ -574,7 +574,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def connector_trace(self, connector_handle: ConnectorHandle) -> list[Connector]:
         """
         Returns a sequence of Connectors, beginning with the referenced Connector
-        on this Primitives, whose n-th term is the Connector corresponding to the 
+        on this Primitives, whose n-th term is the Connector corresponding to the
         referenced Connector n-layers deep into the Primitive hierarchy
         """
         ext_conn_traces = [self.fetch_connector(connector_handle)]
@@ -696,8 +696,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def children_by_handle(self) -> UniqueRegistry[PrimitiveHandle, "Primitive"]:
         """
         Mapping from unique handles (i.e. (label, index) pairs) to child Primitives
-        
-        Mapping cannot be set directly; to do so, 
+
+        Mapping cannot be set directly; to do so,
         use protected attach_child() and detach_child() methods
         """
         return self._children_by_handle
@@ -818,7 +818,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Attach a sequence of children to this Primitive, returning a list
         of the handles assigned in the order the Primitives appears
 
-        Elements in the iterable can either be Primitive instances 
+        Elements in the iterable can either be Primitive instances
         (in which case default label and no neighbor connections are assumed)
         or 3-tuples of (Primitive, label, neighbor_connections)
         as specified in the signature for attach_child()
@@ -843,7 +843,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         target_handle: PrimitiveHandle,
     ) -> "Primitive":
         """
-        Remove a child Primitive from this one, 
+        Remove a child Primitive from this one,
         update topology and Connectors,
         and return the excised child Primitive
         """
@@ -906,8 +906,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         **edge_attrs,
     ) -> None:
         """
-        Forge a new internal connection between a pair of 
-        disconnected child Primitives, registering that connection 
+        Forge a new internal connection between a pair of
+        disconnected child Primitives, registering that connection
         as internal on self and inserting a new edge in the self's topology
         """
         self.pair_connectors_internally(
@@ -988,7 +988,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self, topology: TopologicalStructure
     ) -> None:
         """
-        Verify that a 1:1 correspondence exists between 
+        Verify that a 1:1 correspondence exists between
         the handles of the child Primitives registered to this Primitive
         and the nodes present in the incidence topology
         """
@@ -1041,9 +1041,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         topology: Optional[TopologicalStructure]=None,
     ) -> None:
         """
-        Check sufficient conditions for a topology 
-        to be compatible with self's children and Connectors. 
-        
+        Check sufficient conditions for a topology
+        to be compatible with self's children and Connectors.
+
         These conditions hold true EVEN for leaf Primitives
         If topology=None is passed, assumed to be the one set on this Primitive
         """
@@ -1096,9 +1096,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def compatible_indiscrete_topology(self) -> TopologicalStructure:
         """
-        An indiscrete (i.e. edgeless) topology over 
+        An indiscrete (i.e. edgeless) topology over
         the currently-registered child Primitives
-        
+
         Passes all necessary self-consistency checks,
         though not sufficient ones in general
         """
@@ -1131,8 +1131,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         Set internal connections between pairs of child Primitives
         according to a provided incidence topology (as a graph)
-        
-        Attempts to infer which Connectors are pairable along each edge, 
+
+        Attempts to infer which Connectors are pairable along each edge,
         and will choose first available pair if multiple options exist
         Much coarser and less reliable than individually specifying
         connections, though more expedient for testing/demos
@@ -1203,7 +1203,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def expandable_children(self) -> set[PrimitiveHandle]:
         """
-        Set of all children (referenced by handle) which are capable of 
+        Set of all children (referenced by handle) which are capable of
         being expanded, ie. replaced with the hierarchy of their children
         """
         return {
@@ -1219,7 +1219,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     ) -> None:
         """
         Replace a child Primitive (identified by its label) with its internal topology
-        Loosely corresponds to expanding the single node representing the target in 
+        Loosely corresponds to expanding the single node representing the target in
         self's topology by its own underlying topology. Inverse to contraction
         """
         child_primitive = self.fetch_child(target_handle)
@@ -1395,7 +1395,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # applying rigid transformations (fulfilling RigidlyTransformable contracts)
     def _copy_untransformed(self) -> "Primitive":
         """
-        Return a new Primitive with the same information 
+        Return a new Primitive with the same information
         and children as this one, but which has no parent
         """
         clone_primitive = self.__class__(
@@ -1510,9 +1510,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def canonical_form(self) -> str:
         """
         A canonical representation of a Primitive's core parts.
-        
+
         Induces a natural equivalence relation on Primitives
-        I.e. two Primitives having the same canonical form are 
+        I.e. two Primitives having the same canonical form are
         considered interchangable within a polymer system
         """
         elem_form: str = (
@@ -1530,7 +1530,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Return a canonical string representation of a Primitive with peppered metadata
 
         Used to distinguish two otherwise-equivalent Primitives e.g. for graph embedding
-        Named for the cryptography technique of augmenting a hash by some external, 
+        Named for the cryptography technique of augmenting a hash by some external,
         stored data (see https://en.wikipedia.org/wiki/Pepper_(cryptography))
         """
         return f"{self.canonical_form()}-{self.label}"  # {self.metadata}'
@@ -1539,9 +1539,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def __str__(self) -> str:
         """
         String form of a Primitive
-        
-        Used to assign node label, if a Primitive 
-        is used as a node in a NetworkX Graph 
+
+        Used to assign node label, if a Primitive
+        is used as a node in a NetworkX Graph
         """
         return self.canonical_form_peppered()
 
@@ -1655,7 +1655,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         **draw_kwargs,
     ) -> None:
         """
-        Draw the hierarchy of this Primitive and 
+        Draw the hierarchy of this Primitive and
         all its descendants to the passed Axes
         """
         hier_tree = self._hierarchy_tree()

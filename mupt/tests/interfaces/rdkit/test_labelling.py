@@ -41,7 +41,7 @@ def test_rdmol_name_smiles_fallback(mol: Chem.Mol) -> None:
 )
 def test_higher_precedence_overrides_lower(mol: Chem.Mol) -> None:
     """
-    Test that, when multiple name properties are set, the one 
+    Test that, when multiple name properties are set, the one
     with the highest precedence is returned by the labeller
     """
     primary_prop_attr = RDMOL_NAME_READ_PROP_PRECEDENCE[0]

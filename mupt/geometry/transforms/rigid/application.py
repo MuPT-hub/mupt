@@ -1,5 +1,5 @@
 """
-Utilities for applying rigid transformations to 
+Utilities for applying rigid transformations to
 other objects (not necessarily just points!)
 """
 
@@ -141,9 +141,9 @@ def apply_rigid_transformation_recursive(
     transformation: RigidTransform,
 ) -> Union[object, Sequence[Any], dict[str, Any]]:
     """
-    Apply a rigid transformation to an object, 
+    Apply a rigid transformation to an object,
     if it supports such a transformation.
-    
+
     If the object is a Sequence or Mapping,
     attempt to transform its members recursively
 

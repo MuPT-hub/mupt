@@ -27,7 +27,7 @@ def primitive(mol: Mol) -> Primitive:
 
 def test_valences_permissible(primitive: Primitive) -> None:
     """
-    Check that chemical valences for all atomic Primitives 
+    Check that chemical valences for all atomic Primitives
     are among those allowable for their assigned element
     """
     assert (

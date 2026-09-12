@@ -20,7 +20,7 @@ def get_rdatom_with_mapnum(
     as_index: bool = True,
 ) -> Optional[Union[int, Mol]]:
     """
-    Get the RDKit atom index of the atom with the 
+    Get the RDKit atom index of the atom with the
     specified atom map number in the given molecule.
 
     Parameters
@@ -82,7 +82,7 @@ def test_ringed_system_aromaticity_by_model(
     targ_atom_map_num: int = 1,
 ) -> None:
     """
-    Test that the choice of aromaticity model yields different 
+    Test that the choice of aromaticity model yields different
     aromaticity assignments on known pathological molecules
 
     Primarily intended as sanity check that AROMATICITY_MDL assigns bond orders

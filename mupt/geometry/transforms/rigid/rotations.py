@@ -43,8 +43,8 @@ def alignment_rotation(
     """
     Compute a rotation which takes moved_vector
     parallel to the span of onto_vector
-    
-    N.B.: Implemented as a composition of 2 Householder 
+
+    N.B.: Implemented as a composition of 2 Householder
     reflections to avoid any explicit angle calculations
     """
     # double reflection ensures handedness of basis is preserved.

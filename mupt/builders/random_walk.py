@@ -46,7 +46,7 @@ def random_walk_jointed_chain(  # noqa: C901
     rng: Optional[np.random.Generator] = None,
 ) -> Generator[np.ndarray[Shape[Dims], float], None, None]:
     """
-    Generate consecutive points from a non-self-avoiding random walk 
+    Generate consecutive points from a non-self-avoiding random walk
     in continuous N-dimensional space with arbitrary step sizes that
     are constrained within a prescribed angle between consecutive steps
 
@@ -61,8 +61,8 @@ def random_walk_jointed_chain(  # noqa: C901
         Initial direction of the first step. If None, a random direction is chosen.
     n_steps_max : int
         Maximum number of steps in the random walk
-        
-        Will result in (n_steps_max + 1) points being 
+
+        Will result in (n_steps_max + 1) points being
         generated (+1 to include the initial point)
     clip_angle : float = pi/4
         Maximum angle allowed between directions of subsequent steps
@@ -70,7 +70,7 @@ def random_walk_jointed_chain(  # noqa: C901
         Angle should be passed in radians, as a value from [-pi, pi]
     dimension : int, default 3
         Dimension of the space in which the random walk is performed
-        
+
         If no start point is provided, the inferred origin
         used as the start will have this many dimensions
     rng : numpy.random.Generator, optional
@@ -177,7 +177,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
     ) -> tuple[Hashable, Hashable]:
         """
         Find the terminal node(s) of what is assumed to be a linear (path) graph
-        
+
         Returns the pair of node labels of the termini, i.e.
         a pair of the same value twice for single-node graphs
         """

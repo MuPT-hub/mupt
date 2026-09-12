@@ -15,8 +15,8 @@ def extend_to_methods(dec: Decorator) -> Decorator:
     """
     Meta-decorator which modifies an existing decorator definition
     to be transferrable to methods with no additional code.
-    
-    The modified decorator can be used interchangably to 
+
+    The modified decorator can be used interchangably to
     decorate both ordinary functions AND methods of classes
     """
     ReturnSignature = dec.__annotations__.get("return")

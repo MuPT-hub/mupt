@@ -47,12 +47,12 @@ def cylindrical_mesh(
         The axial ("face-to-face") length of the cylinder
     n_theta : int, default 30
         Number of points to sample in the angular direction
-        
+
         Will resemble an extruded regular n_theta-gon,
         e.g. n_theta=4 will be a square prism
     n_z : int, default 5
         Number of points to sample along the cylinder walls in the axial direction
-        
+
         E.g. n_z=5 will yield a mesh with bands around the bottom
         face, 1/4 way up, 1/2 way up, 3/4 way up, and the top face
     transformation : RigidTransform, default RigidTransform.identity()
@@ -148,18 +148,18 @@ class Cylinder(BoundedTransformableShape):
             The distance between the two parallel faces of the cylinder
         center : Optional[Vector3], default [0., 0., 0.]
             The absolute position of the geometric center of the cylinder
-            
+
             If not explicitly provided, or provided as NoneType,
             will default to the origin, i.e. [0., 0., 0.]
         axial_direction : Optional[Vector3], default [0., 0., 1.]
-            The direction from the center in which 
+            The direction from the center in which
             the leading ("top") face of the cylinder lies
-            
+
             The length of this vector is inconsequential, and
             will be normalized to `length / 2`i.e. each face lies
             half of the Cylinder's length away from its center
 
-            If not explicitly provided, or provided as NoneType, 
+            If not explicitly provided, or provided as NoneType,
             will default to the +z axis, i.e. [0., 0., 1.]
         """
         if center is None:
@@ -211,7 +211,7 @@ class Cylinder(BoundedTransformableShape):
             a Cylinder of length 2 parallel to the y-axis
         center : Optional[Vector3], default [0., 0., 0.]
             The absolute position of the geometric center of the Cylinder
-            
+
             If not explicitly provided, or provided as NoneType,
             will default to the origin, i.e. [0., 0., 0.]
 
@@ -254,7 +254,7 @@ class Cylinder(BoundedTransformableShape):
     @property
     def axis_normal(self) -> Vector3:
         """
-        Unit vector in the direction from the 
+        Unit vector in the direction from the
         centroid to the center of the leading face
         """
         return normalized(self.axis)

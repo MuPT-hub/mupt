@@ -33,7 +33,7 @@ def primitive_from_smiles(
 ) -> Primitive:
     """
     Create a Primitive from a SMILES string.
-    
+
     Optionally embed positions, if specified
     """
     rdmol = sanitized_mol(

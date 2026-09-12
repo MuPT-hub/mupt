@@ -1,7 +1,7 @@
 # TB DEV: consider deprecating, due to similarity to .rigid.application
 # unclear if projective transformations (affine vs rigid) will ever be needed
 """
-Utilities for applying affine transformations 
+Utilities for applying affine transformations
 to other objects (not necessarily just points!)
 """
 
@@ -23,7 +23,7 @@ class AffineTransformable(Protocol):
     ) -> Any:
         """
         Return an new, affinely-transformed version of this object
-        
+
         N.B.: transformed object may not have same type as this one
         E.g. most Affine transformations will turn a Sphere into an Ellipsoid
         """
@@ -36,7 +36,7 @@ def apply_affine_transformation_recursive(
     """
     Apply an affine transformation to an object,
     if it supports such a transformation,
-    
+
     If the object is a Sequence or Mapping,
     attempt to transform its members recursively
 

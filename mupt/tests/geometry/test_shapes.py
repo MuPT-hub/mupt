@@ -29,7 +29,7 @@ def shapes() -> list[BoundedTransformableShape]:
 
 def shapes_transformed() -> list[BoundedTransformableShape]:
     """
-    Transformed versions of the sample test 
+    Transformed versions of the sample test
     BoundedTransformableShape instances returned by `shapes()`
     """
     return [
@@ -44,7 +44,6 @@ def shapes_mixed() -> list[BoundedTransformableShape]:
 def shapes_with_volumes() -> list[tuple[BoundedTransformableShape, float]]:
     """
     Collection of shapes with known volumes
-    
     Returned as (shape, expected volume) pairs
     """
     # DEV: only made function because multiple tests use these inputs

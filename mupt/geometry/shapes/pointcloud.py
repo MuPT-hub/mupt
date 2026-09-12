@@ -1,5 +1,5 @@
 """
-For representing clusters of positional coordinate, 
+For representing clusters of positional coordinate,
 as one might find in a molecular conformer
 """
 
@@ -81,7 +81,7 @@ class PointCloud(BoundedTransformableShape):
     @cached_property
     def triangulation(self) -> Delaunay:
         """
-        Delauney triangulation into simplicial 
+        Delauney triangulation into simplicial
         facets whose vertiecs are the positions within
         """
         return Delaunay(self.positions)

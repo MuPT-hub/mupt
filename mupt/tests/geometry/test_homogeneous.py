@@ -14,9 +14,8 @@ N: int = 10
 def tensor_examples(N: int=10) -> tuple[np.ndarray, ...]:
     """
     Various tensors with random numerical entries but consistent dimension
-    
     Used to test that results of homogeneous coordinate
-    conversion operations have the excepted shapes 
+    conversion operations have the excepted shapes
     """
     point = np.random.random((3,))
     vector = np.random.random((N, 3))
