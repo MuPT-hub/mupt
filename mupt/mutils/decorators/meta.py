@@ -30,7 +30,7 @@ def extend_to_methods(dec: Decorator) -> Decorator:
             self.funct = funct
             # update_wrapper() equivalent to functools.wraps;
             # transfers docstring, module, etc. for documentation
-            update_wrapper(self, funct)  
+            update_wrapper(self, funct)
 
         # TODO : fix this to reflect the decorator's return signature
         def __call__(

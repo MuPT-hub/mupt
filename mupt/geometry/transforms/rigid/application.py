@@ -34,7 +34,7 @@ class RigidlyTransformable(Copyable, Protocol):
     """Mixin for objects which support rigid transformations"""
     # TB DEV: after consideration, settled on the following verbiage as least ambiguous:
     # * "transformation" to refer to the RigidTransforms passed around
-    # * "transform" to refer to the act of applying 
+    # * "transform" to refer to the act of applying
     #    a transformation (NOT the transformation itself)
     # * "transformed" to indicate that a transform was applied to a COPY of an object
     # DON'T change these names until you've understood this
@@ -53,7 +53,7 @@ class RigidlyTransformable(Copyable, Protocol):
         and handing that information off between objects
         """
         # DEV: deliberately mangled name to not resemble it "public" counterpart much
-        if not hasattr(self, "_cumul_transf"): 
+        if not hasattr(self, "_cumul_transf"):
             self._cumul_transf = RigidTransform.identity()
         return self._cumul_transf
 
@@ -93,7 +93,7 @@ class RigidlyTransformable(Copyable, Protocol):
         self.rigidly_transform(self.resetting_transformation)
 
     # copying and out-of-place applications of transformations
-    ## DEV: _copy_untransformed() is deliberately NOT an abstract method, 
+    ## DEV: _copy_untransformed() is deliberately NOT an abstract method,
     ## as it's not required that child classes implement it.
     ## If children don't implement it, they simply won't be able to
     ## perform copying or out-of-place transformations
@@ -126,7 +126,7 @@ class RigidlyTransformable(Copyable, Protocol):
         according to the rigid transformation provided
         """
         # TODO: implement mechanism to transfer cumul transform during child class copy
-        clone = self.copy()  
+        clone = self.copy()
         clone.rigidly_transform(transformation)
 
         return clone
@@ -169,11 +169,11 @@ def apply_rigid_transformation_recursive(
     # recursive iteration, as necessary
     ## DEVNOTE: specifically opted for Sequence over Iterable here
     ## to avoid double-covering Mappings and unpacking generators
-    if isinstance(obj, Sequence):  
+    if isinstance(obj, Sequence):
         ## Most common Sequence types (e.g. tuple, str, list) support init
         ## from comprehension; may revisit if this is not always the case
         return type(obj)(
-            apply_rigid_transformation_recursive(value, transformation) 
+            apply_rigid_transformation_recursive(value, transformation)
                 for value in obj
         )
     elif isinstance(obj, Mapping):

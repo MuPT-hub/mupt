@@ -10,7 +10,7 @@ from mupt.mutils.referencing import Addressed, Addressable
 
 
 # dummy Addressed classes
-class DummyNoArgs(Addressed): 
+class DummyNoArgs(Addressed):
     """Dummy Addressed class with no init args"""
     ...
 
@@ -85,7 +85,7 @@ def test_weak_address_refs() -> None:
     # N.B.: DummyLocal defined locally to ensure reference counter
     # to instances is not contaminated by other tests
     class DummyLocal(Addressed):
-        ...  
+        ...
 
     obj = DummyLocal()
     assert len(DummyLocal.registry_addresses) == 1
@@ -99,7 +99,7 @@ def test_object_registries_distinct() -> None:
     Test that distinct subtypes of Addressed do
     not share their classwide object registries
     """
-    class DummyLocal1(Addressed): 
+    class DummyLocal1(Addressed):
         ...
 
     class DummyLocal2(Addressed):

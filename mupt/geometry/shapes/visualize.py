@@ -59,7 +59,7 @@ def visualize_shape(
     axes : mpl.Axes3D
         The 3D axes the BoundedShape has been drawn on
         Enables chaining plotting operations
-    """ # noqa: E501 (to avoid cutting off hyperlinks)
+    """  # noqa: E501 (to avoid cutting off hyperlinks)
     # DEV TODO: eventually, have a more standardized way to deal with
     # these kinds of dependencies on import (a la @requires(...))
     try:
@@ -77,7 +77,7 @@ def visualize_shape(
         ax = fig.add_subplot(projection="3d")
     elif not isinstance(ax, Axes):
         raise TypeError(
-            f"Require matplotlib Axes-like for shape "
+            "Require matplotlib Axes-like for shape "
             "mesh drawing, not {type(ax).__name__}"
         )
     elif not isinstance(ax, Axes3D):
@@ -101,8 +101,8 @@ def visualize_shape(
     vertices, triangles = shape.surface_mesh(**mesh_kwargs)
     ax.plot_trisurf(*vertices.T, triangles=triangles, **kwargs)
     ax.set_title(type(shape).__name__)
-    # equal aspect avoids scaling distortion along axes 
+    # equal aspect avoids scaling distortion along axes
     # (otherwise, Ellipsoids would plot like Spheres)
-    ax.set_aspect("equal")  
+    ax.set_aspect("equal")
 
     return ax

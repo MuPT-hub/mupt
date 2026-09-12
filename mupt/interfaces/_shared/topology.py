@@ -29,10 +29,10 @@ class SAAMRResidueRecord:
     residue: Primitive
     particles: tuple[Primitive, ...]
 
-# TB: supressing linter complexity (C901) warning for now, 
-# but in the future this should be refactored to be more modular 
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
-def build_saamr_role_topology_index( # noqa: C901
+def build_saamr_role_topology_index(  # noqa: C901
     root: Primitive,
 ) -> SAAMRRoleTopologyIndex:
     """Build a single-pass role index for a SAAMR-like Primitive hierarchy.
@@ -49,10 +49,10 @@ def build_saamr_role_topology_index( # noqa: C901
 
     index = SAAMRRoleTopologyIndex()
 
-    # TB: supressing linter complexity (C901) warning for now, 
-    # but in the future this should be refactored to be more modular 
+    # TB: supressing linter complexity (C901) warning for now,
+    # but in the future this should be refactored to be more modular
     # and contain less branched business logic in one place
-    def visit( # noqa: C901
+    def visit(  # noqa: C901
         node: Primitive,
         current_segment: Primitive | None,
         current_residue: Primitive | None,

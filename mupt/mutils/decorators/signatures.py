@@ -42,7 +42,7 @@ def modify_param_annotation_by_index(
     params = list(sig.parameters.values())
     # will raise IndexError if position is given;
     # IT IS UP TO THE CALLER TO ENSURE THIS IS CORRECT!
-    old_param = params[index]  
+    old_param = params[index]
 
     new_param = Parameter(  # copy everything expect type annotation from old Parameter
         name=old_param.name,

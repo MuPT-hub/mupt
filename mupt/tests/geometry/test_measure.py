@@ -2,8 +2,6 @@
 
 import pytest
 
-import numpy as np
-
 from mupt.geometry.arraytypes import ArrayMxN
 
 

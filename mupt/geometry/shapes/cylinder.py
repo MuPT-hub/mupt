@@ -82,9 +82,9 @@ def cylindrical_mesh(
     # compute positions of mesh points
     half_length: float = length / 2
     params = zs, theta = np.mgrid[
-        -half_length : half_length : n_z * 1j,
+        -half_length : half_length : n_z*1j,
         # need +1 to get right number of polygon sides (last is coincident with first)
-        0.0 : 2 * np.pi : (n_theta + 1)* 1j,  
+        0.0 : 2*np.pi : (n_theta + 1)*1j,
     ]
     xs = radius * np.cos(theta)
     ys = radius * np.sin(theta)
@@ -227,7 +227,7 @@ class Cylinder(BoundedTransformableShape):
             axial_direction=axis_vector,
         )
 
-    def __repr__(self) -> str: # noqa: D105
+    def __repr__(self) -> str:  # noqa: D105
         # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"{self.__class__.__name__}(radius={self.radius}, length={self.length})"
 
@@ -274,7 +274,7 @@ class Cylinder(BoundedTransformableShape):
 
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> Vector3: # noqa: D102
+    def centroid(self) -> Vector3:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         return self.center
 
@@ -283,7 +283,7 @@ class Cylinder(BoundedTransformableShape):
         """Volume enclosed by this Cylinder"""
         return np.pi * self.radius**2 * self.length
 
-    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN: # noqa: D102
+    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         points_centered = np.atleast_2d(points - self.center)
         points_axial = np.outer(
@@ -307,7 +307,7 @@ class Cylinder(BoundedTransformableShape):
             and np.allclose(self.center, other.center)
         )
 
-    def scale(self, scaling_factor: float) -> None: # noqa: D102
+    def scale(self, scaling_factor: float) -> None:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         self.radius *= scaling_factor
         self.length *= scaling_factor
@@ -326,7 +326,7 @@ class Cylinder(BoundedTransformableShape):
         self.face_center_top = transformation.apply(self.face_center_top)
         self.face_center_bottom = transformation.apply(self.face_center_bottom)
 
-    def surface_mesh( # noqa: D102
+    def surface_mesh(  # noqa: D102
         self, n_theta: int = 30, n_z: int = 5
     ) -> tuple[ArrayNx3, TriangulationIndices]:
         # TB: docstrings inherited from BoundedShape base; no need to specify here

@@ -52,14 +52,14 @@ def get_rdatom_with_mapnum(
             "c1[nH:1]c2ccccc2c1C[C@H](N)C(=O)O",
             AROMATICITY_RDKIT,
             4,
-        ),  
+        ),
         # tryptophan (targetting carboxyl oxygen)
         # Expected electronically-consistent valence
         (
             "c1[nH:1]c2ccccc2c1C[C@H](N)C(=O)O",
             AROMATICITY_MDL,
             3,
-        ),  
+        ),
         # pmda (targetting amide nitrogen) - +1 net valence
         (
             "c12C(=O)[O:1]C(=O)c2cc3C(=O)OC(=O)c3c1",

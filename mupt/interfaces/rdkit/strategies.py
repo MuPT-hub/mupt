@@ -76,12 +76,12 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
         """Human-readable strategy name."""
         return "All-atom"
 
-    # TB: supressing linter complexity (C901) warning for now, 
-    # but in the future this should be refactored to be more modular 
+    # TB: supressing linter complexity (C901) warning for now,
+    # but in the future this should be refactored to be more modular
     # and contain less branched business logic in one place
-    def iter_mol_data( # noqa: C901
+    def iter_mol_data(  # noqa: C901
         self, root: Primitive, resname_map: dict[str, str]
-    ) -> Iterator[RDKitMolData]: 
+    ) -> Iterator[RDKitMolData]:
         """Yield one RDKit topology dataset per SEGMENT-role node."""
         index = build_saamr_role_topology_index(root)
         endpoint_cache: dict[tuple[int, object, object], Primitive] = {}

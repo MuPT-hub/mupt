@@ -62,11 +62,11 @@ def apply_affine_transformation_recursive(
     # recursive iteration, as necessary
     ## DEVNOTE: specifically opted for Sequence over Iterable here
     ## to avoid double-covering Mappings and unpacking generators
-    if isinstance(obj, Sequence):  
+    if isinstance(obj, Sequence):
         ## Most common Sequence types (e.g. tuple, str, list) support init
         ## from comprehension; may revisit if this is not always the case
         return type(obj)(
-            apply_affine_transformation_recursive(value, affine_matrix) 
+            apply_affine_transformation_recursive(value, affine_matrix)
                 for value in obj
         )
     elif isinstance(obj, Mapping):

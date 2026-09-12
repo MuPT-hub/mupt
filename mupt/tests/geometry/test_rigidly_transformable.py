@@ -124,7 +124,7 @@ def test_rigidly_transformed(
     """Test that rigid transformation are correctly applied in-place"""
     new_points = points.rigidly_transformed(transform)
     # NOTE: will not compare as expected when transform is within float imprecision
-    # Also, not opting for np.testing functionality, since there is 
+    # Also, not opting for np.testing functionality, since there is
     # no direct support built in for checking arrays are NOT equal
     assert not np.allclose(new_points.positions, points.positions)
 
@@ -148,7 +148,8 @@ def test_reset_transformed(
 ) -> None:
     """
     Test that resetting a rigid transformation in-place
-    returns the object to its original state"""
+    returns the object to its original state
+    """
     new_points = points.rigidly_transformed(transform)
     resetted_points = new_points.reset_transformed()
 
@@ -158,7 +159,7 @@ def test_reset_transformed(
         rtol=1e-7,
         # DEV: need abs tolerance to be non-zero, since some array
         # values are exactly 0 (fails comparison on MacOS CI)
-        atol=1e-10,  
+        atol=1e-10,
         strict=True,
     )
 

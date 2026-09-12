@@ -96,9 +96,9 @@ class TopologicalStructure(nx.Graph):
         Tantamount to solving the graph isomorphism problem
         """
         # raise NotImplementedError('Graph canonicalization is not implemented yet')
-        # return nx.weisfeiler_lehman_graph_hash(self) 
+        # return nx.weisfeiler_lehman_graph_hash(self)
         # # stand-in for more specific implementation to follow
-        
+
         return str(hash(
             # temporary, quick-to-compute stand-in
             # for eventual "real-deal" canonical form
@@ -106,7 +106,7 @@ class TopologicalStructure(nx.Graph):
                 Counter(deg for node, deg in self.degree).items())
         ))
 
-    def __repr__(self) -> str:# noqa: D105
+    def __repr__(self) -> str:  # noqa: D105
         # TB: no docstring here; internal behavior is predictable with no side-effects
         # TODO: make this more descriptive
         return f"{self.__class__.__name__}" \

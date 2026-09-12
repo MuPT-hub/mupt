@@ -133,7 +133,7 @@ class AttachmentPoint(RigidlyTransformable):
                     f"Attachment '{value!s}' not designated as "
                     f"one of attachable labels {self.attachables}"
                 )
-                
+
         if key == "position":
             value = as_n_vector(value, dimension=3)
         return super().__setattr__(key, value)
@@ -176,19 +176,19 @@ class Connector(RigidlyTransformable):
         self.label = self.__class__.DEFAULT_LABEL if (label is None) else label
         self.metadata = metadata or dict()
 
-        # DEV: no call to setter; must be assigned 
+        # DEV: no call to setter; must be assigned
         # via protected tangent_vector property
-        self._tangent_position = None  
+        self._tangent_position = None
 
     # Geometric properties
-    # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking 
-    # endpoint positions under the hood to get them to preserve relative orientations 
-    # for local orthogonal basis under general rigid transformations; 
-    # 
-    # key observation is that a DIFFERENCE between positions is invariant under 
+    # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
+    # endpoint positions under the hood to get them to preserve relative orientations
+    # for local orthogonal basis under general rigid transformations;
+    #
+    # key observation is that a DIFFERENCE between positions is invariant under
     # shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b),
 
-    # Attachment site position wrappers - 
+    # Attachment site position wrappers -
     ## DEV: necessary for backward compatibility with
     # attr reference, though could be deprecated eventually
     @property
@@ -294,7 +294,7 @@ class Connector(RigidlyTransformable):
         """Update tangent positions given a new tangent vector"""
         new_tangent_vector = as_n_vector(new_tangent_vector, dimension=3)
         if not np.isclose(
-            # DEV: opting not to normalize here in case either vector 
+            # DEV: opting not to normalize here in case either vector
             # has small magnitude - revisit if that becomes an issue
             np.dot(self.bond_vector, new_tangent_vector),
             0.0,
@@ -456,7 +456,7 @@ class Connector(RigidlyTransformable):
         tangent_alignment = alignment_rotation(
             self.tangent_vector,
             other.tangent_vector,
-        )  
+        )
         ## minus accounts for reversed direction; positive with other works equally well
         # dihedral_rotation = Rotation.from_rotvec(
         #     -dihedral_angle_rad * self.unit_bond_vector
@@ -464,7 +464,7 @@ class Connector(RigidlyTransformable):
         dihedral_rotation = Rotation.from_rotvec(
             dihedral_angle_rad * other.unit_bond_vector
         )
-        # first align tangents, then set dihedral 
+        # first align tangents, then set dihedral
         # to avoid explicit inter-tangent angle calculation
         dihedral_alignment = dihedral_rotation * tangent_alignment
 
@@ -547,7 +547,7 @@ class Connector(RigidlyTransformable):
             tangent_alignment = Rotation.identity()
 
         # order of application reads bottom-to-top (rightmost operator acts first)
-        return (  
+        return (
             RigidTransform.from_translation(other.linker.position)
             * RigidTransform.from_rotation(tangent_alignment)
             * RigidTransform.from_rotation(bond_antialignment)
@@ -574,8 +574,8 @@ class Connector(RigidlyTransformable):
             self.set_bond_length(
                 other.bond_length
             )  # ensure bond length matches the other Connector
-            if (dihedral_angle_rad is not None):  
-                # NOTE: sentinel (rather than default 0.0) weakens 
+            if (dihedral_angle_rad is not None):
+                # NOTE: sentinel (rather than default 0.0) weakens
                 # preconditions on tangents when no dihedral is specified
                 self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
@@ -647,9 +647,9 @@ class Connector(RigidlyTransformable):
         NOTE: does NOT modify either Connector of the passed pair;
         returns a modified copy of the first Connector
         """
-        # DEV: opted against  self.rigidly_transformed(self.alignment_transform(...)) 
+        # DEV: opted against  self.rigidly_transformed(self.alignment_transform(...))
         # to avoid duplicating logic
-        new_connector = self.copy()  
+        new_connector = self.copy()
         new_connector.antialign_ballistically_to(
             other, match_bond_length=match_bond_length
         )
@@ -675,10 +675,10 @@ class Connector(RigidlyTransformable):
         """
         self.antialign_ballistically_to(other, match_bond_length=True)
         other.antialign_ballistically_to(self, match_bond_length=True)
-        
+
         # NOTE: sentinel (rather than default 0.0) weakens
         # preconditions on tangents when no dihedral is specified
-        if (dihedral_angle_rad is not None):  
+        if (dihedral_angle_rad is not None):
             self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
     # Comparison methods
@@ -691,7 +691,7 @@ class Connector(RigidlyTransformable):
 
         # DEV: opting for loosest possible comparison where at least on of the
         # attachable elements overlaps between opposing pairs of attachment points
-        # opted not to check the (perhaps more obvious) "self.anchor.attachment in 
+        # opted not to check the (perhaps more obvious) "self.anchor.attachment in
         # other.linker.attachables", etc.  because the attachment labels may be
         # unassigned between resolution shift operations in the representation hierarchy
         return (
@@ -713,7 +713,7 @@ class Connector(RigidlyTransformable):
                 yield self.bondable_with(other)
             elif isinstance(other, Iterable):
                 # DEVNOTE: deliberately NOT using "yield from" to preserve parity
-                # with input (output element corresponding to iterable is now just 
+                # with input (output element corresponding to iterable is now just
                 # a Generator instance, rather than a bool)
                 yield self.bondable_with_iter(*other)
             else:
@@ -794,7 +794,7 @@ class Connector(RigidlyTransformable):
     #         self.anchor,
     #         # self.linker,
     #         # TODO: make linkables frozen in __init__ to avoid post-init mutation?
-    #         frozenset(self.linkables), 
+    #         frozenset(self.linkables),
     #         *self.is_position_assigned.keys(),
     #     ))
 
@@ -844,7 +844,7 @@ class Connector(RigidlyTransformable):
         return counterpart
 
 
-# Selection between pairs of Connectors 
+# Selection between pairs of Connectors
 # (useful, for example, for resolution-shift operations)
 ConnectorSelector: TypeAlias = Callable[[Connector, Connector], Connector]
 
@@ -866,6 +866,6 @@ def make_second_resemble_first(
 
     return new_connector
 
-# DEV: provide implementations which make some attempt to 
+# DEV: provide implementations which make some attempt to
 # reconcile spatial info attache to respective Connectors
 ...

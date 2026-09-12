@@ -26,11 +26,11 @@ def generate_repr(
         """The actual (argument-free) class decorator"""
         # nonlocal avoids multiple scope issues in disparate use cases
         # (refers to the variable in the outermost scope)
-        nonlocal disp_attrs  
-        
-        # only use lookup if one is explicitly provided 
+        nonlocal disp_attrs
+
+        # only use lookup if one is explicitly provided
         # and no display attributes are provided
-        if (not disp_attrs and lookup_attr):  
+        if (not disp_attrs and lookup_attr):
             # if a lookup attribute is provided, look up the
             # attribute names within the class being modified
             assert hasattr(cls, lookup_attr)
@@ -47,7 +47,7 @@ def generate_repr(
     # null case (i.e. call without parens), return factory call
     if cls is None:
         return class_decorator
-    
+
     # return literal class decorator call
     return class_decorator(cls)
 
@@ -71,7 +71,7 @@ def register_subclasses(
         """The actual (argument-free) class decorator"""
         # property allows dynamic subclassing (generated at runtime, not compile time)
         @classmethod
-        @property  
+        @property
         def _registry(cls: C) -> dict[str, C]:
             return {  # Keep a registry of all charger implementations for convenience
                 getattr(subclass, key_attr): subclass
@@ -80,7 +80,7 @@ def register_subclasses(
 
         # bind registry class property to target class.
         # TODO : check for registry already present in class
-        setattr(cls, reg_attr, _registry)  
+        setattr(cls, reg_attr, _registry)
 
         return cls  # return back the modified class
 
@@ -89,7 +89,7 @@ def register_subclasses(
     return class_decorator(cls)  # return literal class decorator call
 
 
-# NOTE: "klass" is needed to distinguish between the class modified by 
+# NOTE: "klass" is needed to distinguish between the class modified by
 # this decorator and the classmethod arg when calling super()
 # "klass" here is the parent, while "cls" is the child
 def register_abstract_class_attrs(
@@ -111,8 +111,8 @@ def register_abstract_class_attrs(
                 # want this removed from kwargs before passing to super,
                 # regardless of whether already set in child
                 # check if this has been set in the child in code
-                passed_attr_value = kwargs.pop(attr_name, NotImplemented)  
-                attr_val_on_child = getattr(cls, attr_name, NotImplemented)  
+                passed_attr_value = kwargs.pop(attr_name, NotImplemented)
+                attr_val_on_child = getattr(cls, attr_name, NotImplemented)
 
                 # if the value has not been set in code...
                 if (attr_val_on_child is NotImplemented):
@@ -120,7 +120,7 @@ def register_abstract_class_attrs(
                     if (passed_attr_value is not NotImplemented):
                         setattr(cls, attr_name, passed_attr_value)
                     # ...otherwise, fail and raise Exception
-                    else:  
+                    else:
                         raise TypeError(
                             f"Can't instantiate abstract class {cls.__name__} with "
                             f"abstract class property '{attr_name}' undefined"
@@ -135,4 +135,4 @@ def register_abstract_class_attrs(
 
     # no need for application check here, since the parameterized
     # decorator doesn't take a class to be modified
-    return class_decorator  
+    return class_decorator

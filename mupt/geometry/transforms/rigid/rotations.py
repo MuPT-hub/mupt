@@ -52,7 +52,7 @@ def alignment_rotation(
     # stable than about the difference axis, especially for nearly-identical vectors
 
     # bisector <=> vector which bisects the angle between the pair of vectors;
-    # proportional to the mean of any pair of equal length vectors on 
+    # proportional to the mean of any pair of equal length vectors on
     # the two vectors' respective spans, e.g. the sum of normal vectors
     # on the two spans will do the trick
     if np.allclose(moved_vector, onto_vector):  # special case to avoid numerical errors

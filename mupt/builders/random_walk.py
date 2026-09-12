@@ -33,10 +33,10 @@ from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
-# TB: supressing linter complexity (C901) warning for now, 
-# but in the future this should be refactored to be more modular 
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
-def random_walk_jointed_chain( # noqa: C901
+def random_walk_jointed_chain(  # noqa: C901
     step_size: Union[Number, Iterable[Number], Generator[Number, None, None]],
     n_steps_max: Optional[int] = None,
     initial_point: Optional[np.ndarray[Shape[Dims], float]] = None,
@@ -92,10 +92,10 @@ def random_walk_jointed_chain( # noqa: C901
 
     if initial_point is None:
         initial_point = origin(dimension=dimension)
-        
-    # NOTE: check user-provided start shape or the shape 
+
+    # NOTE: check user-provided start shape or the shape
     # of the auto-assigned start (redundant, but safer)
-    if initial_point.shape != (dimension,):  
+    if initial_point.shape != (dimension,):
         raise ValueError(
             f"Random walk starting point must be a {dimension}-dimensional vector"
         )
@@ -121,14 +121,14 @@ def random_walk_jointed_chain( # noqa: C901
     # generate walk points
     n_steps_taken: int = 0
     ## make mutable copy of (possibly-immutable) initial point
-    net_position: np.ndarray = np.array(initial_point)  
+    net_position: np.ndarray = np.array(initial_point)
     prev_direction: np.ndarray = normalized(initial_direction)
 
     yield initial_point  # always yielded, consider as "step #0"
     for step_size in flexible_iterator(step_size, allowed_types=(Number,)):
         # draw new step within cone of movement by rejection sampling (simple and quick)
         step_direction: np.ndarray = random_unit_vector(dimension=dimension, rng=rng)
-        
+
         # NOTE: over |x| in [0, pi], cos(x) is monotonically decreasing,
         # so overly-large steps will have cosine BELOW the cutoff
         while (np.dot(step_direction, prev_direction) < cos_max):
@@ -226,7 +226,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 PrimitiveHandle,
                 list[np.ndarray, np.ndarray]
             ] = defaultdict(list)
-            
+
             connection_points[head_handle].append(
                 primitive.children_by_handle[head_handle].shape.centroid
             )
@@ -237,7 +237,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                         to_child_handle=prim_handle_incoming,
                     )
                 )
-                # NOTE: traversal in-path-order is what guarantees 
+                # NOTE: traversal in-path-order is what guarantees
                 # these appends place everything in the correct order
                 conn_outgoing = primitive.fetch_connector_on_child(
                     prim_handle_outgoing,
@@ -246,7 +246,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 # will raise Exception is anchor position is unset
                 connection_points[prim_handle_outgoing].append(
                     conn_outgoing.anchor.position
-                )  
+                )
 
                 conn_incoming = primitive.fetch_connector_on_child(
                     prim_handle_incoming,
@@ -255,15 +255,15 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 # will raise Exception is anchor position is unset
                 connection_points[prim_handle_incoming].append(
                     conn_incoming.anchor.position
-                )  
+                )
 
                 # align linkers w/ other's anchor while
                 # leaving anchors themselves undisturbed
                 Connector.mutually_antialign_ballistically(
-                    conn_outgoing, 
+                    conn_outgoing,
                     conn_incoming,
-                )  
-            
+                )
+
             # NOTE: order is critical here; only placing tail point
             # AFTER its incoming connection point is inserted
             connection_points[tail_handle].append(
@@ -273,15 +273,15 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             # extract step sizes from connection points;
             # by design, makes no reference to the shape of the body
             step_sizes: list[float] = []
-            
+
             # iterating over path, rather than
             # connection_points.items(), to guarantee traversal order
-            for handle in path:  
+            for handle in path:
                 conn_start, conn_end = connection_points[handle]
                 # step longer to account for target bond length
                 step_sizes.append(
                     np.linalg.norm(conn_end - conn_start) + self.bond_length
-                )  
+                )
 
             # generate random walk steps and corresponding placements
             rw_steps: Generator[np.ndarray, None, None] = random_walk_jointed_chain(
@@ -305,12 +305,12 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                 conn_start, conn_end = connection_points[handle]
                 # NOTE: no need for special case at termini, since the step size
                 # matches the half-body (e.g. center-to-anchor) step size
-                t_body = 0.5  
+                t_body = 0.5
 
                 full_step_len = np.linalg.norm(step_end - step_start)
                 # scale back to account for bond length being included in step size
-                step_correction = 1 / (1 + (self.bond_length / full_step_len))  
-                # adjust step fraction to account for bond length (will always be 
+                step_correction = 1 / (1 + (self.bond_length / full_step_len))
+                # adjust step fraction to account for bond length (will always be
                 # strictly smaller than 0.5, since ratio of lengths is positive)
                 t_step = 0.5 * step_correction
 
@@ -321,11 +321,11 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
                     # vector 2: spans between consecutive random walk steps
                     step_start,
                     step_end,
-                    # interpolation parameters for which point on 
+                    # interpolation parameters for which point on
                     # respective vectors will be forced exactly-coexistent
                     ## take midpoint (or end, if at termini) of body-anchoring vector
-                    t1=t_body,  
+                    t1=t_body,
                     ## ...to midpoint of random walk step vector
-                    t2=t_step,  
+                    t2=t_step,
                 )
                 yield handle, placement_transform

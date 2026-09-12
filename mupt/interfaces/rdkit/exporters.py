@@ -41,10 +41,10 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive: Primitive) -> Atom:
 
     return atom
 
-# TB: supressing linter complexity (C901) warning for now, 
-# but in the future this should be refactored to be more modular 
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
-def primitive_to_rdkit( # noqa: C901
+def primitive_to_rdkit(  # noqa: C901
     primitive: Primitive,
     default_atom_position: Optional[Vector3] = None,
 ) -> Mol:
@@ -70,14 +70,14 @@ def primitive_to_rdkit( # noqa: C901
     )
     if default_atom_position is None:
         # DEV: opted to not make this a call to geometry.reference.origin() to decrease
-        #coupling and allow choice for differently-determined default down the line
+        # coupling and allow choice for differently-determined default down the line
         default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float)
     if default_atom_position.shape != (3,):
         raise ValueError("Default atom position must be a 3-dimensional vector")
 
     # TODO: include provision (when no flattening is performed)
     # to preserve atom order with Primitive handle indices
-    if not primitive.is_atomizable:  
+    if not primitive.is_atomizable:
         raise ValueError("Cannot export Primitive with non-atomic parts to RDKit Mol")
     # collapse hierarchy out-of-place to avoid mutating original
     primitive = primitive.flattened()
@@ -133,7 +133,7 @@ def primitive_to_rdkit( # noqa: C901
         atom_idx2: int = atom_idx_map[conn_ref2.primitive_handle]
         conn2: Connector = primitive.fetch_connector_on_child(conn_ref2)
 
-        # DEV: bondtypes must be compatible, so will take first for now 
+        # DEV: bondtypes must be compatible, so will take first for now
         ## TODO: find less order-dependent way of accessing bondtype)
         _new_num_bonds: int = mol.AddBond(atom_idx1, atom_idx2, order=conn1.bondtype)
         bond_metadata: dict[str, RDPropType] = {
@@ -150,10 +150,10 @@ def primitive_to_rdkit( # noqa: C901
 
     # 2b) insert and bond linker atoms for each external Connector
     ## TODO: generalize to work for atomic Primitives w/o external_connectors
-    for conn_ref in primitive.external_connectors.values(): 
+    for conn_ref in primitive.external_connectors.values():
         linker_atom = Atom(0)
         # TODO: transpose metadata from external Connector onto 0-number RDKit Atom
-        linker_idx: int = mol.AddAtom(linker_atom)  
+        linker_idx: int = mol.AddAtom(linker_atom)
         conn: Connector = primitive.fetch_connector_on_child(conn_ref)
 
         mol.AddBond(
@@ -164,12 +164,12 @@ def primitive_to_rdkit( # noqa: C901
         )  # TODO: decide whether unset position (e.g. as NANs) should be supported
         ## NOTE: this "if" check not done in-line, as
         ## conn.linker_position raises AttributeError is unset
-        # if conn.has_linker_position: 
+        # if conn.has_linker_position:
         # conf.SetAtomPosition(linker_idx, conn.linker_position)
         # else:
         # conf.SetAtomPosition(linker_idx, default_atom_position[:])
 
-    # 3) transfer Primitive-level metadata 
+    # 3) transfer Primitive-level metadata
     # (atom metadata should already be transferred)
     assign_property_to_rdobj(
         mol, "origin", TOOLKIT_NAME, preserve_type=True
@@ -181,7 +181,7 @@ def primitive_to_rdkit( # noqa: C901
     if not ((temp_prim is None) or (lone_atom_label is None)):
         primitive.detach_child(lone_atom_label)
     # DEV: return this index?
-    _conformer_idx: int = mol.AddConformer(conf, assignId=True)  
+    _conformer_idx: int = mol.AddConformer(conf, assignId=True)
 
     mol = Mol(mol)  # freeze writable Mol before returning
     if primitive.label is not None:

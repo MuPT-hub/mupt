@@ -32,13 +32,13 @@ class PointCloud(BoundedTransformableShape):
             positions = np.empty((0, 3), dtype=float)
         self.positions = np.atleast_2d(positions)
 
-    def __repr__(self) -> str:# noqa: D105
+    def __repr__(self) -> str:  # noqa: D105
         # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"{self.__class__.__name__}(shape={self.positions.shape})"
 
     # TODO: per DS review, would make sense to eventually move this
     # into dedicated Cubic subtype of BoundedTransformableShape
-    @classmethod  
+    @classmethod
     def cubic(cls, sidelen: float = 1.0, centered: bool = True) -> "PointCloud":
         """
         Initialize a PointCloud whose point lie on the
@@ -97,7 +97,7 @@ class PointCloud(BoundedTransformableShape):
         """Volume enclosed by the convex hull of the positions in this PointCloud"""
         return self.convex_hull.volume
 
-    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN: # noqa: D102
+    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         return np.atleast_1d(
             self.triangulation.find_simplex(points) != -1
@@ -110,19 +110,19 @@ class PointCloud(BoundedTransformableShape):
         """
         return np.allclose(self.positions, other.positions)
 
-    def scale(self, scaling_factor: float) -> None: # noqa: D102
+    def scale(self, scaling_factor: float) -> None:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         self.positions = (
             scaling_factor * self.positions + (1 - scaling_factor) * self.centroid
         )
 
-    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]: # noqa: D102
+    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
-        
+
         # NB: self.convex_hull.points returns ALL points, even those in interior
         verts = self.convex_hull.vertices
         remap: dict[int, int] = {
-            old_idx: new_idx 
+            old_idx: new_idx
                 for new_idx, old_idx in enumerate(verts)
         }
         remapped = np.vectorize(lambda x: remap.get(x, x))
@@ -136,7 +136,7 @@ class PointCloud(BoundedTransformableShape):
     def _rigidly_transform(self, transformation: RigidTransform) -> None:
         self.positions = transformation.apply(self.positions)
         # invalidate cached qHull objects to prevent invariant plotting bug
-        clear_cached_properties(self)  
+        clear_cached_properties(self)
 
     # derived quantities
     @property

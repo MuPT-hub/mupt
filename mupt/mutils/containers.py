@@ -27,7 +27,7 @@ class Labelled(Protocol):
     """Protocol for objects that have a label"""
 
     @property
-    def label(self) -> Hashable: 
+    def label(self) -> Hashable:
         """
         An identifying label used to distinguish this object
         
@@ -111,12 +111,12 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
                 raise TypeError(f"Cannot infer label from unlabelled object {obj!r}")
         # N.B.: all Callables are Hashable, so order
         # matters in isinstance checks for the latter
-        elif isinstance(label, Callable): 
+        elif isinstance(label, Callable):
             label = label(obj)
 
         # TODO: reconcile types between the bound GEneric T and the external "Labelled"
         handle: HandleT = (label, self._get_uniquifying_index(label))
-        self._setitem(handle, obj)  
+        self._setitem(handle, obj)
 
         return handle
 
@@ -229,7 +229,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             self.deregister(handle)
 
     # Read access
-    ## DEV: eventually would like to make sets (since order is irrelevant), 
+    ## DEV: eventually would like to make sets (since order is irrelevant),
     # but that relies on assumptions about hashability of T
     @property
     def by_labels(self) -> dict[LabelT, tuple[T, ...]]:
@@ -347,7 +347,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             set,
             # DEV: this looks elaborate, but is necessary to ensure
             # copy doesn't share state with self after creation
-            **{  
+            **{
                 label: set(free_idxs) for label, free_idxs in self._freed.items()
             },
         )

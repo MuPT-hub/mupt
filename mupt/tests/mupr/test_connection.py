@@ -58,7 +58,7 @@ def test_connector_bondability(
     [
         # test with the empty connector the verify that counterpart
         # bondability fails when attachment points are empty
-        Connector(),  
+        Connector(),
         Connector(
             anchor=AttachmentPoint({"a", "b", TraversalDirection.RETRO}),
             linker=AttachmentPoint({"c", TraversalDirection.ANTERO}),

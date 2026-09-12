@@ -10,7 +10,7 @@ from mupt.geometry.arraytypes import (
 
 @pytest.fixture
 def vector_3X1_expected() -> VectorN:
-    '''A sample 3-vector to compare against many variations of itself'''
+    """A sample 3-vector to compare against many variations of itself"""
     return np.array([1.0, 2.0, 3.0])
 
 @pytest.mark.parametrize(

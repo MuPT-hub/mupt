@@ -39,13 +39,13 @@ def compute_local_coordinates(
     # determine principal axes from SVD
     ## NOTE: this places eigenvalues in descending order by default (no sorting needed)
     U, S, Vh = np.linalg.svd((positions - center), full_matrices=False)
-    
-    # transpose to place eigenvectors into column-order 
-    ## NOTE: basis is guaranteed to be normal, 
+
+    # transpose to place eigenvectors into column-order
+    ## NOTE: basis is guaranteed to be normal,
     ## since covariance matrix is real and symmetric
     principal_axes = Vh.T
-    
+
     # account for sample size normalization for covariance matrix
-    axis_lengths = (S * S) / (len(positions) - 1)  
+    axis_lengths = (S * S) / (len(positions) - 1)
 
     return center, principal_axes, axis_lengths

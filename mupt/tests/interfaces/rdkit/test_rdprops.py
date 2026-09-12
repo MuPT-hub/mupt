@@ -45,7 +45,7 @@ def test_rdprop_assignment(
     assign_property_to_rdobj(rdobj, prop_key, prop_value, preserve_type=True)
 
     getter = getattr(rdobj, expected_getter_method_name)
-    _ = getter(prop_key)  
-    
+    _ = getter(prop_key)
+
     # NOTE: no need for assert; will raise Exception if
     # value and type targetted by getter disagree

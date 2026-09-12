@@ -34,7 +34,7 @@ SmilesLike = Union[Smiles, Smarts]
 BOND_PRIMITIVES = "~-=#$:"
 # any of the SMARTS bond primitive chars, with a space to
 # differentiate single-bond hyphen for the regex range char
-BOND_PRIMITIVES_FOR_REGEX = r"[~\-=#$:]"  
+BOND_PRIMITIVES_FOR_REGEX = r"[~\-=#$:]"
 BOND_INITIALIZERS = {
     "SMILES": (Chem.Bond, Chem.BondFromSmiles),
     "SMARTS": (Chem.QueryBond, Chem.BondFromSmarts),

@@ -21,7 +21,7 @@ def mol() -> Chem.Mol:
 def test_rdmol_name_from_prop(mol: Chem.Mol, prop: str) -> None:
     """Test that a Mol with a given name property set is labelled with that property"""
     # ensure names are different to guarantee no false-positive from prior name sets
-    expected_name: str = f"test_name_for_{prop}"  
+    expected_name: str = f"test_name_for_{prop}"
     mol.SetProp(prop, expected_name)
     assert name_for_rdkit_mol(mol) == expected_name
 

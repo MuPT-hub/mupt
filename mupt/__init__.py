@@ -4,7 +4,7 @@ of the Multiscale Polymer Toolkit (MuPT)
 """
 
 # Add imports here
-from .mupt import canvas
+from .mupt import canvas as canvas
 
 from ._version import __version__ as __version__
 

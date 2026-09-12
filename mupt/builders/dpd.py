@@ -59,7 +59,7 @@ def pbc(
             pos_min = np.min(a)
     # TB: is "a" acted on in-place here? If so, why return
     # the array that's already been modified in-place?
-    return positions  
+    return positions
 
 
 def check_inter_particle_distance(
@@ -202,10 +202,10 @@ class DPDRandomWalk(PlacementGenerator):
                     "or spherical beads to determine step sizes"
                 )
 
-    # TB: supressing linter complexity (C901) warning for now, 
-    # but in the future this should be refactored to be more modular 
+    # TB: supressing linter complexity (C901) warning for now,
+    # but in the future this should be refactored to be more modular
     # and contain less branched business logic in one place
-    def _generate_placements( # noqa: C901
+    def _generate_placements(  # noqa: C901
         self, primitive: Primitive
     ) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         """
@@ -223,7 +223,7 @@ class DPDRandomWalk(PlacementGenerator):
         # Pre-allocate space for particles
         frame.particles.types = ["A"]  # TODO: introduce HMT's?
         ## TB: would be nice to set AFTER iterating over children, but need to size box
-        frame.particles.N = primitive.topology.number_of_nodes()  
+        frame.particles.N = primitive.topology.number_of_nodes()
         frame.particles.typeid = np.zeros(frame.particles.N)
         frame.particles.position = np.zeros((
             frame.particles.N,
@@ -346,7 +346,7 @@ class DPDRandomWalk(PlacementGenerator):
         # set periodic box based on initial positions and target density
         R_max = max(effective_radii.values())  # for scaling out of LJ units at the end
         ## monoclinic cubic box with scale L
-        frame.configuration.box = [L,L,L,0,0,0]
+        frame.configuration.box = [L, L, L, 0, 0, 0]
         frame.particles.position = pbc(frame.particles.position, [L, L, L])
 
         # Initialize HOOMD Simulation
@@ -426,10 +426,10 @@ class DPDRandomWalk(PlacementGenerator):
             bwd_steps = -chain_radii[1:, np.newaxis] * unit_step_vectors
             ## final step would "step past" the tail bead by same amount
             ## as incoming into tail (but in opposite direction)
-            fwd_steps = np.vstack([fwd_steps, -bwd_steps[-1]])  
+            fwd_steps = np.vstack([fwd_steps, -bwd_steps[-1]])
             ## first step would "step before" the head bead by same amount
             ## as outgoing from head (but in opposite direction)
-            bwd_steps = np.vstack([-fwd_steps[-1], bwd_steps])  
+            bwd_steps = np.vstack([-fwd_steps[-1], bwd_steps])
 
             # take steps to set incoming and outgoing positions for all beads
             orient_marker_points[particle_indices, 0, :] = (
@@ -444,7 +444,7 @@ class DPDRandomWalk(PlacementGenerator):
         Lx, Ly, Lz, alpha, beta, gamma = snap.configuration.box
         box_scaled = [
             # coerce from numpy float for eventual SD file storage
-            float(scale_factor * Lx),  
+            float(scale_factor * Lx),
             float(scale_factor * Ly),
             float(scale_factor * Lz),
             alpha,

@@ -15,24 +15,24 @@ from mupt.geometry.coordinates.basis import (
 ## an example of a matrix whose rows are mutually orthogonal but whose columns are not
 ORTHO_ROWS_ONLY = (
     np.array([[1, 2, 3], [2, 2, -2], [5, -4, 1]])
-)  
+)
 ## an example of a matrix whose columns are mutually orthogonal but whose rows are not
 ORTHO_COLS_ONLY = (
     np.array([[1, 2, 5], [2, 2, -4], [3, -2, 1]])
-)  
+)
 ## rowspace and columnspace checks should also work for nonsquare matrices
 ## This one has orthogonal rows, but not columns
 RECTANGULAR = np.array([
     [1, -3, 0, 2],
     [4, 0, 3, -2],
-])  
+])
 IDENTITY = np.eye(3)  # identity matrix is orthogonal by definition
 ## by definition, proper rotation matrices are orthonormal
 ROTATION = np.array([
     [np.cos(np.pi / 3), -np.sin(np.pi / 3), 0],
     [np.sin(np.pi / 3), np.cos(np.pi / 3), 0],
     [0, 0, 1],
-])  
+])
 
 
 @pytest.mark.parametrize(

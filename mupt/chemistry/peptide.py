@@ -23,7 +23,7 @@ from .sanitization import sanitized_mol
 
 
 # NOTE: final pair of carbons avoid overmatching asparagine AND under-matching proline
-PEPTIDE_BOND_QUERY: Mol = MolFromSmarts("[$([CX3](=[OX1]))]-[$([NX3,NX4+](-C)(-C))]")  
+PEPTIDE_BOND_QUERY: Mol = MolFromSmarts("[$([CX3](=[OX1]))]-[$([NX3,NX4+](-C)(-C))]")
 AMINE_QUERY: Mol = MolFromSmarts("[NH2,NH3+]")
 CARBOXYL_QUERY: Mol = MolFromSmarts("C(=O)[OH,-O+]")
 
@@ -83,7 +83,7 @@ def generate_amino_acid_substructures() -> set[AminoAcidSubstructure]:
             tripeptide.GetAtomWithIdx(0).GetPDBResidueInfo().GetResidueName()
         )
 
-        # cleave along peptide bonds to produce 
+        # cleave along peptide bonds to produce
         # head, middle, and tail AMINO_ACID fragments
         peptide_bond_idxs: list[int] = []
         for match in tripeptide.GetSubstructMatches(PEPTIDE_BOND_QUERY):

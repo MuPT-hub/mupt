@@ -225,10 +225,10 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-# TB: supressing linter complexity (C901) warning for now, 
-# but in the future this should be refactored to be more modular 
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
-def validate_args(args: argparse.Namespace) -> None: # noqa: C901
+def validate_args(args: argparse.Namespace) -> None:  # noqa: C901
     if args.n_chains < 1:
         raise ValueError("--n-chains must be >= 1")
     if args.chain_len < 2:
@@ -667,7 +667,7 @@ def main() -> int:
             LOGGER.info("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
             run_openmm_validation(root, result.box_length_a, args.charge_method, args)
-    except Exception as exc:
+    except Exception:
         LOGGER.exception("ERROR: %s")
         return 1
     return 0

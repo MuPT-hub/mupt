@@ -74,7 +74,7 @@ def sliding_window(items: Iterable[T], n: int = 1) -> Generator[tuple[T], None, 
 
     for x in it:  # implicit else
         # owing to maxlen constraint, the first item in the is automatically discarded
-        window.append(x)  
+        window.append(x)
         yield tuple(window)
 
 

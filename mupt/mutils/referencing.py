@@ -63,7 +63,7 @@ class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
         unique_id = uuid4()
         obj._uuid = unique_id
         # opting for str conversion to avoid consumers needing to know about UUID type
-        obj._address = unique_id.hex  
+        obj._address = unique_id.hex
 
         cls.registry_addresses[obj._address] = obj
 

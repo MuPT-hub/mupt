@@ -24,7 +24,7 @@ RDMOL_MAGIC_PROPS = {
     "_smilesAtomOutputOrder": "The order in which atoms were written to SMILES",
     "_smilesBondOutputOrder": "The order in which bonds were written to SMILES",
 }
-# REFERENCE FOR "MAGIC" ATOM PROP KEYS 
+# REFERENCE FOR "MAGIC" ATOM PROP KEYS
 # (https://www.rdkit.org/docs/RDKit_Book.html#atom)
 RDATOM_MAGIC_PROPS = {
     "_CIPCode": "the CIP code (R or S) of the atom",
@@ -116,7 +116,7 @@ def assign_property_to_rdobj(
 
 # NOTE : no need to incorporate typing info, as
 # RDKit objects can correctly interpret typed strings
-def copy_rdobj_props(from_rdobj: RDObj, to_rdobj: RDObj) -> None:  
+def copy_rdobj_props(from_rdobj: RDObj, to_rdobj: RDObj) -> None:
     # NOTE : avoid use of GetPropsAsDict() to avoid errors from restrictive C++ typing
     """For copying properties between a pair of RDKit Atoms or Mols"""
     # verify that both objects passed are RDKit objects...

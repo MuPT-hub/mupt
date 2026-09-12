@@ -13,7 +13,7 @@ from rdkit.Chem import Atom, Mol
 
 # neutronium-excluding linker query; requires that
 # the linker be attached to a non-linker atom
-LINKER_QUERY = "[!#0]~[#0X1]"  
+LINKER_QUERY = "[!#0]~[#0X1]"
 ## Exactly 1 of anything (including possibly another
 ## wild-type atom) attached to atomic number 0 atom
 # LINKER_QUERY : str = '*~[#0X1]'

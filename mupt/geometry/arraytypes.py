@@ -20,7 +20,7 @@ from numbers import Number  # , Real
 # Numeric typehints
 ## DEV: stupidly, but "float" does not typehint as Number
 ## in static type checkers, so have to add it manually
-NumberLike = Union[np.number, Number, float]  
+NumberLike = Union[np.number, Number, float]
 Numeric = TypeVar("Numeric", bound=Number)
 NumericNP = TypeVar("NumericNP", bound=np.dtype[np.number])
 BoolNP = TypeVar("BoolNP", bound=np.dtype[np.bool_])
@@ -42,7 +42,7 @@ P = TypeVar("P", bound=int)
 Dims = TypeVar("Dims", bound=int)  # intended to typehint the number of dimensions
 ## intended to typehint the number of dimensions +1
 ## (no easy way to do arithmetic to generic types yet)
-DimsPlus = TypeVar("DimsPlus", bound=int)  
+DimsPlus = TypeVar("DimsPlus", bound=int)
 
 # Fixed-size vector and array type annotations.
 # Consider deprecating, since they're not currently being used anywhere
@@ -87,7 +87,7 @@ def as_n_vector(
 
     Enables permissive ingestion of vector-shaped objects
     """
-    # N.B.: strings and byte-like are TECHNICALLY 
+    # N.B.: strings and byte-like are TECHNICALLY
     # also Sequences, but not the kind we want here
     if isinstance(vectorlike, (str, bytes)) or (
         not isinstance(vectorlike, (np.ndarray, Sequence))

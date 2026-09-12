@@ -2,7 +2,7 @@
 
 from .shapes import (
     BoundedShape as BoundedShape,
-    BoundedTransformableShape as BoundedTransformableShape, 
+    BoundedTransformableShape as BoundedTransformableShape,
     Shaped as Shaped,
 )
 from .pointcloud import PointCloud as PointCloud

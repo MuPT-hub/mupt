@@ -199,7 +199,7 @@ def test_containment_scaled(
     # NB: in this SPECIFIC case, uniform scaling of convex shapes about center
     # by non-unity scaling factor means either the scaled copy contains the
     # original (if factor >1) or vice-versa (if <1)
-    
+
     # implicitly also tests surface_mesh() - convenient, but not very atomic
-    mesh_points, triangles = shape.scaled(scaling_factor).surface_mesh() 
+    mesh_points, triangles = shape.scaled(scaling_factor).surface_mesh()
     assert np.all(shape.contains(mesh_points) == all_inside)

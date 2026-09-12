@@ -25,7 +25,7 @@ from . import signatures
 from ..filepaths.pathutils import aspath, asstrpath
 
 
-# TODO: throughout, add assertion that the wrapped function has at least one arg 
+# TODO: throughout, add assertion that the wrapped function has at least one arg
 # AND that the first arg is of the desired (limited) type
 
 @extend_to_methods
@@ -39,24 +39,24 @@ def optional_in_place(
     """
     old_sig = signature(funct)
 
-    @wraps(funct) # preserves docstring and type annotations / signatures
+    @wraps(funct)  # preserves docstring and type annotations / signatures
     def in_place_wrapper(
         obj: object,
         *args: Params.args,
-        in_place: bool=False, # read-only by default
+        in_place: bool=False,  # read-only by default
         **kwargs: Params.kwargs,
     ) -> Optional[object]:
         # NOTE : old_sig.bind screws up arg passing
-        """If not in-place, create a clone on which the method is executed"""  
+        """If not in-place, create a clone on which the method is executed"""
         if in_place:
             # default call to writeable method - implicitly returns None
-            funct( obj, *args, **kwargs)
+            funct(obj, *args, **kwargs)
         else:
             # clone object to avoid modifying original
             # TODO: provide option to pass custom copying method, with deepcopy default
             copy_obj = deepcopy(obj)
             funct(copy_obj, *args, **kwargs)
-            
+
             return copy_obj  # return the new object
 
     # ADD IN-PLACE PARAMETER TO FUNCTION SIGNATURE
@@ -107,14 +107,14 @@ def flexible_listlike_input(
         inputs = []
         for member in args:
             # works because isinstance() accepts either single type or tuple of types
-            if isinstance(member, valid_member_types):  
+            if isinstance(member, valid_member_types):
                 inputs.append(member)
             else:
                 raise TypeError(
                     f"Item {member!r} of type {type(member).__name__} is not an "
                     f"instance of any of the valid wrapped types: {valid_member_types}"
                 )
-        
+
         # convert to the expected cast type (this is where the
         # requirement of listlike cast types comes into play)
         inputs = CastType(inputs)

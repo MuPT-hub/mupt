@@ -16,11 +16,11 @@ from rdkit.Chem.rdchem import Mol, Bond, Atom
 AtomCondition = Callable[Concatenate[Atom, ...], bool]
 AtomLike = Union[int, Atom]
 
-def all_atoms(atom : Atom) -> bool:
+def all_atoms(atom: Atom) -> bool:
     """Select all atoms unconditionally"""
     return True
 
-def no_atoms(atom : Atom) -> bool:
+def no_atoms(atom: Atom) -> bool:
     """Reject all atoms unconditionally"""
     return False
 
@@ -117,11 +117,11 @@ has_atom_neighbors = has_atom_neighbors_by_condition
 BondCondition = Callable[Concatenate[Bond, ...], bool]
 BondLike = Union[int, Bond, tuple[int, int], tuple[Atom, Atom]]
 
-def all_bonds(bond : Bond) -> bool:
+def all_bonds(bond: Bond) -> bool:
     """Select all bonds unconditionally"""
     return True
 
-def no_bonds(bond : Bond) -> bool:
+def no_bonds(bond: Bond) -> bool:
     """Reject all bonds unconditionally"""
     return False
 
@@ -205,11 +205,11 @@ def bond_condition_by_atom_condition_factory(
     return bond_condition
 
 # QUERIES BY PREDEFINED CONDITIONS
-def atom_is_mapped(atom : Atom) -> bool:
+def atom_is_mapped(atom: Atom) -> bool:
     """Select atom if it has been assigned an atom map number"""
     return atom.GetAtomMapNum() != 0
 
-def atom_is_linker(atom : Atom) -> bool:
+def atom_is_linker(atom: Atom) -> bool:
     """Select atom if it has null atomic number (i.e. no element, wild-card atom)"""
     return atom.GetAtomicNum() == 0
 
@@ -259,7 +259,7 @@ def bonded_pairs(
         as_pairs=as_pairs,
         # NOTE: negate doesn't behave exactly as one might expect
         # here due to de Morgan's laws (i.e. ~(A^B) != (~A^~B))
-        negate=False,  
+        negate=False,
     )
 
 def bonds_between_mapped_atoms(
@@ -274,9 +274,9 @@ def bonds_between_mapped_atoms(
         # only return bond when BOTH atoms are unmapped
         condition=bond_condition_by_atom_condition_factory(
             atom_condition=atom_is_mapped,
-            binary_operator=logical_and, 
+            binary_operator=logical_and,
         ),
         as_indices=as_indices,
         as_pairs=as_pairs,
-        negate=False, 
+        negate=False,
     )

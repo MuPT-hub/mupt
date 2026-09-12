@@ -78,6 +78,6 @@ def sanitized_mol(
     # miscellaneous sanitization operations
     ## NOTE: regardless of settings, sanitization should be done
     # last to give greatest likelihodd of molecule validity
-    SanitizeMol(cleanmol, sanitizeOps=sanitize_ops)  
+    SanitizeMol(cleanmol, sanitizeOps=sanitize_ops)
 
     return cleanmol

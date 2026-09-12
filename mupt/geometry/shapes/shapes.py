@@ -48,7 +48,7 @@ class BoundedShape(Protocol):
         """Compare 2 BoundedShape instances as defined by their congruent_to() method"""
         if not isinstance(other, type(self)):
             return False
-        
+
         # DEV: congruent_to() is wrapped here to have
         # concrete subclass impls invoked by super().__eq__
         return self.congruent_to(other)
@@ -80,7 +80,7 @@ class BoundedShape(Protocol):
     # @abstractmethod
     # def support(self, direction : Vector3) -> Vector3:
     #     """
-    #     Returns the coordinates of the furthest point 
+    #     Returns the coordinates of the furthest point
     #     on the surface of the body in the given direction
     #     """
     #     ...
@@ -141,7 +141,7 @@ class Shaped(Protocol):
             )
 
         # make copy to avoid mutating original (per Principle of Least Astonishment)
-        new_shape_clone = new_shape.copy()  
+        new_shape_clone = new_shape.copy()
         if self._shape is not None:
             new_shape_clone.cumulative_transformation = (
                 self._shape.cumulative_transformation

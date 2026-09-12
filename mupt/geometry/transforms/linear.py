@@ -33,9 +33,9 @@ def rejector(
     Returns matrix which represents the orthogonal projector transformation
     """
     (dim,) = normal_vector.shape  # implicitly enforce 1D shape for vector
-    
+
     # equivalent to substracting parallel part off of vector transform is applied to
-    return np.eye(dim, dtype=normal_vector.dtype) - projector(normal_vector)  
+    return np.eye(dim, dtype=normal_vector.dtype) - projector(normal_vector)
 
 orthogonal = rejector
 

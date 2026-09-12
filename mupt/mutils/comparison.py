@@ -18,7 +18,7 @@ class Comparable(Protocol):
         ...
 
     # DEV: resemblant_of()??
-    def resembles(self, other: Self) -> bool:  
+    def resembles(self, other: Self) -> bool:
         """
         Whether the parts of this object are of the same types,
         without necessarily being coincident or identical objects
@@ -33,7 +33,7 @@ class Comparable(Protocol):
         ...
 
     # NOTE: opted not to use "interchangeable" to avoid confusion w/ OpenFF Interchange
-    def fungible_with(self, other: Self) -> bool:  
+    def fungible_with(self, other: Self) -> bool:
         """
         Whether this object can be replaced by "other" without affecting
         the behavior or output of programs involving this object

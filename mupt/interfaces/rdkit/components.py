@@ -123,7 +123,7 @@ def atom_positions_from_rdkit(
 
     # DEVNOTE: will raise Exception if bad ID is provided; no need to check locally
     # return conformer.GetPositions()[[idx for idx in atom_idxs], :]
-    conformer = rdmol.GetConformer(conformer_idx)  
+    conformer = rdmol.GetConformer(conformer_idx)
     atom_positions = tuple(
         np.array(conformer.GetAtomPosition(atom_idx), dtype=float)
         for atom_idx in atom_idxs
@@ -131,7 +131,7 @@ def atom_positions_from_rdkit(
     if atom_positions:
         return np.vstack(atom_positions)
     # making None return explicit just to clarify it can still happen at this stage
-    return None  
+    return None
 
 def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     """Create an AttachmentPoint labelling both by atom index and element symbol"""
@@ -210,7 +210,7 @@ def connector_between_rdatoms(
             atomsToUse=[from_atom_idx, to_atom_idx],
             bondsToUse=[bond.GetIdx()],
         ),
-        
+
         # NOTE: not assigning label here just yet, since labeller will
         # generally require the Connector to be initialized first
         metadata={
@@ -221,7 +221,7 @@ def connector_between_rdatoms(
                 # NOTE: computed props suppressed to avoid
                 # "unpicklable RDKit vector" errors
                 includeComputed=False
-            ),  
+            ),
         },
     )
     connector.label = connector_labeller(connector)
@@ -264,8 +264,8 @@ def connectors_from_rdkit(
     as specified by wild-type linker atoms
     """
     # avoids implicitValence errors on substructure match
-    rdmol.UpdatePropertyCache()  
-    
+    rdmol.UpdatePropertyCache()
+
     for anchor_idx, linker_idx in anchor_and_linker_idxs(rdmol):
         yield connector_between_rdatoms(
             rdmol,

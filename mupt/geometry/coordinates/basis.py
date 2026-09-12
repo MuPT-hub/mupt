@@ -14,7 +14,7 @@ def are_linearly_independent(*vectors: np.ndarray[Shape[N, ...], NumericNP]) -> 
     return np.linalg.matrix_rank(np.column_stack(vectors)) == len(vectors)
 
 # TODO: generalize to work for other diagonals
-def is_diagonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:  
+def is_diagonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
     Determine whether a matrix is digonal, i.e.
     has no nonzero elements off of the main diagonal
@@ -27,7 +27,7 @@ def is_rowspace_mutually_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) 
     basis of a matrix are mutually orthogonal
     """
     # pay careful attention to the order; P_ij = dot(row(i), row(j)) this way
-    return is_diagonal(matrix @ matrix.T)  
+    return is_diagonal(matrix @ matrix.T)
 
 def is_columnspace_mutually_orthogonal(
     matrix: np.ndarray[Shape[N, N], NumericNP],
@@ -53,6 +53,6 @@ def is_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     return (
         np.allclose(matrix @ matrix.T, np.eye(n_rows, dtype=matrix.dtype))
         and np.allclose(matrix.T @ matrix, np.eye(n_cols, dtype=matrix.dtype))
-    )  
+    )
 
 is_orthonormal = is_orthogonal

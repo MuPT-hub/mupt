@@ -30,10 +30,10 @@ def is_empty_dir(dirpath: Path) -> bool:
         raise NotADirectoryError(
             f'dirpath must point to directory, not to file "{dirpath}"'
         )
-    
+
     # can't use "len" for generators
     # TODO : make this more efficient (i.e. iteration-based) for large directories
-    return (list(dirpath.iterdir()) == [])  
+    return (list(dirpath.iterdir()) == [])
 
 def is_empty_file(filepath: Path) -> bool:
     """Check if a file contains no data"""

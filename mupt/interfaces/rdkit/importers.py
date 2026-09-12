@@ -42,7 +42,7 @@ def primitive_from_rdkit_atom(
             includePrivate=True,
             # NOTE: computed props suppressed to avoid
             # "unpicklable RDKit vector" errors
-            includeComputed=False,  
+            includeComputed=False,
         ),
     )
     if (map_num := atom.GetAtomMapNum()) != 0:
@@ -59,7 +59,7 @@ def primitive_from_rdkit_atom(
     if attach_connectors:
         # TODO: decide how bond Props should be split
         # among metadata of the two bonded atoms
-        for nb_atom in atom.GetNeighbors():  
+        for nb_atom in atom.GetNeighbors():
             _conn_handle = atom_primitive.register_connector(
                 connector_between_rdatoms(
                     parent_mol=parent_mol,
@@ -110,11 +110,11 @@ def primitive_from_rdkit_chain(
             includeComputed=False,
         ),
     )
-    ## DEV: opting to not inject stereochemical metadata for now, 
+    ## DEV: opting to not inject stereochemical metadata for now,
     ## since that may change as Primitive repr is transformed geometrically
     # stereo_info_map : dict[int, StereoInfo] = {
     ## TODO: determine most appropriate choice of flags to use in FindPotentialStereo
-    #     stereo_info.centeredOn : stereo_info 
+    #     stereo_info.centeredOn : stereo_info
     #        for stereo_info in FindPotentialStereo(
     #            rdmol_chain,
     #            cleanIt=True,
@@ -122,16 +122,16 @@ def primitive_from_rdkit_chain(
     #        )
     # }
 
-    # 1) Insert child Primitives for each atom (EVEN linkers - 
+    # 1) Insert child Primitives for each atom (EVEN linkers -
     # this keeps indices in sync for final handle assignment)
-    ## DEV: as-implemented, handle idx **SHOULD** match 
+    ## DEV: as-implemented, handle idx **SHOULD** match
     ## atom idx, but it never hurts to be explicit :P
     linker_idxs: set[int] = set()
-    atom_idx_to_handle_map: dict[int, PrimitiveHandle] = dict()  
-    
+    atom_idx_to_handle_map: dict[int, PrimitiveHandle] = dict()
+
     # DEV: opting not to get atoms implicitly from bonds to
     # handle single, unbonded atom (e.g. noble gas) uniformly
-    for atom in rdmol_chain.GetAtoms():  
+    for atom in rdmol_chain.GetAtoms():
         atom_idx = atom.GetIdx()
         if is_linker(atom):
             linker_idxs.add(atom_idx)
@@ -141,7 +141,7 @@ def primitive_from_rdkit_chain(
             atom_idx,
             conformer_idx=conformer_idx,
             # will attach per-bond to avoid matching connector handles to bond idxs
-            attach_connectors=False,  
+            attach_connectors=False,
         )
         atom_idx_to_handle_map[atom_idx] = rdmol_primitive.attach_child(
             atom_prim, label=atom_label
@@ -208,7 +208,7 @@ def primitive_from_rdkit_chain(
             )
 
     # 4) Inject conformer info
-    ##- DEV: there are many avenues to do this 
+    ## DEV: there are many avenues to do this
     ## (e.g. collate shape from children, if not None on all),
     ## but opted for the simplest for now
     non_linker_conformer = atom_positions_from_rdkit(
@@ -246,7 +246,7 @@ def primitive_from_rdkit(
         rdmol,
         asMols=True,
         sanitizeFrags=sanitize_frags,
-        # DEV: leaving these None for now, but highlighting 
+        # DEV: leaving these None for now, but highlighting
         # that we can spigot more info out of this eventually
         frags=None,
         fragsMolAtomMapping=None,

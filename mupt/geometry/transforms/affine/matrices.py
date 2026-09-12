@@ -252,9 +252,9 @@ def rotation_random(
     rotation_matrix : Array[[4, 4], float]
         The affine transformation matrix representing the rotation
     """
-    # concise way to encapsulate what rotations 
+    # concise way to encapsulate what rotations
     # can be performed and whether to perform them
-    rot_dir = {  
+    rot_dir = {
         rotation_x: about_x,
         rotation_y: about_y,
         rotation_z: about_z,
@@ -265,7 +265,7 @@ def rotation_random(
         if should_rotate:
             # generate random angle and multiply rotation
             #  into overall transform matrix (in order)
-            matrix = (rot_fn(2 * np.pi * np.random.rand(), dtype=dtype) @ matrix)  
+            matrix = (rot_fn(2 * np.pi * np.random.rand(), dtype=dtype) @ matrix)
 
     return matrix
 

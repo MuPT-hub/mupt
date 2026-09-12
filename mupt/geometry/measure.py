@@ -21,7 +21,7 @@ def normalize(
     norms = np.atleast_1d(  # ensure shape is broadcastable, even for scalars
         np.linalg.norm(vector, ord=order, axis=-1, keepdims=True)
     )
-    # DEVNOTE: thought about setting 0 entries in norm vector to 1's 
+    # DEVNOTE: thought about setting 0 entries in norm vector to 1's
     # to avoid division by zero, but opted instead for clear Exception
     # being raised by numpy when attempting division by zero
     # norms[np.isclose(norms, 0.0)] = 1.0  # avoid division by zero

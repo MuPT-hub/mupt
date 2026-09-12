@@ -34,13 +34,13 @@ def rdkit_atom_to_element(atom: Atom) -> ElementLike:
         raise TypeError(
             f"Expected an RDKit Atom instance, got object of type {type(atom).__name__}"
         )
-        
-    # DEV: am well-aware is_linker(atom : Atom) exists in the RDKit interface 
+
+    # DEV: am well-aware is_linker(atom : Atom) exists in the RDKit interface
     # ("I wrote the damn bill"), but that import here would be circular
-    atom_is_linker: bool = (atom.GetAtomicNum() == 0)  
+    atom_is_linker: bool = (atom.GetAtomicNum() == 0)
     elem: ElementLike = ELEMENTS[atom.GetAtomicNum()]
     if (mass_number := atom.GetIsotope()) != 0:
-        # bypass isotope validity check ONLY for linker atoms 
+        # bypass isotope validity check ONLY for linker atoms
         # (not actually neutrons, like periodictable seems to think they are!)
         elem = Isotope(elem, mass_number) if atom_is_linker else elem[mass_number]
 

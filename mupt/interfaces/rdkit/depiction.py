@@ -16,16 +16,16 @@ def set_rdkdraw_size(dim: int = 300, aspect: float = 3 / 2):
 def show_substruct_highlights() -> None:
     """
     Turns on highlighting of found substructures
-     when performing substructure matches
-     """
+    when performing substructure matches
+    """
     IPythonConsole.highlightSubstructs = True
 
 
 def hide_substruct_highlights() -> None:
     """
     Turns off highlighting of found substructures
-     when performing substructure matches
-     """
+    when performing substructure matches
+    """
     IPythonConsole.highlightSubstructs = False
 
 

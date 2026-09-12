@@ -1,6 +1,7 @@
 """
 Utilities for verifying (and producing) relationships
-between Topologies and other MuPT core components"""
+between Topologies and other MuPT core components
+"""
 
 # DEVNOTE: this is not a submodule under topology to avoid circular imports
 # and to shelter MID Graphs from needing to know about HOW they're embedded
@@ -76,10 +77,10 @@ def mapped_equivalence_classes(
         else:
             equiv_classes.append([obj])
 
-    # DEV: opting for index as default unique label for now; 
+    # DEV: opting for index as default unique label for now;
     # eventually want labels to be semantically-related to each class
     return {
-        i: equiv_class  
+        i: equiv_class
             for i, equiv_class in enumerate(equiv_classes)
     }
 
@@ -87,7 +88,8 @@ def mapped_equivalence_classes(
 class ConnectorReference:
     """
     Lightweight reference to a Connector on a Primitive, 
-    identified by the Primitive's handle and the Connector's handle"""
+    identified by the Primitive's handle and the Connector's handle
+    """
     primitive_handle: PrimitiveHandle
     connector_handle: ConnectorHandle
 
@@ -100,7 +102,7 @@ class ConnectorReference:
             connector_handle=self.connector_handle,
         )
 
-    def __str__(self) -> str: # noqa: D105
+    def __str__(self) -> str:  # noqa: D105
         # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"Connector '{self.connector_handle}' " \
             f"attached to Primitive '{self.primitive_handle}'"
@@ -144,7 +146,7 @@ def flexible_connector_reference(
 
 # TB: suppressing complexity (C901) warning for the time being
 # this is being refactored in PR #56, so should be resolved soon
-def infer_connections_from_topology( # noqa: C901
+def infer_connections_from_topology(  # noqa: C901
     topology: TopologicalStructure,
     mapped_connectors: Mapping[PrimitiveHandle, Mapping[ConnectorHandle, Connector]],
     n_iter_max: int = 25,  # DEV: this is just a number I made up :P
@@ -196,7 +198,7 @@ def infer_connections_from_topology( # noqa: C901
 
         for edge_labels in unpaired_edges:
             owner_handle1, owner_handle2 = edge_labels
-            # attempt to identify if there is a UNIQUE pair 
+            # attempt to identify if there is a UNIQUE pair
             # of bondable classes of Connectors along the edge
             pair_choice_ambiguous: bool = False
             compatible_class_labels: Optional[tuple[Connector, Connector]] = None
@@ -219,11 +221,11 @@ def infer_connections_from_topology( # noqa: C901
                     pair_choice_ambiguous = True
                     # further search can't disambiguate choice;
                     # stop early to save computation
-                    break  
+                    break
 
             if pair_choice_ambiguous:
                 LOGGER.debug(
-                    f"Choice of Connector pair ambiguous "
+                    "Choice of Connector pair ambiguous "
                     "for edge {edge_labels}, skipping"
                 )
                 unpaired_updated.add(edge_labels)  # "try again next time!"
@@ -239,11 +241,11 @@ def infer_connections_from_topology( # noqa: C901
             for class_label, owner_label in zip(compatible_class_labels, edge_labels):
                 equiv_class = connector_equiv_classes[owner_label][class_label]
                 chosen_representatives.add(
-                    # DEV: index here shouldn't matter, but will be 
+                    # DEV: index here shouldn't matter, but will be
                     # standardized to match arbitrary element selection
                     ConnectorReference(
                         primitive_handle=owner_label,
-                        connector_handle=equiv_class.pop(),  
+                        connector_handle=equiv_class.pop(),
                     )
                 )
                 if (
@@ -275,7 +277,7 @@ def infer_connections_from_topology( # noqa: C901
         )
 
     ## DEV: with the refactor to have all Child Connectors be external by default
-    ## in Primitive it's no longer necessary to compute which are external here 
+    ## in Primitive it's no longer necessary to compute which are external here
     ## (though we have enough info to do so, as shown)
     # external_connectors : dict[PrimitiveHandle, tuple[Connector]] = {
     #     owner_handle : tuple(chain.from_iterable(eq_classes.values()))

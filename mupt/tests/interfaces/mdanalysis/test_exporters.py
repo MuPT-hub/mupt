@@ -86,7 +86,7 @@ def test_atom_count_preservation(primitive_fixture, resname_fixture, request):
 
     # Act: Convert to MDAnalysis
     mda_exported_system = primitive_to_mdanalysis(univprim, resname_map=resname_map)
-    num_atoms_mda : int = mda_exported_system.atoms.n_atoms
+    num_atoms_mda: int = mda_exported_system.atoms.n_atoms
 
     # Assert: MDAnalysis atom count should match Primitive leaf count
     assert num_atoms_mda == len(univprim.leaves), (
@@ -697,12 +697,12 @@ class TestDepth4BondedExport:
         ]
         assert len(cross_residue_bonds) == 1
         bond = cross_residue_bonds[0]
-        
+
         elem1 = bond.atoms[0].element
         assert bond.atoms[0].element == "C", (
             f"Expected first atom of inter-residue bond to be C, got '{elem1}'"
         )
-        
+
         elem2 = bond.atoms[1].element
         assert bond.atoms[1].element == "C", (
             f"Expected second atom of inter-residue bond to be C, got '{elem2}'"

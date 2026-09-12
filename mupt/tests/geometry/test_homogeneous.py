@@ -1,7 +1,6 @@
 """Unit tests for homogeneous coordinate conversion and affine transforms"""
 
 import pytest
-from typing import Any
 import numpy as np
 
 from mupt.geometry.transforms.affine.homogeneous import (
@@ -12,19 +11,21 @@ from mupt.geometry.arraytypes import Vector3
 
 
 N: int = 10
-point = np.random.random((3,))
-vector = np.random.random((N, 3))
-block = np.random.random((N, N, 3))
+def tensor_examples(N: int=10) -> tuple[np.ndarray, ...]:
+    """
+    Various tensors with random numerical entries but consistent dimension
+    
+    Used to test that results of homogeneous coordinate
+    conversion operations have the excepted shapes 
+    """
+    point = np.random.random((3,))
+    vector = np.random.random((N, 3))
+    block = np.random.random((N, N, 3))
+
+    return (point, vector, block)
 
 
-@pytest.mark.parametrize(
-    "array",
-    (
-        point,
-        vector,
-        block,
-    ),
-)
+@pytest.mark.parametrize("array", tensor_examples(10))
 def test_to_homogeneous_coords(array: Vector3) -> None:
     """
     Test the conversion of arbitrarily-nested arrays
@@ -39,15 +40,7 @@ def test_to_homogeneous_coords(array: Vector3) -> None:
     homog = to_homogeneous_coords(array, projection=projection)
     assert (homog.shape == expected_shape) and np.allclose(homog[..., -1], projection)
 
-
-@pytest.mark.parametrize(
-    "array",
-    (
-        point,
-        vector,
-        block,
-    ),
-)
+@pytest.mark.parametrize("array", tensor_examples(10))
 def test_from_homogeneous_coords(array: Vector3) -> None:
     """
     Test that conversion to and back from

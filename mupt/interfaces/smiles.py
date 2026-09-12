@@ -46,14 +46,14 @@ def primitive_from_smiles(
     if embed_positions:
         # NOTE: don't clobber existing conformers for safety
         # (though new Mol shouldn't have any anyway)
-        conformer_idx = EmbedMolecule(rdmol, clearConfs=False)  
+        conformer_idx = EmbedMolecule(rdmol, clearConfs=False)
 
     return primitive_from_rdkit(
         rdmol,
         conformer_idx=conformer_idx,
         label=label,
         # DEV: needed to generate SMILES from mol in case no explicit label is provided
-        smiles_writer_params=smiles_writer_params, 
+        smiles_writer_params=smiles_writer_params,
     )
 
 

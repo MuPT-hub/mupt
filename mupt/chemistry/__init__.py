@@ -1,14 +1,14 @@
 """For encoding chemistries and manipulating SMILES-based structures"""
 
 from .core import (
-    Element,
-    Ion,
-    Isotope,
-    ElementLike,
-    ELEMENTS,
-    BOND_ORDER,
-    RDKitPeriodicTable,
-    valence_allowed,
+    Element as Element,
+    Ion as Ion,
+    Isotope as Isotope,
+    ElementLike as ElementLike,
+    ELEMENTS as ELEMENTS,
+    BOND_ORDER as BOND_ORDER,
+    RDKitPeriodicTable as RDKitPeriodicTable,
+    valence_allowed as valence_allowed,
 )
 from .linkers import (
     is_linker as is_linker,
