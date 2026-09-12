@@ -99,19 +99,22 @@ class TopologicalStructure(nx.Graph):
         # return nx.weisfeiler_lehman_graph_hash(self)
         # # stand-in for more specific implementation to follow
 
-        return str(hash(
-            # temporary, quick-to-compute stand-in
-            # for eventual "real-deal" canonical form
-            tuple(
-                Counter(deg for node, deg in self.degree).items())
-        ))
+        return str(
+            hash(
+                # temporary, quick-to-compute stand-in
+                # for eventual "real-deal" canonical form
+                tuple(Counter(deg for node, deg in self.degree).items())
+            )
+        )
 
     def __repr__(self) -> str:  # noqa: D105
         # TB: no docstring here; internal behavior is predictable with no side-effects
         # TODO: make this more descriptive
-        return f"{self.__class__.__name__}" \
-            f"(num_objects={self.number_of_nodes()}, " \
+        return (
+            f"{self.__class__.__name__}"
+            f"(num_objects={self.number_of_nodes()}, "
             f"indiscrete={self.is_indiscrete})"
+        )
 
     def visualize(
         self,
@@ -129,6 +132,7 @@ class TopologicalStructure(nx.Graph):
             pos=layout(self),
             **draw_kwargs,
         )
+
 
 # graph generators
 def path_graphs(
@@ -148,6 +152,7 @@ def path_graphs(
             (next(node_labels) for _ in range(chain_length)),
             create_using=create_using,
         )
+
 
 def noodle_graph(
     chain_lengths: Iterable[int],

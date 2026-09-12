@@ -27,6 +27,7 @@ def normalize(
     # norms[np.isclose(norms, 0.0)] = 1.0  # avoid division by zero
     vector /= norms
 
+
 def normalized(
     # DEV: using generic here to indicate return has same dtype
     vector: np.ndarray[Shape[N, ...], NumericNP],

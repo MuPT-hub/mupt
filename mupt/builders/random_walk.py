@@ -131,7 +131,7 @@ def random_walk_jointed_chain(  # noqa: C901
 
         # NOTE: over |x| in [0, pi], cos(x) is monotonically decreasing,
         # so overly-large steps will have cosine BELOW the cutoff
-        while (np.dot(step_direction, prev_direction) < cos_max):
+        while np.dot(step_direction, prev_direction) < cos_max:
             step_direction: np.ndarray = random_unit_vector(
                 dimension=dimension, rng=rng
             )
@@ -222,10 +222,9 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             )  # raise StopIteration if no path exists
 
             # determine pair of anchor points per-body that alignment is based upon
-            connection_points: dict[
-                PrimitiveHandle,
-                list[np.ndarray, np.ndarray]
-            ] = defaultdict(list)
+            connection_points: dict[PrimitiveHandle, list[np.ndarray, np.ndarray]] = (
+                defaultdict(list)
+            )
 
             connection_points[head_handle].append(
                 primitive.children_by_handle[head_handle].shape.centroid

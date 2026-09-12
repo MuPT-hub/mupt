@@ -10,6 +10,7 @@ class Comparable(Protocol):
     Objects which can be compared by spatial similarity
     (coincidence), structural similarity (congruence), or both
     """
+
     def coincides_with(self, other: Self) -> bool:
         """
         Whether the parts of this object are

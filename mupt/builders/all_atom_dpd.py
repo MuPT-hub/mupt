@@ -260,6 +260,7 @@ class AllAtomDPDParameterProvider(ABC):
         epsilon/type mappings for every atom record they can parameterize.
         """
 
+
 class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
     """Parameter provider backed by OpenFF ``ForceField.label_molecules``.
 
@@ -511,6 +512,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
         if hasattr(key, "this_atom_index"):
             return (int(key.this_atom_index),)
         return tuple(int(idx) for idx in key)
+
 
 class AllAtomDPDBuilder:
     """All-atom DPD builder for SAAMR Primitive hierarchies."""
@@ -955,7 +957,7 @@ class AllAtomDPDBuilder:
         )
         frame.particles.mass = masses
         frame.particles.position = self._initial_positions(records, box_lengths, rng)
-        frame.configuration.box = [float(length) for length in box_lengths] + [0.0]*3
+        frame.configuration.box = [float(length) for length in box_lengths] + [0.0] * 3
 
         self._set_bonded_frame_data(
             frame.bonds,

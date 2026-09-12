@@ -88,6 +88,7 @@ def chemical_graph_from_rdkit(
         )
     )
 
+
 def atom_positions_from_rdkit(
     rdmol: Mol,
     conformer_idx: Optional[int] = None,
@@ -133,6 +134,7 @@ def atom_positions_from_rdkit(
     # making None return explicit just to clarify it can still happen at this stage
     return None
 
+
 def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     """Create an AttachmentPoint labelling both by atom index and element symbol"""
     atom_idx = atom.GetIdx()
@@ -142,6 +144,7 @@ def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
         attachables={atom_idx, atom_symbol},
         attachment=atom_idx,
     )
+
 
 def connector_between_rdatoms(
     parent_mol: Mol,
@@ -210,7 +213,6 @@ def connector_between_rdatoms(
             atomsToUse=[from_atom_idx, to_atom_idx],
             bondsToUse=[bond.GetIdx()],
         ),
-
         # NOTE: not assigning label here just yet, since labeller will
         # generally require the Connector to be initialized first
         metadata={
@@ -220,7 +222,7 @@ def connector_between_rdatoms(
                 includePrivate=True,
                 # NOTE: computed props suppressed to avoid
                 # "unpicklable RDKit vector" errors
-                includeComputed=False
+                includeComputed=False,
             ),
         },
     )
@@ -253,6 +255,7 @@ def connector_between_rdatoms(
             )
 
     return connector
+
 
 def connectors_from_rdkit(
     rdmol: Mol,

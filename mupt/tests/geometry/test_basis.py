@@ -13,13 +13,9 @@ from mupt.geometry.coordinates.basis import (
 
 # Test matrices for orthogonality checks
 ## an example of a matrix whose rows are mutually orthogonal but whose columns are not
-ORTHO_ROWS_ONLY = (
-    np.array([[1, 2, 3], [2, 2, -2], [5, -4, 1]])
-)
+ORTHO_ROWS_ONLY = np.array([[1, 2, 3], [2, 2, -2], [5, -4, 1]])
 ## an example of a matrix whose columns are mutually orthogonal but whose rows are not
-ORTHO_COLS_ONLY = (
-    np.array([[1, 2, 5], [2, 2, -4], [3, -2, 1]])
-)
+ORTHO_COLS_ONLY = np.array([[1, 2, 5], [2, 2, -4], [3, -2, 1]])
 ## rowspace and columnspace checks should also work for nonsquare matrices
 ## This one has orthogonal rows, but not columns
 RECTANGULAR = np.array([
@@ -51,6 +47,7 @@ def test_rowspace_orthogonality_check(
     """Test that the row space orthogonality check works as expected"""
     assert is_rowspace_mutually_orthogonal(matrix) == expected_value
 
+
 @pytest.mark.parametrize(
     "matrix, expected_value",
     [
@@ -66,6 +63,7 @@ def test_columnspace_orthogonality_check(
 ) -> None:
     """Test that the column space orthogonality check works as expected"""
     assert is_columnspace_mutually_orthogonal(matrix) == expected_value
+
 
 @pytest.mark.parametrize(
     "matrix, expected_value",

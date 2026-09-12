@@ -247,6 +247,7 @@ def _record_metadata(mol: Mol) -> dict:
         if not key.startswith(MUPT_SDF_ATOM_PROP_PREFIX)
     }
 
+
 # TB: supressing linter complexity (C901) warning for now,
 # but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place

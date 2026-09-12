@@ -49,11 +49,12 @@ def affine_matrix_from_linear_and_center(
 
     return affine_matrix
 
+
 def translation(
     x: float = 0.0,
     y: float = 0.0,
     z: float = 0.0,
-    dtype: Union[str, type]="float64",
+    dtype: Union[str, type] = "float64",
 ) -> AffineMatrix4x4:
     """
     Generates an affine matrix which translated the origin
@@ -85,6 +86,7 @@ def translation(
         ],
         dtype=dtype,
     )
+
 
 def scaling(
     sx: float = 1.0,
@@ -123,9 +125,10 @@ def scaling(
         dtype=dtype,
     )
 
+
 def rotation_x(
     angle_rad: float = 0.0,
-    dtype: Union[str, type]="float64",
+    dtype: Union[str, type] = "float64",
 ) -> AffineMatrix4x4:
     """
     Generates an affine matrix which rotates about
@@ -157,9 +160,10 @@ def rotation_x(
         dtype=dtype,
     )
 
+
 def rotation_y(
     angle_rad: float = 0.0,
-    dtype: Union[str, type]="float64",
+    dtype: Union[str, type] = "float64",
 ) -> AffineMatrix4x4:
     """
     Generates an affine matrix which rotates about
@@ -191,9 +195,10 @@ def rotation_y(
         dtype=dtype,
     )
 
+
 def rotation_z(
     angle_rad: float = 0.0,
-    dtype: Union[str, type]="float64",
+    dtype: Union[str, type] = "float64",
 ) -> AffineMatrix4x4:
     """
     Generates an affine matrix which rotates about
@@ -225,11 +230,12 @@ def rotation_z(
         dtype=dtype,
     )
 
+
 def rotation_random(
     about_x: bool = True,
     about_y: bool = True,
     about_z: bool = True,
-    dtype: Union[str, type]="float64",
+    dtype: Union[str, type] = "float64",
 ) -> AffineMatrix4x4:
     """
     Generates an affine matrix which rotates by a random amount [0, 2pi)
@@ -265,8 +271,9 @@ def rotation_random(
         if should_rotate:
             # generate random angle and multiply rotation
             #  into overall transform matrix (in order)
-            matrix = (rot_fn(2 * np.pi * np.random.rand(), dtype=dtype) @ matrix)
+            matrix = rot_fn(2 * np.pi * np.random.rand(), dtype=dtype) @ matrix
 
     return matrix
+
 
 # TODO: define shear transforms

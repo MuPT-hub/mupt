@@ -51,7 +51,9 @@ def _compile_bond_order_reference() -> dict[BondType, float]:
 
     return bond_orders_by_bond_type
 
+
 BOND_ORDER: dict[BondType, float] = _compile_bond_order_reference()
+
 
 def valence_allowed(atomic_num: int, charge: int, valence: int) -> bool:
     """Check if the given valence is allowed for the specified element"""

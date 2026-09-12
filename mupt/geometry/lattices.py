@@ -17,11 +17,14 @@ class Coordinates(Generic[Numeric]):
     Encapsulation class for storing sets of coordinates
     and performing transfomations on those coordinates
     """
+
     pass
+
 
 @dataclass
 class LatticeParameters:  # TODO : incorporate unit-awareness
     """For parameterizing a single crystallographic unit cell"""
+
     a: float
     b: float
     c: float
@@ -43,8 +46,11 @@ class LatticeParameters:  # TODO : incorporate unit-awareness
 # Coordinate subclasses
 class Lattice(Coordinates[Real]):  # NOTE: mbuild already has something like this
     """For representing a periodic unit cell"""
+
     ...
+
 
 class IntegralLattice(Coordinates[int]):
     """For representing a lattice with integer-valued points"""
+
     ...

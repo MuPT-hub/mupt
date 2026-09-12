@@ -99,9 +99,9 @@ class PointCloud(BoundedTransformableShape):
 
     def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
-        return np.atleast_1d(
-            self.triangulation.find_simplex(points) != -1
-        ).astype(object)  # need to cast from numpy bool to Python bool
+        return np.atleast_1d(self.triangulation.find_simplex(points) != -1).astype(
+            object
+        )  # need to cast from numpy bool to Python bool
 
     def congruent_to(self, other: "PointCloud") -> bool:
         """
@@ -122,8 +122,7 @@ class PointCloud(BoundedTransformableShape):
         # NB: self.convex_hull.points returns ALL points, even those in interior
         verts = self.convex_hull.vertices
         remap: dict[int, int] = {
-            old_idx: new_idx
-                for new_idx, old_idx in enumerate(verts)
+            old_idx: new_idx for new_idx, old_idx in enumerate(verts)
         }
         remapped = np.vectorize(lambda x: remap.get(x, x))
 

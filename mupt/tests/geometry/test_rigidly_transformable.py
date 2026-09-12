@@ -28,6 +28,7 @@ class Points(RigidlyTransformable):
     def _copy_untransformed(self) -> "Points":
         return self.__class__(positions=np.array(self.positions))
 
+
 class PointsNonCopyable(RigidlyTransformable):
     """Dummy class for to test that in-place methods fail when copying is undefined"""
 
@@ -51,9 +52,11 @@ def transform() -> RigidTransform:
         translation=direction,  # slide 1 unit along the target direction
     )
 
+
 @pytest.fixture(scope="function")
 def sample_positions() -> np.ndarray:
     return np.array(list(cartesian([0.0, 1.0], repeat=3)), dtype=float)
+
 
 @pytest.fixture(scope="function")
 def sample_positions_transformed(
@@ -61,9 +64,11 @@ def sample_positions_transformed(
 ) -> np.ndarray:
     return transform.apply(sample_positions)
 
+
 @pytest.fixture(scope="function")
 def points(sample_positions: np.ndarray) -> Points:
     return Points(positions=sample_positions)
+
 
 @pytest.fixture(scope="function")
 def points_non_copyable(sample_positions: np.ndarray) -> PointsNonCopyable:
@@ -85,6 +90,7 @@ def test_rigidly_transform(
         strict=True,
     )
 
+
 @pytest.mark.parametrize("num_applications", range(8))
 def test_cumulative_transformation(
     points: Points,
@@ -101,6 +107,7 @@ def test_cumulative_transformation(
         points.cumulative_transformation,
         cumul_trans,
     )
+
 
 def test_reset_transform(points: Points, transform: RigidTransform):
     """
@@ -128,6 +135,7 @@ def test_rigidly_transformed(
     # no direct support built in for checking arrays are NOT equal
     assert not np.allclose(new_points.positions, points.positions)
 
+
 @pytest.mark.xfail(
     reason="Can't apply out-of-place transformation to objects which can't be copied",
     raises=NotCopyableError,
@@ -141,6 +149,7 @@ def test_rigidly_transformed_fails_when_non_copyable(
     _ = points_non_copyable.rigidly_transformed(
         transform
     )  # no asserts needed, since this line should fail
+
 
 def test_reset_transformed(
     points: Union[Points, PointsNonCopyable],
@@ -162,6 +171,7 @@ def test_reset_transformed(
         atol=1e-10,
         strict=True,
     )
+
 
 @pytest.mark.xfail(
     reason="Can't apply out-of-place transformation to objects which can't be copied",

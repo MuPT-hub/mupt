@@ -22,11 +22,11 @@ from ..coordinates.basis import is_columnspace_mutually_orthogonal
 
 def ellipsoidal_mesh(
     rx: float,
-    ry: Optional[float]=None,
-    rz: Optional[float]=None,
-    n_theta: int=30,
-    n_phi: int=30,
-    transformation: RigidTransform=RigidTransform.identity(),
+    ry: Optional[float] = None,
+    rz: Optional[float] = None,
+    n_theta: int = 30,
+    n_phi: int = 30,
+    transformation: RigidTransform = RigidTransform.identity(),
 ) -> tuple[ArrayNx3, TriangulationIndices]:
     """
     Generate a mesh of points defining the surface of an ellipsoid
@@ -77,8 +77,8 @@ def ellipsoidal_mesh(
 
     # (magnitude of) complex step size is interpreted by numpy as a number of points
     angles = theta, phi = np.mgrid[
-        0.0 : 2*np.pi : n_theta*1j,
-        0.0 : np.pi : n_phi*1j,
+        0.0 : 2 * np.pi : n_theta * 1j,
+        0.0 : np.pi : n_phi * 1j,
     ]
 
     # NOTE: .reshape(-1, 2) gives the right shape
@@ -95,6 +95,7 @@ def ellipsoidal_mesh(
 
     return mesh_points, triangulation.simplices
 
+
 # N.B: doesn't inherit from Ellipsoid to avoid Circle-Ellipse problem
 # (https://en.wikipedia.org/wiki/Circle%E2%80%93ellipse_problem)
 class Sphere(BoundedTransformableShape):
@@ -102,8 +103,8 @@ class Sphere(BoundedTransformableShape):
 
     def __init__(
         self,
-        radius: float=1.0,
-        center: Optional[Vector3]=None,
+        radius: float = 1.0,
+        center: Optional[Vector3] = None,
     ) -> None:
         if center is None:
             center = np.zeros(3, dtype=float)
@@ -158,8 +159,8 @@ class Sphere(BoundedTransformableShape):
 
     def surface_mesh(  # noqa: D102
         self,
-        n_theta: int=30,
-        n_phi: int=30,
+        n_theta: int = 30,
+        n_phi: int = 30,
     ) -> tuple[ArrayNx3, TriangulationIndices]:
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         return ellipsoidal_mesh(
@@ -213,12 +214,12 @@ class Ellipsoid(BoundedTransformableShape):
     def from_components(
         cls,
         # axis lengths
-        radius_x: NumberLike=1.0,
-        radius_y: NumberLike=1.0,
-        radius_z: NumberLike=1.0,
-        center_x: NumberLike=0.0,
-        center_y: NumberLike=0.0,
-        center_z: NumberLike=0.0,
+        radius_x: NumberLike = 1.0,
+        radius_y: NumberLike = 1.0,
+        radius_z: NumberLike = 1.0,
+        center_x: NumberLike = 0.0,
+        center_y: NumberLike = 0.0,
+        center_z: NumberLike = 0.0,
         # center coordinate
     ) -> "Ellipsoid":
         """
@@ -257,7 +258,7 @@ class Ellipsoid(BoundedTransformableShape):
             ),  # ensure homogeneous scale of the center is 1 (i.e. unprojected)
         )
 
-    def scaling_matrix(self, as_affine: bool=True) -> Array3x3 | Array4x4:
+    def scaling_matrix(self, as_affine: bool = True) -> Array3x3 | Array4x4:
         """The scaling matrix which defines the radii of the Ellipsoid"""
         if as_affine:
             return np.diag([
@@ -340,7 +341,7 @@ class Ellipsoid(BoundedTransformableShape):
         """Volume enclosed by this Ellipsoid"""
         # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
         # return 4/3 * np.pi * np.linalg.det(self.matrix)
-        return (4/3 * np.pi * np.prod(self.radii))
+        return 4 / 3 * np.pi * np.prod(self.radii)
 
     def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:  # noqa: D102
         # TB: docstrings inherited from BoundedShape base; no need to specify here
@@ -350,9 +351,7 @@ class Ellipsoid(BoundedTransformableShape):
         ## matrix in general not a rigid transformation because of axial stretching
         return (
             np.linalg.norm(
-                np.atleast_2d(
-                    self.resetting_transformation.apply(points) / self.radii
-                ),
+                np.atleast_2d(self.resetting_transformation.apply(points) / self.radii),
                 axis=1,
             )
             <= 1
@@ -373,8 +372,8 @@ class Ellipsoid(BoundedTransformableShape):
 
     def surface_mesh(  # noqa: D102
         self,
-        n_theta: int=30,
-        n_phi: int=30,
+        n_theta: int = 30,
+        n_phi: int = 30,
     ) -> tuple[ArrayNx3, TriangulationIndices]:
         # TB: docstrings inherited from BoundedShape base; no need to specify here
         return ellipsoidal_mesh(

@@ -11,6 +11,7 @@ from rdkit.Chem.rdchem import (
     Mol,
     RWMol,
 )
+
 RDObj = Union[Atom, Bond, Mol, RWMol]
 
 
@@ -31,8 +32,7 @@ RDATOM_MAGIC_PROPS = {
     "_CIPRank": "the integer CIP rank of the atom",
     "_ChiralityPossible": "set if an atom is a possible chiral center",
     "_MolFileRLabel": (
-        "integer R group label for an atom, "
-        "read from/written to CTABs."
+        "integer R group label for an atom, read from/written to CTABs."
     ),
     "_ReactionDegreeChanged": (
         "set on an atom in a product template of a reaction "
@@ -42,9 +42,7 @@ RDATOM_MAGIC_PROPS = {
         "atoms with this property set will not be "
         "considered as matching reactant queries in reactions"
     ),
-    "dummyLabel": (
-        "(on dummy atoms) read from/written to CTABs as the atom symbol"
-    ),
+    "dummyLabel": ("(on dummy atoms) read from/written to CTABs as the atom symbol"),
     "molAtomMapNumber": (
         "the atom map number for an atom, read from/written to SMILES and CTABs"
     ),
@@ -85,11 +83,13 @@ RDPROP_SETTERS = {
     float: "SetDoubleProp",
 }
 
+
 # PROPERTY INSPECTION AND TRANSFER FUNCTIONS
 # TODO: implement generic "smart" getters and setter which are type-aware
 def isrdobj(obj: Any) -> bool:
     """Check if the given object is an RDKit object"""
     return isinstance(obj, RDObj.__args__)
+
 
 def assign_property_to_rdobj(
     rdobj: RDObj,
@@ -113,6 +113,7 @@ def assign_property_to_rdobj(
             rdobj, type_setter_name
         )  # DEV: 2nd arg is actually same type as prop_value
         type_setter(prop_name, prop_value)
+
 
 # NOTE : no need to incorporate typing info, as
 # RDKit objects can correctly interpret typed strings

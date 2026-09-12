@@ -20,10 +20,12 @@ def mol() -> Mol:
 
     return rdmol
 
+
 @pytest.fixture(scope="function")
 def primitive(mol: Mol) -> Primitive:
     """Example MuPT repr instance created from example RDKit Mol"""
     return primitive_from_rdkit(mol)
+
 
 def test_valences_permissible(primitive: Primitive) -> None:
     """

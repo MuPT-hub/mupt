@@ -28,6 +28,7 @@ from ..filepaths.pathutils import aspath, asstrpath
 # TODO: throughout, add assertion that the wrapped function has at least one arg
 # AND that the first arg is of the desired (limited) type
 
+
 @extend_to_methods
 def optional_in_place(
     funct: Callable[[Concatenate[object, Params]], None],
@@ -43,7 +44,7 @@ def optional_in_place(
     def in_place_wrapper(
         obj: object,
         *args: Params.args,
-        in_place: bool=False,  # read-only by default
+        in_place: bool = False,  # read-only by default
         **kwargs: Params.kwargs,
     ) -> Optional[object]:
         # NOTE : old_sig.bind screws up arg passing
@@ -81,10 +82,11 @@ def optional_in_place(
 
     return in_place_wrapper
 
+
 # TODO : implement support for extend_to_methods (current
 # mechanism is broken by additional deocrator parameters)
 def flexible_listlike_input(
-    funct: Callable[[Iterator], T]=None,
+    funct: Callable[[Iterator], T] = None,
     CastType: type[Iterator] = list,
     valid_member_types: Union[type, tuple[type]] = object,
 ) -> Callable[[Iterable], T]:
@@ -129,6 +131,7 @@ def flexible_listlike_input(
         )
     return wrapper
 
+
 @extend_to_methods
 def allow_string_paths(
     funct: Callable[[Concatenate[Path, Params]], T],
@@ -159,6 +162,7 @@ def allow_string_paths(
     )
 
     return str_path_wrapper
+
 
 @extend_to_methods
 def allow_pathlib_paths(

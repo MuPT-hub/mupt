@@ -24,16 +24,20 @@ def is_linker(rdatom: Atom) -> bool:
     """Indicate whether an atom is a linker (intermonomer "*" type atom)"""
     return rdatom.GetAtomicNum() == 0
 
+
 def not_linker(rdatom: Atom) -> bool:
     """Indicate whether an atom is NOT a linker, i.e. is a "real" atom"""
     # return rdatom.GetAtomicNum() != 0
     return not is_linker(rdatom)
 
+
 is_real_atom = not_linker
+
 
 def num_linkers(rdmol: Mol) -> int:
     """Count how many wild-type inter-molecule linker atoms are in a Mol"""
     return sum(is_linker(atom) for atom in rdmol.GetAtoms())
+
 
 def anchor_and_linker_idxs(rdmol: Mol) -> Generator[tuple[int, int], None, None]:
     """Get the anchor and linker indices of all ports found in an RDKit Mol"""
@@ -43,6 +47,7 @@ def anchor_and_linker_idxs(rdmol: Mol) -> Generator[tuple[int, int], None, None]
         LINKER_QUERY_MOL, uniquify=False
     ):
         yield anchor_idx, linker_idx  # unpacked purely for self-documentation
+
 
 def real_and_linker_atom_idxs(rdmol: Mol) -> tuple[list[int], list[int]]:
     """
@@ -57,6 +62,7 @@ def real_and_linker_atom_idxs(rdmol: Mol) -> tuple[list[int], list[int]]:
         idxs_partitioned_by_linker[is_linker(atom)].append(atom.GetIdx())
 
     return idxs_partitioned_by_linker
+
 
 def renumber_linkers_as_last(rdmol: Mol) -> Mol:  # TODO: make optionally in-place
     """

@@ -13,6 +13,7 @@ def are_linearly_independent(*vectors: np.ndarray[Shape[N, ...], NumericNP]) -> 
     # when vectors passed have incompatible shapes
     return np.linalg.matrix_rank(np.column_stack(vectors)) == len(vectors)
 
+
 # TODO: generalize to work for other diagonals
 def is_diagonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
@@ -21,6 +22,7 @@ def is_diagonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
     return np.allclose(matrix - np.diag(np.diagonal(matrix)), 0.0)
 
+
 def is_rowspace_mutually_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
     Check whether all vectors in the row space
@@ -28,6 +30,7 @@ def is_rowspace_mutually_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) 
     """
     # pay careful attention to the order; P_ij = dot(row(i), row(j)) this way
     return is_diagonal(matrix @ matrix.T)
+
 
 def is_columnspace_mutually_orthogonal(
     matrix: np.ndarray[Shape[N, N], NumericNP],
@@ -40,6 +43,7 @@ def is_columnspace_mutually_orthogonal(
         matrix.T @ matrix
     )  # note CAREFULLY the order; P_ij = dot(column(i), column(j)) this way
 
+
 def is_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
     Determine if a matrix is orthogonal, i.e. its
@@ -50,9 +54,9 @@ def is_orthogonal(matrix: np.ndarray[Shape[N, N], NumericNP]) -> bool:
     """
     (n_rows, n_cols) = matrix.shape  # implicitly assert 2-dimensionality
     # NOTE: can't optimize as the transpose of the above product for non-square matrices
-    return (
-        np.allclose(matrix @ matrix.T, np.eye(n_rows, dtype=matrix.dtype))
-        and np.allclose(matrix.T @ matrix, np.eye(n_cols, dtype=matrix.dtype))
-    )
+    return np.allclose(
+        matrix @ matrix.T, np.eye(n_rows, dtype=matrix.dtype)
+    ) and np.allclose(matrix.T @ matrix, np.eye(n_cols, dtype=matrix.dtype))
+
 
 is_orthonormal = is_orthogonal

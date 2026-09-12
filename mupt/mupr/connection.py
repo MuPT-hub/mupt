@@ -47,24 +47,31 @@ AttachmentLabel = TypeVar(
 # Custom Exceptions
 class ConnectionError(Exception):
     """Raised when Connector-related errors as encountered"""
+
     pass
+
 
 class IncompatibleConnectorError(ConnectionError):
     """
     Raised when attempting to connect two Connectors
     which are, for whatever reason, incompatible
     """
+
     pass
+
 
 class MissingConnectorError(ConnectionError):
     """Raised when a required Connector is missing"""
+
     pass
+
 
 class UnboundConnectorError(ConnectionError):
     """
     Raised when a pair of Connectors are
     unexpectedly not bound to one another
     """
+
     pass
 
 
@@ -77,6 +84,7 @@ class TraversalDirection(Enum):
     Indication is relative to an arbitrary-but-consistent absolute
     direction of traversal along the path from end-to-end
     """
+
     AMBI = 0
     ANTERO = 1
     RETRO = 2
@@ -103,6 +111,7 @@ class TraversalDirection(Enum):
         elif direction == cls.AMBI:
             return cls.AMBI
 
+
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable
 # mechanism under-the-hood, and also prevents reassignment of the attachment
 # label, which is important in some cases
@@ -115,6 +124,7 @@ class AttachmentPoint(RigidlyTransformable):
     Forms half of a Connector; represents a spatial attachment
     to some other body, identified by its attachment.
     """
+
     attachables: set[AttachmentLabel] = field(default_factory=set)
     attachment: Optional[AttachmentLabel] = field(default=None)
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
@@ -574,7 +584,7 @@ class Connector(RigidlyTransformable):
             self.set_bond_length(
                 other.bond_length
             )  # ensure bond length matches the other Connector
-            if (dihedral_angle_rad is not None):
+            if dihedral_angle_rad is not None:
                 # NOTE: sentinel (rather than default 0.0) weakens
                 # preconditions on tangents when no dihedral is specified
                 self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
@@ -678,7 +688,7 @@ class Connector(RigidlyTransformable):
 
         # NOTE: sentinel (rather than default 0.0) weakens
         # preconditions on tangents when no dihedral is specified
-        if (dihedral_angle_rad is not None):
+        if dihedral_angle_rad is not None:
             self.assign_dihedral(other, dihedral_angle_rad=dihedral_angle_rad)
 
     # Comparison methods
@@ -848,13 +858,16 @@ class Connector(RigidlyTransformable):
 # (useful, for example, for resolution-shift operations)
 ConnectorSelector: TypeAlias = Callable[[Connector, Connector], Connector]
 
+
 def select_first(connector1: Connector, connector2: Connector) -> Connector:
     """Select the first of a pair of Connectors"""
     return connector1
 
+
 def select_second(connector1: Connector, connector2: Connector) -> Connector:
     """Select the second of a pair of Connectors"""
     return connector2
+
 
 def make_second_resemble_first(
     connector1: Connector, connector2: Connector
@@ -865,6 +878,7 @@ def make_second_resemble_first(
     new_connector.linker.attachables.update(connector1.linker.attachables)
 
     return new_connector
+
 
 # DEV: provide implementations which make some attempt to
 # reconcile spatial info attache to respective Connectors

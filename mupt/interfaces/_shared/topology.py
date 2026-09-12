@@ -12,6 +12,7 @@ from ...roles import PrimitiveRole
 @dataclass
 class SAAMRRoleTopologyIndex:
     """Role-indexed view of a SAAMR-like Primitive hierarchy."""
+
     segments: list[Primitive] = field(default_factory=list)
     residues_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
     particles_by_residue: dict[int, list[Primitive]] = field(default_factory=dict)
@@ -19,15 +20,18 @@ class SAAMRRoleTopologyIndex:
     bond_nodes: list[Primitive] = field(default_factory=list)
     bond_nodes_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
 
+
 @dataclass(frozen=True)
 class SAAMRResidueRecord:
     """One RESIDUE-role node and its role-aware traversal context."""
+
     segment_idx: int
     segment: Primitive
     residue_idx: int
     residue_global_idx: int
     residue: Primitive
     particles: tuple[Primitive, ...]
+
 
 # TB: supressing linter complexity (C901) warning for now,
 # but in the future this should be refactored to be more modular
@@ -157,6 +161,7 @@ def build_saamr_role_topology_index(  # noqa: C901
 
     return index
 
+
 def iter_saamr_residue_records(
     index: SAAMRRoleTopologyIndex,
 ) -> Iterator[SAAMRResidueRecord]:
@@ -176,6 +181,7 @@ def iter_saamr_residue_records(
                 particles=tuple(index.particles_by_residue[id(residue)]),
             )
             residue_global_idx += 1
+
 
 def _pdb_resname(
     label: Hashable,
@@ -197,9 +203,11 @@ def _pdb_resname(
         )
     return name.upper()
 
+
 def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str]:
     """Return a deterministic key for connector refs with arbitrary hashable handles."""
     return (repr(conn_ref.primitive_handle), repr(conn_ref.connector_handle))
+
 
 def _resolve_to_atom(
     parent: Primitive,
@@ -240,6 +248,7 @@ def _resolve_to_atom(
 
     return _resolve_to_atom(child, next_ref, _depth=_depth + 1, _max_depth=_max_depth)
 
+
 def resolve_to_atom_cached(
     parent: Primitive,
     conn_ref: ConnectorReference,
@@ -250,6 +259,7 @@ def resolve_to_atom_cached(
     if cache_key not in cache:
         cache[cache_key] = _resolve_to_atom(parent, conn_ref)
     return cache[cache_key]
+
 
 def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
     """Infer numeric bond order from a connection reference."""

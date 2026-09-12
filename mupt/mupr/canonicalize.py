@@ -12,6 +12,7 @@ class Canonicalizable(Protocol):
     Object with a notion of a canonical representative
     of instances which are equivalent in some sense
     """
+
     def canonical_form(self) -> Hashable:
         """
         Canonical representation for this object
@@ -21,10 +22,12 @@ class Canonicalizable(Protocol):
         """
         ...
 
+
 # graphs
 def canonical_graph_property(graph: nx.Graph) -> str:
     """Canonicalize a graph with an ordered coloring"""
     ...
+
 
 # multisets
 def lex_order_multiset(
@@ -37,6 +40,7 @@ def lex_order_multiset(
     by elements are broken by the totally-ordered counts
     """
     return tuple(sorted(Counter(elements).items()))
+
 
 def lex_order_multiset_str(
     elements: Iterable[Hashable],

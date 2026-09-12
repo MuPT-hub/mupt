@@ -41,6 +41,7 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive: Primitive) -> Atom:
 
     return atom
 
+
 # TB: supressing linter complexity (C901) warning for now,
 # but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
@@ -205,6 +206,7 @@ MUPT_RDKIT_ATOM_PROPS = (
     "mupt_particle_label",
 )
 
+
 def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
     """
     Return PDB-compatible surrogate chain/residue identifiers for export metadata.
@@ -224,12 +226,14 @@ def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
         )
     return PDB_CHAIN_IDS[chain_idx], resid_offset + 1
 
+
 def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
     """Return a PDB-width atom name from element and residue-local index."""
     atom_name = f"{atom.element.symbol}{atom_idx_in_residue + 1}"
     if len(atom.element.symbol) == 1:
         return f" {atom_name:<3}"
     return f"{atom_name:<4}"
+
 
 def _add_rdkit_atoms(
     mol: RWMol,
@@ -273,6 +277,7 @@ def _add_rdkit_atoms(
         pos = data.atom_positions[atom_idx]
         conf.SetAtomPosition(idx, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
 
+
 def _add_rdkit_bonds(mol: RWMol, data: RDKitMolData) -> None:
     """Insert internal bonds and merged bond metadata."""
     for (idx1, idx2), (parent, conn_refs) in zip(data.bonds, data.bond_refs):
@@ -286,6 +291,7 @@ def _add_rdkit_bonds(mol: RWMol, data: RDKitMolData) -> None:
         }
         for bond_key, bond_value in bond_metadata.items():
             assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
+
 
 def _add_rdkit_linkers(mol: RWMol, conf: Conformer, data: RDKitMolData) -> None:
     """Insert linker atoms and their bond metadata."""
@@ -323,6 +329,7 @@ def _add_rdkit_linkers(mol: RWMol, conf: Conformer, data: RDKitMolData) -> None:
         for bond_key, bond_value in conn.metadata.items():
             assign_property_to_rdobj(bond, bond_key, bond_value, preserve_type=True)
 
+
 def _apply_rdkit_mol_metadata(
     mol: RWMol, data: RDKitMolData, root_metadata: dict
 ) -> None:
@@ -334,6 +341,7 @@ def _apply_rdkit_mol_metadata(
         assign_property_to_rdobj(mol, key, value, preserve_type=True)
     for key, value in data.segment.metadata.items():
         assign_property_to_rdobj(mol, key, value, preserve_type=True)
+
 
 def _mol_from_rdkit_data(
     data: RDKitMolData,
@@ -353,6 +361,7 @@ def _mol_from_rdkit_data(
     final_mol = Mol(mol)
     final_mol.UpdatePropertyCache(strict=True)
     return final_mol
+
 
 def primitive_to_rdkit_mols(
     primitive: Primitive,

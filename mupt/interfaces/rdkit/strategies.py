@@ -24,6 +24,7 @@ from .._shared.topology import (
 @dataclass
 class RDKitMolData:
     """Container for one segment's RDKit-exportable topology data."""
+
     segment: Primitive
     atoms: list[Primitive] = field(default_factory=list)
     atom_positions: list[np.ndarray] = field(default_factory=list)
@@ -33,20 +34,17 @@ class RDKitMolData:
     atom_particle_labels: list[str] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
-    bond_refs: list[
-        tuple[
-            Primitive,
-            tuple[ConnectorReference, ConnectorReference]
-        ]
-    ] = (
+    bond_refs: list[tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]] = (
         field(default_factory=list)
     )
     linker_refs: list[tuple[int, Primitive, ConnectorReference]] = field(
         default_factory=list
     )
 
+
 class RDKitExportStrategy(ABC):
     """Abstract strategy for collecting RDKit-exportable topology data."""
+
     @abstractmethod
     def iter_mol_data(
         self, root: Primitive, resname_map: dict[str, str]
@@ -58,17 +56,17 @@ class RDKitExportStrategy(ABC):
     def label(self) -> str:
         """Human-readable name for this strategy."""
 
+
 class AllAtomRDKitExportStrategy(RDKitExportStrategy):
     """Role-aware all-atom RDKit export strategy."""
+
     def __init__(self, default_atom_position: Optional[np.ndarray] = None) -> None:
         if default_atom_position is None:
             self.default_atom_position = np.array([0.0, 0.0, 0.0], dtype=float)
         else:
             default_atom_position = np.asarray(default_atom_position, dtype=float)
             if default_atom_position.shape != (3,):
-                raise ValueError(
-                    "default_atom_position must be a 3-dimensional vector"
-            )
+                raise ValueError("default_atom_position must be a 3-dimensional vector")
             self.default_atom_position = default_atom_position
 
     @property

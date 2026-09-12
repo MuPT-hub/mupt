@@ -19,6 +19,7 @@ class Addressable(Protocol):
     registry_addresses: ClassVar[Mapping[str, "Addressable"]]
     address: str
 
+
 class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     """
     Mixin defining boilerplate for objects which are to be

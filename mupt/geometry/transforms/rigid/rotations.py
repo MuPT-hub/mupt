@@ -34,7 +34,10 @@ def rotator(
     return Rotation.from_matrix(
         identity_matrix + np.sin(angle_rad) * K + (1 - np.cos(angle_rad)) * (K @ K)
     )
+
+
 rodrigues = rotator
+
 
 def alignment_rotation(
     moved_vector: Vector3,

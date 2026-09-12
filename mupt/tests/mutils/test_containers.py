@@ -24,6 +24,7 @@ class DummyRelation:
     Dummy class to test if label extraction in UniqueRegistry
     works from classes which satisfy the Labelled Protocol
     """
+
     DEFAULT_LABEL: ClassVar[str] = "default"
     label: Hashable = field(default_factory=str)
 
@@ -35,11 +36,13 @@ def reg_example_a() -> UniqueRegistry:
 
     return reg
 
+
 def reg_example_b() -> UniqueRegistry:
     reg = UniqueRegistry()
     _handles = reg.register_from({"letter": "bcd", "truth": (False, True)})
 
     return reg
+
 
 def reg_example_c() -> UniqueRegistry:
     reg = UniqueRegistry()
@@ -47,12 +50,14 @@ def reg_example_c() -> UniqueRegistry:
 
     return reg
 
+
 def reg_examples() -> tuple[UniqueRegistry, ...]:
     return (
         reg_example_a(),
         reg_example_b(),
         reg_example_c(),
     )
+
 
 def reg_ticker_examples(
     reg_factory: Callable[[], UniqueRegistry],
@@ -82,6 +87,7 @@ def test_unique_reg_register_explicit_label() -> None:
 
     assert set(reg.keys()) == {("my_label", 0)}
 
+
 def test_unique_reg_register_implicit_label() -> None:
     """
     Test that registering with implicit label
@@ -92,6 +98,7 @@ def test_unique_reg_register_implicit_label() -> None:
     reg.register(obj)
 
     assert set(reg.keys()) == {("p", 0)}
+
 
 @pytest.mark.parametrize(
     "collection,labeller,keys_expected",
@@ -193,6 +200,7 @@ def test_unique_reg_deregister() -> None:
 
     assert (removed_obj == obj) and (len(reg) == 0)
 
+
 def test_unique_reg_subscript() -> None:
     """Test that unique registry items can be accessed via subscript notation"""
     obj = DummyRelation(label="p")
@@ -200,6 +208,7 @@ def test_unique_reg_subscript() -> None:
     reg.register(obj)
 
     assert reg[("p", 0)] == obj
+
 
 def test_unique_reg_deletion() -> None:
     """Test that unique registry items can be deleted via del operator"""
@@ -209,6 +218,7 @@ def test_unique_reg_deletion() -> None:
     del reg[("p", 0)]
 
     assert len(reg) == 0
+
 
 def test_unique_reg_purge() -> None:
     """Test that purging a label removes all associated objects"""
@@ -224,6 +234,7 @@ def test_unique_reg_purge() -> None:
     reg.purge("a")
     assert all(handle[0] != "a" for handle in reg.keys()) and (len(reg) == 4)
 
+
 @pytest.mark.parametrize(
     "reg",
     reg_examples(),
@@ -234,6 +245,7 @@ def test_reset_ticker_total(reg: UniqueRegistry) -> None:
     orig_keys = set(reg._ticker.keys())
     reg.reset_ticker()
     assert all(reg._ticker[key] == 0 for key in orig_keys)
+
 
 @pytest.mark.parametrize(
     "reg,key",
@@ -281,6 +293,7 @@ def test_freed_labels_reinserted() -> None:
 
     assert set(reg.keys()) == {("p", 0), ("p", 1), ("p", 3)}
 
+
 def test_unique_reg_adjust_ticker() -> None:
     """Test that the ticker count adjustments shift uniquifying index accordingly"""
     obj = DummyRelation(label="p")
@@ -310,6 +323,7 @@ def test_unique_reg_copy() -> None:
         and reg._freed == copy_reg._freed
     )
 
+
 def test_unique_reg_copy_ticker_indep() -> None:
     """
     Test that the ticker state of a copied UniqueRegistry
@@ -323,6 +337,7 @@ def test_unique_reg_copy_ticker_indep() -> None:
     reg.register(a)  # ought to have no effect on copy
 
     assert copy_reg._ticker != reg._ticker
+
 
 def test_unique_reg_copy_freed_indep() -> None:
     """Test that the freed labels state of a copied
@@ -389,6 +404,7 @@ def test_merge(
     _key_remap = reg1.merge(reg2)
     assert dict(reg1) == dict_expected
 
+
 @pytest.mark.parametrize(
     "regs,dict_expected",
     [
@@ -419,6 +435,7 @@ def test_merged(
     """Test that classmethod version of merge() behaves as expected"""
     reg, handle_maps = UniqueRegistry.merged(*regs)
     assert dict(reg) == dict_expected
+
 
 def test_split() -> None:
     """Test that splitting by category works as expected"""

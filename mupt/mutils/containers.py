@@ -247,8 +247,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
         # downconvert from defaultdict -> dict and make values
         # collections immutable by tuple-ifying them
         return {
-            label: tuple(child_class)
-                for label, child_class in label_classes.items()
+            label: tuple(child_class) for label, child_class in label_classes.items()
         }
 
     # Partitioning
@@ -332,7 +331,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
     # Copying
     def copy(
         self,
-        value_copy_method: Callable[[T], T]=deepcopy,
+        value_copy_method: Callable[[T], T] = deepcopy,
     ) -> "UniqueRegistry[LabelT, T]":
         """
         Create a deep copy of this UniqueRegistry, with
@@ -347,9 +346,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
             set,
             # DEV: this looks elaborate, but is necessary to ensure
             # copy doesn't share state with self after creation
-            **{
-                label: set(free_idxs) for label, free_idxs in self._freed.items()
-            },
+            **{label: set(free_idxs) for label, free_idxs in self._freed.items()},
         )
         for handle, obj in self.items():
             new_registry._setitem(handle, value_copy_method(obj))

@@ -30,7 +30,7 @@ def generate_repr(
 
         # only use lookup if one is explicitly provided
         # and no display attributes are provided
-        if (not disp_attrs and lookup_attr):
+        if not disp_attrs and lookup_attr:
             # if a lookup attribute is provided, look up the
             # attribute names within the class being modified
             assert hasattr(cls, lookup_attr)
@@ -51,6 +51,7 @@ def generate_repr(
     # return literal class decorator call
     return class_decorator(cls)
 
+
 def register_subclasses(
     cls: Optional[C] = None,
     key_attr: str = "__name__",
@@ -69,6 +70,7 @@ def register_subclasses(
 
     def class_decorator(cls: C) -> C:
         """The actual (argument-free) class decorator"""
+
         # property allows dynamic subclassing (generated at runtime, not compile time)
         @classmethod
         @property
@@ -99,6 +101,7 @@ def register_abstract_class_attrs(
     Register a list of string attribute names as abstract class attributes,
     which MUST be implemented by child classes of the wrapped class
     """
+
     def class_decorator(klass: C) -> C:
         """The actual (argument-free) class decorator"""
 
@@ -115,9 +118,9 @@ def register_abstract_class_attrs(
                 attr_val_on_child = getattr(cls, attr_name, NotImplemented)
 
                 # if the value has not been set in code...
-                if (attr_val_on_child is NotImplemented):
+                if attr_val_on_child is NotImplemented:
                     # ...fall back to value passed into class definition, if it exists
-                    if (passed_attr_value is not NotImplemented):
+                    if passed_attr_value is not NotImplemented:
                         setattr(cls, attr_name, passed_attr_value)
                     # ...otherwise, fail and raise Exception
                     else:

@@ -28,6 +28,7 @@ def element_to_rdkit_atom(element: ElementLike) -> Atom:
 
     return atom
 
+
 def rdkit_atom_to_element(atom: Atom) -> ElementLike:
     """Convert an RDKit Atom instance to a periodictable ElementLike instance"""
     if not isinstance(atom, Atom):
@@ -37,7 +38,7 @@ def rdkit_atom_to_element(atom: Atom) -> ElementLike:
 
     # DEV: am well-aware is_linker(atom : Atom) exists in the RDKit interface
     # ("I wrote the damn bill"), but that import here would be circular
-    atom_is_linker: bool = (atom.GetAtomicNum() == 0)
+    atom_is_linker: bool = atom.GetAtomicNum() == 0
     elem: ElementLike = ELEMENTS[atom.GetAtomicNum()]
     if (mass_number := atom.GetIsotope()) != 0:
         # bypass isotope validity check ONLY for linker atoms
@@ -50,6 +51,7 @@ def rdkit_atom_to_element(atom: Atom) -> ElementLike:
         elem = Ion(elem, charge) if atom_is_linker else elem.ion[charge]
 
     return elem
+
 
 def flexible_elementlike(elem: Union[int, str, Atom, ElementLike]) -> ElementLike:
     """Coerce inputs with a range of input types into ElementLike instance"""

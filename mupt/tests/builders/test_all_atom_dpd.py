@@ -27,6 +27,7 @@ def _bond_connector(anchor: str, linker: str, label: str) -> Connector:
         label=label,
     )
 
+
 def _chain_connector(anchor_position, linker_position, label: str) -> Connector:
     return Connector(
         anchor=AttachmentPoint({"X"}, position=np.array(anchor_position, dtype=float)),
@@ -34,6 +35,7 @@ def _chain_connector(anchor_position, linker_position, label: str) -> Connector:
         bondtype=BondType.SINGLE,
         label=label,
     )
+
 
 def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
     atom = Primitive(
@@ -45,6 +47,7 @@ def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
     residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
     residue.attach_child(atom)
     return residue, atom
+
 
 def _one_atom_residue_with_connector(
     label: str, connector_label: str, anchor_position, linker_position
@@ -61,6 +64,7 @@ def _one_atom_residue_with_connector(
     residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
     residue.attach_child(atom)
     return residue, atom, connector_handle
+
 
 def _multi_residue_chain_record(n_residues: int = 3):
     from mupt.builders.all_atom_dpd import _SegmentRecord
@@ -106,6 +110,7 @@ def _multi_residue_chain_record(n_residues: int = 3):
         bonds=[(idx, idx + 1) for idx in range(n_residues - 1)],
     )
 
+
 def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     """Return universe -> segment -> residue -> H-C-H with two bonds."""
     h1 = Primitive(
@@ -145,6 +150,7 @@ def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(segment)
     return universe, [h1, c, h2]
+
 
 def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
     import networkx as nx
@@ -189,6 +195,7 @@ def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
     root.attach_child(segment)
     return root, resname_map
 
+
 def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
     real_import = builtins.__import__
 
@@ -201,6 +208,7 @@ def test_imports_public_symbols_without_hoomd_or_openff(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
     importlib.import_module("mupt.builders.all_atom_dpd")
+
 
 def test_box_length_uses_mass_density_constants():
     from mupt.builders.all_atom_dpd import (
@@ -222,6 +230,7 @@ def test_box_length_uses_mass_density_constants():
 
     assert builder._box_length_a(total_mass_amu) == expected
 
+
 def test_explicit_box_lengths_select_orthorhombic_path():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
@@ -235,6 +244,7 @@ def test_explicit_box_lengths_select_orthorhombic_path():
         np.array([12.0, 18.0, 24.0])
     ) == pytest.approx((12.0 * 18.0 * 24.0) ** (1.0 / 3.0))
 
+
 def test_explicit_box_lengths_wrap_orthorhombic_positions():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
@@ -245,11 +255,13 @@ def test_explicit_box_lengths_wrap_orthorhombic_positions():
         np.array([-3.0, -9.0, -14.0]),
     )
 
+
 def test_rejects_nonpositive_density():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
     with pytest.raises(ValueError, match="density_g_cm3"):
         AllAtomDPDBuilder(settings=AllAtomDPDSettings(density_g_cm3=0.0))
+
 
 def test_rejects_too_small_explicit_box_lengths():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
@@ -259,11 +271,13 @@ def test_rejects_too_small_explicit_box_lengths():
             settings=AllAtomDPDSettings(box_lengths_a=(12.0, 12.0, 5.0), r_cut_a=3.0)
         )
 
+
 def test_rejects_invalid_hoomd_device_setting():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
     with pytest.raises(ValueError, match="device"):
         AllAtomDPDBuilder(settings=AllAtomDPDSettings(device="TPU"))
+
 
 @pytest.mark.parametrize(
     "setting,expected",
@@ -296,6 +310,7 @@ def test_hoomd_device_setting_dispatches_requested_device(setting, expected):
 
     assert builder._hoomd_device(FakeHoomd) == expected
 
+
 def test_uniform_chain_length_plan_uses_density_and_explicit_box():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
@@ -312,6 +327,7 @@ def test_uniform_chain_length_plan_uses_density_and_explicit_box():
     assert all(2 <= length <= 5 for length in plan.chain_lengths)
     assert plan.planned_mass_amu >= plan.target_mass_amu
     assert plan.planned_mass_amu - plan.target_mass_amu < 5 * 50.0
+
 
 @pytest.mark.parametrize(
     "field,value,match",
@@ -337,6 +353,7 @@ def test_rejects_invalid_settings(field, value, match):
     with pytest.raises(ValueError, match=match):
         AllAtomDPDBuilder(settings=settings)
 
+
 def test_default_settings_use_dense_initialization_restraints():
     from mupt.builders.all_atom_dpd import AllAtomDPDSettings
 
@@ -348,6 +365,7 @@ def test_default_settings_use_dense_initialization_restraints():
     assert settings.dihedral_scale == 30.0
     assert settings.require_bonded_energy_convergence is True
     assert settings.nlist_exclusions == ("bond", "angle", "dihedral")
+
 
 def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
     from mupt.builders.all_atom_dpd import (
@@ -425,6 +443,7 @@ def test_nlist_exclusions_are_normalized_and_passed_to_hoomd():
     assert builder.settings.nlist_exclusions == ("bond", "angle")
     assert captured == {"buffer": 0.4, "exclusions": ("bond", "angle")}
 
+
 def test_diagnostics_jsonl_logging_respects_frequency(tmp_path):
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
@@ -453,6 +472,7 @@ def test_diagnostics_jsonl_logging_respects_frequency(tmp_path):
         {"steps": 5, "bond_energy": 3.0},
     ]
 
+
 def test_openff_key_atom_indices_support_topology_key_shapes():
     from mupt.builders.all_atom_dpd import OpenFFAllAtomDPDParameterProvider
 
@@ -473,6 +493,7 @@ def test_openff_key_atom_indices_support_topology_key_shapes():
         6,
     )
 
+
 def test_periodic_idivf_defaults_when_openff_returns_none():
     from mupt.builders.all_atom_dpd import OpenFFAllAtomDPDParameterProvider
 
@@ -483,6 +504,7 @@ def test_periodic_idivf_defaults_when_openff_returns_none():
         1.0,
         1.0,
     ]
+
 
 def test_missing_bonded_params_warn_and_use_max_k(caplog):
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
@@ -501,6 +523,7 @@ def test_missing_bonded_params_warn_and_use_max_k(caplog):
     assert assigned == {"r0": 1.2, "k": 25.0}
     assert "missing OpenFF bond parameters" in caplog.text
     assert "maximum-k parameter set 'stiff'" in caplog.text
+
 
 def test_energy_diagnostics_collects_force_energies_per_term():
     from mupt.builders.all_atom_dpd import (
@@ -579,6 +602,7 @@ def test_energy_diagnostics_collects_force_energies_per_term():
     assert diagnostics["angle_energy_converged"] is False
     assert diagnostics["bonded_energy_converged"] is False
 
+
 def test_convergence_requires_spacing_and_bonded_energy_by_default():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
@@ -594,6 +618,7 @@ def test_convergence_requires_spacing_and_bonded_energy_by_default():
     assert (
         spacing_only._convergence_ok(True, {"bonded_energy_converged": False}) is True
     )
+
 
 @pytest.mark.skipif(
     importlib.util.find_spec("openff") is None, reason="OpenFF toolkit is not installed"
@@ -615,6 +640,7 @@ def test_openff_parameter_provider_handles_pet_improper_idivf_none():
     assert tables.atom_types_by_global
     assert tables.bond_params
     assert tables.improper_params
+
 
 def test_build_rejects_malformed_hierarchy_before_optional_imports(monkeypatch):
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
@@ -638,6 +664,7 @@ def test_build_rejects_malformed_hierarchy_before_optional_imports(monkeypatch):
     with pytest.raises(ValueError, match="RESIDUE and SEGMENT"):
         AllAtomDPDBuilder().build(root)
 
+
 def test_segment_records_counts_tiny_saamr_atoms_and_bonds():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
@@ -648,6 +675,7 @@ def test_segment_records_counts_tiny_saamr_atoms_and_bonds():
     assert len(records) == 1
     assert len(records[0].atoms) == 3
     assert records[0].bonds == [(0, 1), (1, 2)]
+
 
 def test_initial_positions_consumes_placement_generator():
     from mupt.builders.base import PlacementGenerator
@@ -685,6 +713,7 @@ def test_initial_positions_consumes_placement_generator():
         ]),
     )
 
+
 @pytest.mark.parametrize(
     "mode,match",
     [
@@ -718,6 +747,7 @@ def test_initial_positions_validates_placement_generator_handles(mode, match):
         builder._initial_positions(
             records, box_length=100.0, rng=np.random.default_rng(123)
         )
+
 
 def test_initial_positions_adapts_nested_residue_layout_to_placement_generator():
     from mupt.builders.base import PlacementGenerator
@@ -761,6 +791,7 @@ def test_initial_positions_adapts_nested_residue_layout_to_placement_generator()
         positions, np.array([[10.0, 0.0, 0.0], [11.0, 0.0, 0.0]])
     )
     assert records[0].atoms == [atom1, atom2]
+
 
 def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
     from mupt.builders.base import PlacementGenerator
@@ -806,6 +837,7 @@ def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
         positions, np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]])
     )
 
+
 def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 
@@ -827,6 +859,7 @@ def test_default_initial_positions_are_repeatable_for_multi_residue_chain():
     assert np.all(positions1 < 25.0)
     assert np.all(np.linalg.norm(np.diff(positions1, axis=0), axis=1) > 0.0)
 
+
 def test_default_initial_positions_support_single_residue_segment():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
@@ -847,6 +880,7 @@ def test_default_initial_positions_support_single_residue_segment():
     ])
     np.testing.assert_allclose(positions, expected)
 
+
 def test_default_initial_positions_do_not_mutate_global_numpy_rng():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
 
@@ -862,6 +896,7 @@ def test_default_initial_positions_do_not_mutate_global_numpy_rng():
     )
 
     np.testing.assert_allclose(np.random.random(4), expected)
+
 
 def test_initial_positions_wraps_atoms_for_periodic_snapshot():
     from mupt.builders.base import PlacementGenerator
@@ -891,6 +926,7 @@ def test_initial_positions_wraps_atoms_for_periodic_snapshot():
             [0.0, 0.0, 0.0],
         ]),
     )
+
 
 def test_write_positions_updates_atoms_and_parent_shapes():
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder

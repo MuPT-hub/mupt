@@ -18,9 +18,7 @@ from ...arraytypes import Shape, Numeric, N, Dims, DimsPlus
 class AffineTransformable(Protocol):
     """Interface for objects that can undergo an affine transformation"""
 
-    def affinely_transform(
-        self, transformation: np.ndarray[Shape[N, N], float]
-    ) -> Any:
+    def affinely_transform(self, transformation: np.ndarray[Shape[N, N], float]) -> Any:
         """
         Return an new, affinely-transformed version of this object
 
@@ -28,6 +26,7 @@ class AffineTransformable(Protocol):
         E.g. most Affine transformations will turn a Sphere into an Ellipsoid
         """
         ...
+
 
 def apply_affine_transformation_recursive(
     obj: Union[object, Sequence[Any], Mapping[str, Any]],
@@ -66,8 +65,7 @@ def apply_affine_transformation_recursive(
         ## Most common Sequence types (e.g. tuple, str, list) support init
         ## from comprehension; may revisit if this is not always the case
         return type(obj)(
-            apply_affine_transformation_recursive(value, affine_matrix)
-                for value in obj
+            apply_affine_transformation_recursive(value, affine_matrix) for value in obj
         )
     elif isinstance(obj, Mapping):
         return {
@@ -76,6 +74,7 @@ def apply_affine_transformation_recursive(
         }
 
     return obj
+
 
 def apply_affine_transformation_to_points(
     positions: np.ndarray[Shape[Any, Dims], Numeric],

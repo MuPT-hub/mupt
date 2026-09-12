@@ -16,9 +16,11 @@ from rdkit.Chem.rdchem import Mol, Bond, Atom
 AtomCondition = Callable[Concatenate[Atom, ...], bool]
 AtomLike = Union[int, Atom]
 
+
 def all_atoms(atom: Atom) -> bool:
     """Select all atoms unconditionally"""
     return True
+
 
 def no_atoms(atom: Atom) -> bool:
     """Reject all atoms unconditionally"""
@@ -59,7 +61,9 @@ def atoms_by_condition(
         if logical_xor(condition(atom), negate):
             yield atom.GetIdx() if as_indices else atom
 
+
 atoms = atoms_by_condition
+
 
 def atom_neighbors_by_condition(
     atom: Atom,
@@ -95,7 +99,9 @@ def atom_neighbors_by_condition(
         if logical_xor(condition(nb_atom), negate):
             yield nb_atom.GetIdx() if as_indices else nb_atom
 
+
 atom_neighbors = atom_neighbors_by_condition
+
 
 def has_atom_neighbors_by_condition(
     atom: Atom,
@@ -110,6 +116,7 @@ def has_atom_neighbors_by_condition(
     else:
         return True
 
+
 has_atom_neighbors = has_atom_neighbors_by_condition
 
 
@@ -117,9 +124,11 @@ has_atom_neighbors = has_atom_neighbors_by_condition
 BondCondition = Callable[Concatenate[Bond, ...], bool]
 BondLike = Union[int, Bond, tuple[int, int], tuple[Atom, Atom]]
 
+
 def all_bonds(bond: Bond) -> bool:
     """Select all bonds unconditionally"""
     return True
+
 
 def no_bonds(bond: Bond) -> bool:
     """Reject all bonds unconditionally"""
@@ -179,7 +188,9 @@ def bonds_by_condition(
             else:
                 yield bond.GetIdx() if as_indices else bond
 
+
 bonds = bonds_by_condition
+
 
 def bond_condition_by_atom_condition_factory(
     atom_condition: AtomCondition,
@@ -204,14 +215,17 @@ def bond_condition_by_atom_condition_factory(
 
     return bond_condition
 
+
 # QUERIES BY PREDEFINED CONDITIONS
 def atom_is_mapped(atom: Atom) -> bool:
     """Select atom if it has been assigned an atom map number"""
     return atom.GetAtomMapNum() != 0
 
+
 def atom_is_linker(atom: Atom) -> bool:
     """Select atom if it has null atomic number (i.e. no element, wild-card atom)"""
     return atom.GetAtomicNum() == 0
+
 
 def mapped_atoms(
     mol: Mol,
@@ -228,6 +242,7 @@ def mapped_atoms(
         negate=False,
     )
 
+
 def mapped_neighbors(
     atom: Atom, as_indices: bool = False
 ) -> Generator[AtomLike, None, None]:
@@ -239,11 +254,12 @@ def mapped_neighbors(
         negate=False,
     )
 
+
 def bonded_pairs(
     mol: Mol,
     *atom_idxs: Container[int],
     as_indices: bool = True,
-    as_pairs: bool=True,
+    as_pairs: bool = True,
 ) -> Generator[BondLike, None, None]:
     """
     Returns all bonds in a Mol which connect a pair of atoms
@@ -261,6 +277,7 @@ def bonded_pairs(
         # here due to de Morgan's laws (i.e. ~(A^B) != (~A^~B))
         negate=False,
     )
+
 
 def bonds_between_mapped_atoms(
     mol: Mol, as_indices: bool = True, as_pairs: bool = True

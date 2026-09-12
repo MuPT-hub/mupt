@@ -31,4 +31,5 @@ class NotCopyableError(NotImplementedError):
     Raised when a copy-based operation is invoked on
     an object whose class doesn't implement it
     """
+
     ...

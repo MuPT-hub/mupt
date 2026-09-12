@@ -22,9 +22,10 @@ RDMOL_NAME_READ_PROP_PRECEDENCE: tuple[str, ...] = (
 # (https://www.rdkit.org/docs/RDKit_Book.html#romol-mol-in-python)
 RDMOL_NAME_WRITE_PROP: str = "_Name"
 
+
 def name_for_rdkit_mol(
     mol: Mol,
-    smiles_writer_params: SmilesWriteParams=DEFAULT_SMILES_WRITE_PARAMS,
+    smiles_writer_params: SmilesWriteParams = DEFAULT_SMILES_WRITE_PARAMS,
 ) -> str:
     """
     Fetch a name (as string) for an RDKit mol

@@ -85,6 +85,7 @@ class BoundedShape(Protocol):
     #     """
     #     ...
 
+
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     """Interface for bounded rigid bodies which can undergo coordinate transforms"""
 
@@ -104,6 +105,7 @@ class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
         AND have the same history of rigid transformations
         """
         return super().__eq__(other) and self.transformed_like(other)
+
 
 class Shaped(Protocol):
     """Interface for objects which have an associated bounded, tranformable shape"""

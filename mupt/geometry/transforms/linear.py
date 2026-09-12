@@ -21,7 +21,9 @@ def projector(
         normal_vector, normal_vector
     )
 
+
 parallel = projector
+
 
 def rejector(
     normal_vector: np.ndarray[Shape[Dims], NumericNP],
@@ -37,7 +39,9 @@ def rejector(
     # equivalent to substracting parallel part off of vector transform is applied to
     return np.eye(dim, dtype=normal_vector.dtype) - projector(normal_vector)
 
+
 orthogonal = rejector
+
 
 def reflector(
     normal_vector: np.ndarray[Shape[Dims], NumericNP],

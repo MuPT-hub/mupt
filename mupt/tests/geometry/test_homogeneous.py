@@ -11,7 +11,9 @@ from mupt.geometry.arraytypes import Vector3
 
 
 N: int = 10
-def tensor_examples(N: int=10) -> tuple[np.ndarray, ...]:
+
+
+def tensor_examples(N: int = 10) -> tuple[np.ndarray, ...]:
     """
     Various tensors with random numerical entries but consistent dimension
     Used to test that results of homogeneous coordinate
@@ -38,6 +40,7 @@ def test_to_homogeneous_coords(array: Vector3) -> None:
 
     homog = to_homogeneous_coords(array, projection=projection)
     assert (homog.shape == expected_shape) and np.allclose(homog[..., -1], projection)
+
 
 @pytest.mark.parametrize("array", tensor_examples(10))
 def test_from_homogeneous_coords(array: Vector3) -> None:

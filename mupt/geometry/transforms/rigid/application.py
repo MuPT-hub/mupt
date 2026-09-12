@@ -29,9 +29,11 @@ def transformations_approx_equal(
         equal_nan=equal_nan,
     )
 
+
 @runtime_checkable
 class RigidlyTransformable(Copyable, Protocol):
     """Mixin for objects which support rigid transformations"""
+
     # TB DEV: after consideration, settled on the following verbiage as least ambiguous:
     # * "transformation" to refer to the RigidTransforms passed around
     # * "transform" to refer to the act of applying
@@ -86,7 +88,7 @@ class RigidlyTransformable(Copyable, Protocol):
     def rigidly_transform(self, transformation: RigidTransform) -> None:
         """Apply a rigid transformation to this object in-place"""
         self._rigidly_transform(transformation)
-        self.cumulative_transformation = transformation*self.cumulative_transformation
+        self.cumulative_transformation = transformation * self.cumulative_transformation
 
     def reset_transform(self) -> None:
         """Return the object to its un-transformed configuration"""
@@ -173,8 +175,7 @@ def apply_rigid_transformation_recursive(
         ## Most common Sequence types (e.g. tuple, str, list) support init
         ## from comprehension; may revisit if this is not always the case
         return type(obj)(
-            apply_rigid_transformation_recursive(value, transformation)
-                for value in obj
+            apply_rigid_transformation_recursive(value, transformation) for value in obj
         )
     elif isinstance(obj, Mapping):
         return {

@@ -82,9 +82,9 @@ def cylindrical_mesh(
     # compute positions of mesh points
     half_length: float = length / 2
     params = zs, theta = np.mgrid[
-        -half_length : half_length : n_z*1j,
+        -half_length : half_length : n_z * 1j,
         # need +1 to get right number of polygon sides (last is coincident with first)
-        0.0 : 2*np.pi : (n_theta + 1)*1j,
+        0.0 : 2 * np.pi : (n_theta + 1) * 1j,
     ]
     xs = radius * np.cos(theta)
     ys = radius * np.sin(theta)
@@ -337,5 +337,6 @@ class Cylinder(BoundedTransformableShape):
             n_z=n_z,
             transformation=self.cumulative_transformation,
         )
+
 
 Rod = Cylinder  # alias for convenience

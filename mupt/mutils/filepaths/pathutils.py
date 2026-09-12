@@ -33,7 +33,8 @@ def is_empty_dir(dirpath: Path) -> bool:
 
     # can't use "len" for generators
     # TODO : make this more efficient (i.e. iteration-based) for large directories
-    return (list(dirpath.iterdir()) == [])
+    return list(dirpath.iterdir()) == []
+
 
 def is_empty_file(filepath: Path) -> bool:
     """Check if a file contains no data"""
@@ -45,6 +46,7 @@ def is_empty_file(filepath: Path) -> bool:
         )
 
     return filepath.stat().st_size == 0
+
 
 def is_empty(path: Path) -> bool:
     """Flexibly check whether a path is "empty"
@@ -63,10 +65,7 @@ def is_empty(path: Path) -> bool:
 
 # PATH CREATION FUNCTIONS
 def assemble_path(
-    directory: Path,
-    prefix: str,
-    extension: str,
-    postfix: str = ""
+    directory: Path, prefix: str, extension: str, postfix: str = ""
 ) -> Path:
     """
     Combine output directory, naming, descriptive, "

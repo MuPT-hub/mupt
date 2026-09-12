@@ -37,20 +37,25 @@ from .topology import TopologicalStructure
 
 class GraphEmbeddingError(ValueError):
     """Raised when an invalid mapping to a graph is encountered"""
+
     ...
+
 
 class NodeEmbeddingError(GraphEmbeddingError):
     """
     Raised when an invalid mapping between
     an object and a graph node is encountered
     """
+
     ...
+
 
 class EdgeEmbeddingError(GraphEmbeddingError):
     """
     Raised when an invalid mapping between a pair
     of objects and a graph edge is encountered
     """
+
     ...
 
 
@@ -79,10 +84,8 @@ def mapped_equivalence_classes(
 
     # DEV: opting for index as default unique label for now;
     # eventually want labels to be semantically-related to each class
-    return {
-        i: equiv_class
-            for i, equiv_class in enumerate(equiv_classes)
-    }
+    return {i: equiv_class for i, equiv_class in enumerate(equiv_classes)}
+
 
 @dataclass(frozen=True)  # needed for hashability
 class ConnectorReference:
@@ -90,6 +93,7 @@ class ConnectorReference:
     Lightweight reference to a Connector on a Primitive,
     identified by the Primitive's handle and the Connector's handle
     """
+
     primitive_handle: PrimitiveHandle
     connector_handle: ConnectorHandle
 
@@ -104,8 +108,11 @@ class ConnectorReference:
 
     def __str__(self) -> str:  # noqa: D105
         # TB: no docstring here; internal behavior is predictable with no side-effects
-        return f"Connector '{self.connector_handle}' " \
+        return (
+            f"Connector '{self.connector_handle}' "
             f"attached to Primitive '{self.primitive_handle}'"
+        )
+
 
 @overload
 def flexible_connector_reference(
@@ -113,10 +120,12 @@ def flexible_connector_reference(
     connector_handle: ConnectorHandle,
 ) -> ConnectorReference: ...
 
+
 @overload
 def flexible_connector_reference(
     primitive_handle: ConnectorReference,
 ) -> ConnectorReference: ...
+
 
 def flexible_connector_reference(
     primitive_handle: Union[PrimitiveHandle, ConnectorReference],
@@ -143,6 +152,7 @@ def flexible_connector_reference(
             primitive_handle=primitive_handle,
             connector_handle=connector_handle,
         )
+
 
 # TB: suppressing complexity (C901) warning for the time being
 # this is being refactored in PR #56, so should be resolved soon

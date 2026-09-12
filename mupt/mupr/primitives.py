@@ -67,18 +67,24 @@ class AtomicityError(AttributeError):
     Raised when attempting to perform a composite Primitive
     operation on a simple one (or vice-versa)
     """
+
     pass
+
 
 class BijectionError(ValueError):
     """
     Raised when a pair of objects expected to be
     in 1-to-1 correspondence are mismatched
     """
+
     pass
+
 
 class MissingSubprimitiveError(KeyError):
     """Raised when a child Primitive expected for a call is not present"""
+
     pass
+
 
 class Primitive(NodeMixin, RigidlyTransformable):
     """
@@ -180,8 +186,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def element(self, new_element: ElementLike) -> None:
         if self.children:
             raise AtomicityError(
-                'Primitive with non-trivial internal structure cannot be '
-                'made atomic (i.e. cannot have "element" assigned)'
+                "Primitive with non-trivial internal structure cannot be "
+                "made atomic (i.e. cannot have 'element' assigned)"
             )
         if not isatom(new_element):
             raise TypeError(f"Invalid element type {type(new_element)}")
@@ -1038,7 +1044,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def check_topology_compatible(
         self,
-        topology: Optional[TopologicalStructure]=None,
+        topology: Optional[TopologicalStructure] = None,
     ) -> None:
         """
         Check sufficient conditions for a topology
@@ -1215,7 +1221,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def expand(
         self,
         target_handle: PrimitiveHandle,
-        connector_selector: ConnectorSelector=make_second_resemble_first,
+        connector_selector: ConnectorSelector = make_second_resemble_first,
     ) -> None:
         """
         Replace a child Primitive (identified by its label) with its internal topology
@@ -1340,7 +1346,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def expanded(
         self,
         target_handle: PrimitiveHandle,
-        connector_selector: ConnectorSelector=make_second_resemble_first,
+        connector_selector: ConnectorSelector = make_second_resemble_first,
     ) -> "Primitive":
         """Return a copy of this Primitive with the specified child expanded"""
         clone_primitive = self.copy()
@@ -1466,7 +1472,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             raise TypeError(f"Cannot compare Primitive to {type(other)}")
 
         # NOTE: ignore labels, simply check equivalency up to canonical forms
-        return (self.canonical_form() == other.canonical_form())
+        return self.canonical_form() == other.canonical_form()
 
     def coincident_with(self, other: "Primitive") -> bool:
         """
