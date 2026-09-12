@@ -18,7 +18,7 @@ repos:
     # Run the formatter.
     - id: ruff-format
       types_or: [
-        # python,
+        python,
         pyi,
       ] # excluding markdown for now; may add later
       args: ["--check"]
