@@ -32,7 +32,8 @@ class PointCloud(BoundedTransformableShape):
             positions = np.empty((0, 3), dtype=float)
         self.positions = np.atleast_2d(positions)
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:# noqa: D105
+        # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"{self.__class__.__name__}(shape={self.positions.shape})"
 
     # TODO: per DS review, would make sense to eventually move this

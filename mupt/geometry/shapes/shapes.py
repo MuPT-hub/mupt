@@ -45,6 +45,7 @@ class BoundedShape(Protocol):
 
     # NB: deliberately NOT abstract; supplies default implementation on inheritance
     def __eq__(self, other: Self) -> bool:
+        """Compare 2 BoundedShape instances as defined by their congruent_to() method"""
         # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
         if not isinstance(other, type(self)):
             return False
@@ -82,7 +83,6 @@ class BoundedShape(Protocol):
     #     """
     #     ...
 
-
 class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
     """Interface for bounded rigid bodies which can undergo coordinate transforms"""
 
@@ -96,8 +96,12 @@ class BoundedTransformableShape(BoundedShape, RigidlyTransformable):
         return new_shape
 
     def __eq__(self, other: Self) -> bool:
+        """
+        Compare BoundedTransformableShape instances according to
+        whether they are congruent without any transformations applied
+        AND have the same history of rigid transformations
+        """
         return super().__eq__(other) and self.transformed_like(other)
-
 
 class Shaped(Protocol):
     """Interface for objects which have an associated bounded, tranformable shape"""

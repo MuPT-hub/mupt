@@ -120,12 +120,20 @@ class AttachmentPoint(RigidlyTransformable):
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
 
     def __setattr__(self, key, value):
+        """
+        Protects access to .attachment and .position attrs, namely:
+        * Forces .attachment to be a member of .attachables
+        * Ensures self.position is a proper 3-vector
+        
+        Assigns attr with no restrictions on any other key
+        """
         if key == "attachment":
             if (value is not None) and (value not in self.attachables):
                 raise ValueError(
-                    f"Attachment '{value!s}' not designated as one of "
-                    f"attachable labels {self.attachables}"
+                    f"Attachment '{value!s}' not designated as "
+                    f"one of attachable labels {self.attachables}"
                 )
+                
         if key == "position":
             value = as_n_vector(value, dimension=3)
         return super().__setattr__(key, value)
@@ -764,7 +772,8 @@ class Connector(RigidlyTransformable):
         return self.bondtype  # TODO: make this more descriptive; good enough for now
 
     def __repr__(self) -> str:
-        repr_attr_strs: dict[str, str] = {
+        """A concise, printable string representation of a Connector"""
+        repr_attr_strs: dict[str, Any] = {
             "anchor": self.anchor,
             "linker": self.linker,
             "bondtype": self.bondtype,

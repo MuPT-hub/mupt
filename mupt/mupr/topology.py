@@ -106,9 +106,9 @@ class TopologicalStructure(nx.Graph):
                 Counter(deg for node, deg in self.degree).items())
         ))
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:# noqa: D105
+        # TB: no docstring here; internal behavior is predictable with no side-effects
         # TODO: make this more descriptive
-        # return super().__repr__()
         return f"{self.__class__.__name__}" \
             f"(num_objects={self.number_of_nodes()}, " \
             f"indiscrete={self.is_indiscrete})"

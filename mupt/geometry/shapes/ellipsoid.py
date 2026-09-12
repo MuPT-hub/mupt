@@ -113,7 +113,8 @@ class Sphere(BoundedTransformableShape):
         self.center = center
         self.cumulative_transformation *= RigidTransform.from_translation(center)
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str: # noqa: D105
+        # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"{self.__class__.__name__}(radius={self.radius})"
 
     @property
@@ -218,7 +219,8 @@ class Ellipsoid(BoundedTransformableShape):
             center=np.array([center_x, center_y, center_z], dtype=float),
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str: # noqa: D105
+        # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"{self.__class__.__name__}(radii={self.radii}, center={self.center})"
 
     # Matrix representations of the Ellipsoid

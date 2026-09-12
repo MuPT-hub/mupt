@@ -31,6 +31,12 @@ class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     registry_addresses: ClassVar[WeakValueDictionary[str, "Addressed"]]
 
     def __init_subclass__(cls, /, **kwargs) -> None:
+        """
+        Initialize subclass-specific address-to-object registry
+        
+        Done to avoid cross-contamination of instances between disparate classes
+        Addressed is intended to behave as a mixin with no other shared behaviors
+        """
         super().__init_subclass__(**kwargs)
         cls.registry_addresses = (
             WeakValueDictionary()

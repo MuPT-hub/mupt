@@ -101,7 +101,8 @@ class ConnectorReference:
             connector_handle=self.connector_handle,
         )
 
-    def __str__(self) -> str:
+    def __str__(self) -> str: # noqa: D105
+        # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"Connector '{self.connector_handle}' " \
             f"attached to Primitive '{self.primitive_handle}'"
 

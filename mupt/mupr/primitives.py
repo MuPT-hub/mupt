@@ -1535,14 +1535,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return f"{self.canonical_form()}-{self.label}"  # {self.metadata}'
 
     # Printing and textual representations
-    def __str__(
-        self,
-    ) -> (
-        str
-    ):  # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
+    def __str__(self) -> str:
+        """
+        String form of a Primitive
+        
+        Used to assign node label, if a Primitive 
+        is used as a node in a NetworkX Graph 
+        """
         return self.canonical_form_peppered()
 
     def __repr__(self) -> str:
+        """A concise, printable string representation of a Primitive"""
         repr_attr_strs: dict[str, str] = {
             "shape": self.canonical_form_shape(),
             "functionality": str(self.functionality),

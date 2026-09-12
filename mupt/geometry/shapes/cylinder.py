@@ -227,7 +227,8 @@ class Cylinder(BoundedTransformableShape):
             axial_direction=axis_vector,
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str: # noqa: D105
+        # TB: no docstring here; internal behavior is predictable with no side-effects
         return f"{self.__class__.__name__}(radius={self.radius}, length={self.length})"
 
     @property

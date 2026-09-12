@@ -69,6 +69,7 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
 
     # Object registration
     def __setitem__(self, key: LabelT, item: T) -> None:
+        """Suppress public write access to UniqueRegistry attributes"""
         raise AttributeError(
             f"Direct key-value assignment is not allowed; "
             f"call '{self}.register({item}, label={key})' method instead"
