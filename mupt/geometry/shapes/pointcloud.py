@@ -64,9 +64,10 @@ class PointCloud(BoundedTransformableShape):
         vertices: Iterable[tuple[int, int, int]] = cartesian(*[
             (0.0, sidelen) for _ in range(3)
         ])
-        positions: np.ndarray[Shape[Literal[8], Literal[3]], np.floating] = np.array(
-            list(vertices)
-        )
+        positions: np.ndarray[
+            Shape[Literal[8], Literal[3]],
+            np.floating,
+        ] = np.array(list(vertices))
         if centered:
             positions -= sidelen / 2
 
@@ -93,28 +94,36 @@ class PointCloud(BoundedTransformableShape):
 
     @property
     def volume(self) -> NumberLike:
-        """Volume of the convex hull of the positions in this PointCloud"""
+        """Volume enclosed by the convex hull of the positions in this PointCloud"""
         return self.convex_hull.volume
 
-    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:
-        return np.atleast_1d(self.triangulation.find_simplex(points) != -1).astype(
-            object
-        )  # need to cast from numpy bool to Python bool
+    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
+        return np.atleast_1d(
+            self.triangulation.find_simplex(points) != -1
+        ).astype(object)  # need to cast from numpy bool to Python bool
 
     def congruent_to(self, other: "PointCloud") -> bool:
+        """
+        Check if another PointCloud instance
+        has the same size and shape as this one
+        """
         return np.allclose(self.positions, other.positions)
 
-    def scale(self, scaling_factor: float) -> None:
+    def scale(self, scaling_factor: float) -> None: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         self.positions = (
             scaling_factor * self.positions + (1 - scaling_factor) * self.centroid
         )
 
-    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]:
-        verts = (
-            self.convex_hull.vertices
-        )  # NB: self.convex_hull.points returns ALL points, even in interior
+    def surface_mesh(self) -> tuple[ArrayNx3, TriangulationIndices]: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
+        
+        # NB: self.convex_hull.points returns ALL points, even those in interior
+        verts = self.convex_hull.vertices
         remap: dict[int, int] = {
-            old_idx: new_idx for new_idx, old_idx in enumerate(verts)
+            old_idx: new_idx 
+                for new_idx, old_idx in enumerate(verts)
         }
         remapped = np.vectorize(lambda x: remap.get(x, x))
 
@@ -126,9 +135,8 @@ class PointCloud(BoundedTransformableShape):
 
     def _rigidly_transform(self, transformation: RigidTransform) -> None:
         self.positions = transformation.apply(self.positions)
-        clear_cached_properties(
-            self
-        )  # invalidate cached qHull objects to prevent invariant plotting bug
+        # invalidate cached qHull objects to prevent invariant plotting bug
+        clear_cached_properties(self)  
 
     # derived quantities
     @property

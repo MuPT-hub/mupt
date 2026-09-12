@@ -274,14 +274,17 @@ class Cylinder(BoundedTransformableShape):
 
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> Vector3:
+    def centroid(self) -> Vector3: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return self.center
 
     @property
     def volume(self) -> NumberLike:
+        """Volume enclosed by this Cylinder"""
         return np.pi * self.radius**2 * self.length
 
-    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:
+    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         points_centered = np.atleast_2d(points - self.center)
         points_axial = np.outer(
             np.dot(points_centered, self.axis_normal), self.axis_normal
@@ -294,13 +297,18 @@ class Cylinder(BoundedTransformableShape):
         return (within_axis & within_radius).astype(object)
 
     def congruent_to(self, other: "Cylinder") -> bool:
+        """
+        Check if another Cylinder instance
+        has the same size and shape as this one
+        """
         return (
             np.allclose(self.radius, other.radius)
             and np.allclose(self.length, other.length)
             and np.allclose(self.center, other.center)
         )
 
-    def scale(self, scaling_factor: float) -> None:
+    def scale(self, scaling_factor: float) -> None: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         self.radius *= scaling_factor
         self.length *= scaling_factor
 
@@ -318,9 +326,10 @@ class Cylinder(BoundedTransformableShape):
         self.face_center_top = transformation.apply(self.face_center_top)
         self.face_center_bottom = transformation.apply(self.face_center_bottom)
 
-    def surface_mesh(
+    def surface_mesh( # noqa: D102
         self, n_theta: int = 30, n_z: int = 5
     ) -> tuple[ArrayNx3, TriangulationIndices]:
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return cylindrical_mesh(
             self.radius,
             self.length,

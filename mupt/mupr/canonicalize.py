@@ -12,7 +12,13 @@ class Canonicalizable(Protocol):
     Object with a notion of a canonical representative
     of instances which are equivalent in some sense
     """
-    def canonical_form(self) -> Hashable: 
+    def canonical_form(self) -> Hashable:
+        """
+        Canonical representation for this object
+        
+        All objects which are equivalence, in some
+        sense, will have identical canonicals forms
+        """
         ...
 
 # graphs

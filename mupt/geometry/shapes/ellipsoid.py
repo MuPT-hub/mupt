@@ -124,14 +124,17 @@ class Sphere(BoundedTransformableShape):
 
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> Vector3:
+    def centroid(self) -> Vector3: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return self.center
 
     @property
     def volume(self) -> float:
+        """Volume enclosed by this Ellipsoid"""
         return 4 / 3 * np.pi * self.radius**3
 
-    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:
+    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return (
             np.linalg.norm(
                 np.atleast_2d(points - self.center),
@@ -141,16 +144,22 @@ class Sphere(BoundedTransformableShape):
         ).astype(object)
 
     def congruent_to(self, other: "Sphere") -> bool:
+        """
+        Check if another Sphere instance
+        has the same size and shape as this one
+        """
         return np.allclose(self.radius, other.radius) and np.allclose(
             self.center, other.center
         )
 
-    def scale(self, scaling_factor: float) -> None:
+    def scale(self, scaling_factor: float) -> None: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         self.radius *= scaling_factor
 
-    def surface_mesh(
+    def surface_mesh( # noqa: D102
         self, n_theta: int = 30, n_phi: int = 30
     ) -> tuple[ArrayNx3, TriangulationIndices]:
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return ellipsoidal_mesh(
             rx=self.radius,
             # ry, rz forced to match rx if not passed explicitly
@@ -303,8 +312,12 @@ class Ellipsoid(BoundedTransformableShape):
         """
         return self.affine_inverse()
 
-    # TODO: replace with __eq__
+    # TODO: replace with __eq__, add options for setting comparison tolerances
     def coincident_with(self, other: "Ellipsoid") -> bool:  
+        """
+        Whether this Ellipsoid is the same size and 
+        at the same location as another Ellipsoid
+        """
         return (
             np.allclose(self.radii, other.radii)
             and np.allclose(self.center, other.center)
@@ -316,19 +329,23 @@ class Ellipsoid(BoundedTransformableShape):
 
     # fulfilling BoundedShape contracts
     @property
-    def centroid(self) -> Vector3:
+    def centroid(self) -> Vector3: # noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return self.center
 
     @property
     def volume(self) -> NumberLike:
-        # return 4/3 * np.pi * np.linalg.det(self.matrix)
+        """Volume enclosed by this Ellipsoid"""
         # DEVNOTE: determinant of rotation is always 1, so we may as well skip it
+        # return 4/3 * np.pi * np.linalg.det(self.matrix)
         return (4/3 * np.pi * np.prod(self.radii))  
 
-    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:
-        # Reduce containment check to comparison with auxiliary unit sphere
-        # NB: not applying self.inverse to points because the Ellipsoid basis
-        # matrix in general not a rigid transformation because of axial stretching
+    def contains(self, points: Vector3 | ArrayNx3) -> BitVectorN:# noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
+        
+        ## Reduce containment check to comparison with auxiliary unit sphere
+        ## NB: not applying self.inverse to points because the Ellipsoid basis
+        ## matrix in general not a rigid transformation because of axial stretching
         return (
             np.linalg.norm(
                 np.atleast_2d(
@@ -339,17 +356,23 @@ class Ellipsoid(BoundedTransformableShape):
             <= 1
         ).astype(object)  # need to cast from numpy bool to Python bool
 
-    def congruent_to(self, other: "Ellipsoid") -> bool:
+    def congruent_to(self, other: "Ellipsoid") -> bool: 
+        """
+        Check if another Ellipsoid instance
+        has the same size and shape as this one
+        """
         return np.allclose(self.radii, other.radii) and np.allclose(
             self.center, other.center
         )
 
-    def scale(self, scaling_factor: float) -> None:
+    def scale(self, scaling_factor: float) -> None:# noqa: D102
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         self.radii *= scaling_factor
 
-    def surface_mesh(
+    def surface_mesh( # noqa: D102
         self, n_theta: int = 30, n_phi: int = 30
     ) -> tuple[ArrayNx3, TriangulationIndices]:
+        # TB: docstrings inherited from BoundedShape base; no need to specify here
         return ellipsoidal_mesh(
             *self.radii,
             n_theta=n_theta,

@@ -22,7 +22,6 @@ class Coordinates(Generic[Numeric]):
 @dataclass
 class LatticeParameters:  # TODO : incorporate unit-awareness
     """For parameterizing a single crystallographic unit cell"""
-
     a: float
     b: float
     c: float
@@ -33,20 +32,19 @@ class LatticeParameters:  # TODO : incorporate unit-awareness
 
     @classmethod
     def from_lattice_vectors(cls, lattice_vectors: Array3x3) -> "LatticeParameters":
+        """Initialize unit cell parameters from lattice vectors"""
         raise NotImplementedError
 
     def to_lattice_vectors(self) -> Array3x3:
+        """The lattice vectors which represent these unit cell parameters"""
         raise NotImplementedError
 
 
 # Coordinate subclasses
 class Lattice(Coordinates[Real]):  # NOTE: mbuild already has something like this
     """For representing a periodic unit cell"""
-
-    pass
-
+    ...
 
 class IntegralLattice(Coordinates[int]):
     """For representing a lattice with integer-valued points"""
-
-    pass
+    ...

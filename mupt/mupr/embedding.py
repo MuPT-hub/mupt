@@ -83,7 +83,6 @@ def mapped_equivalence_classes(
             for i, equiv_class in enumerate(equiv_classes)
     }
 
-
 @dataclass(frozen=True)  # needed for hashability
 class ConnectorReference:
     """
@@ -106,19 +105,16 @@ class ConnectorReference:
         return f"Connector '{self.connector_handle}' " \
             f"attached to Primitive '{self.primitive_handle}'"
 
-
 @overload
 def flexible_connector_reference(
     primitive_handle: PrimitiveHandle,
     connector_handle: ConnectorHandle,
 ) -> ConnectorReference: ...
 
-
 @overload
 def flexible_connector_reference(
     primitive_handle: ConnectorReference,
 ) -> ConnectorReference: ...
-
 
 def flexible_connector_reference(
     primitive_handle: Union[PrimitiveHandle, ConnectorReference],

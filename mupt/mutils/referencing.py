@@ -47,6 +47,12 @@ class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     _address: str
 
     def __new__(cls, *args, **kwargs) -> "Addressed":
+        """
+        Create new instance, assign it a unique address, and register
+        the address : instance key-value pair in the class' internal registry
+        
+        Retuirn the created instance
+        """
         if cls is Addressed:
             raise TypeError(
                 f"Can't instantiate from {cls.__name__} directly; must be used as mixin"

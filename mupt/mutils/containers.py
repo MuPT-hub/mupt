@@ -27,7 +27,13 @@ class Labelled(Protocol):
     """Protocol for objects that have a label"""
 
     @property
-    def label(self) -> Hashable: ...
+    def label(self) -> Hashable: 
+        """
+        An identifying label used to distinguish this object
+        
+        'A name by which you can call me'
+        """
+        ...
 
 
 class UniqueRegistry(UserDict, Generic[LabelT, T]):

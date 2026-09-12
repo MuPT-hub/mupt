@@ -46,9 +46,11 @@ class BoundedShape(Protocol):
     # NB: deliberately NOT abstract; supplies default implementation on inheritance
     def __eq__(self, other: Self) -> bool:
         """Compare 2 BoundedShape instances as defined by their congruent_to() method"""
-        # DEV: wrapped here to have concrete subclass impls invoked by super().__eq__
         if not isinstance(other, type(self)):
             return False
+        
+        # DEV: congruent_to() is wrapped here to have
+        # concrete subclass impls invoked by super().__eq__
         return self.congruent_to(other)
 
     @abstractmethod

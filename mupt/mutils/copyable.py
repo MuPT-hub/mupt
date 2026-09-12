@@ -21,7 +21,9 @@ def clear_cached_properties(obj: object) -> None:
 class Copyable(Protocol):
     """Any class which supports creating a copy of instances of the class"""
 
-    def copy(self) -> Self: ...
+    def copy(self) -> Self: 
+        """Return a copy of this instance without modifying the original"""
+        ...
 
 
 class NotCopyableError(NotImplementedError):

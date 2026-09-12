@@ -18,13 +18,16 @@ from ...arraytypes import Shape, Numeric, N, Dims, DimsPlus
 class AffineTransformable(Protocol):
     """Interface for objects that can undergo an affine transformation"""
 
-    def affine_transformation(
+    def affinely_transform(
         self, transformation: np.ndarray[Shape[N, N], float]
     ) -> Any:
-        # DEVNOTE: regarding typehints, returned type may be different
-        # to type of self, and is not necessarily transformable either
+        """
+        Return an new, affinely-transformed version of this object
+        
+        N.B.: transformed object may not have same type as this one
+        E.g. most Affine transformations will turn a Sphere into an Ellipsoid
+        """
         ...
-
 
 def apply_affine_transformation_recursive(
     obj: Union[object, Sequence[Any], Mapping[str, Any]],
