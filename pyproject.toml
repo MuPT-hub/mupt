@@ -140,6 +140,7 @@ select = [
     "E501", # check too long lines
     "C90",  # McCabe (cyclomatic) complexity
     "NPY",  # Numpy-specific rules
+    "PTH",  # prefer pathlib for all file-related operations
     "TRY",  # try-except clause formatting
 ]
 ignore = [
@@ -154,6 +155,7 @@ ignore = [
     "E305", # ...use instead to delimit code section (imports, consts, functions, etc.)
     "E402", # ignore "module import not at top of file" (contradicts conventions here)
     "NPY002", # suppress suggestions to replace np.random.<x> w/ np.random.Generator
+    "PTH123", # builtin `open()` method is ok; some packages only accept string paths
     "TRY003", # allow passing long msgs to Exceptions at init, rather than in class def
 ]
 

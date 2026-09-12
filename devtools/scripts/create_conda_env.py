@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 
 import logging
+import pathlib
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,9 +27,9 @@ except ImportError:
             # Load Ruamel YAML from the base conda environment
             from importlib import util as import_util
 
-            CONDA_BIN = os.path.dirname(os.environ["CONDA_EXE"])
-            ruamel_yaml_path = glob.glob(
-                os.path.join(
+            CONDA_BIN = pathlib.Path(os.environ["CONDA_EXE"]).parent
+            ruamel_yaml_path = glob.glob(  # noqa: PTH207
+                os.path.join(  # noqa: PTH118
                     CONDA_BIN,
                     "..",
                     "lib",
@@ -55,7 +56,7 @@ except ImportError:
 @contextmanager
 def temp_cd():
     """Temporary CD Helper."""
-    cwd = os.getcwd()
+    cwd = pathlib.Path.cwd()
     with TemporaryDirectory() as td:
         try:
             os.chdir(td)
