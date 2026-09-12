@@ -18,7 +18,6 @@ from .selection import (
     all_bonds as all_bonds,
     no_bonds as no_bonds,
     bonds_by_condition as bonds_by_condition,
-    bond_condition_by_atom_condition_factory as bond_condition_by_atom_condition_factory
 )
 from .components import (
     chemical_graph_from_rdkit as chemical_graph_from_rdkit,
