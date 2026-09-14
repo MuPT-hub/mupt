@@ -1,2 +1,1 @@
-'''Unit tests for the mupt.chemistry module'''
-
+"""Unit tests for the mupt.chemistry module"""
