@@ -14,7 +14,6 @@ custom export schemes.
 import logging
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.DEBUG)
 
 import numpy as np
 from typing import Optional
@@ -87,15 +86,14 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
             )
             universe.add_TopologyAttr(bond_attr)
             LOGGER.info(
-                f"Added {len(data.bonds)} bonds with {len(data.bond_orders)} bond orders"
+                f"Added {len(data.bonds)} bonds with "
+                "{len(data.bond_orders)} bond orders"
             )
 
             order_counts = Counter(data.bond_orders)
             LOGGER.info(f"Bond order distribution: {dict(order_counts)}")
         else:
-            universe.add_TopologyAttr(
-                "bonds", np.asarray(data.bonds, dtype=np.int32)
-            )
+            universe.add_TopologyAttr("bonds", np.asarray(data.bonds, dtype=np.int32))
             LOGGER.info(f"Added {len(data.bonds)} bonds (no bond orders)")
     else:
         LOGGER.info("No bonds to add")

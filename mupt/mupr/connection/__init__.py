@@ -1,18 +1,20 @@
-'''Abstractions of connections between structural units'''
+"""Abstractions of connections between structural units"""
 
 from .types import (
-    AttachmentLabel,
-    ConnectorLabel,
-    ConnectorHandle
+    AttachmentLabel as AttachmentLabel,
+    ConnectorAddress as ConnectorAddress,
+    ConnectorLabel as ConnectorLabel,
+    ConnectorLabeller as ConnectorLabeller,
+    ConnectorHandle as ConnectorHandle,
 )
 from .exceptions import (
-    ConnectionError,
-    IncompatibleConnectorError,
-    MissingConnectorError,
-    UnboundConnectorError,
+    ConnectionError as ConnectionError,
+    IncompatibleConnectorError as IncompatibleConnectorError,
+    MissingConnectorError as MissingConnectorError,
+    UnboundConnectorError as UnboundConnectorError,
 )
 from .connectors import (
-    AttachmentPoint,
-    Connector,
-    canonical_form_connectors,
+    AttachmentPoint as AttachmentPoint,
+    Connector as Connector,
+    canonical_form_connectors as canonical_form_connectors,
 )
