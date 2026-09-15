@@ -51,6 +51,7 @@ def compare_optional_positions(
 ) -> bool:
     """
     Check that two positional values are either:
+
     * Both undefined (returns True)
     * Both defined AND within a set in distance in a given p-norm
       (returns True if both conditions are met)

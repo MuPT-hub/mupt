@@ -54,6 +54,7 @@ docs = [
   "sphinx-design",
   "sphinx-copybutton",
   "nbsphinx",
+  "ipython_pygments_lexers",
 ]
 
 # Front-facing URLs to project sites

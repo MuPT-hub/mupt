@@ -67,6 +67,7 @@ def real_and_linker_atom_idxs(rdmol: Mol) -> tuple[list[int], list[int]]:
 def renumber_linkers_as_last(rdmol: Mol) -> Mol:  # TODO: make optionally in-place
     """
     Returns a copy of a Mol whose atom indices are renumbered such that:
+
     * all #L linker atoms are assigned the last L indices
       (i.e. those which occur after all real atoms in order)
     * all non-linker (i.e. "real") atom are numbered
