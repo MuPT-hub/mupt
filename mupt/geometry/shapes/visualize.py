@@ -53,7 +53,7 @@ def visualize_shape(
           (https://matplotlib.org/stable/api/collections_api.html#matplotlib.collections.Collection.set)
 
           "color", "alpha", and "grid" are commonly-used args, viz.:
-          >>> visualize_shape(shape, color='b', alpha=0.5)
+          >>> visualize_shape(shape, color="b", alpha=0.5)
 
     Returns
     -------
