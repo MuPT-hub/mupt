@@ -1,8 +1,7 @@
-"""
-File to house various fixtures that are used by multiple tests.
-"""
+"""File to house various fixtures that are used by multiple tests."""
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import pytest
@@ -25,8 +24,9 @@ from ..roles import assign_SAAMR_roles, PrimitiveRole
 
 
 # DEV:JRL The following functions are useful helpers to streamline the building
-# of copolymer systems from SMILES. They were taken from the ellipsoidal_chain_placement.ipynb
-# tutorial notebook authored by @timbernat
+# of copolymer systems from SMILES. They were taken from the
+# ellipsoidal_chain_placement.ipynb tutorial notebook authored by @timbernat
+
 
 def sequence_repeat_units(
     chain_len: int,
@@ -40,7 +40,8 @@ def sequence_repeat_units(
     Parameters
     ----------
     chain_len : int
-        Total length of the polymer chain (number of repeat units, including end groups).
+        Total length of the polymer chain
+        I.e. number of repeat units, including end groups
     head_name : str
         Name of the head repeat unit.
     tail_name : str
@@ -202,15 +203,18 @@ def build_SAAMR_polymer_system(
     Build a PSU/PES copolymer system:
 
     >>> rep_unit_smiles = {
-    ...     'head': '[H]-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*',
-    ...     'bisphenol_S': '*-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*',
-    ...     'bisphenol_A': '*-[O:1]c1ccc(cc1)C(-C)(-C)c1cc[c:2](cc1)-*',
-    ...     'tail': '*-[O:1]c1ccc(cc1)S(=O)(=O)c1ccc(cc1)[O:2]-[H]',
+    ...     "head": "[H]-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*",
+    ...     "bisphenol_S": "*-[O:1]c1ccc(cc1)S(=O)(=O)c1cc[c:2](cc1)-*",
+    ...     "bisphenol_A": "*-[O:1]c1ccc(cc1)C(-C)(-C)c1cc[c:2](cc1)-*",
+    ...     "tail": "*-[O:1]c1ccc(cc1)S(=O)(=O)c1ccc(cc1)[O:2]-[H]",
     ... }
-    >>> mid_distrib = {'bisphenol_S': 0.4, 'bisphenol_A': 0.6}
+    >>> mid_distrib = {"bisphenol_S": 0.4, "bisphenol_A": 0.6}
     >>> univprim = build_SAAMR_polymer_system(
-    ...     rep_unit_smiles, mid_distrib,
-    ...     n_chains=10, chain_len_min=5, chain_len_max=10,
+    ...     rep_unit_smiles,
+    ...     mid_distrib,
+    ...     n_chains=10,
+    ...     chain_len_min=5,
+    ...     chain_len_max=10,
     ... )
     """
     if random_seed is not None:
@@ -277,7 +281,10 @@ def build_SAAMR_polymer_system(
     total_atoms = len(univprim.leaves)
     total_residues = sum(len(chain.children) for chain in univprim.children)
     logger.info(
-        f"Built system: {n_chains} chains, {total_residues} residues, {total_atoms} atoms"
+        f"Built system: "
+        f"{n_chains} chains, "
+        f"{total_residues} residues, "
+        f"{total_atoms} atoms"
     )
 
     assign_SAAMR_roles(univprim)
@@ -425,7 +432,8 @@ def helium_resname_map() -> dict[str, str]:
 @pytest.fixture
 def single_helium_atom_saamr() -> Primitive:
     """
-    Fixture providing the simplest possible SAAMR-compliant system: a single Helium atom.
+    Fixture providing the simplest possible SAAMR-compliant
+    system, namely a single Helium atom.
 
     This serves as a base case for testing with minimal complexity.
     Hierarchy: [Universe -> Molecule -> Repeat-Unit -> Atom]

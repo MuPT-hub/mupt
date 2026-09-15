@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-"""Manual dense polyethylene AA-DPD/OpenMM smoke-test harness.
+# ruff: noqa: D103 ("undocumented public function")
+"""
+Manual dense polyethylene AA-DPD/OpenMM smoke-test harness.
 
 Run this from an environment where MuPT is installed. For local development,
 install the checkout first with ``pip install -e .``.
@@ -40,13 +42,11 @@ PE_RESNAME_MAP = {"head": "HEA", "ethane": "EAN", "tail": "TYL"}
 
 def sequence_repeat_units(chain_len: int) -> list[str]:
     """Return a deterministic PE chain sequence including terminal caps."""
-
     return ["head", *("ethane" for _ in range(chain_len - 2)), "tail"]
 
 
 def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
     """Build oriented PE repeat-unit primitives from the script SMILES table."""
-
     lexicon = {}
     with suppress_rdkit_logs():
         for unit_name, smiles in PE_SMILES.items():
@@ -86,7 +86,6 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
     topology only. ``AllAtomDPDBuilder`` owns frame-0 chain placement through the
     shared PlacementGenerator abstraction before running HOOMD relaxation.
     """
-
     np.random.seed(args.seed)
     lexicon = build_pe_lexicon()
     root = Primitive(label="pe_melt")
@@ -95,7 +94,9 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
         for unit_name in sequence_repeat_units(args.chain_len):
             segment.attach_child(lexicon[unit_name].copy())
         segment.set_topology(
-            nx.path_graph(segment.children_by_handle.keys(), create_using=TopologicalStructure),
+            nx.path_graph(
+                segment.children_by_handle.keys(), create_using=TopologicalStructure
+            ),
             max_registration_iter=100,
         )
         root.attach_child(segment)
@@ -111,15 +112,28 @@ def parse_args() -> argparse.Namespace:
             "and optionally smoke-test OpenMM minimization."
         )
     )
-    parser.add_argument("--n-chains", type=int, default=10, help="Number of PE chains to build.")
-    parser.add_argument("--chain-len", type=int, default=15, help="Repeat units per PE chain.")
-    parser.add_argument("--density-g-cm3", type=float, default=0.85, help="Target melt density.")
-    parser.add_argument("--dpd-max-steps", type=int, default=50000, help="Maximum DPD integration steps.")
+    parser.add_argument(
+        "--n-chains", type=int, default=10, help="Number of PE chains to build."
+    )
+    parser.add_argument(
+        "--chain-len", type=int, default=15, help="Repeat units per PE chain."
+    )
+    parser.add_argument(
+        "--density-g-cm3", type=float, default=0.85, help="Target melt density."
+    )
+    parser.add_argument(
+        "--dpd-max-steps",
+        type=int,
+        default=50000,
+        help="Maximum DPD integration steps.",
+    )
     parser.add_argument(
         "--particle-spacing-a",
         type=float,
         default=0.75,
-        help="Minimum nonbonded atom spacing required for DPD convergence, in Angstrom.",
+        help=(
+            "Minimum nonbonded atom spacing required for DPD convergence, in Angstroms."
+        ),
     )
     parser.add_argument(
         "--dpd-steps-per-interval",
@@ -127,15 +141,29 @@ def parse_args() -> argparse.Namespace:
         default=1000,
         help="DPD steps between convergence checks.",
     )
-    parser.add_argument("--seed", type=int, default=42, help="Deterministic build and DPD seed.")
-    parser.add_argument("--write-dpd-log", action="store_true", help="Write AA-DPD convergence diagnostics JSONL.")
-    parser.add_argument("--dpd-device", default="CPU", help="HOOMD device for AA-DPD validation: auto, CPU, or GPU.")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Deterministic build and DPD seed."
+    )
+    parser.add_argument(
+        "--write-dpd-log",
+        action="store_true",
+        help="Write AA-DPD convergence diagnostics JSONL.",
+    )
+    parser.add_argument(
+        "--dpd-device",
+        default="CPU",
+        help="HOOMD device for AA-DPD validation: auto, CPU, or GPU.",
+    )
     parser.add_argument(
         "--dpd-output-name",
         default="pe_melt_aa_dpd",
         help="Output prefix used when --write-dpd-log is enabled.",
     )
-    parser.add_argument("--skip-openmm", action="store_true", help="Skip OpenMM minimization smoke test.")
+    parser.add_argument(
+        "--skip-openmm",
+        action="store_true",
+        help="Skip OpenMM minimization smoke test.",
+    )
     parser.add_argument(
         "--allow-unconverged-dpd",
         action="store_true",
@@ -145,7 +173,10 @@ def parse_args() -> argparse.Namespace:
         "--min-distance-a",
         type=float,
         default=0.0,
-        help="Exit nonzero if the distinct atom minimum distance is at or below this Angstrom threshold.",
+        help=(
+            "Exit nonzero if the distinct atom minimum distance "
+            "distance is at or below this Angstrom threshold."
+        ),
     )
     parser.add_argument(
         "--charge-method",
@@ -155,22 +186,58 @@ def parse_args() -> argparse.Namespace:
             "Defaults to the NAGL/AshGC model; use zeros/formal_charge only for debug."
         ),
     )
-    parser.add_argument("--md-steps", type=int, default=5000, help="Post-minimization NVT MD steps.")
-    parser.add_argument("--md-timestep-fs", type=float, default=2.0, help="NVT MD timestep in femtoseconds.")
-    parser.add_argument("--md-friction-ps", type=float, default=1.0, help="Langevin friction coefficient in 1/ps.")
-    parser.add_argument("--md-temperature-k", type=float, default=300.0, help="NVT MD temperature in kelvin.")
-    parser.add_argument("--md-report-interval", type=int, default=500, help="NVT MD diagnostic interval in steps.")
-    parser.add_argument("--npt-steps", type=int, default=0, help="Optional post-NVT NPT MD steps.")
-    parser.add_argument("--pressure-atm", type=float, default=1.0, help="NPT pressure in atmospheres.")
-    parser.add_argument("--barostat-frequency", type=int, default=25, help="Monte Carlo barostat frequency in steps.")
+    parser.add_argument(
+        "--md-steps", type=int, default=5000, help="Post-minimization NVT MD steps."
+    )
+    parser.add_argument(
+        "--md-timestep-fs",
+        type=float,
+        default=2.0,
+        help="NVT MD timestep in femtoseconds.",
+    )
+    parser.add_argument(
+        "--md-friction-ps",
+        type=float,
+        default=1.0,
+        help="Langevin friction coefficient in 1/ps.",
+    )
+    parser.add_argument(
+        "--md-temperature-k",
+        type=float,
+        default=300.0,
+        help="NVT MD temperature in kelvin.",
+    )
+    parser.add_argument(
+        "--md-report-interval",
+        type=int,
+        default=500,
+        help="NVT MD diagnostic interval in steps.",
+    )
+    parser.add_argument(
+        "--npt-steps", type=int, default=0, help="Optional post-NVT NPT MD steps."
+    )
+    parser.add_argument(
+        "--pressure-atm", type=float, default=1.0, help="NPT pressure in atmospheres."
+    )
+    parser.add_argument(
+        "--barostat-frequency",
+        type=int,
+        default=25,
+        help="Monte Carlo barostat frequency in steps.",
+    )
     return parser.parse_args()
 
 
-def validate_args(args: argparse.Namespace) -> None:
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
+# and contain less branched business logic in one place
+def validate_args(args: argparse.Namespace) -> None:  # noqa: C901
     if args.n_chains < 1:
         raise ValueError("--n-chains must be >= 1")
     if args.chain_len < 2:
-        raise ValueError("--chain-len must be >= 2 because PE needs head and tail units")
+        raise ValueError(
+            "--chain-len must be >= 2 because PE needs head and tail units"
+        )
     if args.density_g_cm3 <= 0.0:
         raise ValueError("--density-g-cm3 must be > 0")
     if args.dpd_max_steps < 0:
@@ -218,7 +285,9 @@ def run_dpd(root: Any, args: argparse.Namespace) -> Any:
         resname_map=dict(PE_RESNAME_MAP),
     )
     try:
-        return AllAtomDPDBuilder(settings=settings, resname_map=PE_RESNAME_MAP).build(root)
+        return AllAtomDPDBuilder(settings=settings, resname_map=PE_RESNAME_MAP).build(
+            root
+        )
     except ModuleNotFoundError as exc:
         missing = exc.name or "an optional AA-DPD dependency"
         raise RuntimeError(
@@ -247,7 +316,9 @@ def density_g_cm3(total_mass: float, box_length_a: float) -> float:
     return total_mass * AMU_TO_G / volume_cm3
 
 
-def min_distinct_distance_a(positions: np.ndarray, box_length_a: float | None = None) -> float:
+def min_distinct_distance_a(
+    positions: np.ndarray, box_length_a: float | None = None
+) -> float:
     if len(positions) < 2 or not np.all(np.isfinite(positions)):
         return math.nan
     deltas = positions[:, None, :] - positions[None, :, :]
@@ -274,16 +345,30 @@ def log_dpd_diagnostics(result: Any) -> tuple[bool, float]:
     diagnostics = getattr(result, "diagnostics", {})
     if diagnostics:
         LOGGER.info("  spacing_converged: %s", diagnostics.get("spacing_converged"))
-        LOGGER.info("  bonded_energy_converged: %s", diagnostics.get("bonded_energy_converged"))
-        LOGGER.info("  bond_energy_per_term: %s", diagnostics.get("bond_energy_per_term"))
-        LOGGER.info("  angle_energy_per_term: %s", diagnostics.get("angle_energy_per_term"))
-        LOGGER.info("  dihedral_energy_per_term: %s", diagnostics.get("dihedral_energy_per_term"))
-        LOGGER.info("  improper_energy_per_term: %s", diagnostics.get("improper_energy_per_term"))
+        LOGGER.info(
+            "  bonded_energy_converged: %s", diagnostics.get("bonded_energy_converged")
+        )
+        LOGGER.info(
+            "  bond_energy_per_term: %s", diagnostics.get("bond_energy_per_term")
+        )
+        LOGGER.info(
+            "  angle_energy_per_term: %s", diagnostics.get("angle_energy_per_term")
+        )
+        LOGGER.info(
+            "  dihedral_energy_per_term: %s",
+            diagnostics.get("dihedral_energy_per_term"),
+        )
+        LOGGER.info(
+            "  improper_energy_per_term: %s",
+            diagnostics.get("improper_energy_per_term"),
+        )
         LOGGER.info("  dpd_energy: %s", diagnostics.get("dpd_energy"))
     return finite_coords, minimum_distance
 
 
-def validate_dpd_diagnostics(result: Any, finite_coords: bool, minimum_distance: float, args: argparse.Namespace) -> None:
+def validate_dpd_diagnostics(
+    result: Any, finite_coords: bool, minimum_distance: float, args: argparse.Namespace
+) -> None:
     if not finite_coords:
         raise RuntimeError("AA-DPD produced nonfinite atom coordinates.")
     if not np.isfinite(minimum_distance):
@@ -306,7 +391,9 @@ def openmm_system_from_interchange(interchange: Any) -> Any:
             return method(combine_nonbonded_forces=True)
         except TypeError:
             return method()
-    raise RuntimeError("OpenFF Interchange has no to_openmm_system() or to_openmm() method.")
+    raise RuntimeError(
+        "OpenFF Interchange has no to_openmm_system() or to_openmm() method."
+    )
 
 
 def openmm_topology_from_interchange(interchange: Any, topology: Any) -> Any:
@@ -334,20 +421,22 @@ def energy_kj_mol(simulation: Any, omm_unit: Any) -> float:
 
 def system_mass_da(system: Any, omm_unit: Any) -> float:
     """Return total OpenMM system mass in daltons."""
-
-    return float(sum(system.getParticleMass(i).value_in_unit(omm_unit.dalton) for i in range(system.getNumParticles())))
+    return float(
+        sum(
+            system.getParticleMass(i).value_in_unit(omm_unit.dalton)
+            for i in range(system.getNumParticles())
+        )
+    )
 
 
 def box_density_g_cm3(box_vectors_nm: np.ndarray, mass_da: float) -> float:
     """Return mass density from OpenMM box vectors in nm."""
-
     volume_nm3 = abs(float(np.linalg.det(box_vectors_nm)))
     return mass_da * DA_PER_NM3_TO_G_CM3 / volume_nm3
 
 
 def assign_openff_charges(molecules: list[Any], charge_method: str) -> None:
     """Assign OpenFF partial charges, using NAGL explicitly for AshGC models."""
-
     if charge_method.endswith(".pt") or charge_method.startswith("openff-gnn"):
         from openff.toolkit.utils import ToolkitRegistry
         from openff.toolkit.utils.nagl_wrapper import NAGLToolkitWrapper
@@ -369,9 +458,10 @@ def assign_openff_charges(molecules: list[Any], charge_method: str) -> None:
         molecule.assign_partial_charges(partial_charge_method=charge_method)
 
 
-def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace) -> None:
+def run_openmm_validation(
+    root: Any, box_length_a: float, charge_method: str, args: argparse.Namespace
+) -> None:
     from mupt.interfaces.rdkit import primitive_to_rdkit_mols
-    from openff.interchange import Interchange
     from openff.toolkit import ForceField, Molecule, Topology
     from openff.units import unit as off_unit
     from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, Vec3
@@ -396,7 +486,9 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     assign_openff_charges(molecules, charge_method)
 
     topology = Topology.from_molecules(molecules)
-    topology.box_vectors = off_unit.Quantity(np.eye(3) * box_length_a, off_unit.angstrom)
+    topology.box_vectors = off_unit.Quantity(
+        np.eye(3) * box_length_a, off_unit.angstrom
+    )
     interchange = ForceField("openff-2.2.1.offxml").create_interchange(
         topology,
         charge_from_molecules=[molecules[0]],
@@ -439,7 +531,10 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     LOGGER.info("  charge_method: %s", charge_method)
     LOGGER.info("  initial_potential_energy_kj_mol: %.6f", initial_energy)
     LOGGER.info("  minimized_potential_energy_kj_mol: %.6f", minimized_energy)
-    LOGGER.info("  finite_energies: %s", bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy)))
+    LOGGER.info(
+        "  finite_energies: %s",
+        bool(np.isfinite(initial_energy) and np.isfinite(minimized_energy)),
+    )
     if not (np.isfinite(initial_energy) and np.isfinite(minimized_energy)):
         raise RuntimeError("OpenMM validation produced nonfinite energies.")
     run_nvt_smoke(simulation, system, omm_unit, args)
@@ -455,14 +550,17 @@ def run_openmm_validation(root: Any, box_length_a: float, charge_method: str, ar
     )
 
 
-def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace) -> None:
+def run_nvt_smoke(
+    simulation: Any, system: Any, omm_unit: Any, args: argparse.Namespace
+) -> None:
     """Run a short regular-NVT stability check after minimization."""
-
     if args.md_steps == 0:
         LOGGER.info("NVT diagnostics: skipped (--md-steps 0)")
         return
 
-    simulation.context.setVelocitiesToTemperature(args.md_temperature_k * omm_unit.kelvin, args.seed)
+    simulation.context.setVelocitiesToTemperature(
+        args.md_temperature_k * omm_unit.kelvin, args.seed
+    )
     LOGGER.info("NVT diagnostics")
     LOGGER.info("  timestep_fs: %.6f", args.md_timestep_fs)
     LOGGER.info("  friction_1_per_ps: %.6f", args.md_friction_ps)
@@ -474,8 +572,12 @@ def run_nvt_smoke(simulation: Any, system: Any, omm_unit: Any, args: argparse.Na
         simulation.step(steps)
         steps_run += steps
         state = simulation.context.getState(getEnergy=True)
-        potential = float(state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
-        kinetic = float(state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
+        potential = float(
+            state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole)
+        )
+        kinetic = float(
+            state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole)
+        )
         finite = bool(np.isfinite(potential) and np.isfinite(kinetic))
         time_ps = steps_run * args.md_timestep_fs / 1000.0
         LOGGER.info(
@@ -502,12 +604,13 @@ def run_npt_smoke(
     args: argparse.Namespace,
 ) -> None:
     """Continue from the NVT state under regular NPT conditions."""
-
     if args.npt_steps == 0:
         LOGGER.info("NPT diagnostics: skipped (--npt-steps 0)")
         return
 
-    state = simulation.context.getState(getPositions=True, getVelocities=True, enforcePeriodicBox=True)
+    state = simulation.context.getState(
+        getPositions=True, getVelocities=True, enforcePeriodicBox=True
+    )
     positions = state.getPositions(asNumpy=True)
     velocities = state.getVelocities(asNumpy=True)
     box_vectors = state.getPeriodicBoxVectors()
@@ -543,11 +646,19 @@ def run_npt_smoke(
         npt.step(steps)
         steps_run += steps
         state = npt.context.getState(getEnergy=True, enforcePeriodicBox=True)
-        potential = float(state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
-        kinetic = float(state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole))
-        box_nm = state.getPeriodicBoxVectors(asNumpy=True).value_in_unit(omm_unit.nanometer)
+        potential = float(
+            state.getPotentialEnergy().value_in_unit(omm_unit.kilojoule_per_mole)
+        )
+        kinetic = float(
+            state.getKineticEnergy().value_in_unit(omm_unit.kilojoule_per_mole)
+        )
+        box_nm = state.getPeriodicBoxVectors(asNumpy=True).value_in_unit(
+            omm_unit.nanometer
+        )
         density = box_density_g_cm3(box_nm, mass_da)
-        finite = bool(np.isfinite(potential) and np.isfinite(kinetic) and np.isfinite(density))
+        finite = bool(
+            np.isfinite(potential) and np.isfinite(kinetic) and np.isfinite(density)
+        )
         time_ps = steps_run * args.md_timestep_fs / 1000.0
         LOGGER.info(
             "  step %8d time_ps %10.4f potential_kj_mol %14.6f "
@@ -560,7 +671,9 @@ def run_npt_smoke(
             finite,
         )
         if not finite:
-            raise RuntimeError("NPT stability check produced nonfinite energy or density.")
+            raise RuntimeError(
+                "NPT stability check produced nonfinite energy or density."
+            )
 
 
 def main() -> int:
@@ -576,8 +689,8 @@ def main() -> int:
             LOGGER.info("OpenMM diagnostics: skipped (--skip-openmm)")
         else:
             run_openmm_validation(root, result.box_length_a, args.charge_method, args)
-    except Exception as exc:
-        LOGGER.error("ERROR: %s", exc)
+    except Exception:
+        LOGGER.exception("ERROR: %s")
         return 1
     return 0
 

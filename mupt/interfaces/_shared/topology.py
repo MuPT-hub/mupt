@@ -1,7 +1,6 @@
 """Shared topology traversal helpers for exporter interfaces."""
 
-
-from collections.abc import Hashable, Iterator, Mapping
+from typing import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
@@ -34,7 +33,12 @@ class SAAMRResidueRecord:
     particles: tuple[Primitive, ...]
 
 
-def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
+# and contain less branched business logic in one place
+def build_saamr_role_topology_index(  # noqa: C901
+    root: Primitive,
+) -> SAAMRRoleTopologyIndex:
     """Build a single-pass role index for a SAAMR-like Primitive hierarchy.
 
     The accepted hierarchy is role based rather than depth based: UNASSIGNED
@@ -49,11 +53,15 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
 
     index = SAAMRRoleTopologyIndex()
 
-    def visit(
+    # TB: supressing linter complexity (C901) warning for now,
+    # but in the future this should be refactored to be more modular
+    # and contain less branched business logic in one place
+    def visit(  # noqa: C901
         node: Primitive,
         current_segment: Primitive | None,
         current_residue: Primitive | None,
     ) -> None:
+        """Extract segment info from a particular Primitive"""
         role = node.role
 
         if role == PrimitiveRole.SEGMENT:
@@ -74,7 +82,9 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
                     f"['{node.label}']."
                 )
             if current_segment is None:
-                raise ValueError("RESIDUE-role Primitives must be enclosed by a SEGMENT.")
+                raise ValueError(
+                    "RESIDUE-role Primitives must be enclosed by a SEGMENT."
+                )
             current_residue = node
             index.residues_by_segment[id(current_segment)].append(node)
             index.particles_by_residue[id(node)] = []
@@ -99,17 +109,20 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         if node.is_leaf:
             if role == PrimitiveRole.SEGMENT:
                 raise ValueError(
-                    f"SEGMENT-role Primitive '{node.label}' contains no RESIDUE-role descendants."
+                    f"SEGMENT-role Primitive '{node.label}' "
+                    "contains no RESIDUE-role descendants."
                 )
             if role == PrimitiveRole.RESIDUE:
                 raise ValueError(
-                    f"RESIDUE-role Primitive '{node.label}' contains no PARTICLE leaves."
+                    f"RESIDUE-role Primitive '{node.label}' "
+                    "contains no PARTICLE leaves."
                 )
             if role != PrimitiveRole.PARTICLE:
                 raise ValueError("All leaves must have role=PrimitiveRole.PARTICLE.")
             if node.element is None:
                 raise ValueError(
-                    f"Leaf Primitive '{node}' has role=PARTICLE but no element assigned. "
+                    f"Leaf Primitive '{node}' has role=PARTICLE "
+                    "but no element assigned. "
                     "All-atom export requires atomic PARTICLE leaves."
                 )
             if current_segment is None or current_residue is None:
@@ -132,7 +145,8 @@ def build_saamr_role_topology_index(root: Primitive) -> SAAMRRoleTopologyIndex:
         residues = index.residues_by_segment[id(segment)]
         if not residues:
             raise ValueError(
-                f"SEGMENT-role Primitive '{segment.label}' contains no RESIDUE-role descendants."
+                f"SEGMENT-role Primitive '{segment.label}' "
+                "contains no RESIDUE-role descendants."
             )
         empty_residues = [
             residue.label
@@ -184,7 +198,9 @@ def _pdb_resname(
         name = label
 
     if len(name) != 3:
-        raise ValueError(f"Residue name '{name}' (from '{label}') is not 3 characters long")
+        raise ValueError(
+            f"Residue name '{name}' (from '{label}') is not 3 characters long"
+        )
     return name.upper()
 
 
