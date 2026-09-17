@@ -225,7 +225,15 @@ class Primitive(
         '''Enable mutation of connectivity of this Primitive and any others in its hierarchy tree'''
         self.root._unfreeze_connections_recursive()
 
-    ## Adjacency
+    # Adjacency
+    @property
+    def connectors(self) -> Collection[Connector]:
+        '''Convenience wrapper for accessing ALL connectors managed by this Primitive'''
+        # TODO: also provide convenient access to connectors_free and connectors_bound (via flags?)
+        return self.connections.connectors
+    # DEV: purposely excluded connectors.setter and connectors.deleter;
+    # connectors access through this property SHOULd be read-only
+    
     def fetch_connector(self, conn : ConnectorAddress | Connector) -> Connector:
         '''Fetch a connector managed by this Priomitive, if it exists'''
         return self.connections.connector(connector_address_flexible(conn))
@@ -497,6 +505,7 @@ class SupportsParents(Primitive):
 
     def _post_detach(self, parent : SupportsChildren) -> None:
         ...
+
 
 # Concrete primitive types
 ## Tree root
