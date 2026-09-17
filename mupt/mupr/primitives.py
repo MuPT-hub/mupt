@@ -45,8 +45,17 @@ from .connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,
     ConnectorManagerMutable,
+    connector_address_flexible,
 )
-from .linking import assign_connections_from_topology
+from .connection.alignment import (
+    ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentRigid,
+)
+from .linking import (
+    deduce_connections_from_topology,
+    assign_connections_from_topology,
+    GraphIterRule,
+)
 from .topology import GraphLayout, canonical_graph_property
 from .trees import tree_to_networkx, tree_render_style, ConcreteStyle
 
@@ -213,6 +222,10 @@ class Primitive(
         self.root._unfreeze_connections_recursive()
 
     ## Adjacency
+    def fetch_connector(self, conn : ConnectorAddress | Connector) -> Connector:
+        '''Fetch a connector managed by this Priomitive, if it exists'''
+        return self.connections.connector(connector_address_flexible(conn))
+    
     def neighbors(self, criterion : Optional[PrimitivePredicate]=None) -> Generator['Primitive', None, None]:
         '''Primitives whose share a Connection with this one'''
         for conn in self.connections.connectors_bound:
@@ -226,6 +239,55 @@ class Primitive(
                 neighbor_branch,
                 criterion=criterion,
             )
+            
+    def connect_neighbor(
+        self,
+        other : 'Primitive',
+        own_conn : Optional[ConnectorAddress | Connector]=None,
+        other_conn : Optional[ConnectorAddress | Connector]=None,
+        alignment_strategy : Optional[ConnectorAntialignmentStrategy]=None,
+        n_iter_max_rule : Optional[GraphIterRule]=None,
+    ) -> None:
+        """
+        Forge a new connection to another Primitive
+        
+        If explicit Connectors are provided for either or both Primitives,
+        will use those as halves of the connection;
+        Otherwise, will attempt to deduce a uiqnue choice using the linking alognrithm
+        """
+        # to be used as keys identifying edge in graph
+        prim_edge : tuple[Primitive, Primitive] = (self, other) 
+        mapped_connectors : dict[PrimitiveAddress, set[Connector]] = {
+            self : set(self.connections.connectors_free)
+                if own_conn is None else {self.fetch_connector(own_conn)},
+            other : set(other.connections.connectors_free)
+                if other_conn is None else {other.fetch_connector(own_conn)},
+        }
+        
+        # TB: deducing, rather than assigning, to get access
+        # to chosen Connectors for geometric alignment
+        conn_map = deduce_connections_from_topology(
+            topology=Graph([prim_edge]),
+            mapped_connectors=mapped_connectors,
+            n_iter_max_rule=n_iter_max_rule,
+        )
+        
+        # extract pair (if found) and set as underlying neighbors
+        own_connector_chosen, other_connector_chosen = conn_map[prim_edge]
+        own_connector_chosen.neighbor = other_connector_chosen
+        
+        # TODO: align neighbor using chosen method
+        # TODO: also align all neighbors of neighbor? (what is connected to self elsewhere?)
+        if alignment_strategy is not None:
+            alignment_strategy.antialign(
+                align_connector=other_connector_chosen,
+                to_connector=own_connector_chosen,
+            )
+            alignment_transform = alignment_strategy.antialignment_transformation(
+                align_connector=other_connector_chosen,
+                to_connector=own_connector_chosen,
+            ) # Suppress on already-aligned chosen Connectors
+            other.rigidly_transform(alignment_transform)
 
     # Hierarchy
     def search_hierarchy_by(
