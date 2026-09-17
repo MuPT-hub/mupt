@@ -46,7 +46,8 @@ class EdgeMissingError(GraphLinkingError):
     ...
 
 
-DEFAULT_ITER_RULE : Callable[[int], int] = lambda graph_size : 10*graph_size # TB DEV: 10 is just a sensible number I made up :P
+type GraphIterRule = Callable[[Graph], int]
+DEFAULT_ITER_RULE : GraphIterRule = lambda graph : 10*graph.number_of_nodes() # TB DEV: 10 is just a sensible number I made up :P
 
 def _check_connectors_cover_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
@@ -76,7 +77,7 @@ def _check_connectors_cover_topology(
 def deduce_connections_from_topology(
     topology : Graph, # TB: Graph[T], indicating node type
     mapped_connectors : Mapping[T, Collection[Connector]],
-    n_iter_max_rule : Optional[Callable[[int], int]]=None, 
+    n_iter_max_rule : Optional[GraphIterRule]=None, 
 ) -> Mapping[tuple[T, T], tuple[Connector, Connector]]:
     """
     Given a connectivity graph and a collection of ConnectorManagers
@@ -110,7 +111,7 @@ def deduce_connections_from_topology(
     connection_map : Mapping[tuple[T, T], tuple[Connector, Connector]] = dict()
 
     n_iter : int = 0
-    n_iter_max : int = n_iter_max_rule(topology.number_of_nodes())
+    n_iter_max : int = n_iter_max_rule(topology)
     while (n_iter < n_iter_max) and unpaired_edges:
         LOGGER.debug(f'Beginning Connector linking iteration {n_iter}:')
         n_paired_new : int = 0
@@ -210,7 +211,7 @@ def deduce_connections_from_topology(
 def assign_connections_from_topology(
     topology : Graph, # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
     mapped_connectors : Mapping[T, Collection[Connector]],
-    n_iter_max_rule : Optional[Callable[[int], int]]=None,
+    n_iter_max_rule : Optional[GraphIterRule]=None,
 ) -> None:
     """Deduce connections from graph and mapped ConnectorManagers and assign neighborship based on it"""
     connections = deduce_connections_from_topology(
