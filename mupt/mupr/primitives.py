@@ -658,7 +658,7 @@ class SimplePrimitive(SupportsParents):
         Returns the withdrawn Connector instance
         '''
         connector_address = connector_address_flexible(connector_address)
-        for ancestor in self.path:
+        for ancestor in self.ancestors:
             # TB: these all point to the same Connector instance, so collecting
             # is technically redundant for all but the last iter of the loop
             connector = ancestor.connections.remove_connector(connector_address)
