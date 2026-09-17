@@ -40,7 +40,11 @@ from .connection.exceptions import (
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .connection.types import ConnectorAddress, ConnectorLabel
+from .connection.types import (
+    ConnectorAddress,
+    ConnectorLabel,
+    ConnectorLabeller,
+)
 from .connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,
@@ -600,40 +604,81 @@ class SimplePrimitive(SupportsParents):
         self._frozen_hierarchy = False
     
     # Exposing Connectors
-    def inject_connector(
+    def inject_connector_into_hierarchy(
+        self,
+        connector : Connector,
+    ) -> ConnectorAddress:
+        '''
+        Introduce a new Connector into circulation throughout the hierarchy above
+        
+        All ancestors of this Simple will also manage this Connector instance
+        '''
+        for anc in self.ancestors:
+            anc.connections.add_connector(connector) 
+    
+    def add_connector(
         self,
         connector : Connector,
         label : Optional[ConnectorLabel]=None,
-    ) -> ConnectorAddress:
-        '''Introduce a new Connector into circulation throught the hierarchy'''
+    ) -> None:
+        '''
+        Add a new Connector to those managed by this Simple
+        '''
         self._precondition_mutable_connectors()
-        conn_handle = self.connections.add_connector(
+        self.connections.add_connector(
             connector,
-            # TB: label is irrelevant w/ addresses; keeping in case handles prove useful to add later
+            # TB: label is irrelevant w/ addresses; keeping 
+            # only in case handles prove useful to add later
             label=(label or Connector.DEFAULT_LABEL),
         )
         connector.holder = self
         
-        for anc in self.ancestors:
-            # direct access here, because .inject_connector will NOT be supported on non-simple Primitives
-            anc.connections.add_connector(connector) 
-
-        return conn_handle
-
-    def withdraw_connector(
+        self.inject_connector_into_hierarchy(connector)
+    
+    def withdraw_connector_from_hierarchy(
         self,
         connector_address : ConnectorAddress | Connector,
-    ) -> Connector:
-        '''Remove a Connector from all levels of a hierarchy'''
-        self._precondition_mutable_connectors()
+        preserve_neighbor : bool=False,
+    ) -> None:
+        '''
+        Remove a Connector from all levels of the hierarchy above this Simple
+        
+        Connector will still be managed within this Simple, 
+        but with its former neighbor (if any) severed
+        
+        Returns the withdrawn Connector instance
+        '''
         connector_address = connector_address_flexible(connector_address)
-
         for ancestor in self.path:
             # TB: these all point to the same Connector instance, so collecting
             # is technically redundant for all but the last iter of the loop
             connector = ancestor.connections.remove_connector(connector_address)
-        del connector.holder # will be self, since this Simple is at end of Path
+        
+        if not preserve_neighbor:
+            del connector.neighbor
             
+    def remove_connector(
+        self,
+        connector_address : ConnectorAddress | Connector,
+    ) -> Connector:
+        '''
+        AND from being managed by this Simple itself
+        AND remove a Connector from all levels of the hierarchy above this Simple
+        I.e. the passed Connector will be completely removed from the managing hierarchy
+        
+        Returns the removed Connector
+        '''
+        connector_address = connector_address_flexible(connector_address)
+        
+        self._precondition_mutable_connectors()
+        connector = self.connections.remove_connector(connector_address)
+        del connector.holder # will be self, since this Simple is at end of Path
+        
+        self.withdraw_connector_from_hierarchy(
+            connector_address,
+            # never want to leave dangling neighbors if completely removed
+            preserve_neighbor=False,
+        )
         return connector
 
     # Hierarchy
