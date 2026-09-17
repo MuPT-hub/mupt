@@ -200,7 +200,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     @property
     def role(self) -> PrimitiveRole:
-        """Canonical role this Primitive plays in an exportable hierarchy"""
+        """Identifier for the role this Primitive plays in a hierarchy upon export"""
         return self._role
 
     @role.setter
@@ -1413,6 +1413,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             children=None,
             label=self.label,
             metadata=deepcopy(self.metadata),
+            role=self._role,
         )
 
         # transfer connection info
