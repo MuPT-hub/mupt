@@ -180,10 +180,9 @@ class ConnectorManagerMutable(ConnectorManager):
         conn_addr : ConnectorAddress | Connector,
     ) -> Connector:
         '''Declare a Connector to be no longer managed here'''
-        if isinstance(conn_addr, Connector):
-            conn_addr = conn_addr.address
-        
-        return self.connectors_by_addr.pop(conn_addr)
+        return self.connectors_by_addr.pop(
+            connector_address_flexible(conn_addr)
+        )
 
     @property
     def connectors(self) -> tuple[Connector, ...]:

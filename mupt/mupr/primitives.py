@@ -585,7 +585,7 @@ class SimplePrimitive(SupportsParents):
         shape : Optional[BoundedTransformableShape]=None,
         metadata : Optional[dict[Hashable, Any]]=None,
     ) -> None:
-        # Simples, uniquely, support the ability to be created with Connectors pre-injected
+        # Simples, uniquely, support initialization with Connectors pre-injected
         if connections is None:
             connections = ConnectorManagerMutable()
 
@@ -626,8 +626,7 @@ class SimplePrimitive(SupportsParents):
     ) -> Connector:
         '''Remove a Connector from all levels of a hierarchy'''
         self._precondition_mutable_connectors()
-        if isinstance(connector_address, Connector):
-            connector_address = connector_address.address
+        connector_address = connector_address_flexible(connector_address)
 
         for ancestor in self.path:
             # TB: these all point to the same Connector instance, so collecting
@@ -637,7 +636,8 @@ class SimplePrimitive(SupportsParents):
             
         return connector
 
-    # Explicit ban on attachment of children (already simple)
+    # Hierarchy
+    ## Explicit ban on attachment of children (already simple)
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
 
