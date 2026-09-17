@@ -261,7 +261,7 @@ class Primitive(
             self : set(self.connections.connectors_free)
                 if own_conn is None else {self.fetch_connector(own_conn)},
             other : set(other.connections.connectors_free)
-                if other_conn is None else {other.fetch_connector(own_conn)},
+                if other_conn is None else {other.fetch_connector(other_conn)},
         }
         
         # TB: deducing, rather than assigning, to get access
