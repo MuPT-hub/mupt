@@ -682,6 +682,16 @@ class SimplePrimitive(SupportsParents):
         return connector
 
     # Hierarchy
+    def _post_attach(self, parent : SupportsChildren) -> None:
+        super()._post_attach(parent)
+        for connector in self.connections.connectors:
+            self.inject_connector_into_hierarchy(connector)
+
+    def _post_detach(self, parent : SupportsChildren) -> None:
+        super()._post_attach(parent)
+        for connector in self.connections.connectors:
+            self.withdraw_connector_from_hierarchy(connector, preserve_neighbor=False)
+            
     ## Explicit ban on attachment of children (already simple)
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
         raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
