@@ -16,16 +16,16 @@ CA = Connector(
     bondtype=BondType.DOUBLE,
 )
 ## DEV: creating here since expected result must contain same literal Connector instance
-CA_COPY = CA.copy() 
+CA_COPY = CA.copy()
 CA_COUNTERPART = CA.counterpart()
 
 # variant of CA with positional info; should compare as non-coincident
 CB = Connector(
     anchor=AttachmentPoint({1}),
-    linker=AttachmentPoint({2}, position=[1,2,3]),
+    linker=AttachmentPoint({2}, position=[1, 2, 3]),
     bondtype=BondType.DOUBLE,
-) 
-CB_COPY = CB.copy() 
+)
+CB_COPY = CB.copy()
 CB_COUNTERPART = CB.counterpart()
 
 CC = Connector(
@@ -33,43 +33,46 @@ CC = Connector(
     linker=AttachmentPoint({1, 3}),
     bondtype=BondType.AROMATIC,
 )
-CC_COPY = CC.copy() 
+CC_COPY = CC.copy()
 CC_COUNTERPART = CC.counterpart()
 
 CD = Connector(
-    anchor=AttachmentPoint({'same'}),
-    linker=AttachmentPoint({'same'}),
+    anchor=AttachmentPoint({"same"}),
+    linker=AttachmentPoint({"same"}),
     bondtype=BondType.SINGLE,
 )
-CD_COPY = CD.copy() 
+CD_COPY = CD.copy()
 CD_COUNTERPART = CD.counterpart()
 
 
 @pytest.mark.parametrize(
-    'connectors,equiv_classes_expected',
+    "connectors,equiv_classes_expected",
     [
-        ( # all 3 example prototype are non-fungible
+        (  # all 3 example prototype are non-fungible
             (CA, CB, CC, CD),
             {
                 frozenset([CA]),
                 frozenset([CB]),
                 frozenset([CC]),
                 frozenset([CD]),
-            }
+            },
         ),
-        ( # test that copies are practially indistinguishable from originals
+        (  # test that copies are practially indistinguishable from originals
             (
-                CA, CA_COPY,
-                CB, CB_COPY,
-                CC, CC_COPY,
-            ), 
+                CA,
+                CA_COPY,
+                CB,
+                CB_COPY,
+                CC,
+                CC_COPY,
+            ),
             {
                 frozenset([CA, CA_COPY]),
                 frozenset([CB, CB_COPY]),
                 frozenset([CC, CC_COPY]),
-            }
+            },
         ),
-        ( # these Connectors are distinct from their counterparts
+        (  # these Connectors are distinct from their counterparts
             (CA, CA_COUNTERPART, CB, CB_COUNTERPART),
             {
                 frozenset([CA]),
@@ -78,27 +81,27 @@ CD_COUNTERPART = CD.counterpart()
                 frozenset([CB_COUNTERPART]),
             },
         ),
-        ( # this Connector is actually designed to be equivalent to its counterpart
+        (  # this Connector is actually designed to be equivalent to its counterpart
             (CD, CD_COUNTERPART),
             {frozenset([CD, CD_COUNTERPART])},
-        )
+        ),
     ],
 )
 def test_connector_fungibility(
-    connectors : tuple[Connector, ...],
-    equiv_classes_expected : set[frozenset[Connector]],
+    connectors: tuple[Connector, ...],
+    equiv_classes_expected: set[frozenset[Connector]],
 ) -> None:
     """
-    Test that total comparison of Connectors for fungibility 
+    Test that total comparison of Connectors for fungibility
     (i.e. interchangeability) groups together Connectors as expected
     """
     equiv_classes_actual = equivalence_classes(
         connectors,
         relation=Connector.fungible_with,
     )
-    
+
     assert equiv_classes_actual == equiv_classes_expected
-    
+
 
 # Bondability tests
 C1 = Connector(
@@ -133,7 +136,7 @@ C4 = Connector(
         ),  # should fail, empty two attachment point sets must be disjoint
         (C1, C2, False),  # should fail, anchorables of C1 not in linkables of C1
         (C1, C3, False),  # should fail, bond types differ
-        (C1, C4, True),   # should NOT fail, compatible connectors
+        (C1, C4, True),  # should NOT fail, compatible connectors
     ],
 )
 def test_connector_bondability(
@@ -167,4 +170,4 @@ def test_connector_counterpart_bondable(conn: Connector) -> None:
     counterpart_bondable = Connector.bondable_with(conn, conn.counterpart())
 
     # XOR, since conditions are mutually-exclusive
-    assert (conn_empty ^ counterpart_bondable)  
+    assert conn_empty ^ counterpart_bondable
