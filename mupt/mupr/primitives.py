@@ -274,8 +274,8 @@ class Primitive(
     def connect_neighbor(
         self,
         other : 'Primitive',
-        own_conn : Optional[ConnectorAddress | Connector]=None,
-        other_conn : Optional[ConnectorAddress | Connector]=None,
+        our_connector : Optional[ConnectorAddress | Connector]=None,
+        their_connector : Optional[ConnectorAddress | Connector]=None,
         alignment_strategy : Optional[ConnectorAntialignmentStrategy]=None,
         n_iter_max_rule : Optional[GraphIterRule]=None,
     ) -> None:
@@ -290,9 +290,11 @@ class Primitive(
         prim_edge : tuple[Primitive, Primitive] = (self, other) 
         mapped_connectors : dict[PrimitiveAddress, set[Connector]] = {
             self : set(self.connections.connectors_free)
-                if own_conn is None else {self.fetch_connector(own_conn)},
+                if our_connector is None
+                    else {self.fetch_connector(our_connector)},
             other : set(other.connections.connectors_free)
-                if other_conn is None else {other.fetch_connector(other_conn)},
+                if their_connector is None
+                    else {other.fetch_connector(their_connector)},
         }
         
         # TB: deducing, rather than assigning, to get access
@@ -304,19 +306,19 @@ class Primitive(
         )
         
         # extract pair (if found) and set as underlying neighbors
-        own_connector_chosen, other_connector_chosen = conn_map[prim_edge]
-        own_connector_chosen.neighbor = other_connector_chosen
+        our_connector_chosen, their_connector_chosen = conn_map[prim_edge]
+        our_connector_chosen.neighbor = their_connector_chosen
         
         # TODO: align neighbor using chosen method
         # TODO: also align all neighbors of neighbor? (what is connected to self elsewhere?)
         if alignment_strategy is not None:
             alignment_strategy.antialign(
-                align_connector=other_connector_chosen,
-                to_connector=own_connector_chosen,
+                align_connector=their_connector_chosen,
+                to_connector=our_connector_chosen,
             )
             alignment_transform = alignment_strategy.antialignment_transformation(
-                align_connector=other_connector_chosen,
-                to_connector=own_connector_chosen,
+                align_connector=their_connector_chosen,
+                to_connector=our_connector_chosen,
             ) # Suppress on already-aligned chosen Connectors
             other.rigidly_transform(alignment_transform)
 
