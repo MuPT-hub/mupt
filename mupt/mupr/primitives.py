@@ -108,14 +108,14 @@ def indiscriminate_selector(prim : 'Primitive') -> bool:
 
 def select_primitives(
     choices : Iterable['Primitive'],
-    criterion : Optional[PrimitivePredicate]=None,
+    predicate : Optional[PrimitivePredicate]=None,
 ) -> Generator['Primitive', None, None]:
     '''Boilerplate for choosing Primitives out of an iterable by some rule'''
-    if criterion is None:
-        criterion = indiscriminate_selector
+    if predicate is None:
+        predicate = indiscriminate_selector
 
     for prim in choices:
-        if criterion(prim):
+        if predicate(prim):
             yield prim
 
 
@@ -240,7 +240,7 @@ class Primitive(
     
     def neighbors(
         self,
-        criterion : Optional[PrimitivePredicate]=None,
+        predicate : Optional[PrimitivePredicate]=None,
     ) -> Generator['Primitive', None, None]:
         '''Primitives whose share a Connection with this one'''
         for conn in self.connections.connectors_bound:
@@ -252,20 +252,20 @@ class Primitive(
 
             yield from select_primitives(
                 neighbor_branch,
-                criterion=criterion,
+                predicate=predicate,
             )
             
     def is_neighbors_with(
         self,
         other : 'Primitive',
-        criterion : Optional[PrimitivePredicate]=None,
+        predicate : Optional[PrimitivePredicate]=None,
     ) -> bool:
         '''
         Whether this Primitive is a neighbor of the other Primitive
         
         This relation is symmetric, i.e. a.is_neighbor_of(b) <=> b.is_neighbor_of(a) 
         '''
-        for neighbor in self.neighbors(criterion=criterion):
+        for neighbor in self.neighbors(predicate=predicate):
             if other is neighbor:
                 return True
         else:
@@ -323,7 +323,7 @@ class Primitive(
     # Hierarchy
     def search_hierarchy_by(
         self,
-        criterion : PrimitivePredicate,
+        predicate : PrimitivePredicate,
         halt_when : Optional[PrimitivePredicate]=None,
         to_depth  : Optional[int]=None,
         min_count : Optional[int]=None,
@@ -337,7 +337,7 @@ class Primitive(
         '''
         return findall(
             self,
-            filter_=criterion,
+            filter_=predicate,
             stop=halt_when,
             maxlevel=to_depth,
             mincount=min_count,
@@ -486,7 +486,7 @@ class SupportsChildren(Primitive):
     def set_connectivity_from_topology(
         self,
         topology : Graph,
-        criterion : PrimitivePredicate,
+        predicate : PrimitivePredicate,
         n_iter_max_rule : Optional[Callable[[int], int]]=None,
     ) -> None:
         '''Form connections from a labelled graph, paying respect to selectivity of Connectors'''
@@ -494,13 +494,13 @@ class SupportsChildren(Primitive):
             topology,
             mapped_connectors = {
                 subprim.addr : subprim.connections.connectors # TODO: figure out how to map from unique addresses to graph node
-                    for subprim in select_primitives(self.descendants, criterion=criterion)
+                    for subprim in select_primitives(self.descendants, predicate=predicate)
             },
             n_iter_max_rule=n_iter_max_rule,
         )
 
-    def export_cross_section(self, criterion : PrimitivePredicate) -> Graph:
-        '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a criterion'''
+    def export_cross_section(self, predicate : PrimitivePredicate) -> Graph:
+        '''Generate a graph of a "slice" of a subset of sub-Primitives specified by a predicate'''
         raise NotImplementedError
 
 class SupportsParents(Primitive):
