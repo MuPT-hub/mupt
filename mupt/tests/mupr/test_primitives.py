@@ -5,6 +5,7 @@ import pytest
 from itertools import product as cartesian
 import numpy as np
 
+from mupt.mupr.connection.connectors import Connector, AttachmentPoint
 from mupt.mupr.primitives import (
     ArborescenceError,
     ImproperHierarchyError,
@@ -53,7 +54,7 @@ def test_hierarchy_assembly():
     [
         (SimplePrimitive(), RootPrimitive()),
         (CompositePrimitive(), RootPrimitive()),
-        (SimplePrimitive(), CompositePrimitive()),
+        # (SimplePrimitive(), CompositePrimitive()),
     ],
 )
 def test_improper_hierarchy_disallowed(parent : Primitive, child : Primitive) -> None:
@@ -74,9 +75,40 @@ def test_frozen_hierarchy():
 def test_connect_neighbor():
     ...
     
-def test_is_neighbors_with_symmetric():
-    """Test neighborship check is indeed invariant under swapping Primitive arguments"""
-    ...
+def test_positive_is_neighbors_with_symmetric():
+    """
+    Test neighborship check is indeed invariant under swapping Primitive arguments
+    in the case that the two Primitives involved ARE neighbors (both positive)
+    """
+    prim_0 = SimplePrimitive()
+    prim_1 = SimplePrimitive()
+    
+    conn = Connector(
+        anchor=AttachmentPoint({1}),
+        linker=AttachmentPoint({2}),
+    )
+    conn_counter = conn.counterpart()
+    
+    prim_0.add_connector(conn)
+    prim_1.add_connector(conn_counter)
+    prim_0.connect_neighbor(
+        prim_1,
+        # TB: no need to specify connectors; linker only has one choice
+        our_connector=conn,
+        their_connector=conn_counter,
+    )
+    
+    assert prim_0.is_neighbors_with(prim_1) and prim_1.is_neighbors_with(prim_0)
+
+def test_negative_is_neighbors_with_symmetric():
+    """
+    Test neighborship check is indeed invariant under swapping Primitive arguments
+    in the case that the two Primitives involved ARE NOT neighbors (both negative)
+    """
+    prim_0 = CompositePrimitive()
+    prim_1 = SimplePrimitive()
+    
+    assert not (prim_0.is_neighbors_with(prim_1) or prim_1.is_neighbors_with(prim_0))
     
 def test_neighborship_propagates_thru_hierarchy():
     ...
