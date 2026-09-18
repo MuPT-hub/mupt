@@ -238,7 +238,10 @@ class Primitive(
         '''Fetch a connector managed by this Priomitive, if it exists'''
         return self.connections.connector(connector_address_flexible(conn))
     
-    def neighbors(self, criterion : Optional[PrimitivePredicate]=None) -> Generator['Primitive', None, None]:
+    def neighbors(
+        self,
+        criterion : Optional[PrimitivePredicate]=None,
+    ) -> Generator['Primitive', None, None]:
         '''Primitives whose share a Connection with this one'''
         for conn in self.connections.connectors_bound:
             # TB TODO: figure out how to type this so HoldsConnector "knows" about NodeMixin
@@ -251,6 +254,22 @@ class Primitive(
                 neighbor_branch,
                 criterion=criterion,
             )
+            
+    def is_neighbors_with(
+        self,
+        other : 'Primitive',
+        criterion : Optional[PrimitivePredicate]=None,
+    ) -> bool:
+        '''
+        Whether this Primitive is a neighbor of the other Primitive
+        
+        This relation is symmetric, i.e. a.is_neighbor_of(b) <=> b.is_neighbor_of(a) 
+        '''
+        for neighbor in self.neighbors(criterion=criterion):
+            if other is neighbor:
+                return True
+        else:
+            return False
             
     def connect_neighbor(
         self,
