@@ -1,8 +1,7 @@
-'''Utilities for interfacing with the anytree library (https://anytree.readthedocs.io/en/latest/)'''
+"""Utilities for printing and drawing trees comprising anytree components"""
 
 from typing import Type, Union
 
-from anytree import NodeMixin
 from anytree.render import (
     RenderTree,
     AbstractStyle,
@@ -11,8 +10,6 @@ from anytree.render import (
     ContRoundStyle,
     DoubleStyle,
 )
-from networkx import DiGraph
-
 # type unions to placate linter (AbstractStyle/Type[AbstractStyle]
 # flags subclasses due to non-empty __init__ defaults in their impls)
 ConcreteStyle = Union[*AbstractStyle.__subclasses__()]
@@ -51,7 +48,9 @@ RENDER_STYLES_BY_ALIAS : dict[str, ConcreteStyle] = {
             for alias in aliases                                                   
 }
 
-def tree_render_style(style : Union[str, ConcreteStyle, Type[ConcreteStyle]]) -> ConcreteStyle:
+def tree_render_style(
+    style : Union[str, ConcreteStyle, Type[ConcreteStyle]]
+) -> ConcreteStyle:
     '''
     Obtain a render style object which can be passed on to anytree renderers
     (https://anytree.readthedocs.io/en/latest/api/anytree.render.html)
@@ -68,7 +67,3 @@ def tree_render_style(style : Union[str, ConcreteStyle, Type[ConcreteStyle]]) ->
     else:
         raise TypeError(f'Unsupported type for tree render style: {type(style)}')
     
-# Conversion
-def tree_to_networkx(node : NodeMixin) -> DiGraph:
-    '''Convert a tree into a directed NetworkX graph'''
-    raise NotImplementedError

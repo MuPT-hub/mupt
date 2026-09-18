@@ -61,7 +61,8 @@ from .linking import (
     GraphIterRule,
 )
 from .topology import GraphLayout, canonical_graph_property
-from .trees import tree_to_networkx, tree_render_style, ConcreteStyle
+from ..trees.render import tree_render_style, ConcreteStyle
+from ..trees.digraph import tree_to_networkx
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import UniqueRegistry, Labelled
@@ -362,14 +363,9 @@ class Primitive(
     
     def hierarchy_tree(self, *args) -> DiGraph:
         '''Generate a directed Graph representing the hierarchy below this Primitive'''
-        # TODO: assign nodes w/ .address attr, name them w/ .label attr
         return tree_to_networkx(self, *args)
 
     # Depiction
-    # def __hash__(self) -> int:
-    #     # NOTE: !CRITICAL! this be implemented if Primitives are to be used as nodes in networkx graphs
-    #     raise NotImplementedError
-
     # def __str__(self) -> str:
     #     # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
     #     # return self.canonical_form() # self.canonical_form_salted()
@@ -694,9 +690,9 @@ class SimplePrimitive(SupportsParents):
         
         Returns the removed Connector
         '''
-        connector_address = connector_address_flexible(connector_address)
-        
         self._precondition_mutable_connectors()
+        
+        connector_address = connector_address_flexible(connector_address)
         connector = self.connections.remove_connector(connector_address)
         del connector.holder # will be self, since this Simple is at end of Path
         
