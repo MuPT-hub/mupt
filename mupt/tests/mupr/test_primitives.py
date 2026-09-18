@@ -2,9 +2,12 @@
 
 import pytest
 
+from itertools import product as cartesian
 import numpy as np
 
 from mupt.mupr.primitives import (
+    ArborescenceError,
+    ImproperHierarchyError,
     PrimitiveAddress,
     Primitive,
     SupportsChildren,
@@ -45,10 +48,18 @@ def test_hierarchy_assembly():
     for simple, ancestors_expected in ancestry_expected.items():
         assert simple.ancestors == ancestors_expected
     
-
-def test_improper_hierarchy_disallowed():
+@pytest.mark.parametrize(
+    'parent,child',
+    [
+        (SimplePrimitive(), RootPrimitive()),
+        (CompositePrimitive(), RootPrimitive()),
+        (SimplePrimitive(), CompositePrimitive()),
+    ],
+)
+def test_improper_hierarchy_disallowed(parent : Primitive, child : Primitive) -> None:
     """Test that illegal parent-child relationships among Primitives are disallowed"""
-    ...
+    with pytest.raises((ArborescenceError, ImproperHierarchyError)):
+        child.parent = parent
 
 def test_frozen_hierarchy():
     """Test that hierarchy modification is blocked by freezing it on any Primitive"""
@@ -63,12 +74,16 @@ def test_frozen_hierarchy():
 def test_connect_neighbor():
     ...
     
-def test_frozen_connectors():
+def test_is_neighbors_with_symmetric():
+    """Test neighborship check is indeed invariant under swapping Primitive arguments"""
     ...
     
 def test_neighborship_propagates_thru_hierarchy():
     ...
     
+def test_frozen_connectors():
+    ...
+
     
 # Sub-selecting Primitives
 def test_primitive_predicates():
