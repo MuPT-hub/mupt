@@ -346,11 +346,6 @@ class Primitive(
             maxcount=max_count,
         )
     
-    @property
-    def path_inclusive(self) -> tuple['Primitive', ...]:
-        '''The path to this Primitive from the root, INCLUDING itself'''
-        return self.ancestors + (self,)
-
     def hierarchy_summary(        
         self,
         to_depth : Optional[int]=None,
@@ -420,7 +415,7 @@ class SupportsChildren(Primitive):
         self.children_by_address[child.address] = child
 
         for conn in child.connections.connectors:
-            for superprimitive in self.path_inclusive: 
+            for superprimitive in self.path: 
                 superprimitive.connections.add_connector(conn) # requires Mutable manager, hence precondition on Connectors
 
         return child.address
@@ -437,8 +432,9 @@ class SupportsChildren(Primitive):
         child.parent = None
 
         for conn in child.connections.connectors:
-            for superprimitive in self.path_inclusive:
+            for superprimitive in self.path:
                 superprimitive.connections.remove_connector(conn)
+                # TB: what to do with Connectors' neighbors?
         
         return child
     
