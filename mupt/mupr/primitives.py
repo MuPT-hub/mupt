@@ -333,7 +333,7 @@ class Primitive(
     def hierarchy_summary(        
         self,
         to_depth : Optional[int]=None,
-        style : Union[str, ConcreteStyle, Type[ConcreteStyle]]='cont',
+        style : Union[str, ConcreteStyle, Type[ConcreteStyle]]='round',
         render_attr : str='label', # TB: may consider fallback to address (or start of it) in place of default label
     ) -> str:
         '''A printable representation of this Primitive and all its descendants in the hierarchy'''
