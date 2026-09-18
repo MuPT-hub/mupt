@@ -62,7 +62,7 @@ from .linking import (
 )
 from .topology import GraphLayout, canonical_graph_property
 from ..trees.render import tree_render_style, ConcreteStyle
-from ..trees.digraph import tree_to_networkx
+from ..trees.digraph import anytree_to_networkx
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import UniqueRegistry, Labelled
@@ -363,7 +363,7 @@ class Primitive(
     
     def hierarchy_tree(self, *args) -> DiGraph:
         '''Generate a directed Graph representing the hierarchy below this Primitive'''
-        return tree_to_networkx(self, *args)
+        return anytree_to_networkx(self, *args)
 
     # Depiction
     # def __str__(self) -> str:

@@ -4,10 +4,10 @@ from anytree.node import NodeMixin
 from networkx import DiGraph
 
 
-def tree_to_networkx(node : NodeMixin) -> DiGraph:
+def anytree_to_networkx(node : NodeMixin) -> DiGraph:
     '''Convert a tree into a directed NetworkX graph'''
     raise NotImplementedError
 
-def networkx_to_tree(digraph : DiGraph) -> NodeMixin:
+def networkx_to_anytree(digraph : DiGraph) -> NodeMixin:
     '''Convert a tree into a directed NetworkX graph'''
     raise NotImplementedError
