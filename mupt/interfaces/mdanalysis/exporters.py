@@ -14,7 +14,6 @@ custom export schemes.
 import logging
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.DEBUG)
 
 import numpy as np
 from typing import Optional
