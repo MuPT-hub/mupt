@@ -71,7 +71,7 @@ def test_hierarchy_assembly():
     [
         (SimplePrimitive(), RootPrimitive()),
         (CompositePrimitive(), RootPrimitive()),
-        # (SimplePrimitive(), CompositePrimitive()),
+        (SimplePrimitive(), CompositePrimitive()),
     ],
 )
 def test_improper_hierarchy_disallowed(parent : Primitive, child : Primitive) -> None:
