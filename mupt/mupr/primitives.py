@@ -143,13 +143,24 @@ class Primitive(
     _frozen_connections : bool
     _frozen_hierarchy : bool
 
-    # Derived properties
+    ## Derived properties
     @property
     def label(self) -> PrimitiveLabel:
         '''A distinguishing label which can be assigned by the user for identification purposes'''
         if 'label' in self.metadata:
             return self.metadata['label']
         return self.DEFAULT_LABEL
+
+    ## Functionality-determining properties
+    @property
+    def is_simple(self) -> bool:
+        """
+        Whether Primitives are to be considered indivisible
+        from the perspective of the hierarchy
+        """
+        # DEVNOTE: this is a mechanism to prevent Simples from being the parents of any
+        # other Primitive without passing type info backward up the inheritance tree
+        return False 
 
     ## Mutability flags
     @property
@@ -161,7 +172,10 @@ class Primitive(
         self,
         msg : str='Connectors of this Primitive are read-only accessible',
     ) -> None:
-        '''Boilerplate for checking if permission exists to modify connectivity of this Primitive'''
+        """
+        Boilerplate for checking if permission exists
+        to modify connectivity of this Primitive
+        """
         if self.frozen_connections:
             raise AttributeError(msg)
         
@@ -172,9 +186,15 @@ class Primitive(
 
     def _precondition_mutable_hierarchy(
         self,
-        msg : str='Hierarchy of this Primitive is read-only accessible; no new incoming or outgoing relationships allowed',
+        msg : str=(
+            "Hierarchy of this Primitive is read-only accessible; "
+            "no new incoming or outgoing relationships allowed."
+        ),
     ) -> None:
-        '''Boilerplate for checking if permission exists to modify hierarchical relationships to this Primitive'''
+        """
+        Boilerplate for checking if permission exists to 
+        modify hierarchical relationships to this Primitive
+        """
         if self.frozen_hierarchy:
             raise AttributeError(msg)
 
@@ -324,6 +344,37 @@ class Primitive(
             other.rigidly_transform(alignment_transform)
 
     # Hierarchy
+    ## Enforcing universal hierarchy invariants
+    # TB: the key invariants that must be enforced at all times are:
+    # * Roots can never be the children of any other Primitive
+    # * Simples can never be the parent of any other Primitive
+    
+    # N.B.: enforcing Simple-childfree and Root-parentfree is easy
+    # to do directly within their respective class definitions;
+    # the converses, parent-not-Simple and child-not-Root need to be enforced indirectly
+    # here because of how anytree's pre/post-conditions are handled on assignment
+    def _pre_attach(self, parent : 'Primitive') -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Simple Primitives cannot be made the parents of other Primitives"
+            )
+            
+    def _pre_detach(self, parent : 'Primitive') -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Found hierarchy in undefined state, with "
+                "Simple Primitive as parent of another Primitive"
+            )
+        
+    def _pre_attach_children(self, children : Iterable['Primitive']) -> None:
+        # TODO: prevent roots from being assigned as children here
+        ...
+
+    def _pre_detach_children(self, children : Iterable['Primitive']) -> None:
+        # TODO: prevent roots from being unassigned as children here
+        ...
+    
+    ## Inspection
     def search_hierarchy_by(
         self,
         predicate : PrimitivePredicate,
@@ -385,21 +436,25 @@ class SupportsChildren(Primitive):
    
     def child(self, prim_addr : PrimitiveAddress) -> 'SupportsParents':
         return self.children_by_address[prim_addr] # raise KeyError if not present
+    fetch_primitive = child
     
     ## Attachment
     def _pre_attach_children(self, children : Iterable['SupportsParents']) -> None:
         '''Preconditions prior to attempting attachment of this Primitive to a parent'''
-        ...
-        self._precondition_mutable_hierarchy(
-            msg='Hierarchy modification is frozen on this Primitive; cannot attach new outgoing nodes'
-        )
-        self._precondition_mutable_connectors() # needed to inherit Connector from children
+        super()._pre_attach_children(children)
+        self._precondition_mutable_connectors() # positions and neighbors may shift
+        
+        self._precondition_mutable_hierarchy()
+        for child in children:
+            child._precondition_mutable_hierarchy()
     
     def _post_attach_children(self, children : Iterable['SupportsParents']) -> None:
         '''Post-actions to take once attachment is verified and parent is bound'''
+        super()._post_attach_children(children)
         # TODO: remap connection info
         ...
 
+    # TB: consider making just wrappers, with business logic moved to _pre/_post_attach conditions?
     def attach_child(
         self,
         child : 'SupportsParents',
@@ -506,6 +561,7 @@ class SupportsParents(Primitive):
     ## TB: you might be thinking it would be more natural to have checks on Parents in SupportParent instead
     ## the reason for doing this instead is that setting children always calls `child.parent = new_parent_value` under the hood
     def _pre_attach(self, parent : SupportsChildren) -> None:
+        super()._pre_attach(parent)
         self._precondition_mutable_hierarchy()
         parent._precondition_mutable_hierarchy()
 
@@ -513,6 +569,7 @@ class SupportsParents(Primitive):
         ...
 
     def _pre_detach(self, parent : SupportsChildren) -> None:
+        super()._pre_detach(parent)
         self._precondition_mutable_hierarchy()
         parent._precondition_mutable_hierarchy()
 
@@ -556,9 +613,11 @@ class RootPrimitive(SupportsChildren):
     # Managing hierarchy
     ## Explicitly banning parents
     def _pre_attach(self, parent : SupportsChildren) -> None:
+        super()._pre_attach(parent)
         raise ArborescenceError('Cannot make Root of hierarchy the child of another Primitive')
 
     def _pre_detach(self, parent : SupportsChildren) -> None:
+        super()._pre_detach(parent)
         raise ArborescenceError('Invalid state: Root is somehow the child of another Primitive')
   
 ## Composites
@@ -624,6 +683,10 @@ class SimplePrimitive(SupportsParents):
         # hidden flags - mutable by default
         self._frozen_connections = False
         self._frozen_hierarchy = False
+        
+    @property
+    def is_simple(self) -> bool:
+        return True # override from Primitive base; only class which should do so
     
     # Exposing Connectors
     def inject_connector_into_hierarchy(
@@ -716,10 +779,17 @@ class SimplePrimitive(SupportsParents):
             
     ## Explicit ban on attachment of children (already simple)
     def _pre_attach_children(self, children : Iterable[Primitive]) -> None:
-        raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
-
+        super()._pre_attach_children(children)
+        raise IrreducibilityError(
+            f"Simple Primitives cannot be assigned children {children}"
+    )
+        
     def _pre_detach_children(self, children : Iterable[Primitive]) -> None:
-        raise IrreducibilityError('Cannot attach child Primitives to a SimplePrimitive instance')
+        super()._pre_detach_children(children)
+        raise IrreducibilityError(
+            "Found hierarchy in undefined state, with "
+            f"Simple Primitive as parent of {children}"
+        )
     
     ## TODO: register all Connectors held by self to parents (once set) and all its ancestors
     
