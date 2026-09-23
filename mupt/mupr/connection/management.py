@@ -18,13 +18,11 @@ from .types import (
 )
 
 
-def connector_address_flexible(
-    conn : ConnectorAddress | Connector
-) -> ConnectorAddress:
-    '''
-    Cast method which allows methods expecting ConnectorAddresses 
+def connector_address_flexible(conn: ConnectorAddress | Connector) -> ConnectorAddress:
+    """
+    Cast method which allows methods expecting ConnectorAddresses
     to also accept the Connector instances themselves
-    '''
+    """
     if isinstance(conn, Connector):
         return conn.address
     elif isinstance(conn, Hashable):
@@ -35,17 +33,19 @@ def connector_address_flexible(
             "as address of a Connector"
         )
 
-class ConnectorManager(Protocol):
-    '''Interface for generic connector managment object'''
-    connectors : Collection[Connector]
-    connectors_free : Collection[Connector]
-    connectors_bound : Collection[Connector]
-    connectors_by_addr : Mapping[ConnectorAddress, Connector]
 
-    def connector(self, conn_addr : ConnectorAddress) -> Connector:
-        '''Retrieve a particular Connector by its unique address'''
+class ConnectorManager(Protocol):
+    """Interface for generic connector managment object"""
+
+    connectors: Collection[Connector]
+    connectors_free: Collection[Connector]
+    connectors_bound: Collection[Connector]
+    connectors_by_addr: Mapping[ConnectorAddress, Connector]
+
+    def connector(self, conn_addr: ConnectorAddress) -> Connector:
+        """Retrieve a particular Connector by its unique address"""
         # N.B.: not using dict.get() to make KeyErrors explicit
-        return self.connectors_by_addr[conn_addr] 
+        return self.connectors_by_addr[conn_addr]
 
     def add_connector(
         self,
@@ -210,10 +210,8 @@ class ConnectorManagerMutable(ConnectorManager):
         self,
         conn_addr: ConnectorAddress | Connector,
     ) -> Connector:
-        '''Declare a Connector to be no longer managed here'''
-        return self.connectors_by_addr.pop(
-            connector_address_flexible(conn_addr)
-        )
+        """Declare a Connector to be no longer managed here"""
+        return self.connectors_by_addr.pop(connector_address_flexible(conn_addr))
 
     @property
     def connectors(self) -> tuple[Connector, ...]:

@@ -51,7 +51,7 @@ def check_connections_compatible_with_primitive_registry(
     primitive_registry: UniqueRegistry["PrimitiveHandle", "Primitive"],
     # DEV: weakened type requirement on allowed containers for Connectors,
     # even though in practice this will most like be a set or frozenset
-    connections: Iterable[Connection],  
+    connections: Iterable[Connection],
 ) -> None:
     """
     Check that a collection of connections (i.e. pairs of (PrimitiveHandle, ConnectorAddress) references)

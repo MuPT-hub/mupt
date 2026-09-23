@@ -20,6 +20,7 @@ class SAAMRRoleTopologyIndex:
     bond_nodes: list[Primitive] = field(default_factory=list)
     bond_nodes_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
 
+
 @dataclass(frozen=True)
 class SAAMRResidueRecord:
     """One RESIDUE-role node and its role-aware traversal context."""
@@ -160,6 +161,7 @@ def build_saamr_role_topology_index(  # noqa: C901
 
     return index
 
+
 def iter_saamr_residue_records(
     index: SAAMRRoleTopologyIndex,
 ) -> Iterator[SAAMRResidueRecord]:
@@ -179,6 +181,7 @@ def iter_saamr_residue_records(
                 particles=tuple(index.particles_by_residue[id(residue)]),
             )
             residue_global_idx += 1
+
 
 def _pdb_resname(
     label: Hashable,
@@ -200,9 +203,11 @@ def _pdb_resname(
         )
     return name.upper()
 
+
 def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str]:
     """Return a deterministic key for connector refs with arbitrary hashable handles."""
     return (repr(conn_ref.primitive_handle), repr(conn_ref.connector_handle))
+
 
 def _resolve_to_atom(
     parent: Primitive,
@@ -242,6 +247,7 @@ def _resolve_to_atom(
         ) from exc
 
     return _resolve_to_atom(child, next_ref, _depth=_depth + 1, _max_depth=_max_depth)
+
 
 def resolve_to_atom_cached(
     parent: Primitive,

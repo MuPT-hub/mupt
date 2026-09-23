@@ -20,6 +20,7 @@ from .._shared.traversal import (
 @dataclass
 class MDATopologyData:
     """Container for topology arrays/lists used to build an MDAnalysis Universe."""
+
     atom_elements: list[str] = field(default_factory=list)
     atom_names: list[str] = field(default_factory=list)
     atom_positions: list[list[float]] = field(default_factory=list)
@@ -33,8 +34,10 @@ class MDATopologyData:
     bonds_set: set[tuple[int, int]] = field(default_factory=set)
     num_segments: int = 0
 
+
 class MDAExportStrategy(ABC):
     """Abstract strategy for collecting MDAnalysis-exportable topology data."""
+
     @abstractmethod
     def collect_topology(
         self, root: Primitive, resname_map: dict[str, str]
@@ -57,6 +60,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
     grouping between UNIVERSE and SEGMENT) are traversed transparently by the
     shared SAAMR role index and carry ``PrimitiveRole.UNASSIGNED``.
     """
+
     def __init__(
         self,
         default_atom_position: Optional[np.ndarray] = None,
@@ -145,7 +149,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
                 data.bonds.append(bond_pair)
                 data.bonds_set.add(bond_pair)
                 data.bond_orders.append(
-                    BOND_ORDER[node.fetch_connector_on_child(conn_ref1)]   
+                    BOND_ORDER[node.fetch_connector_on_child(conn_ref1)]
                 )
 
         # Sort bonds for deterministic output (internal_connections is a set,
