@@ -27,7 +27,10 @@ from .connection.connectors import Connector
 
 
 class BijectionError(ValueError):
-    """Raised when a pair of objects expected to be in 1-to-1 correspondence are mismatched"""
+    """
+    Raised when a pair of objects expected to
+    be in 1-to-1 correspondence are mismatched
+    """
 
     ...
 
@@ -39,25 +42,38 @@ class GraphLinkingError(ValueError):
 
 
 class NodeMappingError(GraphLinkingError):
-    """Raised when an invalid mapping between an object and a graph node is encountered"""
+    """
+    Raised when an invalid mapping between an
+    object and a graph node is encountered
+    """
 
     ...
 
 
 class EdgeMissingError(GraphLinkingError):
-    """Raised when an invalid mapping between a pair of objects and a graph edge is encountered"""
+    """
+    Raised when an invalid mapping between a
+    pair of objects and a graph edge is encountered
+    """
 
     ...
 
 
 type GraphIterRule = Callable[[Graph], int]
-DEFAULT_ITER_RULE: GraphIterRule = lambda graph: (
-    10 * graph.number_of_nodes()
-)  # TB DEV: 10 is just a sensible number I made up :P
+
+
+def DEFAULT_ITER_RULE(graph: Graph) -> int:
+    """
+    A default GraphIterRule implementation, to be
+    used when no other specific rule is supplied
+    """
+    # TB DEV: 10 is just a generaous scaling I made up :P - benchmarks needed
+    return 10 * graph.number_of_nodes()
 
 
 def _check_connectors_cover_topology(
-    # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
+    # TB: if Graph supported Generic subscripting, this
+    # annotation would be Graph[T], indicating node type
     topology: Graph,
     # Collection (rather than Iterable) needed for length check
     mapped_connectors: Mapping[T, Collection[Connector]],
@@ -67,15 +83,18 @@ def _check_connectors_cover_topology(
     graph nodes to collections of Connectors covers all nodes and edges
 
     Specifically, checks that:
-    * Preimage of map contains node set (i.e. every node gets some collection of Connectors)
-    * Image of each node has no fewer Connectors than the node has neighbors
+    * The preimage of map contains node set
+      I.e. every node gets some collection of Connectors
+    * The image of each node has no fewer Connectors than the node has neighbors
 
     Returns silently if passing; raises NodeMappingError otherwise
     """
     if not set(topology.nodes).issubset(set(mapped_connectors.keys())):
-        # Weaker size requirement; nodes need not be in 1:1 correspondence with Connector collections, merely covered by them
+        # Weaker size requirement; nodes need not be in 1:1 correspondence
+        # with Connector collections, merely covered by them
         raise NodeMappingError(
-            "Not all nodes in the given topology are convered by collections of Connectors"
+            "Not all nodes in the requested topology"
+            "are covered by collections of Connectors"
         )
 
     for node in topology.nodes:
@@ -88,7 +107,9 @@ def _check_connectors_cover_topology(
             )
 
 
-def deduce_connections_from_topology(
+# TB: suppressing complexity (C901) warning for the time being
+# this is being refactored in PR #56, so should be resolved soon
+def deduce_connections_from_topology(  # noqa: C901
     topology: Graph,  # TB: Graph[T], indicating node type
     mapped_connectors: Mapping[T, Collection[Connector]],
     n_iter_max_rule: Optional[GraphIterRule] = None,
@@ -108,13 +129,16 @@ def deduce_connections_from_topology(
     # TODO: ensure no ambiguity arises on deduction over parallel MultiGraph edges
     _check_connectors_cover_topology(topology, mapped_connectors)
     if n_iter_max_rule is None:
-        # set here (rather than as arg default) so external callers can be oblivious to default and just use None
+        # set here (rather than as arg default) so external
+        # caller can be oblivious to default and just use None
         n_iter_max_rule = DEFAULT_ITER_RULE
 
     # working with EQUIVALENCE CLASSES of Connectors, rather than connectors directly
-    # pares down cartesian product for search and makes unique-choice condition less stringent
+    # pares down amount of cartesian product which need to be searched and makes
+    # unique-choice condition less stringent
     #
-    # Equivalence relations (in this case, Connector fungibility) naturally induce partitions
+    # An equivalence relation on a set (in this case, fungibility over the set
+    # of all Connector instances) naturally induces a partition of that set
     # https://en.wikipedia.org/wiki/Equivalence_relation#Fundamental_theorem_of_equivalence_relations
     conn_partitions: dict[T, set[frozenset[Connector]]] = {
         node_label: equivalence_classes(connectors, relation=Connector.fungible_with)
@@ -131,7 +155,8 @@ def deduce_connections_from_topology(
         n_paired_new: int = 0
         unpaired_updated = set()
 
-        # TB TODO: add option to introduce some stochasticity for discovering alternate solutions
+        # TB TODO: add option to introduce some stochasticity
+        # for potentially discovering alternate solutions
         for edge_labels in unpaired_edges:
             node_label_former, node_label_latter = edge_labels
             LOGGER.debug(
@@ -158,11 +183,13 @@ def deduce_connections_from_topology(
                 peek_conn_former = arbitrary_element(conn_part_former)
                 peek_conn_latter = arbitrary_element(conn_part_latter)
                 LOGGER.debug(
-                    f"Examining Connector pair {peek_conn_former!r} and {peek_conn_latter!r}"
+                    "Examining Connector pair "
+                    f"{peek_conn_former!r} and {peek_conn_latter!r}"
                 )
 
                 if not Connector.bondable_with(peek_conn_former, peek_conn_latter):
-                    # any pair from the product of equivalence classes being bondable implies any pair is
+                    # any pair from the product of equivalence
+                    # classes being bondable implies any pair is
                     LOGGER.debug("Found pair to be incompatible, continuing...")
                     continue
 
@@ -172,7 +199,8 @@ def deduce_connections_from_topology(
                     break
                 else:
                     LOGGER.debug(
-                        f"Choice of Connector pair ambiguous for edge {edge_labels}, skipping"
+                        "Choice of Connector pair ambiguous "
+                        f"for edge {edge_labels}, skipping"
                     )
                     pair_choice_ambiguous = True
                     # TB TODO: provide means to break ties when ALL edge pairings

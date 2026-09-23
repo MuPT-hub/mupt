@@ -14,10 +14,8 @@ from typing import (
     Hashable,
     Iterable,
     Optional,
-    Mapping,
     Self,
     Type,
-    TypeVar,
     Union,
 )
 
@@ -25,11 +23,10 @@ type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type PrimitiveHandle = tuple[PrimitiveLabel, int]  # (label, uniquification index)
 
-from copy import deepcopy
 from weakref import WeakValueDictionary
 
 from anytree import NodeMixin, RenderTree, findall
-from networkx import Graph, DiGraph, MultiGraph
+from networkx import Graph, DiGraph
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
@@ -38,7 +35,7 @@ from .connection.connectors import (
     Connector,
     canonical_form_connectors,
 )
-from .connection.exceptions import (
+from .connection.exceptions import (  # noqa: F401
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
@@ -46,15 +43,14 @@ from .connection.exceptions import (
 from .connection.types import (
     ConnectorAddress,
     ConnectorLabel,
-    ConnectorLabeller,
 )
-from .connection.management import (
+from .connection.management import (  # noqa: F401
     ConnectorManager,
     ConnectorManagerFrozen,
     ConnectorManagerMutable,
     connector_address_flexible,
 )
-from .connection.alignment import (
+from .connection.alignment import (  # noqa: F401
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentRigid,
 )
@@ -63,12 +59,12 @@ from .linking import (
     assign_connections_from_topology,
     GraphIterRule,
 )
-from .topology import GraphLayout, canonical_graph_property
+from .topology import GraphLayout, canonical_graph_property  # noqa: F401
 from ..trees.render import tree_render_style, ConcreteStyle
 from ..trees.digraph import anytree_to_networkx
 
 from ..mutils.referencing import Addressed
-from ..mutils.containers import UniqueRegistry, Labelled
+from ..mutils.containers import Labelled
 from ..geometry.arraytypes import Array3x3
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
@@ -92,7 +88,10 @@ class ArborescenceError(ImproperHierarchyError):
 
 
 class IrreducibilityError(ImproperHierarchyError):
-    """Raised when attempting to perform a composite Primitive operation on a simple one"""
+    """
+    Raised when attempting to perform a
+    composite Primitive operation on a simple one
+    """
 
     pass
 
@@ -139,7 +138,7 @@ def select_primitives(
 
 # Primitive base types
 class Primitive(
-    Addressed,  
+    Addressed,
     # TB DEV: Addressed base is potentially problematic,
     # since all subclasses will have separate registries
     Labelled,
@@ -147,9 +146,7 @@ class Primitive(
     RigidlyTransformable,
     NodeMixin,
 ):
-    """
-    A fundamental, scale-agnostic building block of a molecular system
-    """
+    """A fundamental, scale-agnostic building block of a molecular system"""
 
     # Attributes
     ## Expected classwide attributes
@@ -238,8 +235,9 @@ class Primitive(
     # Topology
     def _freeze_connections_local(self) -> None:
         """
-        Force Connectors on this Primitive to be 
-        immutable and cached WITHOUT recursive calls"""
+        Force Connectors on this Primitive to be
+        immutable and cached WITHOUT recursive calls
+        """
         self.connections = ConnectorManagerFrozen(*self.connections.connectors)
 
     def _freeze_connections_recursive(self) -> None:
@@ -271,7 +269,7 @@ class Primitive(
 
     def _unfreeze_connections_recursive(self) -> None:
         """
-        Enable mutation of connectivity for this Primitive 
+        Enable mutation of connectivity for this Primitive
         and any Primitives below it from being mutated
         """
         self._unfreeze_connections_local()
@@ -311,12 +309,12 @@ class Primitive(
             # TB TODO: figure out how to type this so HoldsConnector
             # "knows" about NodeMixin methods without explicitly mentioning
             # base Primitive type in ..connections
-            
+
             # may include explicit check for has_holder to avoid errant NoneTypes passed
-            neighbor_branch: tuple[Primitive] = (conn.neighbor.holder.path)  
+            neighbor_branch: tuple[Primitive] = conn.neighbor.holder.path
             if self in neighbor_branch:
                 # avoid "internal" neighbors (of whom this Primitive is also a parent)
-                continue  
+                continue
 
             yield from select_primitives(
                 neighbor_branch,
@@ -449,7 +447,7 @@ class Primitive(
         self,
         to_depth: Optional[int] = None,
         style: Union[str, ConcreteStyle, Type[ConcreteStyle]] = "round",
-        render_attr: str = "label",  
+        render_attr: str = "label",
         # TB: may consider fallback to address (or start of it) instead of default label
     ) -> str:
         """
@@ -479,9 +477,9 @@ class Primitive(
 
 class SupportsChildren(Primitive):
     """
-    Type of Primitive which is allowed to have 
+    Type of Primitive which is allowed to have
     other Primitives "beneath" it in a hierarchy.
-    
+
     I.e. interpreting a representation hierarchy as a rooted tree,
     these Primitives are nodes which allow OUTGOING directed edges
     """
@@ -491,6 +489,10 @@ class SupportsChildren(Primitive):
     children_by_address: WeakValueDictionary[PrimitiveAddress, "SupportsParents"]
 
     def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
+        """
+        Lookup a child Primitive by its address and
+        return the Primitive instance, if present
+        """
         return self.children_by_address[prim_addr]  # raise KeyError if not present
 
     fetch_primitive = child
@@ -543,6 +545,10 @@ class SupportsChildren(Primitive):
         )
 
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
+        """
+        Unregister an existing child Primitive, making it no
+        be longer below this one in the resolution hierarchy
+        """
         child = self.children_by_address.pop(prim_addr)
         child.parent = None
 
@@ -564,7 +570,7 @@ class SupportsChildren(Primitive):
 
     def flatten(self) -> None:
         """
-        Recursively expand until all childless 
+        Recursively expand until all childless
         subprimitives are depth 1 below this one
         """
         self._precondition_mutable_hierarchy()
@@ -616,11 +622,11 @@ class SupportsChildren(Primitive):
             topology,
             mapped_connectors={
                 # TODO: figure out how to map from unique addresses to graph node
-                subprim.addr: subprim.connections.connectors  
-                    for subprim in select_primitives(
-                        self.descendants,
-                        predicate=predicate,
-                    )
+                subprim.addr: subprim.connections.connectors
+                for subprim in select_primitives(
+                    self.descendants,
+                    predicate=predicate,
+                )
             },
             n_iter_max_rule=n_iter_max_rule,
         )
@@ -635,16 +641,16 @@ class SupportsChildren(Primitive):
 
 class SupportsParents(Primitive):
     """
-    Type of Primitive which is allowed to have 
+    Type of Primitive which is allowed to have
     other Primitives "above" it in a hierarchy
-    
+
     I.e. interpreting a representation hierarchy as a rooted tree,
     these Primitives are nodes which allow INCOMING directed edges
     """
 
     # Hierarchy
-    
-    # TB: you might be thinking it would be more natural to have the 
+
+    # TB: you might be thinking it would be more natural to have the
     # checks on parent Primitives in SupportParent instead
     # the reason for having them here instead is that setting children
     # always calls `child.parent = new_parent_value` under the hood
@@ -693,10 +699,10 @@ class RootPrimitive(SupportsChildren):
         # system-wide info specific to Root instances
         if box_vectors is None:
             # TODO: associate units (once a standard has been decided upon)
-            box_vectors = np.eye(3, dtype=float)  
+            box_vectors = np.eye(3, dtype=float)
         self.box_vectors = box_vectors
 
-    # DEV: deliberately excluded public setter for is_frozen; 
+    # DEV: deliberately excluded public setter for is_frozen;
     # this should never be tampered with externally
 
     # Managing hierarchy
@@ -759,7 +765,7 @@ class SimplePrimitive(SupportsParents):
     """
     A Primitive with no internal structure
     i.e. no children, topology, or internal connections)
-    
+
     Used to explicitly demarcate "leaf" Primitives in a representation hierarchy
     """
 
@@ -787,7 +793,15 @@ class SimplePrimitive(SupportsParents):
 
     @property
     def is_simple(self) -> bool:
-        return True  # override from Primitive base; only class which should do so
+        """
+        Asserts SimplePrimitives are indivisible from
+        the prespective of a hierarchy of Primitives
+
+        Bans SimplePrimitives from being the parent of any other Primitive,
+        or conversely of having any child Primitives
+        """
+        # override from Primitive base; only class which should do so
+        return True
 
     # Exposing Connectors
     def inject_connector_into_hierarchy(
@@ -807,9 +821,7 @@ class SimplePrimitive(SupportsParents):
         connector: Connector,
         label: Optional[ConnectorLabel] = None,
     ) -> None:
-        """
-        Add a new Connector to those managed by this Simple
-        """
+        """Add a new Connector to those managed by this Simple"""
         self._precondition_mutable_connectors()
         self.connections.add_connector(
             connector,
@@ -949,7 +961,7 @@ class AtomicPrimitive(SimplePrimitive):
 def canonical_form_shape(primitive: Primitive) -> str:
     """A canonical string representing this Primitive's shape"""
     # TODO: move this into .shape; should be responsibility of Shape subclasses
-    return type(primitive.shape).__name__  
+    return type(primitive.shape).__name__
 
 
 def canonical_form_primitive(
@@ -958,10 +970,10 @@ def canonical_form_primitive(
     str
 ):  # NOTE: deliberately NOT a property to indicated computing this might be expensive
     """
-    A canonical representation of a Primitive's core parts; 
+    A canonical representation of a Primitive's core parts;
     induces a natural equivalence relation on Primitives
-    
-    I.e. two Primitives having the same canonical form are 
+
+    I.e. two Primitives having the same canonical form are
     to be considered interchangable within a polymer system
     """
     return (

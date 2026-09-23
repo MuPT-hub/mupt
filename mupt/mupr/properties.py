@@ -22,7 +22,10 @@ def is_atom(prim: Primitive) -> bool:
 
 
 def is_atomizable(prim: Primitive) -> bool:
-    """Check whether a Primitive is either an AtomicPrimitive or a CompositePrimitive which can be fully expanded into AtomicPrimitives"""
+    """
+    Check whether a Primitive is either an AtomicPrimitive or a
+    CompositePrimitive which can be fully expanded into AtomicPrimitives
+    """
     if is_atom(prim):
         return True
 
@@ -58,7 +61,8 @@ def is_flat(prim: CompositePrimitive) -> bool:
 def is_laminar(prim: CompositePrimitive) -> bool:
     """
     Check that each branch beneath the root has the same depth
-    I.e. that children can be arranged in breadth-first layers (lamina) traversing down from the root
+    I.e. that children can be arranged in breadth-first
+    layer (lamina) traversing down from the root
     """
     seen_depths: set[int] = set()
     for leaf in prim.leaves:

@@ -1,4 +1,5 @@
 """Unit tests for Primitive interactions with one another and with sub-components"""
+# ruff: noqa: D103 (missing docstrings on tests is OK)
 
 import pytest
 

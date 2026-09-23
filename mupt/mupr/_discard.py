@@ -1,4 +1,5 @@
-"""Vestiges from pre-refactor code which will be discarded,
+"""
+Vestiges from pre-refactor code which will be discarded,
 but haven't been fully been scrapped for parts out yet
 """
 
@@ -27,9 +28,13 @@ class TopologicalStructure:
     ...
 
 
+# TB TODO: deprecate code which depends on this before final merge
 @dataclass(frozen=True)  # needed for hashability
-class ConnectorReference:  # TB TODO: deprecate code which depends on this before final merge
-    """Lightweight reference to a Connector on a Primitive, identified by the Primitive's handle and the Connector's handle"""
+class ConnectorReference:
+    """
+    Lightweight reference to a Connector on a Primitive,
+    identified by the Primitive's handle and the Connector's handle
+    """
 
     primitive_handle: "PrimitiveHandle"
     connector_handle: ConnectorHandle
@@ -44,7 +49,10 @@ class ConnectorReference:  # TB TODO: deprecate code which depends on this befor
         )
 
     def __str__(self) -> str:
-        return f'Connector "{self.connector_handle}" attached to Primitive "{self.primitive_handle}"'
+        return (
+            f"Connector '{self.connector_handle}' "
+            f"attached to Primitive '{self.primitive_handle}'"
+        )
 
 
 # Validators - TB: absorb useful parts and discard these as part of refactor
@@ -55,32 +63,38 @@ def check_connections_compatible_with_primitive_registry(
     connections: Iterable[Connection],
 ) -> None:
     """
-    Check that a collection of connections (i.e. pairs of (PrimitiveHandle, ConnectorAddress) references)
-    is absolutely compatible with a handled registry of Primitives
+    Check that a collection of connections (i.e. pairs of
+    (PrimitiveHandle, ConnectorAddress) references) is
+    absolutely compatible with a handled registry of Primitives
     """
     for (prim_handle_1, conn_addr_1), (prim_handle_2, conn_addr_2) in connections:
         if prim_handle_1 == prim_handle_2:
             raise ValueError(
-                f'Attempted to connect Primitive with handle "{prim_handle_1}" to itself'
+                "Attempted to connect Primitive with "
+                f"handle '{prim_handle_1}' to itself"
             )
 
         if conn_addr_1 == conn_addr_2:
             raise IncompatibleConnectorError(
-                f"Connections must be between distinct pair of Connector instances, not single Connector at address {conn_addr_1}"
+                "Connections must be between distinct pair of Connector "
+                f"instances, not single Connector at address {conn_addr_1}"
             )
 
         for prim_handle in (prim_handle_1, prim_handle_2):
             if prim_handle not in primitive_registry:
                 raise ValueError(
-                    f'Primitive with handle "{prim_handle}" referenced in internal connections but does not exist in provided registry of children'
+                    f"Primitive with handle '{prim_handle}' referenced in internal "
+                    "connections but does not exist in provided registry of children"
                 )
 
-        if not Connector.bondable_with(  # NOTE: fetch also implicitly checks each Connector exists on respective child
+        # NOTE: fetch also implicitly checks each Connector exists on respective child
+        if not Connector.bondable_with(
             primitive_registry[prim_handle_1].connector(conn_addr_1),
             primitive_registry[prim_handle_2].connector(conn_addr_2),
         ):
             raise IncompatibleConnectorError(
-                f"Connector {conn_addr_1} on Primitive {prim_handle_1} is not bondable with Connector {conn_addr_2} on Primitive {prim_handle_2}"
+                f"Connector {conn_addr_1} on Primitive {prim_handle_1} is not "
+                f"bondable with Connector {conn_addr_2} on Primitive {prim_handle_2}"
             )
 
 
@@ -97,15 +111,18 @@ def check_primitive_registry_bijective_to_topology_nodes(
     )  # perform cheap counting check first to fail faster
     if topology.number_of_nodes() != num_children:
         raise BijectionError(
-            f"Cannot bijectively map {num_children} child Primitives onto {topology.number_of_nodes()}-element topology"
+            f"Cannot bijectively map {num_children} child Primitives "
+            f"onto {topology.number_of_nodes()}-element topology"
         )
 
     node_labels = set(topology.nodes)
     child_handles = set(primitive_registry.keys())
     if node_labels != child_handles:
         raise BijectionError(
-            f"Set underlying topology does not correspond to handles on child Primitives; {len(node_labels - child_handles)} element(s)"
-            f" present without associated children, and {len(child_handles - node_labels)} child Primitive(s) are unrepresented in the topology"
+            f"Set underlying topology does not correspond to handles on child "
+            f"Primitives; {len(node_labels - child_handles)} element(s) present "
+            f"without associated children, and {len(child_handles - node_labels)} "
+            f"child Primitive(s) are unrepresented in the topology"
         )
 
 
@@ -115,14 +132,16 @@ def check_connections_bijectiLve_to_topology_edges(
 ) -> None:
     """
     Verify that a 1:1 correspondence exists between the internal connections
-    (Connectors paired between sibling child Primitives) and the edges present in the incidence topology
+    (Connectors paired between sibling child Primitives)
+    and the edges present in the incidence topology
     """
     num_connections: int = len(
         connections
     )  # perform cheap counting check first to fail faster
     if (num_edges := topology.number_of_edges()) != num_connections:
         raise BijectionError(
-            f"Cannot bijectively map {num_connections} internal connections onto {num_edges}-edge topology"
+            f"Cannot bijectively map {num_connections} internal "
+            f"connections onto {num_edges}-edge topology"
         )
 
     edge_labels = set(
@@ -130,7 +149,8 @@ def check_connections_bijectiLve_to_topology_edges(
     )  # cast to frozenset to remove order-dependence
     if edge_labels != connections:
         raise BijectionError(
-            f"Incident pairs in associated topology do not correspond to internally-connected pairs of child Primitives;"
-            f"{len(edge_labels - connections)} edge(s) have no corresponding connection, "
-            f"and {len(connections - edge_labels)} internal connection(s) are unrepresented in the topology"
+            f"Incident pairs in associated topology do not correspond to internally-"
+            f"connected pairs of child Primitives; {len(connections - edge_labels)} "
+            f"internal connection(s) are unrepresented in the topology, and "
+            f"{len(edge_labels - connections)} edge(s) have no corresponding connection"
         )

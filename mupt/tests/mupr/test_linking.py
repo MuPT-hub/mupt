@@ -23,8 +23,9 @@ class LinkerTestExample:
 
 def triangle_example() -> LinkerTestExample:
     """
-    3-node cyclic graph example which tests that unique, non-greedy match info propagates to
-    subsequent match tests, and that distinct-but-equivalent Connectors are treated as a unit
+    3-node cyclic graph example which tests that unique, non-greedy
+    match info propagates to subsequent match tests, and that
+    distinct-but-equivalent Connectors are treated as a unit
     """
     # reference Connectors
     conn_type_a = Connector(
@@ -79,7 +80,10 @@ def triangle_example() -> LinkerTestExample:
         #     ...,
         #     marks=pytest.mark.xfail(
         #         raises=EdgeMissingError,
-        #         reason='No complete pairing possible for the Connector assigned to this topology',
+        #         reason=(
+        #           "No complete pairing possible for "
+        #           "the Connector assigned to this topology'
+        #       ),
         #         strict=True,
         #     )
         # ),
