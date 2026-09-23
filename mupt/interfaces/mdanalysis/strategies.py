@@ -10,7 +10,7 @@ from ...chemistry.core import BOND_ORDER
 from ...mupr.primitives import Primitive
 from .._shared.traversal import (
     _pdb_resname,
-    build_saamr_role_index,
+    build_saamr_role_topology_index,
     connector_reference_sort_key,
     iter_saamr_residue_records,
     resolve_to_atom_cached,
@@ -78,7 +78,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
         self, root: Primitive, resname_map: dict[str, str]
     ) -> MDATopologyData:
         """Walk the hierarchy once and gather MDAnalysis topology arrays/lists."""
-        index = build_saamr_role_index(root)
+        index = build_saamr_role_topology_index(root)
         data = MDATopologyData()
         residue_records = list(iter_saamr_residue_records(index))
 
