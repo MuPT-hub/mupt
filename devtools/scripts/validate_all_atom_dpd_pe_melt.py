@@ -23,7 +23,7 @@ from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 from mupt.interfaces.rdkit import suppress_rdkit_logs
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives import Primitive
-from mupt.mupr.topology import TopologicalStructure
+from mupt.mupr._discard import TopologicalStructure
 from mupt.roles import assign_SAAMR_roles
 
 

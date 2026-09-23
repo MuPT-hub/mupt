@@ -28,7 +28,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 
-from ..mupr.topology import TopologicalStructure
+from ..mupr._discard import TopologicalStructure
 from ..mupr.primitives import Primitive, PrimitiveHandle
 from mupt.mupr.connection.alignment import (
     ConnectorAntialignmentStrategy,

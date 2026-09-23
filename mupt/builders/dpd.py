@@ -35,7 +35,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
-from ..mupr.topology import TopologicalStructure
+from ..mupr._discard import TopologicalStructure
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 

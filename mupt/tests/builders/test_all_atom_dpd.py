@@ -157,7 +157,7 @@ def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
 
     from mupt.interfaces.rdkit import suppress_rdkit_logs
     from mupt.interfaces.smiles import primitive_from_smiles
-    from mupt.mupr.topology import TopologicalStructure
+    from mupt.mupr._discard import TopologicalStructure
 
     smiles = {
         "head": "[H]O[CH2][CH2]OC(=O)c1ccc([C:2](=O)-*)cc1",
