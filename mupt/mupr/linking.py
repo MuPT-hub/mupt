@@ -24,11 +24,6 @@ from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
 from .connection.connectors import Connector
-from .connection.exceptions import (
-    IncompatibleConnectorError,
-    MissingConnectorError,
-    UnboundConnectorError,
-)
 
 
 class BijectionError(ValueError):
@@ -63,9 +58,9 @@ DEFAULT_ITER_RULE: GraphIterRule = lambda graph: (
 
 def _check_connectors_cover_topology(
     # TB: if Graph supported Generic subscripting, this annotation would be Graph[T], indicating node type
-    topology: Graph,  
+    topology: Graph,
     # Collection (rather than Iterable) needed for length check
-    mapped_connectors: Mapping[T, Collection[Connector]],  
+    mapped_connectors: Mapping[T, Collection[Connector]],
 ) -> None:
     """
     Necessary (but not sufficient) conditions to ensure a map from
@@ -120,7 +115,7 @@ def deduce_connections_from_topology(
     # pares down cartesian product for search and makes unique-choice condition less stringent
     #
     # Equivalence relations (in this case, Connector fungibility) naturally induce partitions
-    #https://en.wikipedia.org/wiki/Equivalence_relation#Fundamental_theorem_of_equivalence_relations
+    # https://en.wikipedia.org/wiki/Equivalence_relation#Fundamental_theorem_of_equivalence_relations
     conn_partitions: dict[T, set[frozenset[Connector]]] = {
         node_label: equivalence_classes(connectors, relation=Connector.fungible_with)
         for node_label, connectors in mapped_connectors.items()
@@ -168,11 +163,11 @@ def deduce_connections_from_topology(
 
                 if not Connector.bondable_with(peek_conn_former, peek_conn_latter):
                     # any pair from the product of equivalence classes being bondable implies any pair is
-                    LOGGER.debug(f"Found pair to be incompatible, continuing...")
+                    LOGGER.debug("Found pair to be incompatible, continuing...")
                     continue
 
                 if not chosen_connectors:  # take note of first compatible pair found
-                    LOGGER.debug(f"Chosen pair is a match!")
+                    LOGGER.debug("Chosen pair is a match!")
                     chosen_connectors = (peek_conn_former, peek_conn_latter)
                     break
                 else:
@@ -234,12 +229,12 @@ def deduce_connections_from_topology(
         )
 
         if n_paired_new == 0:
-            LOGGER.info(f"No new edges paired, halting registration loop")
+            LOGGER.info("No new edges paired, halting registration loop")
             break
 
     if any(unpaired_edges):
         raise EdgeMissingError(
-            f"Could not identify connection for every edge; try running registration "
+            "Could not identify connection for every edge; try running registration "
             "procedure for >{n_iter_max} iterations, or check topology/Connectors"
         )
     else:
@@ -254,7 +249,7 @@ def deduce_connections_from_topology(
 
 def assign_connections_from_topology(
     # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
-    topology: Graph,  
+    topology: Graph,
     mapped_connectors: Mapping[T, Collection[Connector]],
     n_iter_max_rule: Optional[GraphIterRule] = None,
 ) -> None:

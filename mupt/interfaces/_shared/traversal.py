@@ -3,7 +3,6 @@
 from typing import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
-from ...chemistry.core import BOND_ORDER
 from ...mupr.primitives import Primitive
 from ...mupr._discard import ConnectorReference
 from ...roles import PrimitiveRole

@@ -1,5 +1,6 @@
 """Vestiges from pre-refactor code which will be discarded,
-but haven't been fully been scrapped for parts out yet"""
+but haven't been fully been scrapped for parts out yet
+"""
 
 from typing import AbstractSet, Iterable, TYPE_CHECKING
 from dataclasses import dataclass

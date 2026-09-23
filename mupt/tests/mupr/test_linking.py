@@ -7,7 +7,6 @@ from networkx import Graph, cycle_graph
 
 from mupt.mupr.linking import (
     deduce_connections_from_topology,
-    EdgeMissingError,
 )
 from mupt.chemistry.core import BondType
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint

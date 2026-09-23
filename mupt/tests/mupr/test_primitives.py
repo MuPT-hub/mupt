@@ -13,10 +13,8 @@ from mupt.mupr.connection.connectors import (
 from mupt.mupr.primitives import (
     ArborescenceError,
     ImproperHierarchyError,
-    PrimitiveAddress,
     Primitive,
     SupportsChildren,
-    SupportsParents,
     RootPrimitive,
     CompositePrimitive,
     SimplePrimitive,

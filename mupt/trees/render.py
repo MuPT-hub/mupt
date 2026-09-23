@@ -3,7 +3,6 @@
 from typing import Type, Union
 
 from anytree.render import (
-    RenderTree,
     AbstractStyle,
     AsciiStyle,
     ContStyle,
