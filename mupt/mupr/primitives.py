@@ -1,5 +1,7 @@
+"""Fundamental data structures for multiscale molecular representation"""
 
 import logging
+
 LOGGER = logging.getLogger(__name__)
 
 from typing import (
@@ -89,11 +91,16 @@ class IrreducibilityError(ImproperHierarchyError):
     pass
 
 class AtomicityError(IrreducibilityError):
-    '''Raised when attempting to perform a composite Primitive operation on a simple one (or vice-versa)'''
+    """
+    Raised when attempting to perform a composite Primitive
+    operation on a simple one (or vice-versa)
+    """
+
     pass
 
 class MissingSubprimitiveError(KeyError):
-    '''Raised when a child Primitive expected for a call is not present'''
+    """Raised when a child Primitive expected for a call is not present"""
+
     pass
 
 

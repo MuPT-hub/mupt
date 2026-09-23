@@ -1,8 +1,11 @@
-"""Drafting repository for the core functionality of the Multiscale Polymer Toolkit (MuPT)"""
+"""
+Drafting repository for the core functionality
+of the Multiscale Polymer Toolkit (MuPT)
+"""
 
 # Add imports here
-from .mupt import *
+from .mupt import canvas as canvas
 
-from ._version import __version__
+from ._version import __version__ as __version__
 
-TOOLKIT_NAME : str = 'The Multiscale Polymer Toolkit (MuPT)'
+TOOLKIT_NAME: str = "The Multiscale Polymer Toolkit (MuPT)"

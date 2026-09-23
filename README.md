@@ -1,7 +1,7 @@
 Multiscale Polymer Toolkit
 ==============================
 [//]: # (Badges)
-[![GitHub Actions Build Status](https://github.com/MuPT-hub/mupt/workflows/CI/badge.svg?branch=main)](https://github.com/MuPT-hub/mupt/actions?query=workflow%3ACI)
+[![GitHub Actions Build Status](https://github.com/MuPT-hub/mupt/actions/workflows/CI.yaml/badge.svg?branch=main)](https://github.com/MuPT-hub/mupt/actions/workflows/CI.yaml)
 [![codecov](https://codecov.io/gh/MuPT-hub/mupt/branch/main/graph/badge.svg)](https://codecov.io/gh/MuPT-hub/mupt/branch/main)
 
 

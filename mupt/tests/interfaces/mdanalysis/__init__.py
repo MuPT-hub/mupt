@@ -1,1 +1,1 @@
-'''Tests for the MuPT/MDAnalysis interface'''
+"""Tests for the MuPT/MDAnalysis interface"""

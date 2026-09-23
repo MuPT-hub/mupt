@@ -1,1 +1,1 @@
-'''Representations of polymer topology rearrangements and polymerization reactions'''
+"""Representations of polymer topology rearrangements and polymerization reactions"""

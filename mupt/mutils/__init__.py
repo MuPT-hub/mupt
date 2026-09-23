@@ -1,1 +1,1 @@
-'''Common utilities to MuPT tools'''
+"""Common utilities to MuPT tools"""

@@ -1,9 +1,16 @@
-"""Tests for shared helpers which extract SAAMR roles from traversing MuPT representation hierarchies"""
+"""
+Tests for shared helpers which extract SAAMR roles
+from traversing MuPT representation hierarchies
+"""
+# ruff: noqa: D103 ("undocumented public function")
 
 import pytest
 
 from mupt.chemistry import ELEMENTS
-from mupt.mupt.interfaces._shared.traversal import _pdb_resname, build_saamr_role_index
+from mupt.interfaces._shared.topology import (
+    _pdb_resname,
+    build_saamr_role_topology_index,
+)
 from mupt.mupr.primitives import Primitive
 from mupt.roles import PrimitiveRole
 
