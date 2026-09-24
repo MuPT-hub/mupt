@@ -104,12 +104,12 @@ def _sdf_boundary_bonds(mol):
     return boundary_bonds
 
 
-def test_sdf_canonical_import_path_works_first_in_clean_interpreter():
+def test_sdf_import_path_works_first_in_clean_interpreter():
     """Importing mupt.temporary.sdf first must not circular-import RDKit helpers."""
     code = """
-from mupt.temporary.sdf import write_primitive_to_sdf
-assert callable(write_primitive_to_sdf)
-"""
+    from mupt.temporary.sdf import write_primitive_to_sdf
+    assert callable(write_primitive_to_sdf)
+    """
 
     subprocess.run(
         [sys.executable, "-c", code],

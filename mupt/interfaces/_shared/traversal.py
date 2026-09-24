@@ -1,11 +1,10 @@
-"""Shared topology traversal helpers for exporter interfaces."""
+"""Shared MuPt representation traversal helpers for exporter interfaces."""
 
 from typing import Hashable, Iterator, Mapping
 from dataclasses import dataclass, field
 
-from ...chemistry.core import BOND_ORDER
-from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives import Primitive
+from ...mupr._discard import ConnectorReference
 from ...roles import PrimitiveRole
 
 
@@ -259,9 +258,3 @@ def resolve_to_atom_cached(
     if cache_key not in cache:
         cache[cache_key] = _resolve_to_atom(parent, conn_ref)
     return cache[cache_key]
-
-
-def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
-    """Infer numeric bond order from a connection reference."""
-    connector = parent.fetch_connector_on_child(conn_ref)
-    return BOND_ORDER[connector.bondtype]

@@ -12,7 +12,7 @@ import networkx as nx
 from periodictable import elements
 
 from ..mupr.primitives import Primitive
-from ..mupr.topology import TopologicalStructure
+from ..mupr._discard import TopologicalStructure
 from ..geometry.coordinates.reference import origin
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment

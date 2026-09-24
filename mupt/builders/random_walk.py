@@ -26,11 +26,14 @@ from ..geometry.arraytypes import Shape, Dims, NumericNP, Vector3
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
-from mupt.geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.transforms.rigid import rigid_vector_coalignment
 
-from ..mupr.topology import TopologicalStructure
-from ..mupr.connection import Connector
+from ..mupr._discard import TopologicalStructure
 from ..mupr.primitives import Primitive, PrimitiveHandle
+from mupt.mupr.connection.alignment import (
+    ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentBallistic,
+)
 
 
 # TB: supressing linter complexity (C901) warning for now,
@@ -163,12 +166,15 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         angle_max_rad: float = np.pi / 4,
         initial_point: Optional[Vector3] = None,
         initial_direction: Optional[Vector3] = None,
+        # TB: ignoring line length; linter dislikes, but formatter forces to be too long
+        alignment_strategy: ConnectorAntialignmentStrategy = ConnectorAntialignmentBallistic(),  # noqa: E501
         rng: Optional[np.random.Generator] = None,
     ) -> None:
         self.bond_length = bond_length
         self.angle_max_rad = angle_max_rad
         self.initial_point = initial_point
         self.initial_direction = initial_direction
+        self.alignment_strategy = alignment_strategy
         self.rng = rng
 
     # optional helper methods (to declutter casework from main logic)
@@ -258,7 +264,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
 
                 # align linkers w/ other's anchor while
                 # leaving anchors themselves undisturbed
-                Connector.mutually_antialign_ballistically(
+                self.alignment_strategy.mutually_antialign(
                     conn_outgoing,
                     conn_incoming,
                 )

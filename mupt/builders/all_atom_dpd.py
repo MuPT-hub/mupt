@@ -47,7 +47,7 @@ import numpy as np
 from .base import PlacementGenerator
 from .random_walk import AngleConstrainedRandomWalk
 from ..geometry.shapes import PointCloud
-from ..interfaces._shared.topology import (
+from ..interfaces._shared.traversal import (
     build_saamr_role_topology_index,
     connector_reference_sort_key,
     resolve_to_atom_cached,

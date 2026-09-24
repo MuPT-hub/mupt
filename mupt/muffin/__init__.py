@@ -1,4 +1,4 @@
 """
-MuPT Force Field INtegration: ports for various common
+MuPT Force Field Integration: ports for various common
 AA and CG forcefield and forcefield parameters
 """

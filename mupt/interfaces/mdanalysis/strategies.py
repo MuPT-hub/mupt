@@ -6,9 +6,9 @@ from typing import Optional
 
 import numpy as np
 
+from ...chemistry.core import BOND_ORDER
 from ...mupr.primitives import Primitive
-from .._shared.topology import (
-    _bond_order_from_conn_ref,
+from .._shared.traversal import (
     _pdb_resname,
     build_saamr_role_topology_index,
     connector_reference_sort_key,
@@ -51,7 +51,8 @@ class MDAExportStrategy(ABC):
 
 
 class AllAtomExportStrategy(MDAExportStrategy):
-    """All-atom export strategy based on role-aware hierarchy traversal.
+    """
+    All-atom export strategy based on role-aware hierarchy traversal.
 
     Although only the four SAAMR roles are recognized (UNIVERSE,
     SEGMENT, RESIDUE, PARTICLE), this strategy supports trees of arbitrary
@@ -147,7 +148,9 @@ class AllAtomExportStrategy(MDAExportStrategy):
 
                 data.bonds.append(bond_pair)
                 data.bonds_set.add(bond_pair)
-                data.bond_orders.append(_bond_order_from_conn_ref(node, conn_ref1))
+                data.bond_orders.append(
+                    BOND_ORDER[node.fetch_connector_on_child(conn_ref1)]
+                )
 
         # Sort bonds for deterministic output (internal_connections is a set,
         # so iteration order is nondeterministic without explicit sorting)
