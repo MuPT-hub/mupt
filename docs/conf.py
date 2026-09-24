@@ -15,6 +15,9 @@
 # Incase the project was not installed
 import os
 import sys
+from pathlib import Path
+from urllib.request import urlretrieve
+
 sys.path.insert(0, os.path.abspath('..'))
 
 import mupt
@@ -32,6 +35,30 @@ version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
 
+examples_repo_base = (
+    'https://raw.githubusercontent.com/MuPT-hub/mupt-examples/main/'
+)
+
+# mappings: these map a URL for a raw file to a local path in the
+# documentation source tree.
+external_files = {
+    examples_repo_base + 'examples_repr/mol_from_scratch_basic.ipynb': (
+        'how_to/mol_from_scratch_basic.ipynb'
+    ),
+    examples_repo_base + 'examples_system/hierarchy_on_peptides.ipynb': (
+        'tutorials/hierarchy_on_peptides.ipynb'
+    ),
+}
+
+
+def download_external_files(app):
+    """Download externally maintained documentation sources."""
+    source_directory = Path(app.srcdir)
+    for source_url, relative_destination in external_files.items():
+        destination = source_directory / relative_destination
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        urlretrieve(source_url, destination)
+
 
 # -- General configuration ---------------------------------------------------
 
@@ -43,6 +70,7 @@ release = ''
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'autoapi.extension',
     'sphinx.ext.autosummary',
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
@@ -51,14 +79,71 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.extlinks',
     'sphinx_design',
-    'sphinx_copybutton',    
+    'sphinx_copybutton',
+    'nbsphinx',
 ]
 
 
 autosummary_generate = True
+nbsphinx_execute = 'never'
 napoleon_google_docstring = False
 napoleon_use_param = False
 napoleon_use_ivar = True
+
+# Generate the public API reference directly from the Python source tree. The
+# generated reStructuredText files exist only for the duration of a build.
+autoapi_type = 'python'
+autoapi_dirs = ['../mupt']
+autoapi_root = 'reference/api'
+autoapi_add_toctree_entry = False
+autoapi_keep_files = False
+autoapi_member_order = 'bysource'
+autoapi_options = [
+    'members',
+    'undoc-members',
+    'show-inheritance',
+    'show-module-summary',
+]
+
+# Parse internal modules so AutoAPI can resolve public annotations and base
+# classes, but do not render them. New modules inside the supported packages
+# are discovered automatically; promoting a top-level package is explicit.
+public_api_prefixes = (
+    'mupt.builders',
+    'mupt.chemistry',
+    'mupt.geometry',
+    'mupt.interfaces',
+    'mupt.mupr',
+    'mupt.roles',
+)
+
+
+def skip_unsupported_api(app, what, name, obj, skip, options):
+    """Exclude objects outside the supported public API namespaces."""
+    if name == 'mupt' or any(
+        name == prefix or name.startswith(f'{prefix}.')
+        for prefix in public_api_prefixes
+    ):
+        return skip
+    return True
+
+
+def setup(app):
+    app.connect('builder-inited', download_external_files)
+    app.connect('autoapi-skip-member', skip_unsupported_api)
+
+
+autoapi_ignore = [
+    '*/tests/**',
+]
+
+# AutoAPI cannot statically resolve every alias imported from an optional or
+# third-party dependency. Those aliases still render correctly in signatures.
+suppress_warnings = [
+    'autoapi.python_import_resolution',
+    # External notebooks may link to examples that are not part of these docs.
+    'nbsphinx.localfile',
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -77,12 +162,17 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    'reference/api/mupt/index.rst',
+    'Thumbs.db',
+    '.DS_Store',
+]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'default'
