@@ -16,8 +16,9 @@ from mupt.mutils.imports.inspection import (
 # modules not supplying any functionality, but instead used as examples in tests
 import math, json # use these as test cases, since they are pretty stable in stdlib
 
-from mupt import mupt # this is the dummy toplevel module, and NOT the entire polymerist package
+import mupt
 from mupt.mutils import imports
+from mupt.mutils.imports import inspection
 
 
 # test examples
@@ -50,10 +51,12 @@ def module_examples() -> tuple[ModuleExample, ...]:
         ModuleExample('json', True, True),
         ModuleExample(json.decoder, True, False),
         ModuleExample('json.decoder', True, False),
-        ModuleExample(mupt, True, False),
-        ModuleExample('mupt.mupt', True, False),
+        ModuleExample(mupt, True, True),
+        ModuleExample('mupt', True, True),
         ModuleExample(imports, True, True),
         ModuleExample('mupt.mutils.imports', True, True),
+        ModuleExample(inspection, True, False),
+        ModuleExample('mupt.mutils.imports.inspection', True, False),
     )
 
 # tests proper
