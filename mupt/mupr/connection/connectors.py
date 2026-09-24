@@ -583,7 +583,7 @@ class Connector(
 
     def unlock(self) -> None:
         """Allow editing of neighbors"""
-        self._lock()
+        self._unlock()
         if self.has_neighbor:
             self.neighbor._unlock()  # ensure paired connectors remain synchronized
 

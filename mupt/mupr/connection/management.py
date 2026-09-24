@@ -18,6 +18,22 @@ from .types import (
 )
 
 
+def connector_address_flexible(conn: ConnectorAddress | Connector) -> ConnectorAddress:
+    """
+    Cast method which allows methods expecting ConnectorAddresses
+    to also accept the Connector instances themselves
+    """
+    if isinstance(conn, Connector):
+        return conn.address
+    elif isinstance(conn, Hashable):
+        return conn
+    else:
+        raise TypeError(
+            f"Cannot interpret object of type '{type(conn).__name__}' "
+            "as address of a Connector"
+        )
+
+
 class ConnectorManager(Protocol):
     """Interface for generic connector managment object"""
 
@@ -28,9 +44,8 @@ class ConnectorManager(Protocol):
 
     def connector(self, conn_addr: ConnectorAddress) -> Connector:
         """Retrieve a particular Connector by its unique address"""
-        return self.connectors_by_addr[
-            conn_addr
-        ]  # not using .get() to make KeyErrors explicit
+        # N.B.: not using dict.get() to make KeyErrors explicit
+        return self.connectors_by_addr[conn_addr]
 
     def add_connector(
         self,
@@ -195,11 +210,8 @@ class ConnectorManagerMutable(ConnectorManager):
         self,
         conn_addr: ConnectorAddress | Connector,
     ) -> Connector:
-        # TB: docstring inherited from ConnectorManager base
-        if isinstance(conn_addr, Connector):
-            conn_addr = conn_addr.address
-
-        return self.connectors_by_addr.pop(conn_addr)
+        """Declare a Connector to be no longer managed here"""
+        return self.connectors_by_addr.pop(connector_address_flexible(conn_addr))
 
     @property
     def connectors(self) -> tuple[Connector, ...]:
