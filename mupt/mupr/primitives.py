@@ -25,8 +25,10 @@ type PrimitiveHandle = tuple[PrimitiveLabel, int]  # (label, uniquification inde
 
 from weakref import WeakValueDictionary
 
-from anytree import NodeMixin, RenderTree, findall
-from networkx import Graph, DiGraph
+from anytree.node import NodeMixin
+from anytree.render import RenderTree
+from anytree.search import findall
+from networkx import Graph, DiGraph, MultiGraph
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
@@ -121,6 +123,9 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
     Useful for avoiding lamba overhead
     """
     return True
+
+
+# TODO: add pruned BFS to enforce one-prim-per-branch selection
 
 
 def select_primitives(
@@ -631,12 +636,37 @@ class SupportsChildren(Primitive):
             n_iter_max_rule=n_iter_max_rule,
         )
 
-    def export_cross_section(self, predicate: PrimitivePredicate) -> Graph:
+    def cross_section(self, predicate: PrimitivePredicate) -> Graph:
         """
         Generate a graph of a "slice" of a subset
         of sub-Primitives specified by a predicate
         """
-        raise NotImplementedError
+        multigraph_conversion_made: bool = False
+
+        cross_section = Graph()
+        cross_section.add_nodes_from(
+            select_primitives(
+                self.descendants,
+                predicate=predicate,
+            )
+        )
+        visited: dict[Primitive, bool] = dict()
+        for prim_node in cross_section.nodes:
+            seen_neighbors: set[Primitive] = set()
+            for neighbor in prim_node.neighbors(predicate):
+                if visited.get(neighbor, False):
+                    continue
+
+                # upconvert to multigraph the first time a duplicate edge is encoutered
+                if (not multigraph_conversion_made) and (neighbor in seen_neighbors):
+                    cross_section = MultiGraph(cross_section)
+                    multigraph_conversion_made = True
+
+                cross_section.add_edge(prim_node, neighbor)
+                seen_neighbors.add(neighbor)
+            visited[prim_node] = True  # avoids double-counting single edges
+
+        return cross_section
 
 
 class SupportsParents(Primitive):
