@@ -803,17 +803,20 @@ class SimplePrimitive(SupportsParents):
 
     def __init__(
         self,
-        connections: Optional[ConnectorManager] = None,
+        connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
     ) -> None:
-        # Simples, uniquely, support initialization with Connectors pre-injected
-        if connections is None:
+        # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
+        if isinstance(connections, Iterable):
+            connections = ConnectorManagerMutable(*connections)
+        elif connections is None:
             connections = ConnectorManagerMutable()
 
-        ## TODO: register self as the holder of connectors
-
         self.connections = connections
+        for connector in connections.connectors:
+            connector.holder = self
+
         self._shape = shape
         self.metadata = metadata or dict()
 
