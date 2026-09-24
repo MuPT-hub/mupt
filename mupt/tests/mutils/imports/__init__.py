@@ -1,1 +1,1 @@
-'''Unit tests for `mutils.imports` subpackage'''
+"""Unit tests for `mutils.imports` subpackage"""
