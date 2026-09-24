@@ -102,7 +102,7 @@ def _check_connectors_cover_topology(
             num_neighbors := topology.degree[node]
         ):
             raise NodeMappingError(
-                f"Node {node!r} has {num_neighbors} neighbors, but only"
+                f"Node {node!r} has {num_neighbors} neighbors, but only "
                 f"{num_connectors} connection to distribute among them"
             )
 
