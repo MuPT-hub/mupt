@@ -466,9 +466,9 @@ class Primitive(
             # childiter=list
         ).by_attr(render_attr)
 
-    def hierarchy_tree(self, *args) -> DiGraph:
+    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
         """Generate a directed Graph representing the hierarchy below this Primitive"""
-        return anytree_to_networkx(self, *args)
+        return anytree_to_networkx(self, *args, **kwargs)
 
     # Depiction
     # def __str__(self) -> str:
