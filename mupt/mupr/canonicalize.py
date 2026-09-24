@@ -3,8 +3,6 @@
 from typing import Callable, Hashable, Iterable, Protocol, runtime_checkable
 from collections import Counter
 
-import networkx as nx
-
 
 @runtime_checkable
 class Canonicalizable(Protocol):
@@ -21,12 +19,6 @@ class Canonicalizable(Protocol):
         sense, will have identical canonicals forms
         """
         ...
-
-
-# graphs
-def canonical_graph_property(graph: nx.Graph) -> str:
-    """Canonicalize a graph with an ordered coloring"""
-    ...
 
 
 # multisets
