@@ -471,13 +471,18 @@ class Primitive(
         return anytree_to_networkx(self, *args, **kwargs)
 
     # Depiction
-    # def __str__(self) -> str:
-    #     # NOTE: this is what NetworkX calls when auto-assigning labels (NOT __repr__!)
-    #     # return self.canonical_form() # self.canonical_form_salted()
-    #     raise NotImplementedError
+    def __str__(self) -> str:
+        """
+        Output of calling str(...) on this Primitive
+
+        Also the default representation of this Primitive
+        when it is used as a node in any NetworkX graph
+        """
+        return f"{self.label!s}[{str(self.address)[:7]}]"
 
     # def __repr__(self) -> str:
-    #     raise NotImplementedError # TODO - will likely have to change for subtypes
+    #     # DEV: will likely have to change for subtypes
+    #     raise NotImplementedError
 
 
 class SupportsChildren(Primitive):
