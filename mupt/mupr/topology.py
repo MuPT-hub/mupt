@@ -15,9 +15,9 @@ from typing import (
 )
 from itertools import count
 from functools import reduce
-from collections import Counter
+from collections import Counter, defaultdict
 
-from numpy import ndarray
+from numpy import ndarray, arange
 import networkx as nx
 
 Node = Hashable
@@ -130,3 +130,42 @@ def noodle_graph(
             create_using=create_using,
         ),
     )
+
+
+# visualisation
+def determine_arc_radii(
+    graph: nx.Graph | nx.MultiGraph,
+    base_radius: int | float = 0.1,
+) -> dict[GraphEdge, str]:
+    """
+    Configure a graph to display symmetric-looking arcs for
+    (possibly parallel) edges rendered when drawing that graph
+
+    Arc radii will be scaled up from the chosen base radius, e.g.
+    * N=1: O----O ==> (0,)
+            ____
+    * N=2: O    O ==> (-1, 1)
+            ▔▔
+            ____
+    * N=3: O----O ==> (-1, 0, 1)
+            ▔▔
+    etc.
+    """
+    # truncate to second element to cut off edge key in the case of MultiGraph
+    # only want to compare on the basis of the unordered pair of nodes
+    edges_by_node_pair = defaultdict(list)
+    for edge in graph.edges:
+        a, b, *_ = edge
+        edges_by_node_pair[frozenset((a, b))].append(edge)
+
+    conn_style_map: dict[GraphEdge, str] = dict()
+    for parallel_edges in edges_by_node_pair.values():
+        num_parallel_edges: int = len(parallel_edges)
+
+        for arc_radius, edge in zip(
+            base_radius * arange(1 - num_parallel_edges, num_parallel_edges, 2),
+            parallel_edges,
+        ):
+            conn_style_map[edge] = f"arc3,rad={arc_radius}"
+
+    return conn_style_map
