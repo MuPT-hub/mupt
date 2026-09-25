@@ -238,6 +238,7 @@ class Primitive(
         raise NotImplementedError
 
     # Topology
+    ## Connection read/write access
     def _freeze_connections_local(self) -> None:
         """
         Force Connectors on this Primitive to be
@@ -291,7 +292,6 @@ class Primitive(
         """
         self.root._unfreeze_connections_recursive()
 
-    # Adjacency
     @property
     def connectors(self) -> Collection[Connector]:
         """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
@@ -299,12 +299,13 @@ class Primitive(
         return self.connections.connectors
 
     # DEV: purposely excluded connectors.setter and connectors.deleter;
-    # connectors access through this property SHOULd be read-only
+    # Access to 'connectors' through this property SHOULD be read-only
 
     def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
 
+    ## Adjacency
     def neighbors(
         self,
         predicate: Optional[PrimitivePredicate] = None,
@@ -392,6 +393,38 @@ class Primitive(
                 to_connector=our_connector_chosen,
             )  # Suppress on already-aligned chosen Connectors
             other.rigidly_transform(alignment_transform)
+
+    def cross_section(self, predicate: PrimitivePredicate) -> Graph:
+        """
+        Generate a graph of a "slice" of a subset
+        of sub-Primitives specified by a predicate
+        """
+        multigraph_conversion_made: bool = False
+
+        cross_section = Graph()
+        cross_section.add_nodes_from(
+            select_primitives(
+                self.descendants,
+                predicate=predicate,
+            )
+        )
+        visited: dict[Primitive, bool] = dict()
+        for prim_node in cross_section.nodes:
+            seen_neighbors: set[Primitive] = set()
+            for neighbor in prim_node.neighbors(predicate):
+                if visited.get(neighbor, False):
+                    continue
+
+                # upconvert to multigraph the first time a duplicate edge is encoutered
+                if (not multigraph_conversion_made) and (neighbor in seen_neighbors):
+                    cross_section = MultiGraph(cross_section)
+                    multigraph_conversion_made = True
+
+                cross_section.add_edge(prim_node, neighbor)
+                seen_neighbors.add(neighbor)
+            visited[prim_node] = True  # avoids double-counting single edges
+
+        return cross_section
 
     # Hierarchy
     ## Enforcing universal hierarchy invariants
@@ -640,38 +673,6 @@ class SupportsChildren(Primitive):
             },
             n_iter_max_rule=n_iter_max_rule,
         )
-
-    def cross_section(self, predicate: PrimitivePredicate) -> Graph:
-        """
-        Generate a graph of a "slice" of a subset
-        of sub-Primitives specified by a predicate
-        """
-        multigraph_conversion_made: bool = False
-
-        cross_section = Graph()
-        cross_section.add_nodes_from(
-            select_primitives(
-                self.descendants,
-                predicate=predicate,
-            )
-        )
-        visited: dict[Primitive, bool] = dict()
-        for prim_node in cross_section.nodes:
-            seen_neighbors: set[Primitive] = set()
-            for neighbor in prim_node.neighbors(predicate):
-                if visited.get(neighbor, False):
-                    continue
-
-                # upconvert to multigraph the first time a duplicate edge is encoutered
-                if (not multigraph_conversion_made) and (neighbor in seen_neighbors):
-                    cross_section = MultiGraph(cross_section)
-                    multigraph_conversion_made = True
-
-                cross_section.add_edge(prim_node, neighbor)
-                seen_neighbors.add(neighbor)
-            visited[prim_node] = True  # avoids double-counting single edges
-
-        return cross_section
 
 
 class SupportsParents(Primitive):
