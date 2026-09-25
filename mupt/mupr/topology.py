@@ -11,6 +11,7 @@ from typing import (
     Iterator,
     Optional,
     TypeAlias,
+    Union,
 )
 from itertools import count
 from functools import reduce
@@ -19,7 +20,11 @@ from collections import Counter
 from numpy import ndarray
 import networkx as nx
 
-GraphLayout: TypeAlias = Callable[[nx.Graph], dict[Hashable, ndarray]]
+Node = Hashable
+Edge = tuple[Node, Node]
+MultiEdge = tuple[Node, Node, int]
+GraphEdge = Union[Edge, MultiEdge]
+GraphLayout: TypeAlias = Callable[[nx.Graph], dict[Node, ndarray]]
 
 
 # Network properties
