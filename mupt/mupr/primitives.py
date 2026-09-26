@@ -37,23 +37,22 @@ import networkx as nx
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
 
-from .canonicalize import lex_order_multiset_str
 from .connection import (
     Connector,
     ConnectorLabel,
     ConnectorHandle,
-    ConnectorSelector,
-    make_second_resemble_first,
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
+from .connection.connectors import ConnectorSelector, make_second_resemble_first
 from .topology import TopologicalStructure, GraphLayout
 from .embedding import (
     infer_connections_from_topology,
     ConnectorReference,
     flexible_connector_reference,
 )
+from .canonicalize import lex_order_multiset_str
 
 from ..mutils.containers import UniqueRegistry
 from ..geometry.shapes import BoundedTransformableShape
@@ -1082,8 +1081,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     ) -> None:
         """
         Assign a new topology to this Primitive, squashing any prior internal
-        connections and attempting to deduce them according to the topology
-        provided (i.e. attempting to pair Connectors along each edge)
+        connections and attempting to deduce them according to the topology provided,
+        i.e. by attempting to pair Connectors along each edge.
 
         Deduction of pairs may require more than the default number of
         iterations of the registration algorithm to finish converging;
@@ -1490,7 +1489,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         raise NotImplementedError
 
     # Representation methods
-    # Canonical forms for core components
+    ## Canonical forms for core components
     def canonical_form_connectors(self, separator: str = ":", joiner: str = "-") -> str:
         """A canonical string representing this Primitive's Connectors"""
         return lex_order_multiset_str(

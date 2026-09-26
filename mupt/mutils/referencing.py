@@ -3,7 +3,8 @@ Utilities for providing Hashable references to
 arbitrary objects, along with registries of those objects
 """
 
-from typing import ClassVar, Mapping, Protocol, runtime_checkable
+from typing import ClassVar, Mapping, Self
+from typing import Protocol, runtime_checkable
 
 from uuid import UUID, uuid4
 from weakref import WeakValueDictionary
@@ -47,7 +48,7 @@ class Addressed:  # TB DEV: should name as "AddressedMixin" explicitly?
     _uuid: UUID
     _address: str
 
-    def __new__(cls, *args, **kwargs) -> "Addressed":
+    def __new__(cls, *args, **kwargs) -> Self:
         # noqa: W293 (docstring line separation deliberate)
         """
         Create new instance, assign it a unique address, and register the
