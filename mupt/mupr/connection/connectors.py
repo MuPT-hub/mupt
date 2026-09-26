@@ -642,9 +642,7 @@ class Connector(
         self.neighbor._precondition_mutable_neighbor()
 
         self.neighbor._neighbor = None
-        self._neighbor = (
-            None  # done second since reference is needed to find other Connector
-        )
+        self._neighbor = None  # done second since ref is needed to find other Connector
 
     # Copying and attr transfer methods
     def individualize(
