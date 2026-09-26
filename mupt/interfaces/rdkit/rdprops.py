@@ -101,28 +101,23 @@ def assign_property_to_rdobj(
     Assign a Python object to a property of an
     RDKit object in a type-respecting manner
     """
-    type_setter_name: Optional[str] = RDPROP_SETTERS.get(
-        type(prop_value),
-        None,
-    )
+    type_setter_name: Optional[str] = RDPROP_SETTERS.get(type(prop_value), None)
     if (type_setter_name is None) or (not preserve_type):
         rdobj.SetProp(prop_name, str(prop_value))
         # TODO: handle listlike props more specifically than this
     else:
-        type_setter: Callable[[str, Any], None] = getattr(
-            rdobj, type_setter_name
-        )  # DEV: 2nd arg is actually same type as prop_value
+        type_setter: Callable[[str, Any], None] = getattr(rdobj, type_setter_name)
+        # DEV: 2nd arg is actually same type as prop_value
         type_setter(prop_name, prop_value)
 
 
-# NOTE : no need to incorporate typing info, as
-# RDKit objects can correctly interpret typed strings
+# NOTE : no need to incorporate types; RDKit objects correctly interpret typed strings
 def copy_rdobj_props(from_rdobj: RDObj, to_rdobj: RDObj) -> None:
     # NOTE : avoid use of GetPropsAsDict() to avoid errors from restrictive C++ typing
     """For copying properties between a pair of RDKit Atoms or Mols"""
     # verify that both objects passed are RDKit objects...
-    assert isrdobj(from_rdobj) and isrdobj(to_rdobj)
     # ...AND that both objects are the same type of RDKit object
+    assert isrdobj(from_rdobj) and isrdobj(to_rdobj)
     assert type(from_rdobj) is type(to_rdobj)
 
     for prop in from_rdobj.GetPropNames():
