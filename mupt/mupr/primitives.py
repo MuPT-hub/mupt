@@ -164,7 +164,7 @@ class Primitive(
     DEFAULT_LABEL: ClassVar[PrimitiveLabel]
 
     # Expected instance attributes
-    shape: BoundedTransformableShape
+    shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     connections: ConnectorManager
     metadata: dict[Hashable, Any]
     _label: PrimitiveLabel
@@ -195,7 +195,6 @@ class Primitive(
             new_label = self.DEFAULT_LABEL
         self._label = new_label
 
-    ## Functionality-determining properties
     @property
     def is_simple(self) -> bool:
         """
@@ -206,7 +205,19 @@ class Primitive(
         # other Primitive without passing type info backward up the inheritance tree
         return False
 
-    ## Mutability flags
+    ## Wrapped properties
+    @property
+    def connectors(self) -> Collection[Connector]:
+        """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
+        # TODO: also provide convenient access to connectors_free and connectors_bound
+        return self.connections.connectors
+
+    @property
+    def functionality(self) -> int:
+        """Number of free Connections this Primitive has access to"""
+        return self.connections.functionality
+
+    # Mutability flags
     @property
     def frozen_connections(self) -> bool:
         """Whether or not the hierarchy tree is open to Connector modification"""
@@ -330,15 +341,6 @@ class Primitive(
         any others below it in the hierarchy tree
         """
         self.root._unfreeze_connections_recursive()
-
-    @property
-    def connectors(self) -> Collection[Connector]:
-        """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
-        # TODO: also provide convenient access to connectors_free and connectors_bound
-        return self.connections.connectors
-
-    # DEV: purposely excluded connectors.setter and connectors.deleter;
-    # Access to 'connectors' through this property SHOULD be read-only
 
     def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
         """Fetch a connector managed by this Priomitive, if it exists"""
@@ -1032,7 +1034,7 @@ class AtomicPrimitive(SimplePrimitive):
     def __init__(
         self,
         element: ElementLike,
-        connections: Optional[ConnectorManager] = None,
+        connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict] = None,
         label: Optional[PrimitiveLabel] = None,
