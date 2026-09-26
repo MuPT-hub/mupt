@@ -49,6 +49,7 @@ from .connection.exceptions import (  # noqa: F401
 from .connection.types import (
     ConnectorAddress,
     ConnectorLabel,
+    ConnectorLabelLike,
 )
 from .connection.management import (  # noqa: F401
     ConnectorManager,
@@ -308,6 +309,30 @@ class Primitive(
     def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
+
+    # N.B.: deliberately private; only Simples should have explicit access
+    def _add_connector(
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """Add a new Connector to those managed locally"""
+        self._precondition_mutable_connectors()
+        # TB: label is irrelevant w/ addresses; keeping
+        # only in case handles prove useful to add later
+        self.connections.add_connector(connector, label=label)
+        # N.B.: connector.holder deliberately unset here
+
+        return connector.address
+
+    def _remove_connector(
+        self,
+        connector_address: Connector | ConnectorAddress,
+    ) -> Connector:
+        """Remove an existing Connector from those managed locally"""
+        self._precondition_mutable_connectors()
+        # N.B.: connector neighbor deliberately untouched here
+        return self.connections.remove_connector(connector_address)
 
     ## Adjacency
     def neighbors(
@@ -617,6 +642,10 @@ class SupportsChildren(Primitive):
 
         return child
 
+    def _post_detach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Post-actions to take once attachment is verified and parent is bound"""
+        super()._post_detach_children(children)
+
     ## Resolution shift operations
     def expand(self) -> None:
         """
@@ -699,12 +728,50 @@ class SupportsParents(Primitive):
     these Primitives are nodes which allow INCOMING directed edges
     """
 
-    # Hierarchy
+    # Topology
+    def inject_connector_into_hierarchy(
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """
+        Introduce a new Connector into circulation throughout the hierarchy above
+        All ancestors of this Primitive will also manage this Connector instance
 
-    # TB: you might be thinking it would be more natural to have the
-    # checks on parent Primitives in SupportParent instead
-    # the reason for having them here instead is that setting children
-    # always calls `child.parent = new_parent_value` under the hood
+        Returns the address of the injected Connector
+        """
+        for anc in self.ancestors:
+            anc._add_connector(connector, label=label)
+        return connector.address
+
+    def withdraw_connector_from_hierarchy(
+        self,
+        connector_address: ConnectorAddress | Connector,
+        preserve_neighbor: bool = False,
+    ) -> Connector:
+        """
+        Remove a Connector from circulation in levels of the hierarchy above
+        Connector will still be managed within THIS Primitive,
+
+        Neighbor of Connector will be severed by default to prevent corruption of
+        hierarchy; can manually override if desired by passing "preserve_neighbor=True"
+
+        Returns the withdrawn Connector
+        """
+        connector_address = connector_address_flexible(connector_address)
+        for ancestor in self.ancestors:
+            # TB: these all point to the same Connector instance, so assigning to
+            # var is technically redundant for all but the last iter of the loop
+            connector = ancestor._remove_connector(connector_address)
+
+        if not preserve_neighbor:
+            del connector.neighbor
+        return connector
+
+    # Hierarchy
+    # TB: you might be thinking it would be more natural to have checks on parent
+    # Primitives in SupportParent instead; the reason for having them here instead is
+    # setting children always calls `child.parent = new_parent_value` under the hood
     def _pre_attach(self, parent: SupportsChildren) -> None:
         super()._pre_attach(parent)
         self._precondition_mutable_hierarchy()
@@ -858,56 +925,22 @@ class SimplePrimitive(SupportsParents):
         return True
 
     # Exposing Connectors
-    def inject_connector_into_hierarchy(
-        self,
-        connector: Connector,
-    ) -> ConnectorAddress:
-        """
-        Introduce a new Connector into circulation throughout the hierarchy above
-
-        All ancestors of this Simple will also manage this Connector instance
-        """
-        for anc in self.ancestors:
-            anc.connections.add_connector(connector)
-
     def add_connector(
         self,
         connector: Connector,
         label: Optional[ConnectorLabel] = None,
-    ) -> None:
-        """Add a new Connector to those managed by this Simple"""
-        self._precondition_mutable_connectors()
-        self.connections.add_connector(
-            connector,
-            # TB: label is irrelevant w/ addresses; keeping
-            # only in case handles prove useful to add later
-            label=(label or Connector.DEFAULT_LABEL),
-        )
-        connector.holder = self
+    ) -> ConnectorAddress:
+        """
+        Add a new Connector to those managed by this Simple
 
+        Automatically assigns this Simple as its holder and propagates the
+        Connector up through the hierarchy if, this Simple has a parent
+        """
+        connector_address = self._add_connector(connector, label=label)
         self.inject_connector_into_hierarchy(connector)
+        connector.holder = self  # do last, in case above fails
 
-    def withdraw_connector_from_hierarchy(
-        self,
-        connector_address: ConnectorAddress | Connector,
-        preserve_neighbor: bool = False,
-    ) -> None:
-        """
-        Remove a Connector from all levels of the hierarchy above this Simple
-
-        Connector will still be managed within this Simple,
-        but with its former neighbor (if any) severed
-
-        Returns the withdrawn Connector instance
-        """
-        connector_address = connector_address_flexible(connector_address)
-        for ancestor in self.ancestors:
-            # TB: these all point to the same Connector instance, so collecting
-            # is technically redundant for all but the last iter of the loop
-            connector = ancestor.connections.remove_connector(connector_address)
-
-        if not preserve_neighbor:
-            del connector.neighbor
+        return connector_address
 
     def remove_connector(
         self,
@@ -920,17 +953,12 @@ class SimplePrimitive(SupportsParents):
 
         Returns the removed Connector
         """
-        self._precondition_mutable_connectors()
-
-        connector_address = connector_address_flexible(connector_address)
-        connector = self.connections.remove_connector(connector_address)
+        connector = self._remove_connector(connector_address)
+        self.withdraw_connector_from_hierarchy(
+            connector_address, preserve_neighbor=False
+        )
         del connector.holder  # will be self, since this Simple is at end of Path
 
-        self.withdraw_connector_from_hierarchy(
-            connector_address,
-            # never want to leave dangling neighbors if completely removed
-            preserve_neighbor=False,
-        )
         return connector
 
     # Hierarchy
