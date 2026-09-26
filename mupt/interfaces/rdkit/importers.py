@@ -3,73 +3,96 @@ Readers which convert RDKit Atoms and Mols
 into the MuPT molecular representation
 """
 
-from typing import (
-    Hashable,
-    Optional,
-)
+from typing import Any, Hashable, Optional
 
-from rdkit.Chem.rdchem import (
-    Atom,
-    Mol,
-)
+from rdkit.Chem.rdchem import Atom, Mol
 from rdkit.Chem.rdmolops import GetMolFrags
 
-from ...chemistry.linkers import is_linker
-from .components import atom_positions_from_rdkit, connector_between_rdatoms
-
+from .components import (
+    AtomLabeller,
+    DEFAULT_ATOM_LABELLER,
+    atom_positions_from_rdkit,
+    atom_radius_from_rdkit,
+    connector_between_rdatoms,
+)
 from .labelling import name_for_rdkit_mol
-from ...geometry.shapes import PointCloud
+
+from ...geometry.shapes import BoundedTransformableShape, PointCloud, Sphere
+from ...chemistry.linkers import is_linker
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.conversion import rdkit_atom_to_element
 
-from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.primitives import (
+    Primitive,
+    SupportsChildren,
+    RootPrimitive,
+    CompositePrimitive,
+    AtomicPrimitive,
+    PrimitiveHandle,
+)
+from ...mupr.connection.connectors import Connector
 from ...builders.heading import TraversalDirection
 
 
 def primitive_from_rdkit_atom(
     parent_mol: Mol,
     atom_idx: int,
+    atom_labeller: AtomLabeller = DEFAULT_ATOM_LABELLER,
     conformer_idx: Optional[int] = None,
     attach_connectors: bool = False,
     **kwargs,
-) -> Primitive:
+) -> AtomicPrimitive:
     """Initialize an atomic Primitive from an RDKit Atom"""
     atom: Atom = parent_mol.GetAtomWithIdx(atom_idx)
-    atom_primitive = Primitive(
-        element=rdkit_atom_to_element(atom),
-        label=atom_idx,
-        metadata=atom.GetPropsAsDict(
-            includePrivate=True,
-            # NOTE: computed props suppressed to avoid
-            # "unpicklable RDKit vector" errors
-            includeComputed=False,
-        ),
-    )
-    if (map_num := atom.GetAtomMapNum()) != 0:
-        atom_primitive.metadata["molAtomMapNumber"] = map_num
+    element = rdkit_atom_to_element(atom)
 
-    atom_pos = atom_positions_from_rdkit(
-        parent_mol, conformer_idx=conformer_idx, atom_idxs=[atom_idx]
-    )
-    if atom_pos is not None:
-        atom_primitive.shape = PointCloud(
-            positions=atom_pos[0, :]
-        )  # extract as vector from 2D array
-
+    ## Connectors
+    connectors: list[Connector] = []
     if attach_connectors:
         # TODO: decide how bond Props should be split
         # among metadata of the two bonded atoms
-        for nb_atom in atom.GetNeighbors():
-            _conn_handle = atom_primitive.register_connector(
-                connector_between_rdatoms(
-                    parent_mol=parent_mol,
-                    from_atom_idx=atom_idx,
-                    to_atom_idx=nb_atom.GetIdx(),
-                    conformer_idx=conformer_idx,
-                    **kwargs,
-                )
+        connectors = [
+            connector_between_rdatoms(
+                parent_mol=parent_mol,
+                from_atom_idx=atom_idx,
+                to_atom_idx=nb_atom.GetIdx(),
+                conformer_idx=conformer_idx,
+                **kwargs,
             )
-    return atom_primitive
+            for nb_atom in atom.GetNeighbors()
+        ]
+
+    ## Shape
+    atom_pos = atom_positions_from_rdkit(
+        parent_mol,
+        conformer_idx=conformer_idx,
+        atom_idxs=[atom_idx],
+    )
+    shape: Optional[BoundedTransformableShape] = None
+    if atom_pos is not None:
+        center = atom_pos[0, :]
+        if (radius := atom_radius_from_rdkit(atom)) is None:
+            shape = PointCloud(positions=center)
+        else:
+            shape = Sphere(radius=radius, center=center)
+
+    ## Metadata
+    metadata: dict[Hashable, Any] = atom.GetPropsAsDict(
+        includePrivate=True,
+        # NOTE: computed props suppressed to avoid
+        # "unpicklable RDKit vector" errors
+        includeComputed=False,
+    )
+    if (map_num := atom.GetAtomMapNum()) != 0:
+        metadata["molAtomMapNumber"] = map_num
+
+    return AtomicPrimitive(
+        element=element,
+        connections=connectors,
+        shape=shape,
+        metadata=metadata,
+        label=atom_labeller(atom),
+    )
 
 
 def primitive_from_rdkit_chain(
@@ -80,7 +103,7 @@ def primitive_from_rdkit_chain(
     external_linker_label: str = "*",
     smiles_writer_params: SmilesWriteParams = DEFAULT_SMILES_WRITE_PARAMS,
     **kwargs,
-) -> Primitive:
+) -> CompositePrimitive:
     """
     Initialize a Primitive hierarchy from an RDKit Mol representing a single molecule
 
@@ -237,7 +260,7 @@ def primitive_from_rdkit(
     sanitize_frags: bool = True,
     denest: bool = True,
     **kwargs,
-) -> Primitive:
+) -> SupportsChildren:
     """
     Initialize a Primitive hierarchy from an
     RDKit Mol representing one or more molecules
@@ -265,7 +288,7 @@ def primitive_from_rdkit(
     else:
         # DEV: deliberately excluding metadata here to
         # avoid squashing that of individual chains
-        universe_primitive = Primitive(label=label)
+        universe_primitive = RootPrimitive(label=label)
         for chain in chains:
             universe_primitive.attach_child(
                 primitive_from_rdkit_chain(
