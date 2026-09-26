@@ -88,7 +88,9 @@ class AttachmentPoint(RigidlyTransformable):
         Initialize an AttachmentPoint whose attachable types are an
         RDKit Atom's index in a molecule and it elemental symbol
         """
-        return cls(attachables={atom.GetIdx(), atom.GetSymbol()})
+        # return cls(attachables={atom.GetIdx(), atom.GetSymbol()})
+        # TB: keep ID-only ensures unique choice of counterpart during linking
+        return cls(attachables={atom.GetIdx()})
 
 
 # Connector class proper
@@ -608,9 +610,8 @@ class Connector(
         other._precondition_mutable_neighbor()
 
         # N.B.: if ALL positions are unset, will evaluate as antialigned
-        if not self.is_antialigned(
-            other
-        ):  # TB: may relax this / allow passing alignment strategy
+        # TB: may relax this / allow passing alignment strategy
+        if not self.is_antialigned(other):
             raise IncompatibleConnectorError(
                 "Candidate for neighbor Connector is not anti-aligned within tolerance"
             )
