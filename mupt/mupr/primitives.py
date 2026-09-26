@@ -167,6 +167,7 @@ class Primitive(
     shape: BoundedTransformableShape
     connections: ConnectorManager
     metadata: dict[Hashable, Any]
+    _label: PrimitiveLabel
 
     _frozen_connections: bool
     _frozen_hierarchy: bool
@@ -178,9 +179,21 @@ class Primitive(
         A distinguishing label which can be assigned
         by the user for identification purposes
         """
-        if "label" in self.metadata:
-            return self.metadata["label"]
-        return self.DEFAULT_LABEL
+        if self._label is None:
+            # Attempt fallbacks to fetch label
+            if "label" in self.metadata:
+                self._label = self.metadata["label"]
+            else:
+                self._label = self.DEFAULT_LABEL
+
+        return self._label
+
+    @label.setter
+    def label(self, new_label: Optional[PrimitiveLabel]) -> None:
+        """Assign a new label to this Primitive"""
+        if new_label is None:
+            new_label = self.DEFAULT_LABEL
+        self._label = new_label
 
     ## Functionality-determining properties
     @property
@@ -817,10 +830,12 @@ class RootPrimitive(SupportsChildren):
         box_vectors: Optional[Array3x3] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
+        label: Optional[PrimitiveLabel] = None,
     ) -> None:
         self.connections = ConnectorManagerMutable()
         self._shape = shape
         self.metadata = metadata or dict()
+        self.label = label
 
         # hidden flags - mutable by default
         self._frozen_connections = False
@@ -867,10 +882,12 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         children: Optional[Iterable[SupportsParents]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict] = None,
+        label: Optional[PrimitiveLabel] = None,
     ) -> None:
         self._shape = shape
         self.metadata = metadata or dict()
         self.connections = ConnectorManagerMutable()
+        self.label = label
 
         # hidden flags - mutable by default
         self._frozen_connections = False
@@ -907,6 +924,7 @@ class SimplePrimitive(SupportsParents):
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
+        label: Optional[PrimitiveLabel] = None,
     ) -> None:
         # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
         if isinstance(connections, Iterable):
@@ -920,6 +938,7 @@ class SimplePrimitive(SupportsParents):
 
         self._shape = shape
         self.metadata = metadata or dict()
+        self.label = label
 
         # hidden flags - mutable by default
         self._frozen_connections = False
@@ -1016,6 +1035,7 @@ class AtomicPrimitive(SimplePrimitive):
         connections: Optional[ConnectorManager] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict] = None,
+        label: Optional[PrimitiveLabel] = None,
     ) -> None:
         if not isatom(element):
             raise TypeError(f"Invalid element type {type(element)}")
@@ -1025,6 +1045,7 @@ class AtomicPrimitive(SimplePrimitive):
             connections=connections,
             shape=shape,
             metadata=metadata,
+            label=label,
         )
 
     @property  # DEV: no setter implemented; element is immutable after instantiation

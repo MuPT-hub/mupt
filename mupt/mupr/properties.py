@@ -23,7 +23,7 @@ def is_atom(prim: Primitive) -> bool:
 def is_atomizable(prim: Primitive) -> bool:
     """
     Check whether a Primitive is either an AtomicPrimitive
-    or supportrs children but has only AtomicPrimtive leaves
+    or supports children but has only AtomicPrimtive leaves
     """
     # AtomicPrimitives are Simple and therefore must be leaves;
     # no need to recursively check the hierarchy for them
