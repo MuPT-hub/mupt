@@ -17,7 +17,11 @@ from typing import (
     Self,
     Type,
     Union,
+    TYPE_CHECKING,
 )
+
+if TYPE_CHECKING:
+    from matplotlib.axes._axes import Axes
 
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
@@ -61,7 +65,7 @@ from .linking import (
     assign_connections_from_topology,
     GraphIterRule,
 )
-from .topology import GraphLayout, canonical_graph_property  # noqa: F401
+from .topology import canonical_graph_property, draw_networkx_with_arcs  # noqa: F401
 from ..trees.render import tree_render_style, ConcreteStyle
 from ..trees.digraph import anytree_to_networkx
 
@@ -425,6 +429,17 @@ class Primitive(
             visited[prim_node] = True  # avoids double-counting single edges
 
         return cross_section
+
+    def visualize_cross_section(
+        self,
+        predicate,  # TODO: ensure BFS traversal
+        base_arc_radius: float = 0.1,
+        **kwargs,
+    ) -> "Axes":
+        """Draw a networkx graph representation of the selected cross-section"""
+        return draw_networkx_with_arcs(
+            self.cross_section(predicate), base_arc_radius=base_arc_radius, **kwargs
+        )
 
     # Hierarchy
     ## Enforcing universal hierarchy invariants
