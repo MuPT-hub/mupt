@@ -1,8 +1,5 @@
 """Strategy implementations for MuPT -> RDKit export."""
 
-__author__ = "Joseph R. Laforet Jr."
-__email__ = "jola3134@colorado.edu"
-
 from typing import Iterator, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
