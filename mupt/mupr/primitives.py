@@ -341,9 +341,8 @@ class Primitive(
     ) -> Generator["Primitive", None, None]:
         """Primitives whose share a Connection with this one"""
         for conn in self.connections.connectors_bound:
-            # TB TODO: figure out how to type this so HoldsConnector
-            # "knows" about NodeMixin methods without explicitly mentioning
-            # base Primitive type in ..connections
+            # TB TODO: typehinting such that  HoldsConnector "knows" about NodeMixin
+            # methods w/o explicitly mentioning base Primitive type in ..connections
 
             # may include explicit check for has_holder to avoid errant NoneTypes passed
             neighbor_branch: tuple[Primitive] = conn.neighbor.holder.path
@@ -585,8 +584,8 @@ class SupportsChildren(Primitive):
         """Preconditions prior to attempting attachment of this Primitive to a parent"""
         super()._pre_attach_children(children)
         self._precondition_mutable_connectors()  # positions and neighbors may shift
-
         self._precondition_mutable_hierarchy()
+
         for child in children:
             child._precondition_mutable_hierarchy()
 
@@ -611,12 +610,6 @@ class SupportsChildren(Primitive):
         # child.label = label
         self.children_by_address[child.address] = child
 
-        for conn in child.connections.connectors:
-            for superprimitive in self.path:
-                superprimitive.connections.add_connector(
-                    conn
-                )  # requires Mutable manager, hence precondition on Connectors
-
         return child.address
 
     ## Detachment
@@ -627,6 +620,10 @@ class SupportsChildren(Primitive):
             "cannot detach extant outgoing node(s)"
         )
 
+    def _post_detach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Post-actions to take once attachment is verified and parent is bound"""
+        super()._post_detach_children(children)
+
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
         """
         Unregister an existing child Primitive, making it no
@@ -635,16 +632,7 @@ class SupportsChildren(Primitive):
         child = self.children_by_address.pop(prim_addr)
         child.parent = None
 
-        for conn in child.connections.connectors:
-            for superprimitive in self.path:
-                superprimitive.connections.remove_connector(conn)
-                # TB: what to do with Connectors' neighbors?
-
         return child
-
-    def _post_detach_children(self, children: Iterable["SupportsParents"]) -> None:
-        """Post-actions to take once attachment is verified and parent is bound"""
-        super()._post_detach_children(children)
 
     ## Resolution shift operations
     def expand(self) -> None:
@@ -773,18 +761,27 @@ class SupportsParents(Primitive):
     # Primitives in SupportParent instead; the reason for having them here instead is
     # setting children always calls `child.parent = new_parent_value` under the hood
     def _pre_attach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
         super()._pre_attach(parent)
         self._precondition_mutable_hierarchy()
         parent._precondition_mutable_hierarchy()
 
-    def _post_attach(self, parent: SupportsChildren) -> None: ...
+    def _post_attach(self, parent: SupportsChildren) -> None:
+        """Once parent is set, inject own Connectors into hierarchy"""
+        super()._post_attach(parent)
+        for connector in self.connectors:
+            self.inject_connector_into_hierarchy(connector)
 
     def _pre_detach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
         super()._pre_detach(parent)
         self._precondition_mutable_hierarchy()
         parent._precondition_mutable_hierarchy()
 
-    def _post_detach(self, parent: SupportsChildren) -> None: ...
+    def _post_detach(self, parent: SupportsChildren) -> None:
+        super()._post_detach(parent)
+        for connector in self.connectors:
+            self.withdraw_connector_from_hierarchy(connector)
 
 
 # Concrete primitive types
