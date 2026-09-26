@@ -17,6 +17,7 @@ type ConnectorAddress = (
 )
 type ConnectorLabel = Hashable
 type ConnectorLabeller = Callable[[Connector], ConnectorLabel]
+ConnectorLabelLike = ConnectorLabel | ConnectorLabeller
 type ConnectorHandle = tuple[
     ConnectorLabel, int
 ]  # TB: unused but leaving in case we want something like this later

@@ -13,8 +13,7 @@ from types import MappingProxyType
 from .connectors import Connector
 from .types import (
     ConnectorAddress,
-    ConnectorLabel,
-    ConnectorLabeller,
+    ConnectorLabelLike,
 )
 
 
@@ -50,7 +49,7 @@ class ConnectorManager(Protocol):
     def add_connector(
         self,
         conn: Connector,
-        label: Optional[ConnectorLabel | ConnectorLabeller] = None,
+        label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         """Designate a Connector to be managed here"""
         ...
@@ -162,7 +161,7 @@ class ConnectorManagerFrozen(ConnectorManager):
     def add_connector(  # noqa: D102
         self,
         conn: Connector,
-        label: Optional[ConnectorLabel | ConnectorLabeller] = None,
+        label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         # TB: docstring inherited from ConnectorManager base
         raise AttributeError(
@@ -198,13 +197,12 @@ class ConnectorManagerMutable(ConnectorManager):
     def add_connector(  # noqa: D102
         self,
         conn: Connector,
-        label: Optional[ConnectorLabel | ConnectorLabeller] = None,
+        label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         # TB: docstring inherited from ConnectorManager base
-
+        if label is not None:
+            conn.label = label
         self.connectors_by_addr[conn.addr] = conn
-        # TODO: label to be used for UniqueRegistry
-        # registration to give human-readable handle
 
     def remove_connector(  # noqa: D102
         self,
