@@ -877,9 +877,7 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         self._frozen_hierarchy = False
 
         # Binding initial subprimitives
-        self.children_by_address = (
-            WeakValueDictionary()
-        )  # implements SupportsChildren contract
+        self.children_by_address = WeakValueDictionary()
         if children is None:
             children = tuple()
 

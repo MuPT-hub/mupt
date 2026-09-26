@@ -5,7 +5,6 @@ E.g. checking atomicity, linearity, topology, neighbor valence, etc.
 
 from .primitives import (
     Primitive,
-    SimplePrimitive,
     AtomicPrimitive,
     CompositePrimitive,
 )
@@ -13,7 +12,7 @@ from .primitives import (
 
 def is_simple(prim: Primitive) -> bool:
     """Check whether a Primitive has no internal structure"""
-    return isinstance(prim, SimplePrimitive)
+    return prim.is_simple
 
 
 def is_atom(prim: Primitive) -> bool:
@@ -23,16 +22,16 @@ def is_atom(prim: Primitive) -> bool:
 
 def is_atomizable(prim: Primitive) -> bool:
     """
-    Check whether a Primitive is either an AtomicPrimitive or a
-    CompositePrimitive which can be fully expanded into AtomicPrimitives
+    Check whether a Primitive is either an AtomicPrimitive
+    or supportrs children but has only AtomicPrimtive leaves
     """
-    if is_atom(prim):
+    # AtomicPrimitives are Simple and therefore must be leaves;
+    # no need to recursively check the hierarchy for them
+    for leaf in prim.leaves:
+        if not is_atom(leaf):
+            return False
+    else:
         return True
-
-    if not isinstance(prim, CompositePrimitive):
-        return False
-
-    return all(is_atomizable(child) for child in prim.children)
 
 
 def is_complete(prim: Primitive) -> bool:
@@ -40,17 +39,7 @@ def is_complete(prim: Primitive) -> bool:
     Check whether a Primitive represents a chemically-complete molecular system
     I.e. has no "dangling", unbonded Connectors
     """
-    if prim.functionality > 0:  # no unsaturated connections
-        return False
-
-    if isinstance(prim, SimplePrimitive):
-        return True
-    elif isinstance(prim, CompositePrimitive):  # children may have free connectors
-        return all(  # no dangling composites
-            is_complete(child) for child in prim.children
-        )
-    else:
-        raise TypeError
+    return prim.connections.functionality == 0
 
 
 def is_flat(prim: CompositePrimitive) -> bool:
@@ -108,4 +97,8 @@ def has_strict_SAAMR_depth(prim: Primitive) -> bool:
     assign_SAAMR_roles : Assigns roles to a strict SAAMR hierarchy.
     """
     # TODO: type-check for Composites
-    return all(leaf.is_atom and (leaf.depth == 3) for leaf in prim.leaves)
+    for leaf in prim.leaves:
+        if not is_atom(leaf) or (leaf.depth != 3):
+            return False
+    else:
+        return True
