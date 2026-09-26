@@ -10,25 +10,38 @@ from typing import (
     Iterable,
     Iterator,
     Optional,
-    TypeAlias,
     Union,
+    TYPE_CHECKING,
 )
+from inspect import signature
 from itertools import count
 from functools import reduce
 from collections import Counter, defaultdict
 
 from numpy import ndarray, arange
-import networkx as nx
+from networkx.classes import Graph, MultiGraph
+from networkx.generators import path_graph
+from networkx.algorithms import union as graph_union
+from networkx.drawing import (
+    spring_layout,
+    draw_networkx,
+    draw_networkx_edges,
+)
+
+if TYPE_CHECKING:
+    from matplotlib.axes._axes import Axes
 
 Node = Hashable
 Edge = tuple[Node, Node]
 MultiEdge = tuple[Node, Node, int]
 GraphEdge = Union[Edge, MultiEdge]
-GraphLayout: TypeAlias = Callable[[nx.Graph], dict[Node, ndarray]]
+
+type GraphPositions = dict[Node, ndarray]
+type GraphLayout = Callable[[Graph], GraphPositions]
 
 
 # Network properties
-def is_indiscrete(graph: nx.Graph) -> bool:
+def is_indiscrete(graph: Graph) -> bool:
     """Whether the current topology represents an indiscrete topology
     i.e. a "trivial topology" without any connections
     """
@@ -38,7 +51,7 @@ def is_indiscrete(graph: nx.Graph) -> bool:
 is_trivial = is_indiscrete
 
 
-def is_empty(graph: nx.Graph) -> bool:
+def is_empty(graph: Graph) -> bool:
     """
     Whether the topology is empty (i.e. has no nodes)
 
@@ -48,7 +61,7 @@ def is_empty(graph: nx.Graph) -> bool:
     return graph.number_of_nodes() == 0
 
 
-def is_unbranched(graph: nx.Graph) -> bool:
+def is_unbranched(graph: Graph) -> bool:
     """Whether the topology contains only unbranching chain(s) or isolated nodes"""
     return all(node_deg <= 2 for node_id, node_deg in graph.degree)
 
@@ -56,12 +69,12 @@ def is_unbranched(graph: nx.Graph) -> bool:
 is_linear = is_unbranched
 
 
-def is_branched(graph: nx.Graph) -> bool:
+def is_branched(graph: Graph) -> bool:
     """Whether the topology contains any branching nodes"""
     return not is_unbranched(graph)
 
 
-def termini(graph: nx.Graph) -> Generator[int, None, None]:
+def termini(graph: Graph) -> Generator[int, None, None]:
     """
     Generates the indices of all nodes corresponding to terminal primitives
     (i.e. those with only one outgoing bond)
@@ -74,7 +87,7 @@ def termini(graph: nx.Graph) -> Generator[int, None, None]:
 leaves = termini
 
 
-def canonical_graph_property(graph: nx.Graph) -> str:
+def canonical_graph_property(graph: Graph) -> str:
     """
     Return a canonical form based on the graph structure and coloring
     induced by the canonical forms of internal Primitives
@@ -97,8 +110,8 @@ def canonical_graph_property(graph: nx.Graph) -> str:
 def path_graphs(
     chain_lengths: Iterable[int],
     node_labels: Optional[Iterator[Hashable]] = None,
-    create_using: type[nx.Graph] = nx.Graph,
-) -> Generator[nx.Graph, None, None]:
+    create_using: type[Graph] = Graph,
+) -> Generator[Graph, None, None]:
     """
     Generate a sequence of path graphs according to a
     provided sequence of lengths and labelling scheme
@@ -107,7 +120,7 @@ def path_graphs(
         node_labels = count(start=0, step=1)
 
     for chain_length in chain_lengths:
-        yield nx.path_graph(
+        yield path_graph(
             (next(node_labels) for _ in range(chain_length)),
             create_using=create_using,
         )
@@ -116,14 +129,14 @@ def path_graphs(
 def noodle_graph(
     chain_lengths: Iterable[int],
     node_labels: Optional[Iterator[Hashable]] = None,
-    create_using: type[nx.Graph] = nx.Graph,
-) -> nx.Graph:
+    create_using: type[Graph] = Graph,
+) -> Graph:
     """
     Generate a single topology representing a collection of disjoint linear
     chains according to a provided sequence of lengths and labelling scheme
     """
     return reduce(
-        nx.union,
+        graph_union,
         path_graphs(
             chain_lengths=chain_lengths,
             node_labels=node_labels,
@@ -134,8 +147,8 @@ def noodle_graph(
 
 # visualisation
 def determine_arc_radii(
-    graph: nx.Graph | nx.MultiGraph,
-    base_radius: int | float = 0.1,
+    graph: Graph | MultiGraph,
+    base_arc_radius: int | float = 0.1,
 ) -> dict[GraphEdge, str]:
     """
     Configure a graph to display symmetric-looking arcs for
@@ -163,9 +176,61 @@ def determine_arc_radii(
         num_parallel_edges: int = len(parallel_edges)
 
         for arc_radius, edge in zip(
-            base_radius * arange(1 - num_parallel_edges, num_parallel_edges, 2),
+            base_arc_radius * arange(1 - num_parallel_edges, num_parallel_edges, 2),
             parallel_edges,
         ):
             conn_style_map[edge] = f"arc3,rad={arc_radius}"
 
     return conn_style_map
+
+
+def draw_networkx_with_arcs(
+    G: Graph | MultiGraph,  # TB: MultiGraph < Graph already; just making explicit
+    pos: Optional[GraphPositions] = None,
+    ax: Optional["Axes"] = None,
+    base_arc_radius: float = 0.1,
+    default_margins: float = 0.25,
+    **kwargs,
+) -> "Axes":
+    """
+    Draw the graph G with separated arcs for parallel edges
+
+    Thin wrapper around draw_networkx() and draw_networkx_edges()
+    See networkx.drawing documentation for kwarg details
+    """
+    from matplotlib.pyplot import figure
+
+    # TB DEV: these kwargs filters are lifted from internals of draw_networkx()
+    kwargs["with_labels"] = True
+    edgelist = kwargs.pop("edgelist", G.edges)  # handle edgelist manually
+    _ = kwargs.pop("connectionstyle", None)  # prevent connectionstyle override
+
+    valid_edge_kwds = signature(draw_networkx_edges).parameters.keys()
+    edge_kwargs = {k: v for k, v in kwargs.items() if k in valid_edge_kwds}
+
+    if ax is None:
+        fig = figure()
+        ax = fig.add_axes((0, 0, 1, 1))
+        ax.margins(default_margins)
+        ax.set_axis_off()
+
+    if pos is None:
+        pos = spring_layout(G)  # default to spring layout
+
+    # N.B.: the "edge_indices" logic inside draw_networkx() doesn't correctly handle
+    # distinct connectionstyles for each parallel multiedge in a multigraph
+    # viz. -|#|= edges in 4-node path unexpectedly refs styles like [0 | 0 1 2 | 0 1])
+    # Drawing edge-by-edge ensures the arcs drawn respect their assigned connectionstyle
+    draw_networkx(G, pos=pos, ax=ax, edgelist=[], **kwargs)  # skip edge drawing here
+    arc_styles = determine_arc_radii(G, base_arc_radius=base_arc_radius)
+    for edge in edgelist:
+        draw_networkx_edges(
+            G,
+            pos=pos,
+            ax=ax,
+            edgelist=[edge],
+            connectionstyle=arc_styles[edge],
+            **edge_kwargs,
+        )
+
+    return ax
