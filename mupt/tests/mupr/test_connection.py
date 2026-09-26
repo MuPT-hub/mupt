@@ -198,18 +198,41 @@ def test_connector_bondability(
 
 
 # Neighbor tests
+def test_connector_lock() -> None:
+    """Test that locking a Connector actually locks it"""
+    connector = Connector()
+    connector.lock()
+
+    assert connector.is_locked
+
+
+def test_connector_unlock() -> None:
+    """Test that unlocking a Connector actually unlocks it"""
+    connector = Connector()
+    connector.unlock()
+
+    assert not connector.is_locked
+
+
+def test_connector_toggle_lock() -> None:
+    """Test that toggling a Connectors lock actually inverts it lock status"""
+    connector = Connector()
+    lock_status_init = connector.is_locked
+    connector.toggle_lock()
+
+    assert connector.is_locked is not lock_status_init
+
+
 def test_connector_lock_blocks_write() -> None:
     """Test that a locked connector cannot be written to"""
+    # DEV: deliberately not fixture, though reused; want to quarantine attr modification
     conn0 = Connector(
         anchor=AttachmentPoint({1, 2}),
         linker=AttachmentPoint({3, 4}),
     )
     conn0.lock()
 
-    conn1 = Connector(
-        anchor=AttachmentPoint({3, 4}),
-        linker=AttachmentPoint({1, 2}),
-    )
+    conn1 = conn0.counterpart()
 
     with pytest.raises(ConnectorLockedError):
         conn0.neighbor = conn1
@@ -217,4 +240,31 @@ def test_connector_lock_blocks_write() -> None:
 
 def test_neighbor_assignment():
     """Test that (unlocked) Connectors can be mutually assigned neighbors each other"""
-    ...
+    conn0 = Connector(
+        anchor=AttachmentPoint({1, 2}),
+        linker=AttachmentPoint({3, 4}),
+    )
+    conn0.unlock()  # double-check both are unlocked
+
+    conn1 = conn0.counterpart()
+    conn1.unlock()  # double-check both are unlocked
+
+    conn0.neighbor = conn1
+
+    assert (conn0.neighbor == conn1) and (conn1.neighbor == conn0)
+
+
+def test_connector_lock_blocks_delete() -> None:
+    """Test that a locked connector cannot have an existing neighbor removed"""
+    conn0 = Connector(
+        anchor=AttachmentPoint({1, 2}),
+        linker=AttachmentPoint({3, 4}),
+    )
+    conn0.unlock()
+
+    conn1 = conn0.counterpart()
+    conn0.neighbor = conn1
+    conn1.lock()
+
+    with pytest.raises(ConnectorLockedError):
+        del conn0.neighbor
