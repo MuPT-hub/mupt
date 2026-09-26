@@ -19,7 +19,9 @@ from rdkit.Chem.rdchem import Atom, Bond, Mol
 from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
 
 # Custom
-from .selection import (
+from ...chemistry.conversion import rdkit_atom_to_element
+from ...chemistry.rdkit.linkers import anchor_and_linker_idxs
+from ...chemistry.rdkit.selection import (
     AtomCondition,
     logical_or,
     all_atoms,
@@ -27,14 +29,10 @@ from .selection import (
     bonds_by_condition,
     bond_condition_by_atom_condition_factory,
 )
-from ...chemistry.linkers import anchor_and_linker_idxs
-from ...chemistry.conversion import rdkit_atom_to_element
+
 from ...geometry.arraytypes import Vector3
-from ...mupr.connection import (
-    Connector,
-    ConnectorLabel,
-    AttachmentPoint,
-)
+from ...mupr.connection.types import ConnectorLabeller
+from ...mupr.connection.connectors import Connector, AttachmentPoint
 
 type AtomLabeller = Callable[[Atom], Hashable]
 
@@ -157,9 +155,7 @@ def connector_between_rdatoms(
     conformer_idx: Optional[int] = None,
     anchor_factory: Callable[[Atom], AttachmentPoint] = AttachmentPoint.from_atom,
     linker_factory: Callable[[Atom], AttachmentPoint] = AttachmentPoint.from_atom,
-    connector_labeller: Callable[[Connector], ConnectorLabel] = lambda conn: (
-        conn.DEFAULT_LABEL
-    ),
+    connector_labeller: ConnectorLabeller = lambda conn: conn.DEFAULT_LABEL,
 ) -> Connector:
     """
     Create a Connector object representing a

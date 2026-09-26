@@ -18,8 +18,8 @@ from rdkit.Chem.rdmolops import (
     FragmentOnBonds,
     GetMolFrags,
 )
-from .linkers import num_linkers
-from .sanitization import sanitized_mol
+from .rdkit.linkers import num_linkers
+from .rdkit.sanitization import sanitized_mol
 
 
 # NOTE: final pair of carbons avoid overmatching asparagine AND under-matching proline

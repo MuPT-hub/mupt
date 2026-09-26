@@ -5,12 +5,7 @@ RDKit objects (i.e. Atom, Bond, and Mol objects)
 
 from typing import Any, Callable, Optional, Union
 
-from rdkit.Chem.rdchem import (
-    Atom,
-    Bond,
-    Mol,
-    RWMol,
-)
+from rdkit.Chem.rdchem import Atom, Bond, Mol, RWMol
 
 RDObj = Union[Atom, Bond, Mol, RWMol]
 

@@ -5,22 +5,18 @@ import warnings
 
 import numpy as np
 
-from rdkit.Chem.rdchem import (
-    Atom,
-    Mol,
-    RWMol,
-    Conformer,
-    AtomPDBResidueInfo,
-)
+from rdkit.Chem.rdchem import Atom, Mol, RWMol, Conformer, AtomPDBResidueInfo
 from rdkit.Geometry import Point3D
 
-from .rdprops import RDPropType, assign_property_to_rdobj
-from .labelling import RDMOL_NAME_WRITE_PROP
 from ... import TOOLKIT_NAME
-from ...geometry.arraytypes import Vector3
+from ...chemistry.rdkit.rdprops import RDPropType, assign_property_to_rdobj
+from ...chemistry.rdkit.labelling import RDMOL_NAME_WRITE_PROP
 from ...chemistry.conversion import element_to_rdkit_atom
+
+from ...geometry.arraytypes import Vector3
 from ...mupr.connection import Connector
 from ...mupr.primitives import Primitive, PrimitiveHandle
+
 from .strategies import (
     AllAtomRDKitExportStrategy,
     RDKitExportStrategy,

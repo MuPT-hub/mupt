@@ -24,7 +24,7 @@ from periodictable.core import Element, Ion, Isotope, isatom as isatom
 ELEMENTS = elements
 ElementLike = Union[Element, Ion, Isotope]
 
-from .rdloggers import suppress_rdkit_logs
+from .rdkit.rdloggers import suppress_rdkit_logs
 
 
 def _compile_bond_order_reference() -> dict[BondType, float]:
