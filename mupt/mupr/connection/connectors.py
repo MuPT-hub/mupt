@@ -42,7 +42,7 @@ from .exceptions import IncompatibleConnectorError, ConnectorLockedError
 
 from ..canonicalize import lex_order_multiset_str
 from ...mutils.referencing import Addressed
-from ...chemistry.core import BondType, BOND_ORDER
+from ...chemistry.core import Atom, BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
 from ...geometry.coordinates.basis import is_orthonormal
@@ -81,6 +81,14 @@ class AttachmentPoint(RigidlyTransformable):
 
     def _rigidly_transform(self, transformation: RigidTransform) -> None:
         self.position[:] = transformation.apply(self.position)
+
+    @classmethod
+    def from_atom(cls, atom: Atom) -> "AttachmentPoint":
+        """
+        Initialize an AttachmentPoint whose attachable types are an
+        RDKit Atom's index in a molecule and it elemental symbol
+        """
+        return cls(attachables={atom.GetIdx(), atom.GetSymbol()})
 
 
 # Connector class proper

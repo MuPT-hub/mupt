@@ -135,22 +135,13 @@ def atom_positions_from_rdkit(
     return None
 
 
-def attachment_point_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
-    """Create an AttachmentPoint labelling both by atom index and element symbol"""
-    return AttachmentPoint(attachables={atom.GetIdx(), atom.GetSymbol()})
-
-
 def connector_between_rdatoms(
     parent_mol: Mol,
     from_atom_idx: int,
     to_atom_idx: int,
     conformer_idx: Optional[int] = None,
-    anchor_factory: Callable[
-        [Atom], AttachmentPoint
-    ] = attachment_point_with_idx_and_symbol,
-    linker_factory: Callable[
-        [Atom], AttachmentPoint
-    ] = attachment_point_with_idx_and_symbol,
+    anchor_factory: Callable[[Atom], AttachmentPoint] = AttachmentPoint.from_atom,
+    linker_factory: Callable[[Atom], AttachmentPoint] = AttachmentPoint.from_atom,
     connector_labeller: Callable[[Connector], ConnectorLabel] = lambda conn: (
         conn.DEFAULT_LABEL
     ),
@@ -173,11 +164,11 @@ def connector_between_rdatoms(
         The ID of the conformer from which to extract 3D positions
         If None is supplied, will leave all spatial fields of the Connector unset
     anchor_factory : Callable[[Atom], AttachmentPoint], \
-            default: attachment_point_with_idx_and_symbol
+            default: AttachmentPoint.from_atom
         A function which takes an RDKit Atom and
         returns an AttachmentPoint to use as the anchor point
     linker_factory : Callable[[Atom], AttachmentPoint], \
-            default: attachment_point_with_idx_and_symbol
+            default: AttachmentPoint.from_atom
         A function which takes an RDKit Atom and
         returns an AttachmentPoint to use as the linker point
     connector_labeller : Callable[[Connector], ConnectorLabel], \
