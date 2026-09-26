@@ -10,33 +10,25 @@ from typing import (
     Iterable,
     Optional,
     Type,
-    TypeVar,
 )
 
 import numpy as np
-import networkx as nx
+from networkx import Graph
 
-GraphLike = TypeVar("GraphLike", bound=nx.Graph)
-
-# chemistry utilities
-from rdkit.Chem.rdchem import (
-    Atom,
-    Bond,
-    Mol,
-)
+from rdkit.Chem.rdchem import Atom, Bond, Mol
 from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
 
 # Custom
-from ...chemistry.linkers import anchor_and_linker_idxs
 from .selection import (
     AtomCondition,
-    BondCondition,
     logical_or,
     all_atoms,
     atom_neighbors_by_condition,
     bonds_by_condition,
     bond_condition_by_atom_condition_factory,
 )
+from ...chemistry.linkers import anchor_and_linker_idxs
+from ...chemistry.conversion import rdkit_atom_to_element
 from ...geometry.arraytypes import Vector3
 from ...mupr.connection import (
     Connector,
@@ -44,15 +36,26 @@ from ...mupr.connection import (
     AttachmentPoint,
 )
 
+type AtomLabeller = Callable[[Atom], Hashable]
+
+
+def DEFAULT_ATOM_LABELLER(atom: Atom) -> str:
+    """
+    Default implementation of creating a commonly-understood
+    hashable label from an RDKit Atom instance
+    """
+    # return str(atom.GetIdx())
+    return f"{rdkit_atom_to_element(atom)!s}-{atom.GetIdx()}"
+
 
 # Representation component initializers
 def chemical_graph_from_rdkit(
     rdmol: Mol,
     atom_condition: Optional[AtomCondition] = None,
-    label_method: Callable[[Atom], Hashable] = lambda atom: atom.GetIdx(),
+    atom_labeller: AtomLabeller = DEFAULT_ATOM_LABELLER,
     binary_operator: Callable[[bool, bool], bool] = logical_or,
-    graph_type: Type[GraphLike] = nx.Graph,
-) -> GraphLike:
+    graph_type: Type[Graph] = Graph,
+) -> Graph:
     """
     Create a graph from an RDKit Mol whose:
     * Vertices correspond to all atoms satisfying the given atom condition, and
@@ -65,20 +68,19 @@ def chemical_graph_from_rdkit(
     atom_condition : Optional[Callable[[Chem.Atom], bool]], default None
         Condition on atoms which returns bool;
         Always returns True if unset
-    label_method : Callable[[Chem.Atom], Hashable], default lambda atom : atom.GetIdx()
+    atom_labeller : Callable[[Chem.Atom], Hashable], default DEFAULT_ATOM_LABELLER
         Method to uniquely label each atom as a vertex in the graph
-        Default to choosing the atom's index
+        Default assignment yields '<element>-<atom index>' strings
     binary_operator : Callable[[bool, bool], bool], default logical_or
         Binary logical operator used to
     """
-    if not atom_condition:
-        atom_condition: AtomCondition = all_atoms
-    bond_condition: BondCondition = bond_condition_by_atom_condition_factory(
-        atom_condition, binary_operator
+    _atom_condition = atom_condition if atom_condition else all_atoms
+    bond_condition = bond_condition_by_atom_condition_factory(
+        _atom_condition, binary_operator
     )
 
     return graph_type(
-        (label_method(atom_begin), label_method(atom_end))
+        (atom_labeller(atom_begin), atom_labeller(atom_end))
         for (atom_begin, atom_end) in bonds_by_condition(
             rdmol,
             condition=bond_condition,
