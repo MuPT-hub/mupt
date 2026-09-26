@@ -135,15 +135,9 @@ def atom_positions_from_rdkit(
     return None
 
 
-def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
+def attachment_point_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     """Create an AttachmentPoint labelling both by atom index and element symbol"""
-    atom_idx = atom.GetIdx()
-    atom_symbol = atom.GetSymbol()
-
-    return AttachmentPoint(
-        attachables={atom_idx, atom_symbol},
-        attachment=atom_idx,
-    )
+    return AttachmentPoint(attachables={atom.GetIdx(), atom.GetSymbol()})
 
 
 def connector_between_rdatoms(
@@ -151,8 +145,12 @@ def connector_between_rdatoms(
     from_atom_idx: int,
     to_atom_idx: int,
     conformer_idx: Optional[int] = None,
-    anchor_factory: Callable[[Atom], AttachmentPoint] = attachment_with_idx_and_symbol,
-    linker_factory: Callable[[Atom], AttachmentPoint] = attachment_with_idx_and_symbol,
+    anchor_factory: Callable[
+        [Atom], AttachmentPoint
+    ] = attachment_point_with_idx_and_symbol,
+    linker_factory: Callable[
+        [Atom], AttachmentPoint
+    ] = attachment_point_with_idx_and_symbol,
     connector_labeller: Callable[[Connector], ConnectorLabel] = lambda conn: (
         conn.DEFAULT_LABEL
     ),
@@ -175,11 +173,11 @@ def connector_between_rdatoms(
         The ID of the conformer from which to extract 3D positions
         If None is supplied, will leave all spatial fields of the Connector unset
     anchor_factory : Callable[[Atom], AttachmentPoint], \
-            default: attachment_with_idx_and_symbol
+            default: attachment_point_with_idx_and_symbol
         A function which takes an RDKit Atom and
         returns an AttachmentPoint to use as the anchor point
     linker_factory : Callable[[Atom], AttachmentPoint], \
-            default: attachment_with_idx_and_symbol
+            default: attachment_point_with_idx_and_symbol
         A function which takes an RDKit Atom and
         returns an AttachmentPoint to use as the linker point
     connector_labeller : Callable[[Connector], ConnectorLabel], \
@@ -189,7 +187,7 @@ def connector_between_rdatoms(
         (i.e. can make use of those fields in determination of the label)
 
     anchor_factory and linker_factory should only define how the
-    attachment and attachables of each AttachmentPoint are defined.
+    attachables of each AttachmentPoint are defined, and not their geometry.
     Positions of each point will be set later if conformer information is available
 
     Returns

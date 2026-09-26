@@ -602,7 +602,7 @@ class SupportsChildren(Primitive):
 
     ## Attachment
     def _pre_attach_children(self, children: Iterable["SupportsParents"]) -> None:
-        """Preconditions prior to attempting attachment of this Primitive to a parent"""
+        """Preconditions prior to attempting to attach of this Primitive to a parent"""
         super()._pre_attach_children(children)
         self._precondition_mutable_connectors()  # positions and neighbors may shift
         self._precondition_mutable_hierarchy()
@@ -611,7 +611,7 @@ class SupportsChildren(Primitive):
             child._precondition_mutable_hierarchy()
 
     def _post_attach_children(self, children: Iterable["SupportsParents"]) -> None:
-        """Post-actions to take once attachment is verified and parent is bound"""
+        """Post-actions to take once children are attached and parent is bound"""
         super()._post_attach_children(children)
         # TODO: remap connection info
         ...
@@ -642,7 +642,7 @@ class SupportsChildren(Primitive):
         )
 
     def _post_detach_children(self, children: Iterable["SupportsParents"]) -> None:
-        """Post-actions to take once attachment is verified and parent is bound"""
+        """Post-actions to take once children are detached and parent is unbound"""
         super()._post_detach_children(children)
 
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
@@ -987,7 +987,7 @@ class SimplePrimitive(SupportsParents):
         for connector in self.connections.connectors:
             self.withdraw_connector_from_hierarchy(connector, preserve_neighbor=False)
 
-    ## Explicit ban on attachment of children (already simple)
+    ## Explicitly bans attaching children to Simples
     def _pre_attach_children(self, children: Iterable[Primitive]) -> None:
         super()._pre_attach_children(children)
         raise IrreducibilityError(
