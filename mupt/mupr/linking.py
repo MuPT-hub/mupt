@@ -93,7 +93,7 @@ def _check_connectors_cover_topology(
         # Weaker size requirement; nodes need not be in 1:1 correspondence
         # with Connector collections, merely covered by them
         raise NodeMappingError(
-            "Not all nodes in the requested topology"
+            "Not all nodes in the requested topology "
             "are covered by collections of Connectors"
         )
 
@@ -263,7 +263,7 @@ def deduce_connections_from_topology(  # noqa: C901
     if any(unpaired_edges):
         raise EdgeMissingError(
             "Could not identify connection for every edge; try running registration "
-            "procedure for >{n_iter_max} iterations, or check topology/Connectors"
+            f"procedure for >{n_iter_max} iterations, or check topology/Connectors"
         )
     else:
         LOGGER.info(

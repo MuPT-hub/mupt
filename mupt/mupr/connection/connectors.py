@@ -612,7 +612,7 @@ class Connector(
             other
         ):  # TB: may relax this / allow passing alignment strategy
             raise IncompatibleConnectorError(
-                "Candidate for neighbor Connector is not anti-aligne within tolerance"
+                "Candidate for neighbor Connector is not anti-aligned within tolerance"
             )
 
         self._neighbor = other
