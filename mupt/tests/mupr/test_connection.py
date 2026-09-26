@@ -5,42 +5,94 @@ import pytest
 from networkx.algorithms import equivalence_classes
 
 from mupt.chemistry.core import BondType
-from mupt.mupr.connection import Connector, AttachmentPoint
 from mupt.builders.heading import TraversalDirection
+from mupt.mupr.connection.exceptions import ConnectorLockedError
+from mupt.mupr.connection import Connector, AttachmentPoint
 
 
-# Comparison tests
+# Counterpart tests
 CA = Connector(
     anchor=AttachmentPoint({1}),
     linker=AttachmentPoint({2}),
     bondtype=BondType.DOUBLE,
 )
-## DEV: creating here since expected result must contain same literal Connector instance
-CA_COPY = CA.copy()
-CA_COUNTERPART = CA.counterpart()
-
 # variant of CA with positional info; should compare as non-coincident
 CB = Connector(
     anchor=AttachmentPoint({1}),
     linker=AttachmentPoint({2}, position=[1, 2, 3]),
     bondtype=BondType.DOUBLE,
 )
-CB_COPY = CB.copy()
-CB_COUNTERPART = CB.counterpart()
-
 CC = Connector(
     anchor=AttachmentPoint({2}),
     linker=AttachmentPoint({1, 3}),
     bondtype=BondType.AROMATIC,
 )
-CC_COPY = CC.copy()
-CC_COUNTERPART = CC.counterpart()
-
 CD = Connector(
     anchor=AttachmentPoint({"same"}),
     linker=AttachmentPoint({"same"}),
     bondtype=BondType.SINGLE,
 )
+
+
+@pytest.mark.parametrize(
+    "connector",
+    [CA, CB, CC, CD],
+)
+def test_counterpart(connector: Connector):
+    """Test that a Connector's counterpart has the expected anchor/linker attributes"""
+    counterpart = connector.counterpart()
+
+    assert (
+        counterpart.linker.attachables == connector.anchor.attachables
+        and counterpart.anchor.attachables == connector.linker.attachables
+        and counterpart.bondtype == connector.bondtype
+    )
+    # TODO: compare positional info?
+    # and counterpart.tangent_vector == connector.tangent_vector
+
+
+@pytest.mark.parametrize(
+    "conn",
+    [
+        # test with the empty connector the verify that counterpart
+        # bondability fails when attachment points are empty
+        Connector(),
+        Connector(
+            anchor=AttachmentPoint({"a", "b", TraversalDirection.RETRO}),
+            linker=AttachmentPoint({"c", TraversalDirection.ANTERO}),
+            bondtype=BondType.SINGLE,
+        ),
+        CA,
+        CB,
+        CC,
+        CD,
+    ],
+)
+def test_connector_counterpart_bondable(conn: Connector) -> None:
+    """
+    Test that the co-Connector produced by Connector.counterpart()
+    is bondable to the original when attachment points are nonempty
+    """
+    # False only when nonempty
+    conn_empty = (not conn.anchor.attachables) or (not conn.linker.attachables)
+    counterpart_bondable = Connector.bondable_with(conn, conn.counterpart())
+
+    # XOR, since conditions are mutually-exclusive
+    assert conn_empty ^ counterpart_bondable
+
+
+# Comparison tests
+## only use counterparts in subsequent tests if prior counterpart tests have passed
+## DEV: creating here since expected result must contain same literal Connector instance
+CA_COPY = CA.copy()
+CA_COUNTERPART = CA.counterpart()
+
+CB_COPY = CB.copy()
+CB_COUNTERPART = CB.counterpart()
+
+CC_COPY = CC.copy()
+CC_COUNTERPART = CC.counterpart()
+
 CD_COPY = CD.copy()
 CD_COUNTERPART = CD.counterpart()
 
@@ -103,7 +155,6 @@ def test_connector_fungibility(
     assert equiv_classes_actual == equiv_classes_expected
 
 
-# Bondability tests
 C1 = Connector(
     anchor=AttachmentPoint({"a"}),
     linker=AttachmentPoint({"z"}),
@@ -146,28 +197,24 @@ def test_connector_bondability(
     assert Connector.bondable_with(conn1, conn2) == expected_bondable
 
 
-@pytest.mark.parametrize(
-    "conn",
-    [
-        # test with the empty connector the verify that counterpart
-        # bondability fails when attachment points are empty
-        Connector(),
-        Connector(
-            anchor=AttachmentPoint({"a", "b", TraversalDirection.RETRO}),
-            linker=AttachmentPoint({"c", TraversalDirection.ANTERO}),
-            bondtype=BondType.SINGLE,
-        ),
-    ],
-)
-def test_connector_counterpart_bondable(conn: Connector) -> None:
-    """
-    Test that the co-Connector produced by Connector.counterpart()
-    is bondable to the original when attachment points are nonempty
-    """
-    conn_empty = (not conn.anchor.attachables) or (
-        not conn.linker.attachables
-    )  # False only when nonempty
-    counterpart_bondable = Connector.bondable_with(conn, conn.counterpart())
+# Neighbor tests
+def test_connector_lock_blocks_write() -> None:
+    """Test that a locked connector cannot be written to"""
+    conn0 = Connector(
+        anchor=AttachmentPoint({1, 2}),
+        linker=AttachmentPoint({3, 4}),
+    )
+    conn0.lock()
 
-    # XOR, since conditions are mutually-exclusive
-    assert conn_empty ^ counterpart_bondable
+    conn1 = Connector(
+        anchor=AttachmentPoint({3, 4}),
+        linker=AttachmentPoint({1, 2}),
+    )
+
+    with pytest.raises(ConnectorLockedError):
+        conn0.neighbor = conn1
+
+
+def test_neighbor_assignment():
+    """Test that (unlocked) Connectors can be mutually assigned neighbors each other"""
+    ...
