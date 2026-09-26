@@ -37,19 +37,14 @@ from networkx import Graph, DiGraph, MultiGraph
 import numpy as np
 from scipy.spatial.transform import RigidTransform
 
-from .connection.connectors import (
-    Connector,
-    canonical_form_connectors,
-)
-from .connection.exceptions import (  # noqa: F401
-    IncompatibleConnectorError,
-    MissingConnectorError,
-    UnboundConnectorError,
-)
 from .connection.types import (
     ConnectorAddress,
     ConnectorLabel,
     ConnectorLabelLike,
+)
+from .connection.connectors import (
+    Connector,
+    canonical_form_connectors,
 )
 from .connection.management import (  # noqa: F401
     ConnectorManager,
@@ -59,7 +54,13 @@ from .connection.management import (  # noqa: F401
 )
 from .connection.alignment import (  # noqa: F401
     ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentBallistic,
     ConnectorAntialignmentRigid,
+)
+from .connection.exceptions import (  # noqa: F401
+    IncompatibleConnectorError,
+    MissingConnectorError,
+    UnboundConnectorError,
 )
 from .linking import (
     deduce_connections_from_topology,
@@ -229,18 +230,38 @@ class Primitive(
             raise AttributeError(msg)
 
     # Geometry
-    def _rigidly_transform(self, transformation: RigidTransform) -> None:
-        """Apply a rigid transformation to all parts of a Primitive which support it"""
-        if isinstance(self.shape, RigidlyTransformable):
-            self.shape.rigidly_transform(transformation)
-
-        for connector in self.connections.connectors:
-            connector.rigidly_transform(transformation)
-
     def _copy_untransformed(self) -> Self:
         # TODO: include extra logic from copying bound "edge" Connectors
         # which need to be re-initialized w/out their prevous neighbor
         raise NotImplementedError
+
+    def _rigidly_transform_shape(self, transformation: RigidTransform) -> None:
+        """Apply rigid transformation to just the shape of this Primitive"""
+        if isinstance(self.shape, RigidlyTransformable):  # TB: just check if not None?
+            self.shape.rigidly_transform(transformation)
+
+    def _rigidly_transform_connectors(self, transformation: RigidTransform) -> None:
+        """Apply rigid transformation to just the Conenctors managed by Primitive"""
+        # DEV: this should NOT be a configurable arg; always want ballistic here
+        antialign_strategy = ConnectorAntialignmentBallistic()
+        for connector in self.connections.connectors:
+            connector.rigidly_transform(transformation)
+            if connector.has_neighbor:
+                antialign_strategy.antialign(
+                    align_connector=connector,
+                    to_connector=connector.neighbor,  # keep neighbor fixed
+                    match_bond_length=True,
+                    dihedral_angle_rad=None,  # may configure in future
+                )
+
+    def _rigidly_transform(self, transformation: RigidTransform) -> None:
+        """Apply a rigid transformation to all parts of a Primitive which support it"""
+        self._rigidly_transform_connectors(transformation)
+        self._rigidly_transform_shape(transformation)
+        for subprimitive in self.descendants:  # descendants avoids recursive calls
+            # N.B.: not transforming sub-primitives' Connectors since they are, in
+            # aggregrate THE SAME Connectors managed here (don't double-transform)
+            subprimitive._rigidly_transform_shape(transformation)
 
     # Topology
     ## Connection read/write access
@@ -677,9 +698,6 @@ class SupportsChildren(Primitive):
     # Geometry
     ## Overriding RigidlyTransformable contracts - apply recursively to children as well
     def _copy_untransformed(self) -> "Primitive":
-        raise NotImplementedError
-
-    def _rigidly_transform(self, transformation: RigidTransform) -> None:
         raise NotImplementedError
 
     # Topology
