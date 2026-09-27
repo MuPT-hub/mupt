@@ -27,6 +27,7 @@ type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type PrimitiveHandle = tuple[PrimitiveLabel, int]  # (label, uniquification index)
 
+from copy import deepcopy
 from weakref import WeakValueDictionary
 
 from anytree.node import NodeMixin
@@ -612,6 +613,21 @@ class SupportsChildren(Primitive):
     ## Lookup
     children_by_address: WeakValueDictionary[PrimitiveAddress, "SupportsParents"]
 
+    def _init_children(
+        self,
+        children: Optional[Iterable["SupportsParents"]] = None,
+    ) -> None:
+        """
+        Perform one-time initialization of children-related attributes and, if
+        provided, bind children to self from collection of parent-capable Primitives
+        """
+        self.children_by_address = WeakValueDictionary()
+        if children is None:
+            children = tuple()
+
+        for subprimitive in children:
+            self.attach_child(subprimitive, label=subprimitive.label)
+
     def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
         """
         Lookup a child Primitive by its address and
@@ -826,11 +842,14 @@ class RootPrimitive(SupportsChildren):
     Used to store system-wide metadata, as well as provide hand-off point for interfaces
     """
 
+    box_vectors: Array3x3
+
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "ROOT"
 
     def __init__(
         self,
         box_vectors: Optional[Array3x3] = None,
+        children: Optional[Iterable[SupportsParents]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
         label: Optional[PrimitiveLabel] = None,
@@ -839,6 +858,7 @@ class RootPrimitive(SupportsChildren):
         self._shape = shape
         self.metadata = metadata or dict()
         self.label = label
+        self._init_children(children)
 
         # hidden flags - mutable by default
         self._frozen_connections = False
@@ -855,9 +875,17 @@ class RootPrimitive(SupportsChildren):
 
     # Copying
     def _copy_untransformed(self) -> "RootPrimitive":
-        # TODO: include extra logic from copying bound "edge" Connectors
-        # which need to be re-initialized w/out their prevous neighbor
-        raise NotImplementedError
+        """Make a copy of this RootPrimitive"""
+        clone = self.__class__(
+            box_vectors=self.box_vectors.copy(),
+            children=[child.copy() for child in self.children],
+            shape=None if (self.shape is None) else self.shape.copy(),
+            metadata={key: value for key, value in self.metadata.items()},
+            label=deepcopy(self.label),
+        )
+        # Simples will handle re-connecting and neighbors
+
+        return clone
 
     # Managing hierarchy
     ## Explicitly banning parents
@@ -894,24 +922,24 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         self.metadata = metadata or dict()
         self.connections = ConnectorManagerMutable()
         self.label = label
+        self._init_children(children)
 
         # hidden flags - mutable by default
         self._frozen_connections = False
         self._frozen_hierarchy = False
 
-        # Binding initial subprimitives
-        self.children_by_address = WeakValueDictionary()
-        if children is None:
-            children = tuple()
-
-        for subprimitive in children:
-            self.attach_child(subprimitive, label=subprimitive.label)
-
     # Copying
     def _copy_untransformed(self) -> "CompositePrimitive":
-        # TODO: include extra logic from copying bound "edge" Connectors
-        # which need to be re-initialized w/out their prevous neighbor
-        raise NotImplementedError
+        """Make a copy of this CompositePrimitive"""
+        # Simples will handle re-connecting and neighbors
+        clone = self.__class__(
+            children=[child.copy() for child in self.children],
+            shape=None if (self.shape is None) else self.shape.copy(),
+            metadata={key: value for key, value in self.metadata.items()},
+            label=deepcopy(self.label),
+        )
+
+        return clone
 
 
 ## Simples
