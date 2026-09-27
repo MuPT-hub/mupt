@@ -255,8 +255,9 @@ class Primitive(
 
     # Geometry
     def _copy_untransformed(self) -> Self:
-        # TODO: include extra logic from copying bound "edge" Connectors
-        # which need to be re-initialized w/out their prevous neighbor
+        # TB: intentionally left blank; while generic _rigidly_transform
+        # is possible to implement in here in the base, the specifics of
+        # creating new instances must be up to the concrete subtypes
         raise NotImplementedError
 
     def _rigidly_transform_shape(self, transformation: RigidTransform) -> None:
@@ -710,11 +711,6 @@ class SupportsChildren(Primitive):
         self._precondition_mutable_hierarchy()
         raise NotImplementedError
 
-    # Geometry
-    ## Overriding RigidlyTransformable contracts - apply recursively to children as well
-    def _copy_untransformed(self) -> "Primitive":
-        raise NotImplementedError
-
     # Topology
     def set_connectivity_from_topology(
         self,
@@ -852,8 +848,11 @@ class RootPrimitive(SupportsChildren):
             box_vectors = np.eye(3, dtype=float)
         self.box_vectors = box_vectors
 
-    # DEV: deliberately excluded public setter for is_frozen;
-    # this should never be tampered with externally
+    # Copying
+    def _copy_untransformed(self) -> "RootPrimitive":
+        # TODO: include extra logic from copying bound "edge" Connectors
+        # which need to be re-initialized w/out their prevous neighbor
+        raise NotImplementedError
 
     # Managing hierarchy
     ## Explicitly banning parents
@@ -903,11 +902,11 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         for subprimitive in children:
             self.attach_child(subprimitive, label=subprimitive.label)
 
-    # Hierarchy
-    ...
-
-    ## Topology
-    ...
+    # Copying
+    def _copy_untransformed(self) -> "CompositePrimitive":
+        # TODO: include extra logic from copying bound "edge" Connectors
+        # which need to be re-initialized w/out their prevous neighbor
+        raise NotImplementedError
 
 
 ## Simples
@@ -945,6 +944,12 @@ class SimplePrimitive(SupportsParents):
         # hidden flags - mutable by default
         self._frozen_connections = False
         self._frozen_hierarchy = False
+
+    # Copying
+    def _copy_untransformed(self) -> "SimplePrimitive":
+        # TODO: include extra logic from copying bound "edge" Connectors
+        # which need to be re-initialized w/out their prevous neighbor
+        raise NotImplementedError
 
     @property
     def is_simple(self) -> bool:
@@ -1049,6 +1054,17 @@ class AtomicPrimitive(SimplePrimitive):
             metadata=metadata,
             label=label,
         )
+
+    # Copying
+    def _copy_untransformed(self) -> "AtomicPrimitive":
+        # return self.__class__(
+        #     element=self.element, # TB: double-check, but think these are singletons
+        #     connections=
+        # )
+
+        # TODO: include extra logic from copying bound "edge" Connectors
+        # which need to be re-initialized w/out their prevous neighbor
+        raise NotImplementedError
 
     @property  # DEV: no setter implemented; element is immutable after instantiation
     def element(self) -> ElementLike:
