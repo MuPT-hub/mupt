@@ -5,6 +5,7 @@ Utilities for extracting information from and recasting RDKit objects
 
 from typing import (
     Callable,
+    Container,
     Hashable,
     Iterable,
     Optional,
@@ -29,10 +30,13 @@ from ...chemistry.rdkit.selection import (
 )
 
 from ...geometry.arraytypes import Vector3, Array2x3
-from ...mupr.connection.types import ConnectorLabeller
+from ...mupr.connection.types import ConnectorLabel, ConnectorLabeller
 from ...mupr.connection.connectors import Connector, AttachmentPoint
 
 type AtomLabeller = Callable[[Atom], Hashable]
+type AttachablesFactory = Callable[
+    [Atom], Container[Hashable]
+]  # Container is covariant
 
 
 def DEFAULT_ATOM_LABELLER(atom: Atom) -> str:
@@ -42,6 +46,19 @@ def DEFAULT_ATOM_LABELLER(atom: Atom) -> str:
     """
     # return str(atom.GetIdx())
     return f"{rdkit_atom_to_element(atom)!s}-{atom.GetIdx()}"
+
+
+def DEFAULT_CONNECTOR_LABELLER(connector: Connector) -> ConnectorLabel:
+    """Default implementation for auto-assgining labels to Connector instances"""
+    return connector.DEFAULT_LABEL
+
+
+def DEFAULT_ATTACHABLES_FACTORY(atom: Atom) -> set[int]:
+    """
+    Default implementation for generating attachable
+    type label sets from Atom instances
+    """
+    return {atom.GetIdx()}
 
 
 # Representation component initializers
@@ -151,8 +168,8 @@ def connector_from_rdkit_atoms(
     from_atom_idx: int,
     to_atom_idx: int,
     conformer_idx: Optional[int] = None,
-    attachables_factory: Callable[[Atom], set[Hashable]] = lambda atom: {atom.GetIdx()},
-    connector_labeller: ConnectorLabeller = lambda conn: conn.DEFAULT_LABEL,
+    attachables_factory: AttachablesFactory = DEFAULT_ATTACHABLES_FACTORY,
+    connector_labeller: ConnectorLabeller = DEFAULT_CONNECTOR_LABELLER,
     locked: bool = False,
 ) -> Connector:
     """
@@ -263,8 +280,8 @@ def connector_pair_from_rdkit_bond(
     parent_mol: Mol,
     bond_idx: int,
     conformer_idx: Optional[int] = None,
-    attachables_factory: Callable[[Atom], set[Hashable]] = lambda atom: {atom.GetIdx()},
-    connector_labeller: ConnectorLabeller = lambda conn: conn.DEFAULT_LABEL,
+    attachables_factory: AttachablesFactory = DEFAULT_ATTACHABLES_FACTORY,
+    connector_labeller: ConnectorLabeller = DEFAULT_CONNECTOR_LABELLER,
     locked: bool = False,
 ) -> dict[int, Connector]:
     """
