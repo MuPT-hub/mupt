@@ -42,7 +42,7 @@ from .exceptions import IncompatibleConnectorError, ConnectorLockedError
 
 from ..canonicalize import lex_order_multiset_str
 from ...mutils.referencing import Addressed
-from ...chemistry.core import Atom, BondType, BOND_ORDER
+from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
 from ...geometry.coordinates.basis import is_orthonormal
@@ -61,6 +61,7 @@ class AttachmentPoint(RigidlyTransformable):
     """
 
     attachables: set[AttachmentLabel] = field(default_factory=set)
+    # TB: worth allowing option to have position unassigned (e.g. None)?
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
 
     def __setattr__(self, key, value):
@@ -81,16 +82,6 @@ class AttachmentPoint(RigidlyTransformable):
 
     def _rigidly_transform(self, transformation: RigidTransform) -> None:
         self.position[:] = transformation.apply(self.position)
-
-    @classmethod
-    def from_atom(cls, atom: Atom) -> "AttachmentPoint":
-        """
-        Initialize an AttachmentPoint whose attachable types are an
-        RDKit Atom's index in a molecule and it elemental symbol
-        """
-        # return cls(attachables={atom.GetIdx(), atom.GetSymbol()})
-        # TB: keep ID-only ensures unique choice of counterpart during linking
-        return cls(attachables={atom.GetIdx()})
 
 
 # Connector class proper

@@ -10,11 +10,7 @@ LOGGER = logging.getLogger(__name__)
 from typing import Union
 
 from rdkit.Chem.rdmolfiles import MolFromSmiles
-from rdkit.Chem.rdchem import (
-    Atom,  # noqa: F401 (import unused here, but exported to mupr)
-    BondType,
-    GetPeriodicTable,
-)
+from rdkit.Chem.rdchem import BondType, GetPeriodicTable
 
 RDKitPeriodicTable = GetPeriodicTable()
 
