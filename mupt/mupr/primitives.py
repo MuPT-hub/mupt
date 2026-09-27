@@ -164,9 +164,9 @@ class Primitive(
     DEFAULT_LABEL: ClassVar[PrimitiveLabel]
 
     # Expected instance attributes
-    shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     connections: ConnectorManager
     metadata: dict[Hashable, Any]
+    _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
 
     _frozen_connections: bool
@@ -254,6 +254,11 @@ class Primitive(
             raise AttributeError(msg)
 
     # Geometry
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]:
+        """The external shape of this Primitive"""
+        return self._shape
+
     def _copy_untransformed(self) -> Self:
         # TB: intentionally left blank; while generic _rigidly_transform
         # is possible to implement in here in the base, the specifics of
