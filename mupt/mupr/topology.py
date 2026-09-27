@@ -230,6 +230,7 @@ def draw_networkx_with_arcs(
             ax=ax,
             edgelist=[edge],
             connectionstyle=arc_styles[edge],
+            arrows=True,  # suppress warning on edge w/ connectionstyle on simple Graphs
             **edge_kwargs,
         )
 
