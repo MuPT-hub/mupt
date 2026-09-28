@@ -293,7 +293,45 @@ class Primitive(
         # TB: intentionally left blank; while generic _rigidly_transform
         # is possible to implement in here in the base, the specifics of
         # creating new instances must be up to the concrete subtypes
-        raise NotImplementedError
+        """
+        Create a copy which has a complete hierarchy and connectivity below it
+        Does not apply any rigid transformation to itself or sub-components
+
+        Connections outside the "cone" below this Primtive will be severed in the copy
+        """
+        clone_with_hierarchy, orig_prim_to_copy = self._copy_hierarchy()
+        orig_conn_to_copy: dict[Connector, Connector] = dict()
+
+        for connector in self.connections.connectors:
+            connector_copy = connector.copy()
+            del connector_copy.neighbor  # just to be safe
+
+            # DEV: not using dict.get(), since we WANT a KeyError if holders are unset
+            new_holder = orig_prim_to_copy[connector.holder]
+            # add_connector should propagate Connector copies through all Primitives
+            # in the copied hierarchy, including it among *this* clone's connectors
+            new_holder.add_connector(connector_copy)
+
+            orig_conn_to_copy[connector] = connector_copy
+
+        # not using dict.items() to avoid calamity from dict modification during iter
+        # needed to prevent double-counting bonds via their two constituent Connectors
+        connectors_to_visit: set[Connector] = set(orig_conn_to_copy)
+        while connectors_to_visit:
+            # regardless of neighbor status, remove *this* Connector from search pool
+            orig_connector = connectors_to_visit.pop()
+            if not orig_connector.has_neighbor:
+                continue
+
+            # Connector is "internal" <=> its neighbor is also managed by this Primitive
+            if (orig_neighbor := orig_connector.neighbor) in orig_conn_to_copy:
+                copy_connector = orig_conn_to_copy[orig_connector]
+
+                # to avoid double-counting bonds, don't visit original neighbor later
+                copy_connector.neighbor = orig_conn_to_copy.pop(orig_neighbor)
+                connectors_to_visit.remove(orig_neighbor)
+
+        return clone_with_hierarchy
 
     def _rigidly_transform_shape(self, transformation: RigidTransform) -> None:
         """Apply rigid transformation to just the shape of this Primitive"""
