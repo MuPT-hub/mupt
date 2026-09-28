@@ -267,7 +267,7 @@ def connector_from_rdkit_atoms(
         metadata=metadata,
     )
     connector.label = connector_labeller(connector)
-    if coplanar_point:
+    if coplanar_point is not None:
         connector.set_tangent_from_coplanar_point(coplanar_point)
 
     if locked:
