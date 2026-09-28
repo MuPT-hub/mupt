@@ -260,6 +260,13 @@ class Primitive(
         """The external shape of this Primitive"""
         return self._shape
 
+    def _copy_instance(self) -> Self:
+        """
+        Make copy of the current Primitive, WITHOUT any
+        hierarchical or Connection information included
+        """
+        raise NotImplementedError  # TB TODO: should be abstractmethod, eventually
+
     def _copy_untransformed(self) -> Self:
         # TB: intentionally left blank; while generic _rigidly_transform
         # is possible to implement in here in the base, the specifics of
@@ -874,17 +881,18 @@ class RootPrimitive(SupportsChildren):
         self.box_vectors = box_vectors
 
     # Copying
-    def _copy_untransformed(self) -> "RootPrimitive":
-        """Make a copy of this RootPrimitive"""
+    def _copy_instance(self) -> Self:
+        """
+        Make a copy of this RootPrimitive WITHOUT any
+        hierarchical or Connection information included
+        """
         clone = self.__class__(
             box_vectors=self.box_vectors.copy(),
-            children=[child.copy() for child in self.children],
+            children=[],
             shape=None if (self.shape is None) else self.shape.copy(),
             metadata={key: value for key, value in self.metadata.items()},
             label=deepcopy(self.label),
         )
-        # Simples will handle re-connecting and neighbors
-
         return clone
 
     # Managing hierarchy
@@ -929,16 +937,17 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         self._frozen_hierarchy = False
 
     # Copying
-    def _copy_untransformed(self) -> "CompositePrimitive":
-        """Make a copy of this CompositePrimitive"""
-        # Simples will handle re-connecting and neighbors
+    def _copy_instance(self) -> Self:
+        """
+        Make a copy of this CompositePrimitive WITHOUT any
+        hierarchical or Connection information included
+        """
         clone = self.__class__(
-            children=[child.copy() for child in self.children],
+            children=[],
             shape=None if (self.shape is None) else self.shape.copy(),
             metadata={key: value for key, value in self.metadata.items()},
             label=deepcopy(self.label),
         )
-
         return clone
 
 
@@ -979,10 +988,18 @@ class SimplePrimitive(SupportsParents):
         self._frozen_hierarchy = False
 
     # Copying
-    def _copy_untransformed(self) -> "SimplePrimitive":
-        # TODO: include extra logic from copying bound "edge" Connectors
-        # which need to be re-initialized w/out their prevous neighbor
-        raise NotImplementedError
+    def _copy_instance(self) -> Self:
+        """
+        Make a copy of this SimplePrimitive WITHOUT any
+        hierarchical or Connection information included
+        """
+        clone = self.__class__(
+            connections=[],  # will be plumbed up in _copy_untransformed()
+            shape=None if (self.shape is None) else self.shape.copy(),
+            metadata={key: value for key, value in self.metadata.items()},
+            label=deepcopy(self.label),
+        )
+        return clone
 
     @property
     def is_simple(self) -> bool:
@@ -1089,15 +1106,19 @@ class AtomicPrimitive(SimplePrimitive):
         )
 
     # Copying
-    def _copy_untransformed(self) -> "AtomicPrimitive":
-        # return self.__class__(
-        #     element=self.element, # TB: double-check, but think these are singletons
-        #     connections=
-        # )
-
-        # TODO: include extra logic from copying bound "edge" Connectors
-        # which need to be re-initialized w/out their prevous neighbor
-        raise NotImplementedError
+    def _copy_instance(self) -> Self:
+        """
+        Make a copy of this AtomicPrimitive WITHOUT any
+        hierarchical or Connection information included
+        """
+        clone = self.__class__(
+            element=self.element,  # TB: double-check this is actually a singleton
+            connections=[],  # will be plumbed up in _copy_untransformed()
+            shape=None if (self.shape is None) else self.shape.copy(),
+            metadata={key: value for key, value in self.metadata.items()},
+            label=deepcopy(self.label),
+        )
+        return clone
 
     @property  # DEV: no setter implemented; element is immutable after instantiation
     def element(self) -> ElementLike:
