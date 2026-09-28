@@ -1,6 +1,5 @@
 """
-mBuild interface: export a MuPT Primitive hierarchy to an mBuild Compound.
+Interfaces to the Molecular Simulation Design Framework (MoSDeF) software ecosystem
 
-This subpackage is optional and is only loaded on explicit import,
-so mBuild is not a hard dependency of importing mupt. Import it directly:
+Includes tools like mBuild, GMSO, and Foyer
 """
