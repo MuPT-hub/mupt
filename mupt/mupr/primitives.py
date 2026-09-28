@@ -279,18 +279,13 @@ class Primitive(
         orig_prim_to_new_prim: dict[Primitive, Primitive] = dict()
 
         for subprim in LevelOrderIter(self):
-            print(subprim, orig_prim_to_new_prim)
             clone_no_hierarchy_subprim = subprim._copy_instance()
             orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
 
             new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
                 subprim.parent, None
             )
-            print(subprim.parent, new_parent)
-            # attach_child call needed to trigger preconditions
-            if new_parent is not None:
-                new_parent.attach_child(clone_no_hierarchy_subprim)
-            # clone_no_hierarchy_subprim.parent = new_parent
+            clone_no_hierarchy_subprim.parent = new_parent
 
         return orig_prim_to_new_prim[self], orig_prim_to_new_prim
 
