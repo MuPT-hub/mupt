@@ -861,15 +861,17 @@ class RootPrimitive(SupportsChildren):
         metadata: Optional[dict[Hashable, Any]] = None,
         label: Optional[PrimitiveLabel] = None,
     ) -> None:
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
+
         self.connections = ConnectorManagerMutable()
         self._shape = shape
         self.metadata = metadata or dict()
         self.label = label
-        self._init_children(children)
 
-        # hidden flags - mutable by default
-        self._frozen_connections = False
-        self._frozen_hierarchy = False
+        # N.B.: can't call before _frozen_hierarchy is set
+        self._init_children(children)
 
         # implements SupportsChildren contract
         self.children_by_address = WeakValueDictionary()
@@ -926,15 +928,17 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         metadata: Optional[dict] = None,
         label: Optional[PrimitiveLabel] = None,
     ) -> None:
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
+
         self._shape = shape
         self.metadata = metadata or dict()
         self.connections = ConnectorManagerMutable()
         self.label = label
-        self._init_children(children)
 
-        # hidden flags - mutable by default
-        self._frozen_connections = False
-        self._frozen_hierarchy = False
+        # N.B.: can't call before _frozen_hierarchy is set
+        self._init_children(children)
 
     # Copying
     def _copy_instance(self) -> Self:
