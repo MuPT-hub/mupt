@@ -33,6 +33,7 @@ from weakref import WeakValueDictionary
 from anytree.node import NodeMixin
 from anytree.render import RenderTree
 from anytree.search import findall
+from anytree.iterators import LevelOrderIter
 from networkx import Graph, DiGraph, MultiGraph
 
 import numpy as np
@@ -266,6 +267,32 @@ class Primitive(
         hierarchical or Connection information included
         """
         raise NotImplementedError  # TB TODO: should be abstractmethod, eventually
+
+    def _copy_hierarchy(self) -> tuple[Self, dict["Primitive", "Primitive"]]:
+        """
+        Copy the current Primitive and the hierarchy of all its Primitive ancestors
+
+        Return the root of the copied hierarchy (a Primitive analogous to this one)
+        and a map from the existing Primitives addresses to the newly-created ones
+        """
+        # TB: convert parts to address-based reference, if possible?
+        orig_prim_to_new_prim: dict[Primitive, Primitive] = dict()
+
+        for subprim in LevelOrderIter(self):
+            print(subprim, orig_prim_to_new_prim)
+            clone_no_hierarchy_subprim = subprim._copy_instance()
+            orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
+
+            new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
+                subprim.parent, None
+            )
+            print(subprim.parent, new_parent)
+            # attach_child call needed to trigger preconditions
+            if new_parent is not None:
+                new_parent.attach_child(clone_no_hierarchy_subprim)
+            # clone_no_hierarchy_subprim.parent = new_parent
+
+        return orig_prim_to_new_prim[self], orig_prim_to_new_prim
 
     def _copy_untransformed(self) -> Self:
         # TB: intentionally left blank; while generic _rigidly_transform
