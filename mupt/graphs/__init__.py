@@ -28,4 +28,5 @@ from .properties import (
 from .generators import (
     path_graph as path_graph,
     noodle_graph as noodle_graph,
+    balanced_dendrimer_graph as balanced_dendrimer_graph,
 )

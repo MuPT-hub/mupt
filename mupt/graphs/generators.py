@@ -54,10 +54,7 @@ def noodle_graph(
     )
 
 
-from typing import Hashable
-
-
-def balanced_dendimer_graph(
+def balanced_dendrimer_graph(
     core: Hashable = "core",
     shell_inner: Hashable = "branch",
     shell_outer: Hashable = "terminus",
@@ -89,4 +86,4 @@ def balanced_dendimer_graph(
     return Graph(dendr_tree)  # make edges undirected
 
 
-cayley_graph = balanced_dendimer_graph
+cayley_graph = balanced_dendrimer_graph
