@@ -63,8 +63,12 @@ def flexible_iterator(
         )
 
 
-def sliding_window(items: Iterable[T], n: int = 1) -> Generator[tuple[T], None, None]:
-    """Generates sliding windows of width n over an iterable collection of items
+def sliding_window(
+    items: Iterable[T],
+    n: int = 1,
+) -> Generator[tuple[T, T], None, None]:
+    """
+    Generates sliding windows of width n over an iterable collection of items
     E.g. : sliding_window('ABCDE', 3) --> (A, B, C), (B, C, D), (C, D, E)
     """
     it = iter(items)
@@ -79,7 +83,8 @@ def sliding_window(items: Iterable[T], n: int = 1) -> Generator[tuple[T], None, 
 
 
 def int_complement(
-    integers: Sequence[int], bounded: bool = False
+    integers: Sequence[int],
+    bounded: bool = False,
 ) -> Generator[int, None, None]:
     """
     Given a sequence of integers, generates from the
