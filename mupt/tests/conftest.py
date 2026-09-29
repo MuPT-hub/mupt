@@ -18,7 +18,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere
 from ..interfaces.smiles import primitive_from_smiles
-from ..interfaces.rdkit import suppress_rdkit_logs
+from ..chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from ..builders.random_walk import AngleConstrainedRandomWalk
 from ..roles import assign_SAAMR_roles, PrimitiveRole
 

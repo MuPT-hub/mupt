@@ -20,7 +20,7 @@ import networkx as nx
 from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
 from mupt.geometry.coordinates.reference import origin
 from mupt.geometry.transforms.rigid import rigid_vector_coalignment
-from mupt.interfaces.rdkit import suppress_rdkit_logs
+from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives import Primitive
 from mupt.mupr._discard import TopologicalStructure

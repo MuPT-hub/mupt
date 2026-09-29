@@ -155,7 +155,7 @@ def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
 def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
     import networkx as nx
 
-    from mupt.interfaces.rdkit import suppress_rdkit_logs
+    from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
     from mupt.interfaces.smiles import primitive_from_smiles
     from mupt.mupr._discard import TopologicalStructure
 
