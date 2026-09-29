@@ -69,7 +69,7 @@ from .linking import (
     assign_connections_from_topology,
     GraphIterRule,
 )
-from .topology import canonical_graph_property, draw_networkx_with_arcs  # noqa: F401
+from ..graphs.visualisation import draw_networkx_with_arcs
 from ..trees.render import tree_render_style, ConcreteStyle
 from ..trees.digraph import anytree_to_networkx
 

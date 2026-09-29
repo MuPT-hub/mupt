@@ -200,6 +200,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
     # implementing builder contracts
     def check_preconditions(self, primitive: Primitive) -> None:
         """Enforce that no branches chains exist anywhere"""
+        # TB TODO: update topology preconditions to work using cross-sections
         if primitive.topology.is_branched:
             raise ValueError(
                 "Random walk chain builder behavior undefined for branched topologies"
@@ -218,6 +219,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         Reorient bodies to be coincident (along a predefined axis) with
         the steps of an angle-constrained non-self-avoiding random walk
         """
+        # TB TODO: update topology preconditions to work using cross-sections
         for chain in primitive.topology.chains:
             # DEV: taking extra care to ensure chain is oriented from end-to-end,
             # because there's no requirement (or indeed, reason to believe)
