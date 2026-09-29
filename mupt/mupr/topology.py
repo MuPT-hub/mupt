@@ -200,11 +200,13 @@ def draw_networkx_with_arcs(
     """
     from matplotlib.pyplot import figure
 
-    # TB DEV: these kwargs filters are lifted from internals of draw_networkx()
-    kwargs["with_labels"] = True
+    if "with_labels" not in kwargs:
+        kwargs["with_labels"] = True
+
     edgelist = kwargs.pop("edgelist", G.edges)  # handle edgelist manually
     _ = kwargs.pop("connectionstyle", None)  # prevent connectionstyle override
 
+    # TB DEV: these kwargs filters are lifted from internals of draw_networkx()
     valid_edge_kwds = signature(draw_networkx_edges).parameters.keys()
     edge_kwargs = {k: v for k, v in kwargs.items() if k in valid_edge_kwds}
 
