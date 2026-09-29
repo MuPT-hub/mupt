@@ -14,14 +14,20 @@ not assign any fixed meaning to a given depth in the tree. This is what
 allows the same data structure to describe a system at many resolutions.
 
 Most of the tools MuPT hands systems off to do not work this way.
-MDAnalysis organizes a system into segments, residues, and atoms. RDKit
-works one molecule at a time. The PDB format expects chains, residue
-numbers, and atoms. Each of these has a fixed set of levels, and each level
-has a specific meaning.
+MDAnalysis organizes a system into a fixed hierarchy of
+`segments, residues, and atoms
+<https://userguide.mdanalysis.org/stable/groups_of_atoms.html>`_. The PDB
+format expects `chains, residue numbers, and atoms
+<https://www.wwpdb.org/documentation/file-format>`_. RDKit is flatter: a
+``Mol`` is a graph of atoms and bonds that may contain several disconnected
+fragments, but it has no built-in notion of residues or of which fragment
+is which beyond connectivity. Each of these tools has its own fixed set of
+levels, and each level has a specific meaning.
 
-*Roles* are how MuPT bridges the two. A role is an explicit label on a
-Primitive that says what that Primitive *means* to the outside world,
-independent of where it sits in the tree.
+*Roles* are how MuPT translates its hierarchy into the levels these tools
+expect. A role is an explicit label on a Primitive that says what that
+Primitive *means* to the outside world, independent of where it sits in
+the tree.
 
 
 Why depth is not enough
@@ -29,17 +35,15 @@ Why depth is not enough
 
 The simplest way to map a MuPT tree onto an external toolkit is to assume
 a layout: the root is the system, its children are molecules, their
-children are residues, and their children are atoms. Early versions of the
-MDAnalysis exporter did exactly this, walking the tree with nested loops
-that assumed every atom sat at depth 3.
+children are residues, and their children are atoms. 
 
 That assumption breaks as soon as a tree has a different shape. Adding a
 single grouping level (for example, collecting chains into a "domain", or
 residues into blocks) shifts every atom one level deeper, and a
-depth-based exporter will silently mislabel residues as segments and atoms
+depth-based exporter will mislabel residues as segments and atoms
 as residues. Worse, different parts of the code could disagree about
 ordering, producing topologies whose residues were scrambled relative to
-their coordinates (see `issue #19 <https://github.com/MuPT-hub/mupt/issues/19>`_).
+their coordinates.
 
 The underlying problem is that depth is *structural* information, while
 "this is a residue" is *semantic* information. Roles make the semantic
@@ -65,16 +69,12 @@ attribute, whose value is a member of the
 
 ``PARTICLE``
     The smallest exported unit. In an all-atom representation this is an
-    atom.
+    atom. In a CG representation, this may be a single coarse-grained bead.
 
 ``UNASSIGNED``
     The default. An unassigned Primitive has no meaning to an exporter and
     is treated as a *transparent* grouping node: exporters look through it
     to the role-bearing Primitives beneath.
-
-.. DRAFT: the PrimitiveRole docstring says PARTICLE may also be a "bead in
-   CG", but every current export path requires PARTICLE leaves to have an
-   element. Say CG PARTICLEs are planned (#109), or drop the mention?
 
 A few properties of roles are worth knowing:
 
@@ -82,20 +82,24 @@ A few properties of roles are worth knowing:
   them when building a Primitive (``Primitive(..., role=PrimitiveRole.RESIDUE)``),
   set them afterwards (``prim.role = PrimitiveRole.RESIDUE``), or call a
   helper such as :func:`~mupt.roles.assign_SAAMR_roles`.
-- **Roles are preserved by copying.** ``Primitive.copy()`` carries roles through to the copied tree, so a residue template tagged
-  once stays tagged when it is copied into many chains.
+- **Roles are preserved by copying.** ``Primitive.copy()`` carries roles
+  through to the copied tree, so a residue template tagged once stays
+  tagged when it is copied into many chains.
 - **Roles do not affect identity.** Two Primitives that differ only in
   their roles compare equal and have the same canonical form. A role
   describes how a Primitive should be *presented* to other tools, not what
   it *is* chemically.
 
-.. DRAFT: confirm with Tim that excluding role from canonical_form/__eq__ is
-   intended, and whether role is expected to stay a core Primitive attribute
-   after #56 (it moved to metadata and back during #50 review).
+.. DRAFT (reply to JRL note): #112 fixed a different thing -- it made
+   copy() keep roles (issue #98). It did not touch equality: on current main,
+   Primitive(label="x") == Primitive(label="x", role=SEGMENT) is still True,
+   and canonical_form() is identical. So the open question for Tim is only
+   whether that is intended, and whether role stays a core attribute after
+   #56. If you'd rather not raise it, this bullet is accurate as written.
 
 
-SAAMR: one system of roles
---------------------------
+Standard All-Atom Molecular Representation (SAAMR)
+--------------------------------------------------
 
 The four non-default roles are not arbitrary. Together they form one
 particular convention, the **Standard All-Atom Molecular Representation
@@ -200,7 +204,7 @@ the domain node is simply left ``UNASSIGNED``:
     u = primitive_to_mdanalysis(universe, resname_map={})
     # 1 segment, 1 residue ("HEL"), 1 atom -- the domain level is looked through
 
-This is the central idea of the page: **depth describes how a tree is
+**Depth describes how a tree is
 organized; roles describe what its parts mean.** The two coincide in a
 strict SAAMR tree, but exporters only ever rely on the roles.
 
@@ -208,31 +212,38 @@ It helps to keep the three checks straight:
 
 :func:`~mupt.mupr.properties.has_strict_SAAMR_depth`
     A *structural* check: are all leaves atoms at depth exactly 3? This is
-    the precondition for :func:`~mupt.roles.assign_SAAMR_roles`, and
-    nothing else depends on it.
+    the precondition for :func:`~mupt.roles.assign_SAAMR_roles`.
 
 :func:`~mupt.roles.has_SAAMR_roles`
     A quick *presence* check: does at least one Primitive carry each of the
     four SAAMR roles? It does not check how those roles are arranged.
 
-The exporters' own validation
-    The full contract, described in the next section. Every SAAMR-aware
-    exporter checks it before writing anything and raises a ``ValueError``
-    explaining what is wrong.
+Every exporter for SAAMR systems
+    confirms SAAMR compliance before writing anything and raises a
+    ``ValueError`` explaining what is wrong.
 
-.. DRAFT: has_SAAMR_roles is presence-only and unused in production. Worth
-   recommending that the exporter validator become public (it lives in the
-   private mupt.interfaces._shared.topology)?
+.. DRAFT (reply to JRL): has_SAAMR_roles has never been called in
+   production or in tests. You added it in 73a7155 ("add has_SAAMR_roles for
+   role-presence checking") on 2026-04-09 during the #50 review, alongside
+   d1ba340, which renamed is_SAAMR_compliant to has_strict_SAAMR_depth after
+   Tim noted export was still depth-bound. The exporters went on to
+   use their own validator (build_saamr_role_topology_index in the private
+   mupt.interfaces._shared.topology) instead. Agreed it looks like an
+   oversight. The natural fix is to have has_SAAMR_roles return whether
+   build_saamr_role_topology_index succeeds, so it checks arrangement too.
+   That is a code change (small separate PR or issue); once it lands, the
+   description above should change to "a full arrangement check".
 
-.. DRAFT: assign_SAAMR_roles overwrites any roles already set. Mention as a
-   caveat, or treat as a bug?
+:func:`~mupt.roles.assign_SAAMR_roles` always labels every level of a
+strict SAAMR tree, replacing any roles that were set before. To keep
+hand-assigned roles, set the remaining ones by hand instead of calling it.
 
 
-Rules for a well-formed SAAMR tree
-----------------------------------
+How to build a SAAMR tree
+-------------------------
 
-The rules the exporters actually enforce are role-based, not depth-based.
-A tree is exportable as SAAMR when:
+A tree can be exported as SAAMR when it satisfies the rules below. Note
+that they are stated in terms of roles, not depth:
 
 1. The root has the ``UNIVERSE`` role.
 2. Every leaf is a ``PARTICLE`` with an element, and only leaves are
@@ -246,6 +257,20 @@ A tree is exportable as SAAMR when:
 6. Bonds are owned at or below the ``SEGMENT`` level. A Primitive above
    any segment may not own internal connections, because a bond there
    would join two segments that are supposed to be covalently separate.
+
+.. figure:: images/saamr_role_tree.svg
+   :alt: Two Primitive trees. Left, a strict SAAMR tree with UNIVERSE,
+         SEGMENT, RESIDUE and PARTICLE at depths 0 to 3. Right, the same
+         system with an UNASSIGNED domain node between the universe and
+         the chain, so the atoms sit at depth 4.
+   :width: 100%
+
+   The same system with and without a transparent grouping node. Both
+   trees are valid SAAMR: the exporters see one segment, two residues and
+   four atoms either way. Only the left tree has strict SAAMR depth.
+
+.. DRAFT: prototype figure (docs/explanation/images/saamr_role_tree.svg);
+   replace with your own version if you like.
 
 Anything else is allowed. In particular, ``UNASSIGNED`` Primitives may
 appear anywhere between these levels: between the universe and its
@@ -289,9 +314,6 @@ SDF files
     transparent ``UNASSIGNED`` levels are not preserved through a round
     trip.
 
-    .. DRAFT: SDF currently lives in mupt.temporary, which is not in the
-       rendered API. Keep this entry or drop it until SDF is promoted?
-
 All-atom DPD initialization
     :class:`~mupt.builders.all_atom_dpd.AllAtomDPDBuilder` uses the same
     role rules to find the chains, residues, and atoms it needs to place
@@ -303,7 +325,7 @@ All-atom DPD initialization
 Beyond SAAMR
 ------------
 
-SAAMR is the first role system MuPT supports, not the last. Exporters are
+SAAMR is the first role system MuPT supports. Exporters are
 built around interchangeable *strategies* (for example, an all-atom
 strategy for MDAnalysis), so a different role convention, such as a
 coarse-grained hierarchy where ``PARTICLE``\ s are beads, can be supported
