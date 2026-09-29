@@ -804,17 +804,30 @@ class SupportsChildren(Primitive):
         self,
         topology: Graph,
         predicate: PrimitivePredicate,
-        n_iter_max_rule: Optional[Callable[[int], int]] = None,
+        prim_node_labeller: Callable[[Primitive], Hashable] = lambda prim: prim.address,
+        n_iter_max_rule: Optional[GraphIterRule] = None,
     ) -> None:
         """
-        Form connections from a labelled graph,
-        paying respect to selectivity of Connectors
+        Form connections from a labelled graph, respecting selectivity of Connectors
+
+        Parameters
+        ----------
+        topology: Graph
+            The graph to use to assign neighbor connectviity
+        predicate: PrimitivePredicate
+            The condition by which to select sub-Primitives
+        prim_node_labeller : Callable[[Primitive], Hashable] /
+                default lambda prim : prim.address,
+            A function which maps the selected sub-Primitives to hashable labels
+            The labels mapped to should match nodes of the passed graph
+        n_iter_max_rule: Optional[Callable[[int], int]] = None
+            A rule for assigning the max number of iterations the linker routine
+            should run before giving up, as a function of the passed graph
         """
         assign_connections_from_topology(
             topology,
             mapped_connectors={
-                # TODO: figure out how to map from unique addresses to graph node
-                subprim.addr: subprim.connections.connectors
+                prim_node_labeller(subprim): subprim.connections.connectors
                 for subprim in select_primitives(
                     self.descendants,
                     predicate=predicate,
