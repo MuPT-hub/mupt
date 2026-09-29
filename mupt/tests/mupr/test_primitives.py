@@ -6,11 +6,13 @@ import pytest
 from itertools import product as cartesian
 import numpy as np
 
+from mupt.mutils.iteration import sliding_window
 from mupt.mupr.connection.connectors import (
     Connector,
     AttachmentPoint,
     BondType,
 )
+from mupt.chemistry.core import ELEMENTS
 from mupt.mupr.primitives import (
     ArborescenceError,
     ImproperHierarchyError,
@@ -19,6 +21,7 @@ from mupt.mupr.primitives import (
     RootPrimitive,
     CompositePrimitive,
     SimplePrimitive,
+    AtomicPrimitive,
 )
 
 
@@ -34,6 +37,23 @@ def basic_connector() -> Connector:
         linker=AttachmentPoint({2}),
         bondtype=BondType.DOUBLE,
     )
+
+
+def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPrimitive:
+    """
+    Build a single-branch hierarchy which has
+    the passed Primitive instance as its sole leaf
+    """
+    root = RootPrimitive()
+    hierarchy_prims: list[Primitive] = [
+        root,
+        *[CompositePrimitive() for _ in range(num_intermed)],
+        prim,
+    ]
+    for parent_prim, child_prim in sliding_window(hierarchy_prims, n=2):
+        child_prim.parent = parent_prim
+
+    return root
 
 
 # Combining Primitives into hierarchy
@@ -86,6 +106,93 @@ def test_frozen_hierarchy():
     ...
 
 
+# Inserting and withdrawing Connectors from a hierarchy
+def test_inject_connector_into_hierarchy(): ...
+
+
+def test_withdraw_connector_from_hierarchy(): ...
+
+
+@pytest.mark.parametrize(
+    "simple,num_intermed",
+    [
+        # direct-to-root (no intermediates)
+        (SimplePrimitive(), 0),
+        ## test that other Connector instances aren't a distraction
+        (SimplePrimitive(connections=[Connector()]), 0),
+        (AtomicPrimitive(element=ELEMENTS[1]), 0),
+        # 3 intermediate Composite levels, to imitate more complex hierarchy
+        (SimplePrimitive(), 3),
+        (SimplePrimitive(connections=[Connector()]), 3),
+        (AtomicPrimitive(element=ELEMENTS[1]), 3),
+    ],
+)
+def test_simple_add_connector(
+    simple: SimplePrimitive,
+    num_intermed: int,
+) -> None:
+    """
+    Test that adding Connectors to any kind of SimplePrimitive:
+    b) sets that Connectors .holder attribute to itself
+    a) adds that Connector to the Simples managed pool of Connectors
+    c) injects that Connector through any parent levels of a hierarchy
+    """
+    _root = dummy_hierarchy_atop_prim(simple, num_intermed=num_intermed)
+    connector = Connector()
+    simple.add_connector(connector)
+
+    assert connector.holder == simple
+    for prim in simple.path:
+        assert connector in prim.connections.connectors
+
+
+@pytest.mark.parametrize(
+    "simple,num_intermed",
+    [
+        # direct-to-root (no intermediates)
+        (SimplePrimitive(), 0),
+        ## test that other Connector instances aren't a distraction
+        (SimplePrimitive(connections=[Connector()]), 0),
+        (AtomicPrimitive(element=ELEMENTS[1]), 0),
+        # 3 intermediate Composite levels, to imitate more complex hierarchy
+        (SimplePrimitive(), 3),
+        (SimplePrimitive(connections=[Connector()]), 3),
+        (AtomicPrimitive(element=ELEMENTS[1]), 3),
+    ],
+)
+def test_simple_remove_connector(
+    simple: SimplePrimitive,
+    num_intermed: int,
+) -> None:
+    """
+    Test that removing Connectors from any kind of SimplePrimitive:
+    b) unsets the Connectors .holder attribute
+    a) removes that Connector from the Simples managed pool of Connectors
+    c) withdraws that Connector from all parent levels of a hierarchy
+    """
+    _root = dummy_hierarchy_atop_prim(simple, num_intermed=num_intermed)
+    connector = Connector()
+    simple.add_connector(connector)  # TB: add_connector should have been tested prior
+
+    simple.remove_connector(connector)
+
+    assert connector.holder is None
+    for prim in simple.path:
+        assert connector not in prim.connections.connectors
+
+
+def test_simple_remove_connector_nonexistent() -> None:
+    """
+    Test that attempting to remove a Connector which was
+    never there to begin with is caught and raises Exception
+    """
+    simple = SimplePrimitive()
+    connector = Connector()
+
+    with pytest.raises(KeyError):
+        simple.remove_connector(connector)
+
+
 # Setting neighbors and topologies
 @pytest.mark.parametrize(
     "",
@@ -129,6 +236,13 @@ def test_negative_is_neighbors_with_symmetric():
 
 
 def test_neighborship_propagates_thru_hierarchy():
+    """
+    Test that neighborship status automatically multiscales
+
+    I.e. given two distinct branches of the hierrachy tree,
+    any pair of Primitives, one from either branch" being assigned neighbors
+    automatically makes EVERY pair from those branches neighors as well
+    """
     root_0 = RootPrimitive()
     comp_0 = CompositePrimitive()
     simp_0 = SimplePrimitive()
@@ -181,16 +295,3 @@ def test_root_default_box_vectors() -> None:
 
 # Resolution shifts on (mutable) Composites
 ...
-
-
-# Inserting Connectors into and deleting Connectors from hierarchy on Simples
-def test_simple_add_connector(): ...
-
-
-def test_simple_remove_connector(): ...
-
-
-def test_simple_inject_connector_into_hierarchy(): ...
-
-
-def test_simple_withdraw_connector_from_hierarchy(): ...
