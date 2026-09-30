@@ -827,7 +827,7 @@ class SupportsChildren(Primitive):
         assign_connections_from_topology(
             topology,
             mapped_connectors={
-                prim_node_labeller(subprim): subprim.connections.connectors
+                prim_node_labeller(subprim): subprim.connections.connectors_free
                 for subprim in select_primitives(
                     self.descendants,
                     predicate=predicate,
