@@ -30,6 +30,7 @@ def primitive_from_smiles(
     sanitize_ops: SanitizeFlags = SANITIZE_ALL,
     smiles_reader_params=DEFAULT_SMILES_READ_PARAMS,
     smiles_writer_params=DEFAULT_SMILES_WRITE_PARAMS,
+    **kwargs,
 ) -> Primitive:
     """
     Create a Primitive from a SMILES string.
@@ -54,6 +55,7 @@ def primitive_from_smiles(
         label=label,
         # DEV: needed to generate SMILES from mol in case no explicit label is provided
         smiles_writer_params=smiles_writer_params,
+        **kwargs,
     )
 
 
