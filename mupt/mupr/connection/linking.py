@@ -23,7 +23,7 @@ from networkx import Graph
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes, edge_bfs
 
-from .connection.connectors import Connector
+from .connectors import Connector
 
 
 class BijectionError(ValueError):

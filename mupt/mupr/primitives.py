@@ -68,7 +68,7 @@ from .connection.exceptions import (  # noqa: F401
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .linking import (
+from .connection.linking import (
     deduce_connections_from_topology,
     assign_connections_from_topology,
     GraphIterRule,
@@ -496,9 +496,9 @@ class Primitive(
         """
         Forge a new connection to another Primitive
 
-        If explicit Connectors are provided for either or both Primitives,
-        will use those as halves of the connection;
-        Otherwise, will attempt to deduce a uiqnue choice using the linking algorithm
+        If explicit Connectors are provided for either or both
+        Primitives,will use those as halves of the connection;
+        Otherwise, will attempt to deduce a unique choice using the linking algorithm
         """
         # to be used as keys identifying edge in graph
         prim_edge: tuple[Primitive, Primitive] = (self, other)

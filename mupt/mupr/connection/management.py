@@ -223,7 +223,7 @@ class ConnectorManagerMutable(ConnectorManager):
         return tuple(self.connectors_by_addr.values())
 
     # DEV: opting for linear search each time (rather than dynamically-updating list)
-    # since Connectors might change neighbors during bond linking (checks when called)
+    # since Connectors might change neighbors during bond linking
     @property
     def connectors_free(self) -> tuple[Connector, ...]:
         """Managed Connectors which have no assigned neighbor"""

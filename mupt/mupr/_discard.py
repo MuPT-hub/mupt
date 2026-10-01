@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from networkx import Graph
 
-from .linking import BijectionError
+from .connection.linking import BijectionError
 from .connection.types import ConnectorHandle
 from .connection.connectors import Connector
 from .connection.exceptions import IncompatibleConnectorError
