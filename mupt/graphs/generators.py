@@ -13,7 +13,8 @@ from functools import reduce
 
 from networkx.classes import Graph, DiGraph
 from networkx.generators import path_graph, balanced_tree
-from networkx.algorithms import union as graph_union
+from networkx.algorithms import compose, union as graph_union
+from networkx.relabel import relabel_nodes
 
 
 def path_graphs(
@@ -59,6 +60,7 @@ def balanced_dendrimer_graph(
     shell_inner: Hashable = "branch",
     shell_outer: Hashable = "terminus",
     coord_number: int = 3,
+    coord_number_core: Optional[int] = None,
     num_generations: int = 5,
     label_attr_name: str = "label",
 ) -> Graph:
@@ -71,19 +73,38 @@ def balanced_dendrimer_graph(
     Useful simplified model for the connectivity of a
     dendrimer molecule at the repeat-unit level
     """
-    dendr_tree = balanced_tree(
-        coord_number,
-        num_generations,
-        create_using=DiGraph,
-    )
-    for node in dendr_tree.nodes:
-        if dendr_tree.in_degree(node) == 0:
-            dendr_tree.nodes[node][label_attr_name] = core
-        elif dendr_tree.out_degree(node) == 0:
-            dendr_tree.nodes[node][label_attr_name] = shell_outer
-        else:
-            dendr_tree.nodes[node][label_attr_name] = shell_inner
-    return Graph(dendr_tree)  # make edges undirected
+    if coord_number_core is None:
+        coord_number_core = coord_number
+
+    CORE_NODE: Hashable = 0
+    dendr_graph = Graph()
+    dendr_graph.add_node(CORE_NODE, **{label_attr_name: core})
+
+    for branch_num in range(coord_number_core):
+        branch_tree: DiGraph = balanced_tree(
+            coord_number,
+            num_generations,
+            create_using=DiGraph,
+        )
+        relabel_nodes(
+            branch_tree,
+            mapping={node_idx: (branch_num, node_idx) for node_idx in branch_tree},
+            copy=False,
+        )
+
+        for node in branch_tree.nodes:
+            if branch_tree.out_degree(node) == 0:
+                branch_tree.nodes[node][label_attr_name] = shell_outer
+            else:
+                branch_tree.nodes[node][label_attr_name] = shell_inner
+
+            if branch_tree.in_degree(node) == 0:
+                branch_core_node = node
+
+        dendr_graph = compose(dendr_graph, Graph(branch_tree))
+        dendr_graph.add_edge(CORE_NODE, branch_core_node)
+
+    return dendr_graph
 
 
 cayley_graph = balanced_dendrimer_graph
