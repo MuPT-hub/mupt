@@ -21,7 +21,7 @@ from itertools import product as cartesian
 
 from networkx import Graph
 from networkx.utils import arbitrary_element
-from networkx.algorithms import equivalence_classes
+from networkx.algorithms import equivalence_classes, edge_bfs
 
 from .connection.connectors import Connector
 
@@ -113,6 +113,7 @@ def deduce_connections_from_topology(  # noqa: C901
     topology: Graph,  # TB: Graph[T], indicating node type
     mapped_connectors: Mapping[T, Collection[Connector]],
     n_iter_max_rule: Optional[GraphIterRule] = None,
+    source_node: Optional[T] = None,
 ) -> Mapping[tuple[T, T], tuple[Connector, Connector]]:
     """
     Given a connectivity graph and a collection of ConnectorManagers
@@ -155,9 +156,12 @@ def deduce_connections_from_topology(  # noqa: C901
         n_paired_new: int = 0
         unpaired_updated = set()
 
-        # TB TODO: add option to introduce some stochasticity
-        # for potentially discovering alternate solutions
-        for edge_labels in unpaired_edges:
+        # N.B.: nx.edge_bfs() hits ALL edges, while nx.bfs_edges()
+        # only hits those along a node BFS; don't mix these up!
+        for edge_labels in edge_bfs(topology, source=source_node):
+            if edge_labels not in unpaired_edges:
+                continue
+
             node_label_former, node_label_latter = edge_labels
             LOGGER.debug(
                 f"Attempting to find compatible Connectors for edge {edge_labels}:"
@@ -280,6 +284,7 @@ def assign_connections_from_topology(
     topology: Graph,
     mapped_connectors: Mapping[T, Collection[Connector]],
     n_iter_max_rule: Optional[GraphIterRule] = None,
+    source_node: Optional[T] = None,
 ) -> None:
     """
     Deduce connections from graph and mapped collections
@@ -289,6 +294,7 @@ def assign_connections_from_topology(
         topology,
         mapped_connectors=mapped_connectors,
         n_iter_max_rule=n_iter_max_rule,
+        source_node=source_node,
     )
 
     for (node_former, node_latter), (conn_former, conn_latter) in connections.items():

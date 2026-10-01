@@ -16,6 +16,7 @@ from typing import (
     Optional,
     Self,
     Type,
+    TypeVar,
     Union,
     TYPE_CHECKING,
 )
@@ -23,6 +24,7 @@ from typing import (
 if TYPE_CHECKING:
     from matplotlib.axes._axes import Axes
 
+H = TypeVar("H", bound=Hashable)
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type PrimitiveHandle = tuple[PrimitiveLabel, int]  # (label, uniquification index)
@@ -804,10 +806,11 @@ class SupportsChildren(Primitive):
     # Topology
     def set_connectivity_from_topology(
         self,
-        topology: Graph,
+        topology: Graph,  # Graph[H]
         predicate: PrimitivePredicate,
-        prim_node_labeller: Callable[[Primitive], Hashable] = lambda prim: prim,
+        prim_node_labeller: Callable[[Primitive], H] = lambda prim: prim,
         n_iter_max_rule: Optional[GraphIterRule] = None,
+        source_node: Optional[H] = None,
     ) -> None:
         """
         Form connections from a labelled graph, respecting selectivity of Connectors
@@ -837,6 +840,7 @@ class SupportsChildren(Primitive):
                 )
             },
             n_iter_max_rule=n_iter_max_rule,
+            source_node=source_node,
         )
 
     def populate_from_topology_and_lexicon(
@@ -844,6 +848,7 @@ class SupportsChildren(Primitive):
         topology: Graph,
         lexicon: dict[PrimitiveLabel, "SupportsParents"],
         label_attr: str = "label",
+        source_node_label: Optional[PrimitiveLabel] = None,
     ) -> None:
         """
         Populate the internal structure of this child-supporting Primitive
@@ -866,6 +871,7 @@ class SupportsChildren(Primitive):
             prim_topology,
             predicate=lambda prim: prim in prim_topology,
             prim_node_labeller=lambda x: x,
+            source_node=label_to_prim_map.get(source_node_label, None),
         )
 
 
