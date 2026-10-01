@@ -34,7 +34,9 @@ from anytree.node import NodeMixin
 from anytree.render import RenderTree
 from anytree.search import findall
 from anytree.iterators import LevelOrderIter
-from networkx import Graph, DiGraph, MultiGraph
+
+from networkx.classes import Graph, DiGraph, MultiGraph
+from networkx import get_node_attributes, relabel_nodes
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
@@ -804,7 +806,7 @@ class SupportsChildren(Primitive):
         self,
         topology: Graph,
         predicate: PrimitivePredicate,
-        prim_node_labeller: Callable[[Primitive], Hashable] = lambda prim: prim.address,
+        prim_node_labeller: Callable[[Primitive], Hashable] = lambda prim: prim,
         n_iter_max_rule: Optional[GraphIterRule] = None,
     ) -> None:
         """
@@ -817,9 +819,10 @@ class SupportsChildren(Primitive):
         predicate: PrimitivePredicate
             The condition by which to select sub-Primitives
         prim_node_labeller : Callable[[Primitive], Hashable] /
-                default lambda prim : prim.address,
+                default lambda prim : prim,
             A function which maps the selected sub-Primitives to hashable labels
             The labels mapped to should match nodes of the passed graph
+            By default, just returns the Primitive instance itself
         n_iter_max_rule: Optional[Callable[[int], int]] = None
             A rule for assigning the max number of iterations the linker routine
             should run before giving up, as a function of the passed graph
@@ -834,6 +837,35 @@ class SupportsChildren(Primitive):
                 )
             },
             n_iter_max_rule=n_iter_max_rule,
+        )
+
+    def populate_from_topology_and_lexicon(
+        self,
+        topology: Graph,
+        lexicon: dict[PrimitiveLabel, "SupportsParents"],
+        label_attr: str = "label",
+    ) -> None:
+        """
+        Populate the internal structure of this child-supporting Primitive
+        by assigning its children and connectivity from a labelled graph
+        and a 'lexicon' mapping from labels to Primitive templates
+        """
+        label_to_prim_map: dict[PrimitiveLabel, SupportsParents] = {
+            node: lexicon[label_value].copy()
+            for node, label_value in get_node_attributes(
+                topology,
+                label_attr,
+            ).items()
+        }
+
+        prim_topology = relabel_nodes(topology, label_to_prim_map, copy=True)
+        for subprim in prim_topology.nodes:
+            self.attach_child(subprim)
+
+        self.set_connectivity_from_topology(
+            prim_topology,
+            predicate=lambda prim: prim in prim_topology,
+            prim_node_labeller=lambda x: x,
         )
 
 
