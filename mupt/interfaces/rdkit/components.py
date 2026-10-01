@@ -58,7 +58,8 @@ def DEFAULT_ATTACHABLES_FACTORY(atom: Atom) -> set[int]:
     Default implementation for generating attachable
     type label sets from Atom instances
     """
-    return {atom.GetIdx()}
+    # return {atom.GetIdx()}
+    return {map_num} if (map_num := atom.GetAtomMapNum()) else set()
 
 
 # Representation component initializers
