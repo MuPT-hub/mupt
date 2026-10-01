@@ -10,7 +10,7 @@ from rdkit.Chem.rdmolops import (
     AROMATICITY_MDL,
 )
 
-from mupt.chemistry.sanitization import sanitized_mol
+from mupt.chemistry.rdkit.sanitization import sanitized_mol
 
 
 # HELPER FUNCTIONS

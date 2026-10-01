@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from networkx import Graph, cycle_graph
 
-from mupt.mupr.connections.linking import deduce_connections_from_topology
+from mupt.mupr.connection.linking import deduce_connections_from_topology
 from mupt.chemistry.core import BondType
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint
 
