@@ -560,13 +560,26 @@ class Primitive(
 
     def visualize_cross_section(
         self,
-        predicate,  # TODO: ensure BFS traversal
+        cross_section: Union[Graph, NodePredicate["Primitive"]],
         base_arc_radius: float = 0.1,
+        # TODO: provide comprehensive typehint for all things mpl can accept as colors
+        coloring_rule: Optional[Callable[["Primitive"], str]] = None,
         **kwargs,
     ) -> "Axes":
-        """Draw a networkx graph representation of the selected cross-section"""
+        """
+        Draw a networkx graph representation of the selected cross-section
+
+        Can accept a pre-calculated cross-section or, if none is provided
+        will calculate the cross section on-the-spot before plotting
+        """
+        if not isinstance(cross_section, Graph):
+            cross_section = self.cross_section(cross_section)
+
+        if coloring_rule is not None:
+            kwargs["node_color"] = [coloring_rule(prim) for prim in cross_section]
+
         return draw_networkx_with_arcs(
-            self.cross_section(predicate), base_arc_radius=base_arc_radius, **kwargs
+            cross_section, base_arc_radius=base_arc_radius, **kwargs
         )
 
     # Hierarchy
