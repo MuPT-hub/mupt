@@ -573,6 +573,10 @@ class Primitive(
         will calculate the cross section on-the-spot before plotting
         """
         if not isinstance(cross_section, Graph):
+            LOGGER.info(
+                "Extracting cross-section from predicate, "
+                "as no pre-computed cross-section was provided"
+            )
             cross_section = self.cross_section(cross_section)
 
         if coloring_rule is not None:
