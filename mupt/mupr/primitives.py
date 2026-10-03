@@ -439,27 +439,54 @@ class Primitive(
         return self.connections.remove_connector(connector_address)
 
     ## Adjacency
+    def neighbors_with_connectors(
+        self,
+        predicate: Optional[NodePredicate["Primitive"]] = None,
+    ) -> Generator[tuple[Connector, Connector, "Primitive"], None, None]:
+        """
+        Generates the two Connectors which constitute a connection
+        to a neighboring Primitive, as well as that Primitive itself
+        Yields as (our_connector, their_connector, them) tuples
+
+        Can sub-select among resolutions of neighbor
+        branches using a predicate, if provided
+        """
+        if predicate is None:
+            # N.B.: opting for this mechanism for default predicate, rather than
+            # setting indiscriminate_selector as arg default, to avoid external
+            # consumer needing to know about default impl (i.e. can just pass None)
+            predicate = indiscriminate_selector
+
+        for our_connector in self.connections.connectors_bound:
+            # TB TODO: finesse typehints to suppress (perceived) unset NoneType values
+            their_connector: Connector = our_connector.neighbor
+            neighbor_leaf: Primitive = their_connector.holder
+            neighbor_branch: tuple[Primitive] = neighbor_leaf.path
+
+            if self in neighbor_branch:
+                # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
+                continue
+
+            # any superprimitives which share connectors with the holder are
+            # also considered neighbors; this is what enables multiscaling
+            for neighbor in neighbor_branch:
+                if predicate(neighbor):
+                    # TB: use primoprogenitors() here? I.e. do we want to allow
+                    # multiple neighbors from the same parallel branch here?
+                    yield our_connector, their_connector, neighbor
+
     def neighbors(
         self,
         predicate: Optional[NodePredicate["Primitive"]] = None,
     ) -> Generator["Primitive", None, None]:
-        """Primitives whose share a Connection with this one"""
-        for conn in self.connections.connectors_bound:
-            # TB TODO: typehinting such that  HoldsConnector "knows" about NodeMixin
-            # methods w/o explicitly mentioning base Primitive type in ..connections
+        """
+        Primitives whose share a Connection with this one
 
-            # may include explicit check for has_holder to avoid errant NoneTypes passed
-            neighbor_branch: tuple[Primitive] = conn.neighbor.holder.path
-            if self in neighbor_branch:
-                # avoid "internal" neighbors (of whom this Primitive is also a parent)
-                continue
-
-            # TB: should this also be replaced w/ primoprogenitors()?
-            # i.e. do we want to allow multiple neighbors from the same parallel branch?
-            yield from select_primitives(
-                neighbor_branch,
-                predicate=predicate,
-            )
+        Can sub-select among resolutions of neighbor
+        branches using a predicate, if provided
+        """
+        for _, _, neighbor in self.neighbors_with_connectors(predicate=predicate):
+            yield neighbor
 
     def is_neighbors_with(
         self,
