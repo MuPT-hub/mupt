@@ -88,3 +88,28 @@ def test_primoprogenitors_correctness(
     selected_actual = set(primoprogenitors(root, predicate, maxlevel=maxlevel))
 
     assert selected_actual == selected_expected
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        # TB: same predicates as correctness test, due to dev lazyness :P
+        lambda node: ("t" in node.name) and (node.name != ROOT_KW),
+        lambda node: node.name == ROOT_KW,
+        lambda node: len(node.name) == 6,
+        lambda node: node.name.endswith("1"),
+        lambda node: not node.children,
+        lambda node: len(node.children) == 3,
+    ],
+)
+def test_primoprogenitors_invariant_enforced(
+    example_tree_with_root: tuple[dict[str, Node], Node],
+    predicate: NodePredicate,
+) -> None:
+    """
+    Test the primoprogenitors enforce the defining invariant that
+    no ancestor of a selected node satisfies the selection prediction
+    """
+    _, root = example_tree_with_root
+    for node_selected in primoprogenitors(root, predicate):
+        assert not any(predicate(anc) for anc in node_selected.ancestors)
