@@ -101,11 +101,6 @@ def test_improper_hierarchy_disallowed(parent: Primitive, child: Primitive) -> N
         child.parent = parent
 
 
-def test_frozen_hierarchy():
-    """Test that hierarchy modification is blocked by freezing it on any Primitive"""
-    ...
-
-
 # Inserting and withdrawing Connectors from a hierarchy
 def test_inject_connector_into_hierarchy(): ...
 
@@ -269,9 +264,6 @@ def test_neighborship_propagates_thru_hierarchy():
         assert Primitive.is_neighbors_with(prim_0, prim_1)
 
 
-def test_frozen_connectors(): ...
-
-
 # Sub-selecting Primitives
 def test_primitive_predicates(): ...
 
@@ -283,6 +275,27 @@ def test_neighbors_subset(): ...
 
 
 def test_cross_section(): ...
+
+
+# Copying and data security
+def test_frozen_connectors():
+    """Test that connector modification is blocked by freezing it on any Primitive"""
+    ...
+
+
+def test_frozen_hierarchy():
+    """Test that hierarchy modification is blocked by freezing it on any Primitive"""
+    ...
+
+
+def test_primitive_copy_connectors():
+    """Test that Connectors on copy are analogous to original WITHOUT being identical"""
+    ...
+
+
+def test_primitive_copy_hierarchy():
+    """Test that hierarchy of copy is isomorphic to that of the original"""
+    ...
 
 
 # System info on Roots
