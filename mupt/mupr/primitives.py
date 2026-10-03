@@ -130,19 +130,6 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
     return True
 
 
-def select_primitives(
-    choices: Iterable["Primitive"],
-    predicate: Optional[NodePredicate["Primitive"]] = None,
-) -> Generator["Primitive", None, None]:
-    """Boilerplate for choosing Primitives out of an iterable by some rule"""
-    if predicate is None:
-        predicate = indiscriminate_selector
-
-    for prim in choices:
-        if predicate(prim):
-            yield prim
-
-
 # Primitive base types
 class Primitive(
     Addressed,
