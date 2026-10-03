@@ -78,7 +78,7 @@ from ..mutils.containers import Labelled
 from ..geometry.arraytypes import Array3x3
 from ..geometry.shapes import Shaped, BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
-from ..chemistry.core import ElementLike, isatom, valence_allowed
+from ..chemistry.core import BOND_ORDER_ATTR, ElementLike, isatom, valence_allowed
 
 
 # Custom Exceptions
@@ -555,7 +555,11 @@ class Primitive(
         visited: dict[Primitive, bool] = dict()
         for prim_node in cross_section.nodes:
             seen_neighbors: set[Primitive] = set()
-            for neighbor in prim_node.neighbors(predicate):
+            for (
+                our_connector,
+                their_connector,
+                neighbor,
+            ) in prim_node.neighbors_with_connectors(predicate):
                 if visited.get(neighbor, False):
                     continue
 
@@ -564,7 +568,15 @@ class Primitive(
                     cross_section = MultiGraph(cross_section)
                     multigraph_conversion_made = True
 
-                cross_section.add_edge(prim_node, neighbor)
+                # should already match if Connectors were allowed to be neighbors,
+                # but it never hurts to double-check
+                assert our_connector.bond_order == their_connector.bond_order
+
+                cross_section.add_edge(
+                    prim_node,
+                    neighbor,
+                    **{BOND_ORDER_ATTR: our_connector.bond_order},
+                )
                 seen_neighbors.add(neighbor)
 
             # avoids double-counting single edges
