@@ -69,7 +69,7 @@ from .connection.linking import (
 )
 
 from ..trees.digraph import anytree_to_networkx
-from ..trees.subselect import NodePredicate
+from ..trees.subselect import primoprogenitors, NodePredicate
 from ..trees.render import tree_render_style, ConcreteStyle
 from ..graphs.visualisation import draw_networkx_with_arcs
 
@@ -536,12 +536,8 @@ class Primitive(
         multigraph_conversion_made: bool = False
 
         cross_section = Graph()
-        cross_section.add_nodes_from(
-            select_primitives(
-                self.descendants,
-                predicate=predicate,
-            )
-        )
+        cross_section.add_nodes_from(primoprogenitors(self, predicate=predicate))
+
         visited: dict[Primitive, bool] = dict()
         for prim_node in cross_section.nodes:
             seen_neighbors: set[Primitive] = set()
@@ -556,7 +552,9 @@ class Primitive(
 
                 cross_section.add_edge(prim_node, neighbor)
                 seen_neighbors.add(neighbor)
-            visited[prim_node] = True  # avoids double-counting single edges
+
+            # avoids double-counting single edges
+            visited[prim_node] = True
 
         return cross_section
 
@@ -826,10 +824,7 @@ class SupportsChildren(Primitive):
             topology,
             mapped_connectors={
                 prim_node_labeller(subprim): subprim.connections.connectors_free
-                for subprim in select_primitives(
-                    self.descendants,
-                    predicate=predicate,
-                )
+                for subprim in primoprogenitors(self, predicate=predicate)
             },
             n_iter_max_rule=n_iter_max_rule,
             source_node=source_node,
