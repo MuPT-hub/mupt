@@ -1,4 +1,4 @@
-"""Predicates, quantities, and labels which are calculated from graphs"""
+"""NodePredicates, quantities, and labels which are calculated from graphs"""
 
 from typing import Generator
 from collections import Counter

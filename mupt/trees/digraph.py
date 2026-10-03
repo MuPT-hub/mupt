@@ -2,14 +2,15 @@
 
 from typing import Any, Callable, Hashable, Iterable, Optional, Type
 
-type AttrIter = Iterable[tuple[Hashable, Any]]
-type NodePredicate = Callable[[NodeMixin], bool]
-
 from anytree.node import NodeMixin
 from anytree.exporter import DictExporter
 from anytree.iterators import AbstractIter, PreOrderIter
 
 from networkx import DiGraph
+
+from .subselect import NodePredicate
+
+type AttrIter = Iterable[tuple[Hashable, Any]]
 
 
 def anytree_to_networkx(
@@ -17,8 +18,8 @@ def anytree_to_networkx(
     dict_type: Type = dict,
     iter_type: Type[AbstractIter] = PreOrderIter,
     attr_iter: Optional[Callable[[AttrIter], AttrIter]] = None,
-    filter_predicate: Optional[NodePredicate] = None,
-    stop_predicate: Optional[NodePredicate] = None,
+    filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
+    stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
     max_depth: Optional[int] = None,
     node_converter: Callable[[NodeMixin], Hashable] = lambda x: x,
 ) -> DiGraph:

@@ -52,30 +52,26 @@ from .connection.connectors import (
     Connector,
     canonical_form_connectors,
 )
-from .connection.management import (  # noqa: F401
+from .connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,
     ConnectorManagerMutable,
     connector_address_flexible,
 )
-from .connection.alignment import (  # noqa: F401
+from .connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentBallistic,
-    ConnectorAntialignmentRigid,
-)
-from .connection.exceptions import (  # noqa: F401
-    IncompatibleConnectorError,
-    MissingConnectorError,
-    UnboundConnectorError,
 )
 from .connection.linking import (
     deduce_connections_from_topology,
     assign_connections_from_topology,
     GraphIterRule,
 )
-from ..graphs.visualisation import draw_networkx_with_arcs
-from ..trees.render import tree_render_style, ConcreteStyle
+
 from ..trees.digraph import anytree_to_networkx
+from ..trees.subselect import NodePredicate
+from ..trees.render import tree_render_style, ConcreteStyle
+from ..graphs.visualisation import draw_networkx_with_arcs
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import Labelled
@@ -126,9 +122,6 @@ class MissingSubprimitiveError(KeyError):
 
 
 # Selection strategies
-PrimitivePredicate = Callable[["Primitive"], bool]
-
-
 def indiscriminate_selector(prim: "Primitive") -> bool:
     """
     Selector which always greenlights the passed Primitive no matter what
@@ -137,12 +130,9 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
     return True
 
 
-# TODO: add pruned BFS to enforce one-prim-per-branch selection
-
-
 def select_primitives(
     choices: Iterable["Primitive"],
-    predicate: Optional[PrimitivePredicate] = None,
+    predicate: Optional[NodePredicate["Primitive"]] = None,
 ) -> Generator["Primitive", None, None]:
     """Boilerplate for choosing Primitives out of an iterable by some rule"""
     if predicate is None:
@@ -451,7 +441,7 @@ class Primitive(
     ## Adjacency
     def neighbors(
         self,
-        predicate: Optional[PrimitivePredicate] = None,
+        predicate: Optional[NodePredicate["Primitive"]] = None,
     ) -> Generator["Primitive", None, None]:
         """Primitives whose share a Connection with this one"""
         for conn in self.connections.connectors_bound:
@@ -464,6 +454,8 @@ class Primitive(
                 # avoid "internal" neighbors (of whom this Primitive is also a parent)
                 continue
 
+            # TB: should this also be replaced w/ primoprogenitors()?
+            # i.e. do we want to allow multiple neighbors from the same parallel branch?
             yield from select_primitives(
                 neighbor_branch,
                 predicate=predicate,
@@ -472,7 +464,7 @@ class Primitive(
     def is_neighbors_with(
         self,
         other: "Primitive",
-        predicate: Optional[PrimitivePredicate] = None,
+        predicate: Optional[NodePredicate["Primitive"]] = None,
     ) -> bool:
         """
         Whether this Primitive is a neighbor of the other Primitive
@@ -536,7 +528,7 @@ class Primitive(
             )  # Suppress on already-aligned chosen Connectors
             other.rigidly_transform(alignment_transform)
 
-    def cross_section(self, predicate: PrimitivePredicate) -> Graph:
+    def cross_section(self, predicate: NodePredicate["Primitive"]) -> Graph:
         """
         Generate a graph of a "slice" of a subset
         of sub-Primitives specified by a predicate
@@ -613,8 +605,8 @@ class Primitive(
     ## Inspection
     def search_hierarchy_by(
         self,
-        predicate: PrimitivePredicate,
-        halt_when: Optional[PrimitivePredicate] = None,
+        predicate: NodePredicate["Primitive"],
+        halt_when: Optional[NodePredicate["Primitive"]] = None,
         to_depth: Optional[int] = None,
         min_count: Optional[int] = None,
         max_count: Optional[int] = None,
@@ -807,7 +799,7 @@ class SupportsChildren(Primitive):
     def set_connectivity_from_topology(
         self,
         topology: Graph,  # Graph[H]
-        predicate: PrimitivePredicate,
+        predicate: NodePredicate["Primitive"],
         prim_node_labeller: Callable[[Primitive], H] = lambda prim: prim,
         n_iter_max_rule: Optional[GraphIterRule] = None,
         source_node: Optional[H] = None,
@@ -819,7 +811,7 @@ class SupportsChildren(Primitive):
         ----------
         topology: Graph
             The graph to use to assign neighbor connectviity
-        predicate: PrimitivePredicate
+        predicate: NodePredicate["Primitive"]
             The condition by which to select sub-Primitives
         prim_node_labeller : Callable[[Primitive], Hashable] /
                 default lambda prim : prim,

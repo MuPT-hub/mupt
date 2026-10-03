@@ -77,7 +77,7 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
 )
 def test_primoprogenitors_correctness(
     example_tree_with_root: tuple[dict[str, Node], Node],
-    predicate: NodePredicate,
+    predicate: NodePredicate[Node],
     selected_expected_names: Iterable[str],
     # TODO: add tests for maxlevel
     maxlevel: Optional[int] = None,
@@ -104,7 +104,7 @@ def test_primoprogenitors_correctness(
 )
 def test_primoprogenitors_invariant_enforced(
     example_tree_with_root: tuple[dict[str, Node], Node],
-    predicate: NodePredicate,
+    predicate: NodePredicate[Node],
 ) -> None:
     """
     Test the primoprogenitors enforce the defining invariant that

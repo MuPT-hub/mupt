@@ -10,12 +10,13 @@ from typing import Optional
 from gmso.core.topology import Topology as GMSOTopology
 
 from ..mbuild.exporters import to_mbuild
-from ....mupr.primitives import Primitive, PrimitivePredicate
+from ....trees.subselect import NodePredicate
+from ....mupr.primitives import Primitive
 
 
 def to_gmso(
     root: Primitive,
-    predicate: Optional[PrimitivePredicate] = None,
+    predicate: Optional[NodePredicate[Primitive]] = None,
     name: Optional[str] = None,
     coords_to_nm: float = 1.0,
 ) -> GMSOTopology:

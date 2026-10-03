@@ -11,11 +11,8 @@ import numpy as np
 from mbuild.compound import Compound
 
 from ....chemistry.core import ElementLike
-from ....mupr.primitives import (
-    Primitive,
-    PrimitivePredicate,
-    indiscriminate_selector,
-)
+from ....trees.subselect import NodePredicate
+from ....mupr.primitives import Primitive, indiscriminate_selector
 from ....mupr.properties import is_atom
 
 
@@ -25,7 +22,7 @@ _MB_BOND_ORDERS: set[float] = {0.0, 1.0, 2.0, 3.0, 1.5}
 
 def to_mbuild(
     root: Primitive,
-    predicate: Optional[PrimitivePredicate] = None,
+    predicate: Optional[NodePredicate[Primitive]] = None,
     name: Optional[str] = None,
     coords_to_nm: float = 1.0,
 ) -> Compound:

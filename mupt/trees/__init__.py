@@ -12,8 +12,9 @@ from .render import (
     tree_render_style as tree_render_style,
 )
 from .subselect import (
-    primoprogenitors as primoprogenitors,
     NodePredicate as NodePredicate,
+    NodeLike as NodeLike,
+    primoprogenitors as primoprogenitors,
 )
 from .digraph import (
     anytree_to_networkx as anytree_to_networkx,
