@@ -577,9 +577,11 @@ class Primitive(
 
         cross_section = Graph()
         cross_section.add_nodes_from(primoprogenitors(self, predicate=predicate))
-
         visited: dict[Primitive, bool] = dict()
-        for prim_node in cross_section.nodes:
+
+        # DEV: need to make and iterate over static view of nodes to
+        # avoid "dictionary changed size during iteration" RuntimeError
+        for prim_node in tuple(cross_section.nodes):
             seen_neighbors: set[Primitive] = set()
             for (
                 our_connector,
