@@ -130,6 +130,32 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
     return True
 
 
+# visualisation helpers
+def DEFAULT_COLORING_RULE(prim: "Primitive") -> str:
+    """
+    Assign AtomicPrimitives an element-specific color, and
+    all other Primitive a default color mathcing networkx
+    """
+    default_color: str = "#1f78b4"  # same as network's default
+    colors_by_element: dict[str, str] = {
+        "C": "black",
+        "H": "grey",
+        "N": "blue",
+        "O": "red",
+        "S": "yellow",
+        "F": "purple",
+        "Cl": "lime",
+        "Br": "maroon",
+        "P": "orange",
+        "B": "indigo",
+    }
+
+    if isinstance(prim, AtomicPrimitive):
+        return colors_by_element.get(prim.element.symbol, default_color)
+    else:
+        return default_color
+
+
 # Primitive base types
 class Primitive(
     Addressed,
@@ -589,7 +615,7 @@ class Primitive(
         cross_section: Union[Graph, NodePredicate["Primitive"]],
         base_arc_radius: float = 0.1,
         # TODO: provide comprehensive typehint for all things mpl can accept as colors
-        coloring_rule: Optional[Callable[["Primitive"], str]] = None,
+        coloring_rule: Optional[Callable[["Primitive"], str]] = DEFAULT_COLORING_RULE,
         **kwargs,
     ) -> "Axes":
         """
