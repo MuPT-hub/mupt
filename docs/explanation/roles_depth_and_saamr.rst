@@ -1,15 +1,11 @@
-Meaning Across Scales: Roles, Depth, and SAAMR
-===============================================
-
-.. DRAFT (Joe): this page is a first draft generated for review. Comments
-   starting with "DRAFT" are open questions and are not rendered. Remove
-   them before merging.
+Representing information across different levels: Roles, Depth, and SAAMR
+==========================================================================
 
 A MuPT representation is a tree of :class:`~mupt.mupr.primitives.Primitive`
 objects. The tree can be as deep or as shallow as a problem needs: a
 polymer melt might be a universe of chains, each chain a sequence of
-repeat units, each repeat unit a set of atoms; a block copolymer might add
-a level for blocks; a coarse-grained model might stop at beads. MuPT does
+repeat units, each repeat unit a set of atoms. A block copolymer might add
+a level for blocks. A coarse-grained model might stop at beads. MuPT does
 not assign any fixed meaning to a given depth in the tree. This is what
 allows the same data structure to describe a system at many resolutions.
 
@@ -61,7 +57,7 @@ attribute, whose value is a member of the
     The root container of the whole system.
 
 ``SEGMENT``
-    A covalently self-contained entity, such as a polymer chain, a small
+    An entity whose children are linked by covalent bonds, such as a polymer chain, a small
     molecule, or an ion. Nothing is bonded *between* segments.
 
 ``RESIDUE``
@@ -90,21 +86,13 @@ A few properties of roles are worth knowing:
   describes how a Primitive should be *presented* to other tools, not what
   it *is* chemically.
 
-.. DRAFT (reply to JRL note): #112 fixed a different thing -- it made
-   copy() keep roles (issue #98). It did not touch equality: on current main,
-   Primitive(label="x") == Primitive(label="x", role=SEGMENT) is still True,
-   and canonical_form() is identical. So the open question for Tim is only
-   whether that is intended, and whether role stays a core attribute after
-   #56. If you'd rather not raise it, this bullet is accurate as written.
-
-
 Standard All-Atom Molecular Representation (SAAMR)
 --------------------------------------------------
 
-The four non-default roles are not arbitrary. Together they form one
+The four non-default roles compose one
 particular convention, the **Standard All-Atom Molecular Representation
 (SAAMR)**, which mirrors the universe / segment / residue / atom hierarchy
-used by MDAnalysis and, more loosely, by most biomolecular and polymer
+used by MDAnalysis and, more loosely, by most biomolecular and atomistic polymer
 file formats.
 
 .. list-table:: SAAMR roles and their counterparts
@@ -122,7 +110,7 @@ file formats.
      - (set of Mols)
      - the file
    * - ``SEGMENT``
-     - one covalent entity
+     - one covalently bound entity
      - segment
      - one ``Mol``
      - chain (see note below)
@@ -216,23 +204,14 @@ It helps to keep the three checks straight:
 
 :func:`~mupt.roles.has_SAAMR_roles`
     A quick *presence* check: does at least one Primitive carry each of the
-    four SAAMR roles? It does not check how those roles are arranged.
+    four SAAMR roles? It does not check how those roles are arranged, so a
+    tree can pass this check and still be rejected by an exporter (for
+    example, if a ``RESIDUE`` is not inside a ``SEGMENT``). Treat it as a
+    sanity check, not a guarantee that export will succeed.
 
-Every exporter for SAAMR systems
-    confirms SAAMR compliance before writing anything and raises a
-    ``ValueError`` explaining what is wrong.
-
-.. DRAFT (reply to JRL): has_SAAMR_roles has never been called in
-   production or in tests. You added it in 73a7155 ("add has_SAAMR_roles for
-   role-presence checking") on 2026-04-09 during the #50 review, alongside
-   d1ba340, which renamed is_SAAMR_compliant to has_strict_SAAMR_depth after
-   Tim noted export was still depth-bound. The exporters went on to
-   use their own validator (build_saamr_role_topology_index in the private
-   mupt.interfaces._shared.topology) instead. Agreed it looks like an
-   oversight. The natural fix is to have has_SAAMR_roles return whether
-   build_saamr_role_topology_index succeeds, so it checks arrangement too.
-   That is a code change (small separate PR or issue); once it lands, the
-   description above should change to "a full arrangement check".
+Exporter validation
+    Every exporter for SAAMR systems confirms SAAMR compliance before
+    writing anything and raises a ``ValueError`` explaining what is wrong.
 
 :func:`~mupt.roles.assign_SAAMR_roles` always labels every level of a
 strict SAAMR tree, replacing any roles that were set before. To keep
@@ -269,8 +248,6 @@ that they are stated in terms of roles, not depth:
    trees are valid SAAMR: the exporters see one segment, two residues and
    four atoms either way. Only the left tree has strict SAAMR depth.
 
-.. DRAFT: prototype figure (docs/explanation/images/saamr_role_tree.svg);
-   replace with your own version if you like.
 
 Anything else is allowed. In particular, ``UNASSIGNED`` Primitives may
 appear anywhere between these levels: between the universe and its
@@ -334,11 +311,6 @@ by adding a strategy rather than rewriting the exporter.
 What is fixed is the principle: meaning is attached to Primitives
 explicitly, and tools that need a fixed hierarchy read that meaning
 instead of guessing it from the shape of the tree.
-
-.. DRAFT: forward-looking. Decide with the team whether future role
-   vocabularies extend PrimitiveRole or get separate enums, and whether to
-   reference #56 / #109 here.
-
 
 See also
 --------
