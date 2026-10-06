@@ -62,17 +62,17 @@ def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPri
 @pytest.mark.parametrize(
     "prim,expected_simple,expected_supports_parents,expected_supports_children",
     [
-        (RootPrimitive(), False, False, True),
+        (RootPrimitive(), False, True, False),
         (CompositePrimitive(), False, True, True),
-        (SimplePrimitive(), True, True, False),
-        (AtomicPrimitive(ELEMENTS[1]), True, True, False),
+        (SimplePrimitive(), True, False, True),
+        (AtomicPrimitive(ELEMENTS[1]), True, False, True),
     ],
 )
 def test_hierarchy_declarations(
     prim: Primitive,
     expected_simple: bool,
-    expected_supports_parents: bool,
     expected_supports_children: bool,
+    expected_supports_parents: bool,
 ) -> None:
     """
     Test whether instances of particular types of Primitive correctly
@@ -80,8 +80,8 @@ def test_hierarchy_declarations(
     """
     assert (
         (prim.is_simple == expected_simple)
-        and (prim.supports_children == expected_supports_children)
         and (prim.supports_parents == expected_supports_parents)
+        and (prim.supports_children == expected_supports_children)
     )
 
 

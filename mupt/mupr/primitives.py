@@ -181,8 +181,8 @@ class Primitive(
     # UNDEFINED on the base, being neither true nor false
     # Opting not to now for type simplicity, since None is Falsy anyways
     IS_SIMPLE: ClassVar[bool] = False
-    SUPPORTS_PARENTS: ClassVar[bool] = False
     SUPPORTS_CHILDREN: ClassVar[bool] = False
+    SUPPORTS_PARENTS: ClassVar[bool] = False
 
     # TB: am slightly uneasy of working around class hierarchy inversion this way,
     # but does definitely make preconditions and properties over Primitives much simpler
@@ -1091,9 +1091,10 @@ class RootPrimitive(SupportsChildren):
     """
 
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "ROOT"
+
     IS_SIMPLE: ClassVar[bool] = False
-    SUPPORTS_PARENTS: ClassVar[bool] = False
     SUPPORTS_CHILDREN: ClassVar[bool] = True
+    SUPPORTS_PARENTS: ClassVar[bool] = False
 
     box_vectors: Array3x3
 
@@ -1153,9 +1154,10 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
     """
 
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "COMPOSITE"
+
     IS_SIMPLE: ClassVar[bool] = False
-    SUPPORTS_PARENTS: ClassVar[bool] = True
     SUPPORTS_CHILDREN: ClassVar[bool] = True
+    SUPPORTS_PARENTS: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -1194,9 +1196,10 @@ class SimplePrimitive(SupportsParents):
     """
 
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "SIMPLE"
+
     IS_SIMPLE: ClassVar[bool] = True
-    SUPPORTS_PARENTS: ClassVar[bool] = True
     SUPPORTS_CHILDREN: ClassVar[bool] = False
+    SUPPORTS_PARENTS: ClassVar[bool] = True
 
     def __init__(
         self,
