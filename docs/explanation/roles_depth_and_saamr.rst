@@ -19,7 +19,7 @@ MDAnalysis organizes a system into a fixed hierarchy of
 <https://userguide.mdanalysis.org/stable/groups_of_atoms.html>`_. The PDB
 format expects `chains, residue numbers, and atoms
 <https://www.wwpdb.org/documentation/file-format>`_. RDKit is flatter: a
-``Mol`` is a graph of atoms and bonds that may contain several disconnected
+``rdkit.Mol`` is a graph of atoms and bonds that may contain several disconnected
 fragments, but it has no built-in notion of residues or of which fragment
 is which beyond connectivity. Each of these tools has its own fixed set of
 levels, and each level has a specific meaning.
