@@ -1062,7 +1062,6 @@ class RootPrimitive(SupportsChildren):
 
         # N.B.: can't call before _frozen_hierarchy is set
         self._init_children(children)
-        self.children_by_address = WeakValueDictionary()  # SupportsChildren contract
 
         # system-wide info specific to Root instances
         if box_vectors is None:
