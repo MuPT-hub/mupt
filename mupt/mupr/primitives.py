@@ -170,10 +170,48 @@ class Primitive(
 ):
     """A fundamental, scale-agnostic building block of a molecular system"""
 
-    # Attributes
+    # Class-wide attributes
+    ## Global
     DEFAULT_LABEL: ClassVar[PrimitiveLabel]
     ADDRESS_PREVIEW_LEN: ClassVar[int] = 7
 
+    ## Subtype-specific
+    # TB: considered dropping the Law of the Excluded Middle here, i.e. via an
+    # Optional[bool] type annotation, since strictly-speaking these properties are
+    # UNDEFINED on the base, being neither true nor false
+    # Opting not to now for type simplicity, since None is Falsy anyways
+    IS_SIMPLE: ClassVar[bool] = False
+    SUPPORTS_PARENTS: ClassVar[bool] = False
+    SUPPORTS_CHILDREN: ClassVar[bool] = False
+
+    # TB: am slightly uneasy of working around class hierarchy inversion this way,
+    # but does definitely make preconditions and properties over Primitives much simpler
+    @property
+    def is_simple(self) -> bool:
+        """Whether this Primitives is considered indivisible within its hierarchy"""
+        # DEV: this is a mechanism to prevent Simples from being the parents of any
+        # other Primitive without passing type info backward up the inheritance tree
+        return self.IS_SIMPLE
+
+    @property
+    def supports_children(self) -> bool:
+        """
+        Whether this Primitive is capable of having other
+        Primitives below it (i.e. at a "finer" resolution)
+        in the MuPT molecular representation hierarchy
+        """
+        return self.SUPPORTS_CHILDREN
+
+    @property
+    def supports_parents(self) -> bool:
+        """
+        Whether this Primitive is capable of being bound as the child of
+        another "parent" Primitive (which is at a "coarser" resolution)
+        in the MuPT molecular representation hierarchy
+        """
+        return self.SUPPORTS_PARENTS
+
+    # Instance attributes
     connections: ConnectorManager
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
@@ -206,7 +244,6 @@ class Primitive(
         self.metadata = metadata or dict()
         self._label = label
 
-    # Derived properties
     @property
     def label(self) -> PrimitiveLabel:
         """
@@ -228,16 +265,6 @@ class Primitive(
         if new_label is None:
             new_label = self.DEFAULT_LABEL
         self._label = new_label
-
-    @property
-    def is_simple(self) -> bool:
-        """
-        Whether Primitives are to be considered indivisible
-        from the perspective of the hierarchy
-        """
-        # DEVNOTE: this is a mechanism to prevent Simples from being the parents of any
-        # other Primitive without passing type info backward up the inheritance tree
-        return False
 
     # Wrapped properties
     @property
@@ -1064,6 +1091,9 @@ class RootPrimitive(SupportsChildren):
     """
 
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "ROOT"
+    IS_SIMPLE: ClassVar[bool] = False
+    SUPPORTS_PARENTS: ClassVar[bool] = False
+    SUPPORTS_CHILDREN: ClassVar[bool] = True
 
     box_vectors: Array3x3
 
@@ -1123,6 +1153,9 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
     """
 
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "COMPOSITE"
+    IS_SIMPLE: ClassVar[bool] = False
+    SUPPORTS_PARENTS: ClassVar[bool] = True
+    SUPPORTS_CHILDREN: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -1161,6 +1194,9 @@ class SimplePrimitive(SupportsParents):
     """
 
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "SIMPLE"
+    IS_SIMPLE: ClassVar[bool] = True
+    SUPPORTS_PARENTS: ClassVar[bool] = True
+    SUPPORTS_CHILDREN: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -1194,18 +1230,6 @@ class SimplePrimitive(SupportsParents):
             label=deepcopy(self.label),
         )
         return clone
-
-    @property
-    def is_simple(self) -> bool:
-        """
-        Asserts SimplePrimitives are indivisible from
-        the prespective of a hierarchy of Primitives
-
-        Bans SimplePrimitives from being the parent of any other Primitive,
-        or conversely of having any child Primitives
-        """
-        # override from Primitive base; only class which should do so
-        return True
 
     # Exposing Connectors
     def add_connector(
@@ -1288,6 +1312,7 @@ class AtomicPrimitive(SimplePrimitive):
         label: Optional[PrimitiveLabel] = None,
         metadata: Optional[dict] = None,
     ) -> None:
+        # TODO: add option to accept element symbol or atomic number
         if not isatom(element):
             raise TypeError(f"Invalid element type {type(element)}")
         self._element = element

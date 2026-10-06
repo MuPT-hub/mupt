@@ -59,6 +59,32 @@ def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPri
 
 
 # Combining Primitives into hierarchy
+@pytest.mark.parametrize(
+    "prim,expected_simple,expected_supports_parents,expected_supports_children",
+    [
+        (RootPrimitive(), False, False, True),
+        (CompositePrimitive(), False, True, True),
+        (SimplePrimitive(), True, True, False),
+        (AtomicPrimitive(ELEMENTS[1]), True, True, False),
+    ],
+)
+def test_hierarchy_declarations(
+    prim: Primitive,
+    expected_simple: bool,
+    expected_supports_parents: bool,
+    expected_supports_children: bool,
+) -> None:
+    """
+    Test whether instances of particular types of Primitive correctly
+    declare their capacity in a representation hierarchy
+    """
+    assert (
+        (prim.is_simple == expected_simple)
+        and (prim.supports_children == expected_supports_children)
+        and (prim.supports_parents == expected_supports_parents)
+    )
+
+
 def test_hierarchy_assembly():
     """
     Test that Primitives can be assembled into a hierarchy,
