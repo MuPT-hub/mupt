@@ -175,12 +175,36 @@ class Primitive(
     ADDRESS_PREVIEW_LEN: ClassVar[int] = 7
 
     connections: ConnectorManager
-    metadata: dict[Hashable, Any]
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
+    metadata: dict[Hashable, Any]
 
     _frozen_connections: bool
     _frozen_hierarchy: bool
+
+    # Creation
+    ## N.B.: deliberately not placeing __init__ method here;
+    ## should NOT be able to create instance of Primitive base
+    ## TB: given that, may consider pivoting from Protocol -> ABC?
+    def _init(
+        self,
+        # DEV: connectors deliberately omitted here; subtype each handle in unique way
+        shape: Optional[BoundedTransformableShape] = None,
+        label: Optional[PrimitiveLabel] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """
+        Boilerplate initialization of hidden attrs, with defaults
+        To be called inside __init__ of concrete subtypes
+        """
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
+
+        # instance attrs
+        self._shape = shape
+        self.metadata = metadata or dict()
+        self._label = label
 
     # Derived properties
     @property
@@ -1048,19 +1072,12 @@ class RootPrimitive(SupportsChildren):
         box_vectors: Optional[Array3x3] = None,
         children: Optional[Iterable[SupportsParents]] = None,
         shape: Optional[BoundedTransformableShape] = None,
-        metadata: Optional[dict[Hashable, Any]] = None,
         label: Optional[PrimitiveLabel] = None,
+        metadata: Optional[dict[Hashable, Any]] = None,
     ) -> None:
-        # hidden flags - mutable by default
-        self._frozen_connections = False
-        self._frozen_hierarchy = False
-
+        self._init(shape=shape, label=label, metadata=metadata)
         self.connections = ConnectorManagerMutable()
-        self._shape = shape
-        self.metadata = metadata or dict()
-        self._label = label
-
-        # N.B.: can't call before _frozen_hierarchy is set
+        # N.B.: can't call _init_children before _frozen_hierarchy is set
         self._init_children(children)
 
         # system-wide info specific to Root instances
@@ -1111,19 +1128,12 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         self,
         children: Optional[Iterable[SupportsParents]] = None,
         shape: Optional[BoundedTransformableShape] = None,
-        metadata: Optional[dict] = None,
         label: Optional[PrimitiveLabel] = None,
+        metadata: Optional[dict] = None,
     ) -> None:
-        # hidden flags - mutable by default
-        self._frozen_connections = False
-        self._frozen_hierarchy = False
-
+        self._init(shape=shape, label=label, metadata=metadata)
         self.connections = ConnectorManagerMutable()
-        self._shape = shape
-        self.metadata = metadata or dict()
-        self._label = label
-
-        # N.B.: can't call before _frozen_hierarchy is set
+        # N.B.: can't call _init_children before _frozen_hierarchy is set
         self._init_children(children)
 
     # Copying
@@ -1156,9 +1166,11 @@ class SimplePrimitive(SupportsParents):
         self,
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
-        metadata: Optional[dict[Hashable, Any]] = None,
         label: Optional[PrimitiveLabel] = None,
+        metadata: Optional[dict[Hashable, Any]] = None,
     ) -> None:
+        self._init(shape=shape, label=label, metadata=metadata)
+
         # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
         if isinstance(connections, Iterable):
             connections = ConnectorManagerMutable(*connections)
@@ -1168,14 +1180,6 @@ class SimplePrimitive(SupportsParents):
         self.connections = connections
         for connector in connections.connectors:
             connector.holder = self
-
-        # hidden flags - mutable by default
-        self._frozen_connections = False
-        self._frozen_hierarchy = False
-
-        self._shape = shape
-        self.metadata = metadata or dict()
-        self._label = label
 
     # Copying
     def _copy_instance(self) -> Self:
@@ -1281,8 +1285,8 @@ class AtomicPrimitive(SimplePrimitive):
         element: ElementLike,
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
-        metadata: Optional[dict] = None,
         label: Optional[PrimitiveLabel] = None,
+        metadata: Optional[dict] = None,
     ) -> None:
         if not isatom(element):
             raise TypeError(f"Invalid element type {type(element)}")
@@ -1291,8 +1295,8 @@ class AtomicPrimitive(SimplePrimitive):
         super().__init__(
             connections=connections,
             shape=shape,
-            metadata=metadata,
             label=label,
+            metadata=metadata,
         )
 
     # Copying
