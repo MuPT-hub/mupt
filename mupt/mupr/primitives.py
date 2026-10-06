@@ -564,7 +564,7 @@ class Primitive(
     ## Neighbors
     def potential_neighbors_with_connectors(
         self,
-    ) -> Generator[tuple[Connector, Connector, tuple["Primitive"]], None, None]:
+    ) -> Generator[tuple[Connector, Connector, tuple["Primitive", ...]], None, None]:
         """
         Generate all potential neighbors, along with the
         Connectors linking them to *this* Primitive
@@ -590,7 +590,7 @@ class Primitive(
 
             yield our_connector, their_connector, neighbor_branch
 
-    def potential_neighbors(self) -> Generator[tuple["Primitive"], None, None]:
+    def potential_neighbors(self) -> Generator[tuple["Primitive", ...], None, None]:
         """Generate the non-internal neigbhor branches connected to this Primitive"""
         for _, _, neighbor_branch in self.potential_neighbors_with_connectors():
             yield neighbor_branch
@@ -612,12 +612,16 @@ class Primitive(
             their_connector,
             neighbor_branch,
         ) in self.potential_neighbors_with_connectors():
-            for neighbor in neighbor_branch:
-                if predicate(neighbor):
-                    # TB: use primoprogenitors() here? I.e. do we want to allow
-                    # multiple neighbors from the same parallel branch here?
-                    # TODO: halt at first sign
-                    yield our_connector, their_connector, neighbor
+            # TB: will raise ValueError on empty branch
+            # should never happen if holders are set correctly, but am
+            # leaving note here to speed up debugging in case it ever does
+            branch_root, *successors = neighbor_branch
+            for chosen_neighbor in primoprogenitors(
+                branch_root,
+                predicate=predicate,
+                successors=lambda prim: [next(iter(successors))],
+            ):
+                yield our_connector, their_connector, chosen_neighbor
 
     def neighbors(
         self,
