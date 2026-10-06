@@ -7,12 +7,14 @@ from itertools import product as cartesian
 import numpy as np
 
 from mupt.mutils.iteration import sliding_window
+from mupt.chemistry.core import ELEMENTS
+from mupt.trees.subselect import NodePredicate
+
 from mupt.mupr.connection.connectors import (
     Connector,
     AttachmentPoint,
     BondType,
 )
-from mupt.chemistry.core import ELEMENTS
 from mupt.mupr.primitives import (
     ArborescenceError,
     ImproperHierarchyError,
@@ -265,21 +267,76 @@ def test_neighborship_propagates_thru_hierarchy():
 
 
 # Sub-selecting Primitives
-def test_primitive_predicates(): ...
+def test_primitive_predicates():
+    """
+    Test that subselecting descendants of a Primitive
+    by a predicate returns the expected results and
+    preserves the 'one-selection-per-branch' invariant
+    """
+    ...
 
 
-def test_neighbors_unconditional(): ...
+def test_potential_neighbors():
+    """
+    Test that all non-internal neighbors of a
+    Primitive are correctly identified in a hierarchy
+    """
+    ...
 
 
-def test_neighbors_subset(): ...
+def test_neighbors():
+    """Test resolution-specific (i.e. predicate-based) neighbor selection"""
+    ...
 
 
-def test_cross_section(): ...
+# TB: this ought to have many tests
+@pytest.mark.parametrize(
+    "root,predicate",
+    [],
+)
+def test_cross_section_nodes(
+    root: SupportsChildren,
+    predicate: NodePredicate[Primitive],
+) -> None:
+    """
+    Test that the Primitives primoprogenitors
+    selected for by a chosen predicate are made
+    the nodes of the cross-section graph
+    """
+    ...
 
 
-# Copying and data security
+@pytest.mark.parametrize(
+    "root,predicate",
+    [],
+)
+def test_cross_section_edges(
+    root: SupportsChildren,
+    predicate: NodePredicate[Primitive],
+) -> None:
+    """
+    Test that neighboring Primitives in a cross
+    section graph are each spanned by an edge
+    """
+    ...
+
+
+def test_cross_section_bond_orders():
+    """
+    Test that bond order info is completely transferred
+    to the edges of the cross-section graph
+    """
+    ...
+
+
+# Data security
 def test_frozen_connectors():
     """Test that connector modification is blocked by freezing it on any Primitive"""
+    ...
+
+
+def test_frozen_connectors_propagates():
+    """Test that connector modification state changes bubble up through hierarchy"""
     ...
 
 
@@ -288,6 +345,12 @@ def test_frozen_hierarchy():
     ...
 
 
+def test_frozen_hierarchy_propagates():
+    """Test that hierarchy modification state changes bubble up through hierarchy"""
+    ...
+
+
+## Copying
 def test_primitive_copy_connectors():
     """Test that Connectors on copy are analogous to original WITHOUT being identical"""
     ...
