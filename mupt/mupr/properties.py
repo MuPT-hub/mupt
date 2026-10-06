@@ -5,19 +5,46 @@ E.g. checking atomicity, linearity, topology, neighbor valence, etc.
 
 from .primitives import (
     Primitive,
-    AtomicPrimitive,
     CompositePrimitive,
+    AtomicPrimitive,
 )
 
 
 def is_simple(prim: Primitive) -> bool:
-    """Check whether a Primitive has no internal structure"""
+    """Whether a Primitive has no internal structure"""
     return prim.is_simple
 
 
+def supports_children(prim: Primitive) -> bool:
+    """Whether a Primitive can have child sub-Primitives"""
+    return prim.supports_children
+
+
+def supports_parents(prim: Primitive) -> bool:
+    """Whether a Primitive can be a parent super-Primitive"""
+    return prim.supports_parents
+
+
 def is_atom(prim: Primitive) -> bool:
-    """Check whether a Primitive represents a single atom from the periodic table"""
+    """Whether a Primitive represents a single atom from the periodic table"""
     return isinstance(prim, AtomicPrimitive)
+
+
+def is_superatomic(prim: Primitive) -> bool:
+    """
+    Whether a Primitive is not itself an atom,
+    but all of its DIRECT descendants are
+    """
+    if not prim.supports_children:
+        # specifically exclude atoms themselves, as the empty list of children
+        # of an atom would cause the naive all(prim is atom...) to evaluate true
+        return False
+
+    for child in prim.children:
+        if not is_atom(child):
+            return False
+    else:
+        return True
 
 
 def is_atomizable(prim: Primitive) -> bool:
@@ -96,7 +123,6 @@ def has_strict_SAAMR_depth(prim: Primitive) -> bool:
     has_SAAMR_roles : Checks that all four SAAMR roles are present (any depth).
     assign_SAAMR_roles : Assigns roles to a strict SAAMR hierarchy.
     """
-    # TODO: type-check for Composites
     for leaf in prim.leaves:
         if not is_atom(leaf) or (leaf.depth != 3):
             return False
