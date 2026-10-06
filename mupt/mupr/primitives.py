@@ -1058,7 +1058,7 @@ class RootPrimitive(SupportsChildren):
         self.connections = ConnectorManagerMutable()
         self._shape = shape
         self.metadata = metadata or dict()
-        self.label = label
+        self._label = label
 
         # N.B.: can't call before _frozen_hierarchy is set
         self._init_children(children)
@@ -1118,10 +1118,10 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         self._frozen_connections = False
         self._frozen_hierarchy = False
 
+        self.connections = ConnectorManagerMutable()
         self._shape = shape
         self.metadata = metadata or dict()
-        self.connections = ConnectorManagerMutable()
-        self.label = label
+        self._label = label
 
         # N.B.: can't call before _frozen_hierarchy is set
         self._init_children(children)
@@ -1169,13 +1169,13 @@ class SimplePrimitive(SupportsParents):
         for connector in connections.connectors:
             connector.holder = self
 
-        self._shape = shape
-        self.metadata = metadata or dict()
-        self.label = label
-
         # hidden flags - mutable by default
         self._frozen_connections = False
         self._frozen_hierarchy = False
+
+        self._shape = shape
+        self.metadata = metadata or dict()
+        self._label = label
 
     # Copying
     def _copy_instance(self) -> Self:
