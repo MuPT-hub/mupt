@@ -127,7 +127,11 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
     Selector which always greenlights the passed Primitive no matter what
     Useful for avoiding lamba overhead
     """
+    # TB: move this to .properties? (be careful to avoid circular references)
     return True
+
+
+DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
 
 
 # visualisation helpers
@@ -451,7 +455,7 @@ class Primitive(
         # N.B.: connector neighbor deliberately untouched here
         return self.connections.remove_connector(connector_address)
 
-    ## Adjacency
+    ## Neighbors
     def potential_neighbors_with_connectors(
         self,
     ) -> Generator[tuple[Connector, Connector, tuple["Primitive"]], None, None]:
@@ -469,11 +473,13 @@ class Primitive(
         for our_connector in self.connections.connectors_bound:
             # TB TODO: finesse typehints to suppress (perceived) unset NoneType values
             their_connector: Connector = our_connector.neighbor
+            # any superprimitives which share connectors with the holder are
+            # also considered neighbors; this is what enables multiscaling
             neighbor_leaf: Primitive = their_connector.holder
             neighbor_branch: tuple[Primitive] = neighbor_leaf.path
 
+            # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
             if self in neighbor_branch:
-                # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
                 continue
 
             yield our_connector, their_connector, neighbor_branch
@@ -485,7 +491,7 @@ class Primitive(
 
     def neighbors_with_connectors(
         self,
-        predicate: NodePredicate["Primitive"] = indiscriminate_selector,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
     ) -> Generator[tuple[Connector, Connector, "Primitive"], None, None]:
         """
         Generates the two Connectors which constitute a connection
@@ -500,8 +506,6 @@ class Primitive(
             their_connector,
             neighbor_branch,
         ) in self.potential_neighbors_with_connectors():
-            # any superprimitives which share connectors with the holder are
-            # also considered neighbors; this is what enables multiscaling
             for neighbor in neighbor_branch:
                 if predicate(neighbor):
                     # TB: use primoprogenitors() here? I.e. do we want to allow
@@ -511,7 +515,7 @@ class Primitive(
 
     def neighbors(
         self,
-        predicate: NodePredicate["Primitive"] = indiscriminate_selector,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
     ) -> Generator["Primitive", None, None]:
         """
         Primitives whose share a Connection with this one
@@ -525,7 +529,7 @@ class Primitive(
     def is_neighbors_with(
         self,
         other: "Primitive",
-        predicate: Optional[NodePredicate["Primitive"]] = None,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
     ) -> bool:
         """
         Whether this Primitive is a neighbor of the other Primitive
@@ -589,6 +593,7 @@ class Primitive(
             )  # Suppress on already-aligned chosen Connectors
             other.rigidly_transform(alignment_transform)
 
+    ## Cross-sections
     def cross_section(self, predicate: NodePredicate["Primitive"]) -> Graph:
         """
         Generate a graph of a "slice" of a subset
