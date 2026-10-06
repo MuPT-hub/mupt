@@ -162,9 +162,7 @@ def DEFAULT_COLORING_RULE(prim: "Primitive") -> str:
 
 # Primitive base types
 class Primitive(
-    Addressed,
-    # TB DEV: Addressed base is potentially problematic,
-    # since all subclasses will have separate registries
+    Addressed,  # N.B.: each subtype will have its own class-wide registry
     Labelled,
     Shaped,
     RigidlyTransformable,
@@ -173,10 +171,9 @@ class Primitive(
     """A fundamental, scale-agnostic building block of a molecular system"""
 
     # Attributes
-    ## Expected classwide attributes
     DEFAULT_LABEL: ClassVar[PrimitiveLabel]
+    ADDRESS_PREVIEW_LEN: ClassVar[int] = 7
 
-    # Expected instance attributes
     connections: ConnectorManager
     metadata: dict[Hashable, Any]
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
@@ -185,7 +182,7 @@ class Primitive(
     _frozen_connections: bool
     _frozen_hierarchy: bool
 
-    ## Derived properties
+    # Derived properties
     @property
     def label(self) -> PrimitiveLabel:
         """
@@ -218,7 +215,7 @@ class Primitive(
         # other Primitive without passing type info backward up the inheritance tree
         return False
 
-    ## Wrapped properties
+    # Wrapped properties
     @property
     def connectors(self) -> Collection[Connector]:
         """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
@@ -266,12 +263,7 @@ class Primitive(
         if self.frozen_hierarchy:
             raise AttributeError(msg)
 
-    # Geometry
-    @property
-    def shape(self) -> Optional[BoundedTransformableShape]:
-        """The external shape of this Primitive"""
-        return self._shape
-
+    # Copying
     def _copy_instance(self) -> Self:
         """
         Make copy of the current Primitive, WITHOUT any
@@ -344,6 +336,12 @@ class Primitive(
 
         return clone_with_hierarchy
 
+    # Geometry
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]:
+        """The external shape of this Primitive"""
+        return self._shape
+
     def _rigidly_transform_shape(self, transformation: RigidTransform) -> None:
         """Apply rigid transformation to just the shape of this Primitive"""
         if isinstance(self.shape, RigidlyTransformable):  # TB: just check if not None?
@@ -372,8 +370,65 @@ class Primitive(
             # aggregrate THE SAME Connectors managed here (don't double-transform)
             subprimitive._rigidly_transform_shape(transformation)
 
+    # Hierarchy
+    ## Enforcing universal hierarchy invariants
+    # TB: the key invariants that must be enforced at all times are:
+    # * Roots can never be the children of any other Primitive
+    # * Simples can never be the parent of any other Primitive
+
+    # N.B.: enforcing Simple-childfree and Root-parentfree is easy
+    # to do directly within their respective class definitions;
+    # the converses, parent-not-Simple and child-not-Root need to be enforced indirectly
+    # here because of how anytree's pre/post-conditions are handled on assignment
+    def _pre_attach(self, parent: "Primitive") -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Simple Primitives cannot be made the parents of other Primitives"
+            )
+
+    def _pre_detach(self, parent: "Primitive") -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Found hierarchy in undefined state, with "
+                "Simple Primitive as parent of another Primitive"
+            )
+
+    def _pre_attach_children(self, children: Iterable["Primitive"]) -> None:
+        # TODO: prevent roots from being assigned as children here
+        ...
+
+    def _pre_detach_children(self, children: Iterable["Primitive"]) -> None:
+        # TODO: prevent roots from being unassigned as children here
+        ...
+
+    def search_hierarchy_by(
+        self,
+        predicate: NodePredicate["Primitive"],
+        halt_when: Optional[NodePredicate["Primitive"]] = None,
+        to_depth: Optional[int] = None,
+        min_count: Optional[int] = None,
+        max_count: Optional[int] = None,
+    ) -> tuple["Primitive"]:
+        """
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+
+        Matching descendant Primitives are returned in traversal preorder from the root
+        """
+        return findall(
+            self,
+            filter_=predicate,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
+
+    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
+        """Generate a directed Graph representing the hierarchy below this Primitive"""
+        return anytree_to_networkx(self, *args, **kwargs)
+
     # Topology
-    ## Connection read/write access
     def _freeze_connections_local(self) -> None:
         """
         Force Connectors on this Primitive to be
@@ -638,6 +693,39 @@ class Primitive(
 
         return cross_section
 
+    # Depiction
+    def __str__(self) -> str:
+        """
+        Output of calling str(...) on this Primitive
+
+        Also the default representation of this Primitive
+        when it is used as a node in any NetworkX graph
+        """
+        return f"{self.label!s}[{str(self.address)[: self.ADDRESS_PREVIEW_LEN]}]"
+
+    # def __repr__(self) -> str:
+    #     # DEV: will likely have to change for subtypes
+    #     raise NotImplementedError
+
+    def hierarchy_summary(
+        self,
+        to_depth: Optional[int] = None,
+        style: Union[str, ConcreteStyle, Type[ConcreteStyle]] = "round",
+        render_attr: str = "label",
+        # TB: may consider fallback to address (or start of it) instead of default label
+    ) -> str:
+        """
+        A printable representation of this Primitive
+        and all its descendants in the hierarchy
+        """
+        return RenderTree(
+            self,
+            style=tree_render_style(style),
+            maxlevel=to_depth,
+            # childiter=list
+        ).by_attr(render_attr)
+
+    # TB: move to visualization utils?
     def visualize_cross_section(
         self,
         cross_section: Union[Graph, NodePredicate["Primitive"]],
@@ -666,97 +754,6 @@ class Primitive(
             cross_section, base_arc_radius=base_arc_radius, **kwargs
         )
 
-    # Hierarchy
-    ## Enforcing universal hierarchy invariants
-    # TB: the key invariants that must be enforced at all times are:
-    # * Roots can never be the children of any other Primitive
-    # * Simples can never be the parent of any other Primitive
-
-    # N.B.: enforcing Simple-childfree and Root-parentfree is easy
-    # to do directly within their respective class definitions;
-    # the converses, parent-not-Simple and child-not-Root need to be enforced indirectly
-    # here because of how anytree's pre/post-conditions are handled on assignment
-    def _pre_attach(self, parent: "Primitive") -> None:
-        if parent.is_simple:
-            raise IrreducibilityError(
-                "Simple Primitives cannot be made the parents of other Primitives"
-            )
-
-    def _pre_detach(self, parent: "Primitive") -> None:
-        if parent.is_simple:
-            raise IrreducibilityError(
-                "Found hierarchy in undefined state, with "
-                "Simple Primitive as parent of another Primitive"
-            )
-
-    def _pre_attach_children(self, children: Iterable["Primitive"]) -> None:
-        # TODO: prevent roots from being assigned as children here
-        ...
-
-    def _pre_detach_children(self, children: Iterable["Primitive"]) -> None:
-        # TODO: prevent roots from being unassigned as children here
-        ...
-
-    ## Inspection
-    def search_hierarchy_by(
-        self,
-        predicate: NodePredicate["Primitive"],
-        halt_when: Optional[NodePredicate["Primitive"]] = None,
-        to_depth: Optional[int] = None,
-        min_count: Optional[int] = None,
-        max_count: Optional[int] = None,
-    ) -> tuple["Primitive"]:
-        """
-        Return all Primitives below this one in the hierarchy (not just children,
-        but anything below them as well!) which match the provided condition.
-
-        Matching descendant Primitives are returned in traversal preorder from the root
-        """
-        return findall(
-            self,
-            filter_=predicate,
-            stop=halt_when,
-            maxlevel=to_depth,
-            mincount=min_count,
-            maxcount=max_count,
-        )
-
-    def hierarchy_summary(
-        self,
-        to_depth: Optional[int] = None,
-        style: Union[str, ConcreteStyle, Type[ConcreteStyle]] = "round",
-        render_attr: str = "label",
-        # TB: may consider fallback to address (or start of it) instead of default label
-    ) -> str:
-        """
-        A printable representation of this Primitive
-        and all its descendants in the hierarchy
-        """
-        return RenderTree(
-            self,
-            style=tree_render_style(style),
-            maxlevel=to_depth,
-            # childiter=list
-        ).by_attr(render_attr)
-
-    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
-        """Generate a directed Graph representing the hierarchy below this Primitive"""
-        return anytree_to_networkx(self, *args, **kwargs)
-
-    # Depiction
-    def __str__(self) -> str:
-        """
-        Output of calling str(...) on this Primitive
-
-        Also the default representation of this Primitive
-        when it is used as a node in any NetworkX graph
-        """
-        return f"{self.label!s}[{str(self.address)[:7]}]"
-
-    # def __repr__(self) -> str:
-    #     # DEV: will likely have to change for subtypes
-    #     raise NotImplementedError
-
 
 class SupportsChildren(Primitive):
     """
@@ -768,7 +765,6 @@ class SupportsChildren(Primitive):
     """
 
     # Hierarchy
-    ## Lookup
     children_by_address: WeakValueDictionary[PrimitiveAddress, "SupportsParents"]
 
     def _init_children(
@@ -811,8 +807,7 @@ class SupportsChildren(Primitive):
         # TODO: remap connection info
         ...
 
-    # TB: consider making just wrappers, with business logic
-    # moved to _pre_attach/_post_attach conditions?
+    # TB: consider making wrappers w/ business logic moved to _pre_attach/_post_attach
     def attach_child(
         self,
         child: "SupportsParents",
@@ -968,6 +963,33 @@ class SupportsParents(Primitive):
     these Primitives are nodes which allow INCOMING directed edges
     """
 
+    # Hierarchy
+    # TB: you might be thinking it would be more natural to have checks on parent
+    # Primitives in SupportParent instead; the reason for having them here instead is
+    # setting children always calls `child.parent = new_parent_value` under the hood
+    def _pre_attach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
+        super()._pre_attach(parent)
+        self._precondition_mutable_hierarchy()
+        parent._precondition_mutable_hierarchy()
+
+    def _post_attach(self, parent: SupportsChildren) -> None:
+        """Once parent is set, inject own Connectors into hierarchy"""
+        super()._post_attach(parent)
+        for connector in self.connectors:
+            self.inject_connector_into_hierarchy(connector)
+
+    def _pre_detach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
+        super()._pre_detach(parent)
+        self._precondition_mutable_hierarchy()
+        parent._precondition_mutable_hierarchy()
+
+    def _post_detach(self, parent: SupportsChildren) -> None:
+        super()._post_detach(parent)
+        for connector in self.connectors:
+            self.withdraw_connector_from_hierarchy(connector)
+
     # Topology
     def inject_connector_into_hierarchy(
         self,
@@ -1008,33 +1030,6 @@ class SupportsParents(Primitive):
             del connector.neighbor
         return connector
 
-    # Hierarchy
-    # TB: you might be thinking it would be more natural to have checks on parent
-    # Primitives in SupportParent instead; the reason for having them here instead is
-    # setting children always calls `child.parent = new_parent_value` under the hood
-    def _pre_attach(self, parent: SupportsChildren) -> None:
-        """Ensure both parent and child are fully mutable"""
-        super()._pre_attach(parent)
-        self._precondition_mutable_hierarchy()
-        parent._precondition_mutable_hierarchy()
-
-    def _post_attach(self, parent: SupportsChildren) -> None:
-        """Once parent is set, inject own Connectors into hierarchy"""
-        super()._post_attach(parent)
-        for connector in self.connectors:
-            self.inject_connector_into_hierarchy(connector)
-
-    def _pre_detach(self, parent: SupportsChildren) -> None:
-        """Ensure both parent and child are fully mutable"""
-        super()._pre_detach(parent)
-        self._precondition_mutable_hierarchy()
-        parent._precondition_mutable_hierarchy()
-
-    def _post_detach(self, parent: SupportsChildren) -> None:
-        super()._post_detach(parent)
-        for connector in self.connectors:
-            self.withdraw_connector_from_hierarchy(connector)
-
 
 # Concrete primitive types
 ## Tree root
@@ -1044,9 +1039,9 @@ class RootPrimitive(SupportsChildren):
     Used to store system-wide metadata, as well as provide hand-off point for interfaces
     """
 
-    box_vectors: Array3x3
-
     DEFAULT_LABEL: ClassVar[PrimitiveLabel] = "ROOT"
+
+    box_vectors: Array3x3
 
     def __init__(
         self,
@@ -1067,9 +1062,7 @@ class RootPrimitive(SupportsChildren):
 
         # N.B.: can't call before _frozen_hierarchy is set
         self._init_children(children)
-
-        # implements SupportsChildren contract
-        self.children_by_address = WeakValueDictionary()
+        self.children_by_address = WeakValueDictionary()  # SupportsChildren contract
 
         # system-wide info specific to Root instances
         if box_vectors is None:
@@ -1092,8 +1085,7 @@ class RootPrimitive(SupportsChildren):
         )
         return clone
 
-    # Managing hierarchy
-    ## Explicitly banning parents
+    # Hierarchy
     def _pre_attach(self, parent: SupportsChildren) -> None:
         super()._pre_attach(parent)
         raise ArborescenceError(
