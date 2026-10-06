@@ -1,17 +1,26 @@
-"""Search and selection routines over trees nodes"""
+"""Search and selection routines over tree nodes"""
 
-from typing import Callable, Generator, Optional, TypeVar, TypeAlias
+from typing import (
+    Callable,
+    Generator,
+    Iterable,
+    Optional,
+    TypeVar,
+    TypeAlias,
+)
 from anytree.node import NodeMixin
 
 NodeLike = TypeVar("NodeLike", bound=NodeMixin, covariant=True)
-# TODO: figure out how to type covariantly with NodeMixin subtypes as args
 NodePredicate: TypeAlias = Callable[[NodeLike], bool]
 
 
+# TB DEV: would be nice to eventually integrate w/ anytree's AbstractIter;
+# Behavior of 'stop' criterion is different enough that I've kept separate for now
 def primoprogenitors(
     root: NodeLike,
     predicate: NodePredicate[NodeLike],
     maxlevel: Optional[int] = None,
+    successors: Callable[[NodeLike], Iterable[NodeLike]] = lambda node: node.children,
 ) -> Generator[NodeLike, None, None]:
     """
     Subselect the first node along each branch of a tree which
@@ -37,13 +46,16 @@ def primoprogenitors(
     node_selected : NodeMixin
         The first node along a given branch found to satisfy the predicate
     """
+    # DEV: would be nice to support multiple roots to initialize,
+    # but would require ensuring no root is relative of any other
+    # root in list, which naively seems like an O(N^2) check
     nodes_to_search: list[NodeLike] = [root]
     while nodes_to_search:
         curr_node = nodes_to_search.pop(0)
         if predicate(curr_node):
             yield curr_node
         elif (maxlevel is None) or (curr_node.depth <= maxlevel):
-            nodes_to_search.extend(curr_node.children)
+            nodes_to_search.extend(successors(curr_node))
 
 
 pruned_BFS_subelection = primoprogenitors
