@@ -13,23 +13,24 @@ from types import MappingProxyType
 from .connectors import Connector
 from .types import (
     ConnectorAddress,
-    ConnectorLabel,
-    ConnectorLabeller,
+    ConnectorLabelLike,
 )
 
 
-def connector_address_flexible(conn: ConnectorAddress | Connector) -> ConnectorAddress:
+def connector_address_flexible(
+    connector: ConnectorAddress | Connector,
+) -> ConnectorAddress:
     """
     Cast method which allows methods expecting ConnectorAddresses
     to also accept the Connector instances themselves
     """
-    if isinstance(conn, Connector):
-        return conn.address
-    elif isinstance(conn, Hashable):
-        return conn
+    if isinstance(connector, Connector):
+        return connector.address
+    elif isinstance(connector, Hashable):
+        return connector
     else:
         raise TypeError(
-            f"Cannot interpret object of type '{type(conn).__name__}' "
+            f"Cannot interpret object of type '{type(connector).__name__}' "
             "as address of a Connector"
         )
 
@@ -42,22 +43,22 @@ class ConnectorManager(Protocol):
     connectors_bound: Collection[Connector]
     connectors_by_addr: Mapping[ConnectorAddress, Connector]
 
-    def connector(self, conn_addr: ConnectorAddress) -> Connector:
+    def connector(self, connector_address: ConnectorAddress) -> Connector:
         """Retrieve a particular Connector by its unique address"""
         # N.B.: not using dict.get() to make KeyErrors explicit
-        return self.connectors_by_addr[conn_addr]
+        return self.connectors_by_addr[connector_address]
 
     def add_connector(
         self,
-        conn: Connector,
-        label: Optional[ConnectorLabel | ConnectorLabeller] = None,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         """Designate a Connector to be managed here"""
         ...
 
     def remove_connector(
         self,
-        conn_addr: ConnectorAddress | Connector,
+        connector_address: ConnectorAddress | Connector,
     ) -> Connector:
         """Declare a Connector to be no longer managed here"""
         ...
@@ -79,7 +80,9 @@ class ConnectorManager(Protocol):
         Electronic valence of the Primitive, i.e. the total bond order
         of all external-facing Connectors on this Primitive
         """
-        total_bond_order: float = sum(conn.bond_order for conn in self.connectors)
+        total_bond_order: float = sum(
+            connector.bond_order for connector in self.connectors
+        )
         return round(total_bond_order)
 
     chemical_valence = electronic_valence = valence  # aliases for convenience
@@ -115,19 +118,19 @@ class ConnectorManagerFrozen(ConnectorManager):
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
         obj._connectors_all = tuple(connectors)
         obj._connectors_by_addr = MappingProxyType({
-            conn.address: conn for conn in connectors
+            connector.address: connector for connector in connectors
         })
 
         connectors_free_accum: list[Connector] = []
         connectors_bound_accum: list[Connector] = []
-        for conn in connectors:
+        for connector in connectors:
             # TB DEV: lock here is not secure as yet,
             # since one could manually unlock after init
-            conn.lock()  # ensure not mutations allowed subsequently
-            if conn.has_neighbor:
-                connectors_bound_accum.append(conn)
+            connector.lock()  # ensure not mutations allowed subsequently
+            if connector.has_neighbor:
+                connectors_bound_accum.append(connector)
             else:
-                connectors_free_accum.append(conn)
+                connectors_free_accum.append(connector)
         obj._connectors_free = tuple(connectors_free_accum)
         obj._connectors_bound = tuple(connectors_bound_accum)
 
@@ -161,8 +164,8 @@ class ConnectorManagerFrozen(ConnectorManager):
 
     def add_connector(  # noqa: D102
         self,
-        conn: Connector,
-        label: Optional[ConnectorLabel | ConnectorLabeller] = None,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         # TB: docstring inherited from ConnectorManager base
         raise AttributeError(
@@ -171,7 +174,7 @@ class ConnectorManagerFrozen(ConnectorManager):
 
     def remove_connector(  # noqa: D102
         self,
-        conn_addr: ConnectorAddress | Connector,
+        connector_address: ConnectorAddress | Connector,
     ) -> Connector:
         # TB: docstring inherited from ConnectorManager base
         raise AttributeError(
@@ -191,27 +194,28 @@ class ConnectorManagerMutable(ConnectorManager):
         default_label: Hashable = "CONN",
     ) -> None:
         self.connectors_by_addr: dict[ConnectorAddress, Connector] = {}
-        for conn in connectors:
-            conn.unlock()
-            self.add_connector(conn)
+        for connector in connectors:
+            connector.unlock()
+            self.add_connector(connector)
 
     def add_connector(  # noqa: D102
         self,
-        conn: Connector,
-        label: Optional[ConnectorLabel | ConnectorLabeller] = None,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         # TB: docstring inherited from ConnectorManager base
-
-        self.connectors_by_addr[conn.addr] = conn
-        # TODO: label to be used for UniqueRegistry
-        # registration to give human-readable handle
+        if label is not None:
+            connector.label = label
+        self.connectors_by_addr[connector.addr] = connector
 
     def remove_connector(  # noqa: D102
         self,
-        conn_addr: ConnectorAddress | Connector,
+        connector_address: ConnectorAddress | Connector,
     ) -> Connector:
         """Declare a Connector to be no longer managed here"""
-        return self.connectors_by_addr.pop(connector_address_flexible(conn_addr))
+        return self.connectors_by_addr.pop(
+            connector_address_flexible(connector_address)
+        )
 
     @property
     def connectors(self) -> tuple[Connector, ...]:
@@ -219,13 +223,17 @@ class ConnectorManagerMutable(ConnectorManager):
         return tuple(self.connectors_by_addr.values())
 
     # DEV: opting for linear search each time (rather than dynamically-updating list)
-    # since Connectors might change neighbors during bond linking (checks when called)
+    # since Connectors might change neighbors during bond linking
     @property
     def connectors_free(self) -> tuple[Connector, ...]:
         """Managed Connectors which have no assigned neighbor"""
-        return tuple(conn for conn in self.connectors if not conn.has_neighbor)
+        return tuple(
+            connector for connector in self.connectors if not connector.has_neighbor
+        )
 
     @property
     def connectors_bound(self) -> tuple[Connector, ...]:
         """Managed Connectors which have no assigned neighbor"""
-        return tuple(conn for conn in self.connectors if conn.has_neighbor)
+        return tuple(
+            connector for connector in self.connectors if connector.has_neighbor
+        )
