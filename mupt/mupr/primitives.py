@@ -483,6 +483,7 @@ class Primitive(
     def _freeze_connections_local(self) -> None:
         """Prevent mutation of Connectors on this Primitive ONLY"""
         self.connections = ConnectorManagerFrozen(*self.connections.connectors)
+        self._frozen_connections = True
 
     def _freeze_connections_subsequent(self) -> None:
         """
@@ -492,7 +493,6 @@ class Primitive(
         self._freeze_connections_local()
         for subprimitive in self.descendants:
             subprimitive._freeze_connections_local()
-        self._frozen_connections = True  # only update flag if recursive call completes
 
     def freeze_connections(self) -> None:
         """
@@ -508,6 +508,7 @@ class Primitive(
     def _unfreeze_connections_local(self) -> None:
         """Allow mutation of Connectors on this Primitive ONLY"""
         self.connections = ConnectorManagerMutable(*self.connections.connectors)
+        self._frozen_connections = False
 
     def _unfreeze_connections_subsequent(self) -> None:
         """
@@ -517,7 +518,6 @@ class Primitive(
         self._unfreeze_connections_local()
         for subprimitive in self.descendants:
             subprimitive._unfreeze_connections_local()
-        self._frozen_connections = False  # only update flag if recursive call completes
 
     def unfreeze_connections(self) -> None:
         """
