@@ -279,6 +279,10 @@ class Primitive(
         return self.connections.functionality
 
     # Mutability flags
+    ## TB: quite a bit of repetition b/w connector and hierarchy immutability
+    # enforcement and configuration methods; worth trying to consolidate in some way?
+
+    ## Connectivity modification
     @property
     def frozen_connections(self) -> bool:
         """Whether or not the hierarchy tree is open to Connector modification"""
@@ -295,6 +299,57 @@ class Primitive(
         if self.frozen_connections:
             raise AttributeError(msg)
 
+    ### Freeze
+    def _freeze_connections_local(self) -> None:
+        """Prevent modification of Connectors on this Primitive ONLY"""
+        self.connections = ConnectorManagerFrozen(*self.connections.connectors)
+        self._frozen_connections = True
+
+    def _freeze_connections_subsequent(self) -> None:
+        """
+        Prevent modification of Connectors managed by this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_connections_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_connections_local()
+
+    def freeze_connections(self) -> None:
+        """
+        Prevent modification of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        # TB: from root, since it doesn't make sense to just freeze parts of hierarchy;
+        # if one bit is frozen, it causes all others touching it to also freeze
+        # Note that "root" is not necessarily a RootPrimitive,
+        # but rather the topmost Primitive ancestor in the current hierarchy
+        self.root._freeze_connections_subsequent()
+
+    ### Unfreeze
+    def _unfreeze_connections_local(self) -> None:
+        """Allow modification of Connectors on this Primitive ONLY"""
+        self.connections = ConnectorManagerMutable(*self.connections.connectors)
+        self._frozen_connections = False
+
+    def _unfreeze_connections_subsequent(self) -> None:
+        """
+        Allow modification of Connectors managed by this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_connections_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_connections_local()
+
+    def unfreeze_connections(self) -> None:
+        """
+        Allow modification of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        # TB: Similarly, unfreeze from root down, since it doesn't
+        # make sense to only have parts of hierarchy be mutable
+        self.root._unfreeze_connections_subsequent()
+
+    ## Hierarchy modification
     @property
     def frozen_hierarchy(self) -> bool:
         """Whether editing incoming or outgoing nodes of this hierarchy is allowed"""
@@ -313,6 +368,48 @@ class Primitive(
         """
         if self.frozen_hierarchy:
             raise AttributeError(msg)
+
+    ### Freeze
+    def _freeze_hierarchy_local(self) -> None:
+        """Prevent modification of parents/children of this Primitive ONLY"""
+        self._frozen_hierarchy = True
+
+    def _freeze_hierarchy_subsequent(self) -> None:
+        """
+        Prevent modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_hierarchy_local()
+
+    def freeze_hierarchy(self) -> None:
+        """
+        Prevent modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._freeze_hierarchy_subsequent()
+
+    ### Unfreeze
+    def _unfreeze_hierarchy_local(self) -> None:
+        """Enable modification of parents and children of this Primitive ONLY"""
+        self._frozen_hierarchy = False
+
+    def _unfreeze_hierarchy_subsequent(self) -> None:
+        """
+        Enable modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_hierarchy_local()
+
+    def unfreeze_hierarchy(self) -> None:
+        """
+        Enable modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._unfreeze_hierarchy_subsequent()
 
     # Copying
     def _copy_instance(self) -> Self:
@@ -422,8 +519,7 @@ class Primitive(
             subprimitive._rigidly_transform_shape(transformation)
 
     # Hierarchy
-    ## Enforcing universal hierarchy invariants
-    # TB: the key invariants that must be enforced at all times are:
+    # TB: in any hierarchy, key invariants that must be enforced at all times are:
     # * Roots can never be the children of any other Primitive
     # * Simples can never be the parent of any other Primitive
 
@@ -480,54 +576,6 @@ class Primitive(
         return anytree_to_networkx(self, *args, **kwargs)
 
     # Topology
-    def _freeze_connections_local(self) -> None:
-        """Prevent mutation of Connectors on this Primitive ONLY"""
-        self.connections = ConnectorManagerFrozen(*self.connections.connectors)
-        self._frozen_connections = True
-
-    def _freeze_connections_subsequent(self) -> None:
-        """
-        Prevent mutation of Connectors managed by this
-        Primitive and any below it in the hierarchy
-        """
-        self._freeze_connections_local()
-        for subprimitive in self.descendants:
-            subprimitive._freeze_connections_local()
-
-    def freeze_connections(self) -> None:
-        """
-        Prevent mutation of any Connectors on all Primitives in
-        the hierarchy of this Primitive, even below AND above it
-        """
-        # TB: from root, since it doesn't make sense to just freeze parts of hierarchy;
-        # if one bit is frozen, it causes all others touching it to also freeze
-        # Note that "root" is not necessarily a RootPrimitive,
-        # but rather the topmost Primitive ancestor in the current hierarchy
-        self.root._freeze_connections_subsequent()
-
-    def _unfreeze_connections_local(self) -> None:
-        """Allow mutation of Connectors on this Primitive ONLY"""
-        self.connections = ConnectorManagerMutable(*self.connections.connectors)
-        self._frozen_connections = False
-
-    def _unfreeze_connections_subsequent(self) -> None:
-        """
-        Allow mutation of Connectors managed by this
-        Primitive and any below it in the hierarchy
-        """
-        self._unfreeze_connections_local()
-        for subprimitive in self.descendants:
-            subprimitive._unfreeze_connections_local()
-
-    def unfreeze_connections(self) -> None:
-        """
-        Allow mutation of any Connectors on all Primitives in
-        the hierarchy of this Primitive, even below AND above it
-        """
-        # TB: Similarly, unfreeze from root down, since it doesn't
-        # make sense to only have parts of hierarchy be mutable
-        self.root._unfreeze_connections_subsequent()
-
     def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
