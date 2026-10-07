@@ -45,32 +45,63 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
 
 
 @pytest.mark.parametrize(
-    "predicate,selected_expected_names",
+    "predicate,maxlevel,selected_expected_names",
     [
         # Name-based predicates
         (
             lambda node: ("t" in node.name) and (node.name != ROOT_KW),
+            None,
+            ("tail_0", "tail_1", "moiety_1", "moiety_2", "atom_0", "atom_3"),
+        ),
+        (
+            lambda node: ("t" in node.name) and (node.name != ROOT_KW),
+            1,
+            ("tail_0", "tail_1", "atom_3"),
+        ),
+        (
+            lambda node: ("t" in node.name) and (node.name != ROOT_KW),
+            3,  # entire tree is max depth 3, so doesn't affect result
             ("tail_0", "tail_1", "moiety_1", "moiety_2", "atom_0", "atom_3"),
         ),
         (
             lambda node: node.name == ROOT_KW,
+            None,
+            (ROOT_KW,),
+        ),
+        (
+            lambda node: node.name == ROOT_KW,
+            0,  # root is always traversed, unaffected
             (ROOT_KW,),
         ),
         (
             lambda node: len(node.name) == 6,
+            None,
             ("tail_0", "tail_1", "atom_2", "atom_0", "atom_3"),
         ),
         (
+            lambda node: len(node.name) == 6,
+            1,
+            ("tail_0", "tail_1", "atom_3"),
+        ),
+        (
             lambda node: node.name.endswith("1"),
+            None,
             ("atom_1", "tail_1", "group_1"),
         ),
         # Tree hierarchy predicates
         (
             lambda node: not node.children,
+            None,
             ("moiety_0", "atom_1", "tail_1", "atom_2", "moiety_2", "atom_0", "atom_3"),
         ),
         (
+            lambda node: not node.children,
+            2,
+            ("atom_1", "tail_1", "moiety_2", "atom_0", "atom_3"),
+        ),
+        (
             lambda node: len(node.children) == 3,
+            None,
             ("group_1",),
         ),
     ],
@@ -78,9 +109,8 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
 def test_primoprogenitors_correctness(
     example_tree_with_root: tuple[dict[str, Node], Node],
     predicate: NodePredicate[Node],
+    maxlevel: Optional[int],
     selected_expected_names: Iterable[str],
-    # TODO: add tests for maxlevel
-    maxlevel: Optional[int] = None,
 ) -> None:
     """Test that given tree-predicate pairs return the expected selection"""
     node_map, root = example_tree_with_root
