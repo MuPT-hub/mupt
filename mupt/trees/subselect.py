@@ -46,15 +46,19 @@ def primoprogenitors(
     node_selected : NodeMixin
         The first node along a given branch found to satisfy the predicate
     """
-    # DEV: would be nice to support multiple roots to initialize,
-    # but would require ensuring no root is relative of any other
-    # root in list, which naively seems like an O(N^2) check
+    # DEV: would be nice to support multiple roots to initialize search queue,
+    # but that would require ensuring ALL pairs of roots are non-relatives,
+    # which naively seems like an O(N^2) precheck (cleverer solutions probably exist)
     nodes_to_search: list[NodeLike] = [root]
     while nodes_to_search:
         curr_node = nodes_to_search.pop(0)
         if predicate(curr_node):
             yield curr_node
-        elif (maxlevel is None) or (curr_node.depth <= maxlevel):
+        # TB: strict "less than" ensure break only happens
+        # beyond max depth (rather than just before it)
+        elif (maxlevel is None) or (curr_node.depth < maxlevel):
+            # N.B.: with arbitrary successor function,
+            # not guaranteed depth increases monotonically!
             nodes_to_search.extend(successors(curr_node))
 
 
