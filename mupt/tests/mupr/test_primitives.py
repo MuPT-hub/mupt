@@ -272,12 +272,6 @@ def test_improper_hierarchy_disallowed(parent: Primitive, child: Primitive) -> N
 
 
 # Inserting and withdrawing Connectors from a hierarchy
-def test_inject_connector_into_hierarchy(): ...
-
-
-def test_withdraw_connector_from_hierarchy(): ...
-
-
 @pytest.mark.parametrize(
     "simple,num_intermed",
     [
@@ -359,11 +353,31 @@ def test_simple_remove_connector_nonexistent() -> None:
 
 
 # Setting neighbors and topologies
-@pytest.mark.parametrize(
-    "",
-    [],
-)
-def test_connect_neighbor(): ...
+def test_connect_neighbor() -> None:
+    """Test that new connections to a neighbor Primitive can be made"""
+    simple = SimplePrimitive()
+    comp = CompositePrimitive(children=[simple])
+    root = RootPrimitive(children=[comp])
+
+    simple_new = SimplePrimitive()
+    simple_new.parent = root
+
+    conn = basic_connector()
+    conn_counter = conn.counterpart()
+    simple.add_connector(conn)
+    simple_new.add_connector(conn_counter)
+
+    # 1) check no neighbors possible before making connection
+    assert not any(simple_new.potential_neighbors())
+
+    simple_new.connect_neighbor(
+        simple,
+        our_connector=conn_counter,
+        their_connector=conn,
+    )
+
+    # 2) check that ALL Primitives on parallel branch are potential neighbors
+    assert set(*simple_new.potential_neighbors()) == set([root, comp, simple])
 
 
 def test_positive_is_neighbors_with_symmetric():
