@@ -636,18 +636,14 @@ class Primitive(
         for _, _, neighbor in self.neighbors_with_connectors(predicate=predicate):
             yield neighbor
 
-    def is_neighbors_with(
-        self,
-        other: "Primitive",
-        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
-    ) -> bool:
+    def is_neighbors_with(self, other: "Primitive") -> bool:
         """
         Whether this Primitive is a neighbor of the other Primitive
 
         This relation is symmetric, i.e. a.is_neighbor_of(b) <=> b.is_neighbor_of(a)
         """
-        for neighbor in self.neighbors(predicate=predicate):
-            if other is neighbor:
+        for neighbor_branch in self.potential_neighbors():
+            if other in neighbor_branch:
                 return True
         else:
             return False
