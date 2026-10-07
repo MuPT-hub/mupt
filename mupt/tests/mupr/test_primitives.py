@@ -4,6 +4,8 @@
 import pytest
 
 from itertools import product as cartesian
+
+from anytree.iterators import PreOrderIter
 import numpy as np
 
 from mupt.mutils.iteration import sliding_window
@@ -60,6 +62,7 @@ def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPri
     return root
 
 
+@pytest.fixture(scope="function")
 def hierarchy_example() -> RootPrimitive:
     """
     A moderately-complex but still-small hierarchy which contains
@@ -577,22 +580,31 @@ def test_cross_section_bond_orders():
 
 
 ## Copying
+# TB: tests here are slightly brittle, since they assume copied
+# Connectors and Primitives will be in same order as in the original.
+# Revisit if that assumption becomes invalid (these tests will start failing)
 def test_primitive_copy_hierarchy(hierarchy_example: RootPrimitive) -> None:
     """Test that hierarchy of copy is isomorphic to that of the original"""
-    # copy = example_hierarchy.copy()
-    ...
+    hierarchy_copy = hierarchy_example.copy()
+    for prim_orig, prim_copy in zip(
+        PreOrderIter(hierarchy_example),
+        PreOrderIter(hierarchy_copy),
+    ):
+        assert (
+            # TODO: implement __eq__ on all Primitive subtypes to
+            # provide more robust comparison over select attribute
+            type(prim_orig) is type(prim_copy)
+            and prim_orig.address != prim_copy.address
+        )
 
 
 def test_primitive_copy_connectors(hierarchy_example: RootPrimitive) -> None:
     """Test that Connectors on copy are analogous to original WITHOUT being identical"""
-    clone = hierarchy_example.copy()
+    hierarchy_copy = hierarchy_example.copy()
     for conn_orig, conn_copy in zip(
         hierarchy_example.connectors,
-        clone.connectors,
+        hierarchy_copy.connectors,
     ):
-        # TB: slightly brittle, since assumes copied connectors
-        # will bein same order as in the original; revisit if that
-        # assumption becomes invalid (this test will fail if so)
         assert (
             Connector.fungible_with(conn_copy, conn_orig)
             and (conn_copy is not conn_orig)  # equilvane,t but not identical
