@@ -93,9 +93,18 @@ def test_frozen_remove_connectors(prim: Primitive) -> None:
         prim._remove_connector(conn_addr)
 
 
-def test_frozen_connectors_propagates():
+def test_frozen_connectors_propagates() -> None:
     """Test that connector modification state changes bubble up through hierarchy"""
-    ...
+    root = RootPrimitive()
+    comp = CompositePrimitive()
+    simple = SimplePrimitive()
+
+    comp.parent = root
+    simple.parent = comp
+
+    root.freeze_connections()
+    with pytest.raises(AttributeError):
+        simple._add_connector(Connector())
 
 
 def test_frozen_hierarchy():

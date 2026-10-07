@@ -481,57 +481,52 @@ class Primitive(
 
     # Topology
     def _freeze_connections_local(self) -> None:
-        """
-        Force Connectors on this Primitive to be
-        immutable and cached WITHOUT recursive calls
-        """
+        """Prevent mutation of Connectors on this Primitive ONLY"""
         self.connections = ConnectorManagerFrozen(*self.connections.connectors)
 
-    def _freeze_connections_recursive(self) -> None:
+    def _freeze_connections_subsequent(self) -> None:
         """
-        Prevent any connection within the hierarchy at
-        this Primitive and below from being mutated
+        Prevent mutation of Connectors managed by this
+        Primitive and any below it in the hierarchy
         """
         self._freeze_connections_local()
-        for subprimitive in self.children:
-            subprimitive._freeze_connections_recursive()
-        self._frozen_connections = (
-            True  # don't update flag until recursive call completes
-        )
+        for subprimitive in self.descendants:
+            subprimitive._freeze_connections_local()
+        self._frozen_connections = True  # only update flag if recursive call completes
 
     def freeze_connections(self) -> None:
         """
-        Prevent connectivity of this Primitive and any
-        others in its hierarchy tree from being mutated
+        Prevent mutation of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
         """
         # TB: from root, since it doesn't make sense to just freeze parts of hierarchy;
         # if one bit is frozen, it causes all others touching it to also freeze
-        # also note that the "root" here is not necessarily a
-        # RootPrimitive, but rather the topmost Primitive ancestor
-        self.root._freeze_connections_recursive()
+        # Note that "root" is not necessarily a RootPrimitive,
+        # but rather the topmost Primitive ancestor in the current hierarchy
+        self.root._freeze_connections_subsequent()
 
     def _unfreeze_connections_local(self) -> None:
-        """Allow Connectors on this Primitive to be mutated (without recursive calls)"""
+        """Allow mutation of Connectors on this Primitive ONLY"""
         self.connections = ConnectorManagerMutable(*self.connections.connectors)
 
-    def _unfreeze_connections_recursive(self) -> None:
+    def _unfreeze_connections_subsequent(self) -> None:
         """
-        Enable mutation of connectivity for this Primitive
-        and any Primitives below it from being mutated
+        Allow mutation of Connectors managed by this
+        Primitive and any below it in the hierarchy
         """
         self._unfreeze_connections_local()
-        for subprimitive in self.children:
-            subprimitive._unfreeze_connections_recursive()
-        self._frozen_connections = (
-            False  # don't update flag until recursive call completes
-        )
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_connections_local()
+        self._frozen_connections = False  # only update flag if recursive call completes
 
     def unfreeze_connections(self) -> None:
         """
-        Enable mutation of connectivity of this Primitive and
-        any others below it in the hierarchy tree
+        Allow mutation of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
         """
-        self.root._unfreeze_connections_recursive()
+        # TB: Similarly, unfreeze from root down, since it doesn't
+        # make sense to only have parts of hierarchy be mutable
+        self.root._unfreeze_connections_subsequent()
 
     def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
         """Fetch a connector managed by this Priomitive, if it exists"""
