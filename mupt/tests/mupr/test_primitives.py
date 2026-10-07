@@ -20,6 +20,7 @@ from mupt.mupr.primitives import (
     ImproperHierarchyError,
     Primitive,
     SupportsChildren,
+    SupportsParents,
     RootPrimitive,
     CompositePrimitive,
     SimplePrimitive,
@@ -27,6 +28,7 @@ from mupt.mupr.primitives import (
 )
 
 
+# Helpers
 def basic_connector() -> Connector:
     """
     A simple Connector schema to use in tests
@@ -107,14 +109,95 @@ def test_frozen_connectors_propagates() -> None:
         simple._add_connector(Connector())
 
 
-def test_frozen_hierarchy():
-    """Test that hierarchy modification is blocked by freezing it on any Primitive"""
-    ...
+@pytest.mark.parametrize(
+    "prim",
+    [
+        # no Root; can't give it a parent
+        CompositePrimitive(),
+        SimplePrimitive(),
+        AtomicPrimitive(ELEMENTS[2]),
+    ],
+)
+def test_frozen_hierarchy_add_parent(prim: SupportsParents) -> None:
+    """Test that hierarchy parent addition is blocked by freezing it on any Primitive"""
+    parent = RootPrimitive()
+    prim.freeze_hierarchy()
+    with pytest.raises(AttributeError):
+        prim.parent = parent
 
 
-def test_frozen_hierarchy_propagates():
+@pytest.mark.parametrize(
+    "prim",
+    [
+        # no Root; can't give it a parent
+        CompositePrimitive(),
+        SimplePrimitive(),
+        AtomicPrimitive(ELEMENTS[2]),
+    ],
+)
+def test_frozen_hierarchy_remove_parent(prim: SupportsParents) -> None:
+    """Test that hierarchy parent removal is blocked by freezing it on any Primitive"""
+    parent = RootPrimitive()
+    prim.unfreeze_hierarchy()
+    prim.parent = parent
+    prim.freeze_hierarchy()
+    with pytest.raises(AttributeError):
+        del prim.parent
+
+
+@pytest.mark.parametrize(
+    "prim",
+    [
+        RootPrimitive(),
+        CompositePrimitive(),
+        # No simples; can't give them children
+    ],
+)
+def test_frozen_hierarchy_add_children(prim: SupportsChildren) -> None:
+    """Test that hierarchy child addition is blocked by freezing it on any Primitive"""
+    child = SimplePrimitive()
+    prim.freeze_hierarchy()
+    with pytest.raises(AttributeError):
+        prim.children = [child]
+
+
+@pytest.mark.parametrize(
+    "prim",
+    [
+        RootPrimitive(),
+        CompositePrimitive(),
+        # No simples; can't give them children
+    ],
+)
+def test_frozen_hierarchy_remove_children(prim: SupportsChildren) -> None:
+    """Test that hierarchy child removal is blocked by freezing it on any Primitive"""
+    child = SimplePrimitive()
+    prim.unfreeze_hierarchy()
+    prim.children = [child]
+    prim.freeze_hierarchy()
+    with pytest.raises(AttributeError):
+        del prim.children
+
+
+@pytest.mark.parametrize(
+    "prim,hierarchy_depth",
+    [
+        (CompositePrimitive(), 1),
+        (CompositePrimitive(), 3),
+        (SimplePrimitive(), 1),
+        (SimplePrimitive(), 3),
+        (AtomicPrimitive(ELEMENTS[5]), 1),
+        (AtomicPrimitive(ELEMENTS[5]), 3),
+    ],
+)
+def test_frozen_hierarchy_propagates(prim: Primitive, hierarchy_depth: int) -> None:
     """Test that hierarchy modification state changes bubble up through hierarchy"""
-    ...
+    root = dummy_hierarchy_atop_prim(prim, num_intermed=hierarchy_depth)
+    # N.B.: deliberately NOT freezing at prim; should propagate down
+    root.freeze_hierarchy()
+
+    with pytest.raises(AttributeError):
+        prim.parent = root
 
 
 # Combining Primitives into hierarchy
