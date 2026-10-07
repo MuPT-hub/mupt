@@ -659,10 +659,11 @@ class Primitive(
             # should never happen if holders are set correctly, but am
             # leaving note here to speed up debugging in case it ever does
             branch_root, *successors = neighbor_branch
+            successors = iter(successors)
             for chosen_neighbor in primoprogenitors(
                 branch_root,
                 predicate=predicate,
-                successors=lambda prim: [next(iter(successors))],
+                successors=lambda prim: [next(successors)],
             ):
                 yield our_connector, their_connector, chosen_neighbor
 
