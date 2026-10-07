@@ -71,7 +71,7 @@ from .connection.linking import (
 from ..trees.digraph import anytree_to_networkx
 from ..trees.subselect import primoprogenitors, NodePredicate
 from ..trees.render import tree_render_style, ConcreteStyle
-from ..graphs.visualisation import draw_networkx_with_arcs
+from ..graphs.visualization import draw_networkx_with_arcs
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import Labelled
@@ -134,7 +134,7 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
 DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
 
 
-# visualisation helpers
+# visualization helpers
 def canonical_form_shape(shape: Optional[BoundedTransformableShape]) -> str:
     """A canonical string representing this Primitive's shape"""
     # TODO: move this into .shape; should be responsibility of Shape subclasses
@@ -856,10 +856,12 @@ class Primitive(
         **kwargs,
     ) -> "Axes":
         """
-        Draw a networkx graph representation of the selected cross-section
+        Draw a networkx Graph representation of the selected cross-section
 
-        Can accept a pre-calculated cross-section or, if none is provided
+        Can accept a pre-calculated cross-section or, if none is provided,
         will calculate the cross section on-the-spot before plotting
+
+        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
         """
         if not isinstance(cross_section, Graph):
             LOGGER.info(

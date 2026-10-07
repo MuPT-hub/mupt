@@ -1,5 +1,5 @@
 """
-Utilities for generating, inspecting, and visualising graphs
+Utilities for generating, inspecting, and visualizing graphs
 
 Define adjacency topologies for connected systems, like covalently-bonded molecules
 """
