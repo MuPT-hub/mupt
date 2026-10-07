@@ -36,6 +36,7 @@ from anytree.node import NodeMixin
 from anytree.render import RenderTree
 from anytree.search import findall
 from anytree.iterators import LevelOrderIter
+from anytree.util import commonancestors
 
 from networkx.classes import Graph, DiGraph, MultiGraph
 from networkx import get_node_attributes, relabel_nodes
@@ -644,17 +645,25 @@ class Primitive(
             by order in the hierarchy (i.e. least-deep first)
         """
         for our_connector in self.connections.connectors_bound:
-            # TB TODO: finesse typehints to suppress (perceived) unset NoneType values
-            their_connector: Connector = our_connector.neighbor
             # any superprimitives which share connectors with the holder are
             # also considered neighbors; this is what enables multiscaling
+            their_connector: Connector = our_connector.neighbor
             neighbor_leaf: Primitive = their_connector.holder
-            neighbor_branch: tuple[Primitive] = neighbor_leaf.path
+            # TB TODO: finesse typehints to suppress (perceived) unset NoneType values
 
             # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
-            if self in neighbor_branch:
+            if self in neighbor_leaf.path:
                 continue
-            # TB: CRITICAL: also enforce that no ancestors of self appear in branch
+
+            common_ancestors: tuple[Primitive, ...] = commonancestors(
+                self,
+                neighbor_leaf,
+            )
+            neighbor_branch: tuple[Primitive, ...] = tuple(
+                potential_neighbor
+                for potential_neighbor in neighbor_leaf.path
+                if potential_neighbor not in common_ancestors
+            )
 
             yield our_connector, their_connector, neighbor_branch
 
