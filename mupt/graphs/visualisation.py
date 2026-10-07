@@ -8,7 +8,7 @@ from collections import defaultdict
 if TYPE_CHECKING:
     from matplotlib.axes._axes import Axes
 
-from networkx import Graph, MultiGraph
+from networkx import Graph, DiGraph, MultiGraph
 from networkx.drawing import (
     spring_layout,
     draw_networkx,
@@ -16,6 +16,22 @@ from networkx.drawing import (
 )
 
 from .graphtypes import GraphEdge, GraphPositions
+
+
+def default_graph_axes(margins: float = 0.25) -> "Axes":
+    """
+    Default strategy for creating a blank single-axis figure to draw graphs onto
+
+    Useful as default for creating axes when None have been provided
+    """
+    from matplotlib.pyplot import figure
+
+    fig = figure()
+    ax = fig.add_axes((0, 0, 1, 1))  # full figure
+    ax.margins(margins)
+    ax.set_axis_off()
+
+    return ax
 
 
 def determine_arc_radii(
@@ -62,17 +78,16 @@ def draw_networkx_with_arcs(
     pos: Optional[GraphPositions] = None,
     ax: Optional["Axes"] = None,
     base_arc_radius: float = 0.1,
-    default_margins: float = 0.25,
+    margins: float = 0.25,
     **kwargs,
 ) -> "Axes":
     """
-    Draw the graph G with separated arcs for parallel edges
+    Draw an undirected graph with separated arcs
+    for parallel edges, if it is a multigraph
 
     Thin wrapper around draw_networkx() and draw_networkx_edges()
     See networkx.drawing documentation for kwarg details
     """
-    from matplotlib.pyplot import figure
-
     if "with_labels" not in kwargs:
         kwargs["with_labels"] = True
 
@@ -84,13 +99,10 @@ def draw_networkx_with_arcs(
     edge_kwargs = {k: v for k, v in kwargs.items() if k in valid_edge_kwds}
 
     if ax is None:
-        fig = figure()
-        ax = fig.add_axes((0, 0, 1, 1))
-        ax.margins(default_margins)
-        ax.set_axis_off()
+        ax = default_graph_axes(margins=margins)
 
     if pos is None:
-        pos = spring_layout(G)  # default to spring layout
+        pos = spring_layout(G)
 
     # N.B.: the "edge_indices" logic inside draw_networkx() doesn't correctly handle
     # distinct connectionstyles for each parallel multiedge in a multigraph
@@ -108,5 +120,34 @@ def draw_networkx_with_arcs(
             arrows=True,  # suppress warning on edge w/ connectionstyle on simple Graphs
             **edge_kwargs,
         )
+
+    return ax
+
+
+def draw_networkx_tree(
+    tree: DiGraph,
+    pos: Optional[GraphPositions] = None,
+    ax: Optional["Axes"] = None,
+    margins: float = 0.25,
+    **kwargs,
+) -> "Axes":
+    """
+    Draw a directed graph with separated arcs for parallel edges
+
+    Thin wrapper around draw_networkx()
+    See networkx.drawing documentation for kwarg details
+    """
+    from networkx import nx_agraph  # nice pygraphviz layouts
+
+    if "with_labels" not in kwargs:
+        kwargs["with_labels"] = True
+
+    if ax is None:
+        ax = default_graph_axes(margins=margins)
+
+    if pos is None:
+        pos = nx_agraph.graphviz_layout(tree, prog="dot")
+
+    draw_networkx(tree, pos=pos, **kwargs)
 
     return ax
