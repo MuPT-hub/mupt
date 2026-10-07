@@ -71,7 +71,6 @@ from .connection.linking import (
 from ..trees.digraph import anytree_to_networkx
 from ..trees.subselect import primoprogenitors, NodePredicate
 from ..trees.render import tree_render_style, ConcreteStyle
-from ..graphs.visualization import draw_networkx_with_arcs, draw_networkx_tree
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import Labelled
@@ -863,6 +862,8 @@ class Primitive(
 
         See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
         """
+        from mupt.graphs.visualization import draw_networkx_with_arcs
+
         if not isinstance(cross_section, Graph):
             LOGGER.info(
                 "Extracting cross-section from predicate, "
@@ -891,6 +892,8 @@ class Primitive(
 
         See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
         """
+        from mupt.graphs.visualization import draw_networkx_tree
+
         if hierarchy_tree is None:
             hierarchy_tree = self.hierarchy_tree()
 

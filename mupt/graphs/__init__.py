@@ -30,3 +30,5 @@ from .generators import (
     noodle_graph as noodle_graph,
     balanced_dendrimer_graph as balanced_dendrimer_graph,
 )
+# DEV: excluding .visualization utils at toplevel
+# to decouple from matplotlib/pygraphviz dependencies
