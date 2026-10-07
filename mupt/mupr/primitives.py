@@ -71,7 +71,7 @@ from .connection.linking import (
 from ..trees.digraph import anytree_to_networkx
 from ..trees.subselect import primoprogenitors, NodePredicate
 from ..trees.render import tree_render_style, ConcreteStyle
-from ..graphs.visualization import draw_networkx_with_arcs
+from ..graphs.visualization import draw_networkx_with_arcs, draw_networkx_tree
 
 from ..mutils.referencing import Addressed
 from ..mutils.containers import Labelled
@@ -876,6 +876,25 @@ class Primitive(
         return draw_networkx_with_arcs(
             cross_section, base_arc_radius=base_arc_radius, **kwargs
         )
+
+    def visualize_hierarchy(
+        self,
+        hierarchy_tree: Optional[DiGraph] = None,
+        **kwargs,
+    ) -> "Axes":
+        """
+        Draw a networkx DiGraph representation of the partial order
+        of this Primitive and all Primitives below it in the hierarchy
+
+        Can accept a pre-calculated hierarchy tree or, if None is provided,
+        will extract one from the current Primitive
+
+        See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
+        """
+        if hierarchy_tree is None:
+            hierarchy_tree = self.hierarchy_tree()
+
+        return draw_networkx_tree(hierarchy_tree, **kwargs)
 
 
 class SupportsChildren(Primitive):
