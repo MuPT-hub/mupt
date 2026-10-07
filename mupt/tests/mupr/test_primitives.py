@@ -60,6 +60,71 @@ def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPri
     return root
 
 
+def hierarchy_example() -> RootPrimitive:
+    """
+    A moderately-complex but still-small hierarchy which contains
+    all Primitive subtypes and varied parent/child relationships
+    """
+    # Connectors
+    conn0 = Connector(
+        anchor=AttachmentPoint({1}),
+        linker=AttachmentPoint({2}),
+        bondtype=BondType.DOUBLE,
+    )
+    conn1 = Connector(
+        anchor=AttachmentPoint({1}),
+        linker=AttachmentPoint({2}),
+        bondtype=BondType.AROMATIC,
+    )
+
+    # Primitive parts
+    root = RootPrimitive()
+    comp_0 = CompositePrimitive()
+    comp_1 = CompositePrimitive()
+    comp_2 = CompositePrimitive()
+    simple_0 = SimplePrimitive(connections=(conn0.copy(),))
+    simple_1 = SimplePrimitive(
+        connections=(
+            conn0.counterpart(),
+            conn0.copy(),
+            conn1.copy(),
+            conn0.counterpart(),
+        )
+    )
+    simple_2 = SimplePrimitive(
+        connections=(
+            conn0.counterpart(),
+            conn0.copy(),
+            conn1.copy(),
+        )
+    )
+    atom_1 = AtomicPrimitive(
+        element=ELEMENTS[6],
+        connections=(
+            conn1.counterpart(),
+            conn1.counterpart(),
+        ),
+    )
+
+    # Assembly
+    simple_0.parent = root
+    comp_0.parent = root
+    comp_1.parent = comp_0
+    simple_1.parent = comp_1
+    comp_2.parent = root
+    comp_2.children = [simple_2, atom_1]  # also test that this mechanism works
+    print(root.hierarchy_summary())
+
+    # Connection
+    simple_0.connect_neighbor(simple_1)
+    simple_1.connect_neighbor(simple_2)
+    simple_1.connect_neighbor(simple_2)
+    simple_1.connect_neighbor(atom_1)
+    simple_2.connect_neighbor(atom_1)
+
+    return root
+
+
 # Data security
 @pytest.mark.parametrize(
     "prim",
@@ -377,7 +442,7 @@ def test_connect_neighbor() -> None:
     )
 
     # 2) check that ALL Primitives on parallel branch are potential neighbors
-    assert set(*simple_new.potential_neighbors()) == set([root, comp, simple])
+    assert set(*simple_new.potential_neighbors()) == set([comp, simple])
 
 
 def test_positive_is_neighbors_with_symmetric():
@@ -512,14 +577,26 @@ def test_cross_section_bond_orders():
 
 
 ## Copying
-def test_primitive_copy_connectors():
-    """Test that Connectors on copy are analogous to original WITHOUT being identical"""
-    ...
-
-
-def test_primitive_copy_hierarchy():
+def test_primitive_copy_hierarchy(hierarchy_example: RootPrimitive) -> None:
     """Test that hierarchy of copy is isomorphic to that of the original"""
+    # copy = example_hierarchy.copy()
     ...
+
+
+def test_primitive_copy_connectors(hierarchy_example: RootPrimitive) -> None:
+    """Test that Connectors on copy are analogous to original WITHOUT being identical"""
+    clone = hierarchy_example.copy()
+    for conn_orig, conn_copy in zip(
+        hierarchy_example.connectors,
+        clone.connectors,
+    ):
+        # TB: slightly brittle, since assumes copied connectors
+        # will bein same order as in the original; revisit if that
+        # assumption becomes invalid (this test will fail if so)
+        assert (
+            Connector.fungible_with(conn_copy, conn_orig)
+            and (conn_copy is not conn_orig)  # equilvane,t but not identical
+        )
 
 
 # System info on Roots
