@@ -692,12 +692,22 @@ class Primitive(
             # TB: will raise ValueError on empty branch
             # should never happen if holders are set correctly, but am
             # leaving note here to speed up debugging in case it ever does
-            branch_root, *successors = neighbor_branch
-            successors = iter(successors)
+            branch_root, *successors_list = neighbor_branch
+            successors_iter = iter(successors_list)
+
+            def successors(prim: "Primitive") -> list["Primitive"]:
+                """
+                Replacement for prim.children when stepping thru this branch
+
+                Wrapper avoids StopIteration on shallow branches
+                """
+                next_prim: Optional["Primitive"] = next(successors_iter, None)
+                if next_prim is None:
+                    return []
+                return [next_prim]
+
             for chosen_neighbor in primoprogenitors(
-                branch_root,
-                predicate=predicate,
-                successors=lambda prim: [next(successors)],
+                branch_root, predicate=predicate, successors=successors
             ):
                 yield our_connector, their_connector, chosen_neighbor
 
