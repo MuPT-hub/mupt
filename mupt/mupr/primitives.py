@@ -135,6 +135,31 @@ DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
 
 
 # visualisation helpers
+def canonical_form_shape(shape: Optional[BoundedTransformableShape]) -> str:
+    """A canonical string representing this Primitive's shape"""
+    # TODO: move this into .shape; should be responsibility of Shape subclasses
+    return type(shape).__name__
+
+
+def canonical_form_primitive(
+    primitive: "Primitive",
+) -> (
+    str
+):  # NOTE: deliberately NOT a property to indicated computing this might be expensive
+    """
+    A canonical representation of a Primitive's core parts;
+    induces a natural equivalence relation on Primitives
+
+    I.e. two Primitives having the same canonical form are
+    to be considered interchangable within a polymer system
+    """
+    return (
+        f"(connectors={canonical_form_connectors(primitive.connections.connectors)})"
+        f"[shape={canonical_form_shape(primitive.shape)}]"
+    )
+    # f'<graph_hash={self.canonical_form_topology()}>'
+
+
 def DEFAULT_COLORING_RULE(prim: "Primitive") -> str:
     """
     Assign AtomicPrimitives an element-specific color, and
@@ -630,6 +655,7 @@ class Primitive(
             # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
             if self in neighbor_branch:
                 continue
+            # TB: CRITICAL: also enforce that no ancestors of self appear in branch
 
             yield our_connector, their_connector, neighbor_branch
 
@@ -1406,32 +1432,3 @@ class AtomicPrimitive(SimplePrimitive):
                 f"Atomic {self!r} with total valence {valence} "
                 "incompatible with assigned element {self.element!r}"
             )
-
-    # def canonical_form(self) -> str:
-    #     return f'{self.element.symbol}{canonical_form_primitive(self)}'
-
-
-# Hashable canonical forms for core components
-def canonical_form_shape(primitive: Primitive) -> str:
-    """A canonical string representing this Primitive's shape"""
-    # TODO: move this into .shape; should be responsibility of Shape subclasses
-    return type(primitive.shape).__name__
-
-
-def canonical_form_primitive(
-    primitive: Primitive,
-) -> (
-    str
-):  # NOTE: deliberately NOT a property to indicated computing this might be expensive
-    """
-    A canonical representation of a Primitive's core parts;
-    induces a natural equivalence relation on Primitives
-
-    I.e. two Primitives having the same canonical form are
-    to be considered interchangable within a polymer system
-    """
-    return (
-        f"(connectors={canonical_form_connectors(primitive.connections.connectors)})"
-        f"[shape={canonical_form_shape(primitive)}]"
-    )
-    # f'<graph_hash={self.canonical_form_topology()}>'
