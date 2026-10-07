@@ -58,9 +58,59 @@ def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPri
     return root
 
 
+# Data security
+@pytest.mark.parametrize(
+    "prim",
+    [
+        RootPrimitive(),
+        CompositePrimitive(),
+        SimplePrimitive(),
+        AtomicPrimitive(ELEMENTS[2]),
+    ],
+)
+def test_frozen_add_connectors(prim: Primitive) -> None:
+    """Test that connector addition is blocked by freezing it on any Primitive"""
+    prim.freeze_connections()
+    with pytest.raises(AttributeError):
+        prim._add_connector(Connector())
+
+
+@pytest.mark.parametrize(
+    "prim",
+    [
+        RootPrimitive(),
+        CompositePrimitive(),
+        SimplePrimitive(),
+        AtomicPrimitive(ELEMENTS[2]),
+    ],
+)
+def test_frozen_remove_connectors(prim: Primitive) -> None:
+    """Test that connector removal is blocked by freezing it on any Primitive"""
+    prim.unfreeze_connections()
+    conn_addr = prim._add_connector(Connector())
+    prim.freeze_connections()
+    with pytest.raises(AttributeError):
+        prim._remove_connector(conn_addr)
+
+
+def test_frozen_connectors_propagates():
+    """Test that connector modification state changes bubble up through hierarchy"""
+    ...
+
+
+def test_frozen_hierarchy():
+    """Test that hierarchy modification is blocked by freezing it on any Primitive"""
+    ...
+
+
+def test_frozen_hierarchy_propagates():
+    """Test that hierarchy modification state changes bubble up through hierarchy"""
+    ...
+
+
 # Combining Primitives into hierarchy
 @pytest.mark.parametrize(
-    "prim,expected_simple,expected_supports_parents,expected_supports_children",
+    "prim,expected_simple,expected_supports_children,expected_supports_parents",
     [
         (RootPrimitive(), False, True, False),
         (CompositePrimitive(), False, True, True),
@@ -80,8 +130,8 @@ def test_hierarchy_declarations(
     """
     assert (
         (prim.is_simple == expected_simple)
-        and (prim.supports_parents == expected_supports_parents)
         and (prim.supports_children == expected_supports_children)
+        and (prim.supports_parents == expected_supports_parents)
     )
 
 
@@ -352,27 +402,6 @@ def test_cross_section_bond_orders():
     Test that bond order info is completely transferred
     to the edges of the cross-section graph
     """
-    ...
-
-
-# Data security
-def test_frozen_connectors():
-    """Test that connector modification is blocked by freezing it on any Primitive"""
-    ...
-
-
-def test_frozen_connectors_propagates():
-    """Test that connector modification state changes bubble up through hierarchy"""
-    ...
-
-
-def test_frozen_hierarchy():
-    """Test that hierarchy modification is blocked by freezing it on any Primitive"""
-    ...
-
-
-def test_frozen_hierarchy_propagates():
-    """Test that hierarchy modification state changes bubble up through hierarchy"""
     ...
 
 
