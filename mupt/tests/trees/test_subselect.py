@@ -45,7 +45,7 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
 
 
 @pytest.mark.parametrize(
-    "predicate,maxlevel,selected_expected_names",
+    "predicate,to_depth,selected_expected_names",
     [
         # Name-based predicates
         (
@@ -55,12 +55,12 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
         ),
         (
             lambda node: ("t" in node.name) and (node.name != ROOT_KW),
-            1,
+            2,
             ("tail_0", "tail_1", "atom_3"),
         ),
         (
             lambda node: ("t" in node.name) and (node.name != ROOT_KW),
-            3,  # entire tree is max depth 3, so doesn't affect result
+            4,  # entire tree is max depth 3, so doesn't affect result
             ("tail_0", "tail_1", "moiety_1", "moiety_2", "atom_0", "atom_3"),
         ),
         (
@@ -70,7 +70,7 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
         ),
         (
             lambda node: node.name == ROOT_KW,
-            0,  # root is always traversed, unaffected
+            1,  # root is always traversed, unaffected
             (ROOT_KW,),
         ),
         (
@@ -80,7 +80,7 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
         ),
         (
             lambda node: len(node.name) == 6,
-            1,
+            2,
             ("tail_0", "tail_1", "atom_3"),
         ),
         (
@@ -96,7 +96,7 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
         ),
         (
             lambda node: not node.children,
-            2,
+            3,
             ("atom_1", "tail_1", "moiety_2", "atom_0", "atom_3"),
         ),
         (
@@ -109,13 +109,13 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
 def test_primoprogenitors_correctness(
     example_tree_with_root: tuple[dict[str, Node], Node],
     predicate: NodePredicate[Node],
-    maxlevel: Optional[int],
+    to_depth: Optional[int],
     selected_expected_names: Iterable[str],
 ) -> None:
     """Test that given tree-predicate pairs return the expected selection"""
     node_map, root = example_tree_with_root
     selected_expected = set(node_map[name] for name in selected_expected_names)
-    selected_actual = set(primoprogenitors(root, predicate, maxlevel=maxlevel))
+    selected_actual = set(primoprogenitors(root, predicate, to_depth=to_depth))
 
     assert selected_actual == selected_expected
 

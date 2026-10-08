@@ -19,7 +19,7 @@ NodePredicate: TypeAlias = Callable[[NodeLike], bool]
 def primoprogenitors(
     root: NodeLike,
     predicate: NodePredicate[NodeLike],
-    maxlevel: Optional[int] = None,
+    to_depth: Optional[int] = None,
     successors: Callable[[NodeLike], Iterable[NodeLike]] = lambda node: node.children,
 ) -> Generator[NodeLike, None, None]:
     """
@@ -36,10 +36,10 @@ def primoprogenitors(
         The node highest in the tree to be traversed
     predicate: NodeNodePredicate
         A callable indicating whether a node should be selected
-    maxlevel : Optional[int], default None
+    to_depth : Optional[int], default None
         An optional cap on the depth of the search;
         No nodes with depth to the root greater than
-        `maxlevel` will be yielded
+        or equal to `to_depth` will be yielded
 
     Yields
     ------
@@ -54,9 +54,11 @@ def primoprogenitors(
         curr_node = nodes_to_search.pop(0)
         if predicate(curr_node):
             yield curr_node
-        # TB: strict "less than" ensure break only happens
-        # beyond max depth (rather than just before it)
-        elif (maxlevel is None) or (curr_node.depth < maxlevel):
+
+        # TB: +1 is annoying as hell, but is needed to be consistent with
+        # anytree's `maxlevel` analog (I contend that max depth of 2 should
+        # include nodes w/ depth 2, rather than bottoming out at 1; cest la vie)
+        elif (to_depth is None) or ((curr_node.depth + 1) < to_depth - 1):
             # N.B.: with arbitrary successor function,
             # not guaranteed depth increases monotonically!
             nodes_to_search.extend(successors(curr_node))
