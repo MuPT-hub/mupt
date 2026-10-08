@@ -18,4 +18,5 @@ from .connectors import (
     Connector as Connector,
     ConnectorSelector as ConnectorSelector,
     make_second_resemble_first as make_second_resemble_first,
+    canonical_form_connectors as canonical_form_connectors,
 )

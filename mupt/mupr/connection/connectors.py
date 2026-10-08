@@ -25,6 +25,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
+
+from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType
 from ...geometry.arraytypes import Vector3, Array4x4, as_n_vector
 from ...geometry.measure import compare_optional_positions
@@ -776,6 +778,19 @@ class Connector(RigidlyTransformable):
         return counterpart
 
 
+def canonical_form_connectors(
+    connectors: Iterable[Connector],
+    separator: str = ":",
+    joiner: str = "-",
+) -> str:
+    """A hashable string representing a collection of Connectors in canonical form"""
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors),
+        separator=separator,
+        joiner=joiner,
+    )
+
+
 # Selection between pairs of Connectors
 # (useful, for example, for resolution-shift operations)
 ConnectorSelector: TypeAlias = Callable[[Connector, Connector], Connector]
@@ -800,8 +815,3 @@ def make_second_resemble_first(
     new_connector.linker.attachables.update(connector1.linker.attachables)
 
     return new_connector
-
-
-# DEV: provide implementations which make some attempt to
-# reconcile spatial info attache to respective Connectors
-...
