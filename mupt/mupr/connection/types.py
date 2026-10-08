@@ -8,7 +8,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from .connection import Connector
+    from .connectors import Connector
 
 
 type AttachmentLabel = Hashable
