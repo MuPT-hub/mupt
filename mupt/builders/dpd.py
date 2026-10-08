@@ -27,6 +27,7 @@ import numpy as np
 from networkx import all_simple_paths
 
 from .base import PlacementGenerator
+from .heading import TraversalDirection
 from ..mutils.iteration import sliding_window
 
 from ..geometry.arraytypes import Vector3, Array2x3
@@ -36,7 +37,6 @@ from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
 from ..mupr.topology import TopologicalStructure
-from ..mupr.connection import TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 

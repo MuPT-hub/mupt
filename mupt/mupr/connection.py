@@ -19,7 +19,6 @@ from typing import (
 from warnings import warn
 
 from dataclasses import dataclass, field
-from enum import Enum
 from copy import deepcopy
 from itertools import product as cartesian
 
@@ -72,43 +71,6 @@ class UnboundConnectorError(ConnectionError):
     """
 
     pass
-
-
-# Helper classes
-class TraversalDirection(Enum):
-    """
-    Uniquifying label indicating whether a connection
-    faces "forward" or "backward" along a path graph
-
-    Indication is relative to an arbitrary-but-consistent absolute
-    direction of traversal along the path from end-to-end
-    """
-
-    AMBI = 0
-    ANTERO = 1
-    RETRO = 2
-
-    @classmethod
-    def complement(cls, direction: "TraversalDirection") -> "TraversalDirection":
-        """
-        Get the complement (i.e. "opposite") direction to a given TraversalDirection
-
-        Parameters
-        ----------
-        direction : TraversalDirection
-            The direction to get the complement of
-
-        Returns
-        -------
-        TraversalDirection
-            The complement of the given direction
-        """
-        if direction == cls.ANTERO:
-            return cls.RETRO
-        elif direction == cls.RETRO:
-            return cls.ANTERO
-        elif direction == cls.AMBI:
-            return cls.AMBI
 
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable
