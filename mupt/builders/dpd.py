@@ -6,7 +6,6 @@ dissipative particle dynamics (DPD) simulations
 import logging
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.DEBUG)
 
 import freud
 import gsd.hoomd
