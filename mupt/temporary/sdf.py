@@ -31,12 +31,16 @@ from rdkit.Chem.rdmolfiles import (
 
 from ..chemistry.conversion import rdkit_atom_to_element
 from ..chemistry.sanitization import sanitized_mol
+
 from ..geometry.arraytypes import Vector3
 from ..geometry.shapes import PointCloud
+
+from ..interfaces.rdkit.components import attachment_with_idx_and_symbol
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
 from ..interfaces.rdkit.strategies import RDKitExportStrategy
+
 from ..mutils.filepaths.pathutils import asstrpath
-from ..mupr.connection import AttachmentPoint, Connector
+from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive
 from ..roles import PrimitiveRole
 
@@ -169,22 +173,6 @@ def _particle_from_sdf_atom(
     return particle
 
 
-def _attachment_from_sdf_atom(atom) -> AttachmentPoint:
-    """Return the lightweight attachment identity used for MuPT SDF bonds.
-
-    The temporary importer only needs connector data sufficient to re-export the
-    same per-record SDF topology. Matching the RDKit component helper's atom
-    index/symbol identity keeps round-trip connector labels stable without
-    paying to rebuild SMARTS queries.
-    """
-    atom_idx = atom.GetIdx()
-    atom_symbol = atom.GetSymbol()
-    return AttachmentPoint(
-        attachables={atom_idx, atom_symbol},
-        attachment=atom_idx,
-    )
-
-
 def _sdf_bond_metadata(bond) -> dict:
     """Return bond metadata preserved by temporary MuPT SDF import."""
     return {
@@ -216,8 +204,8 @@ def _connector_from_sdf_bond(
         )
 
     connector = Connector(
-        anchor=_attachment_from_sdf_atom(mol.GetAtomWithIdx(from_atom_idx)),
-        linker=_attachment_from_sdf_atom(mol.GetAtomWithIdx(to_atom_idx)),
+        anchor=attachment_with_idx_and_symbol(mol.GetAtomWithIdx(from_atom_idx)),
+        linker=attachment_with_idx_and_symbol(mol.GetAtomWithIdx(to_atom_idx)),
         bondtype=bond.GetBondType(),
         metadata=_sdf_bond_metadata(bond),
     )
