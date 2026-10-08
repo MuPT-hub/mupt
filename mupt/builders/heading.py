@@ -3,7 +3,14 @@ Markers for indicating the direction of connections,
 paths, and other oriented traversable objects
 """
 
-from enum import Enum
+from enum import Enum, StrEnum
+
+
+class TerminalGroup(StrEnum):
+    """For indicating orientation of terminal monomers in a polymer chain"""
+
+    HEAD = "head"
+    TAIL = "tail"
 
 
 class TraversalDirection(Enum):
