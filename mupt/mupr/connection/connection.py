@@ -25,13 +25,13 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from ..chemistry.core import BondType
-from ..geometry.arraytypes import Vector3, Array4x4, as_n_vector
-from ..geometry.measure import compare_optional_positions
-from ..geometry.coordinates.basis import is_orthonormal
-from ..geometry.transforms.linear import rejector
-from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..geometry.transforms.rigid.application import RigidlyTransformable
+from ...chemistry.core import BondType
+from ...geometry.arraytypes import Vector3, Array4x4, as_n_vector
+from ...geometry.measure import compare_optional_positions
+from ...geometry.coordinates.basis import is_orthonormal
+from ...geometry.transforms.linear import rejector
+from ...geometry.transforms.rigid.rotations import alignment_rotation
+from ...geometry.transforms.rigid.application import RigidlyTransformable
 
 
 # Label typehints
