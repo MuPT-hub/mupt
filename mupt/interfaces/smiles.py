@@ -16,7 +16,7 @@ from rdkit.Chem.rdmolfiles import (
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 from .rdkit import primitive_from_rdkit, primitive_to_rdkit
-from ..mupr.primitives import Primitive
+from ..mupr.primitives import Primitive, SupportsChildren
 from ..chemistry.smiles import DEFAULT_SMILES_READ_PARAMS, DEFAULT_SMILES_WRITE_PARAMS
 from ..chemistry.rdkit.sanitization import sanitized_mol
 
@@ -31,7 +31,7 @@ def primitive_from_smiles(
     smiles_reader_params=DEFAULT_SMILES_READ_PARAMS,
     smiles_writer_params=DEFAULT_SMILES_WRITE_PARAMS,
     **kwargs,
-) -> Primitive:
+) -> SupportsChildren:
     """
     Create a Primitive from a SMILES string.
 
