@@ -58,7 +58,7 @@ def primoprogenitors(
         # TB: +1 is annoying as hell, but is needed to be consistent with
         # anytree's `maxlevel` analog (I contend that max depth of 2 should
         # include nodes w/ depth 2, rather than bottoming out at 1; cest la vie)
-        elif (to_depth is None) or ((curr_node.depth + 1) < to_depth - 1):
+        elif (to_depth is None) or ((curr_node.depth + 1) < to_depth):
             # N.B.: with arbitrary successor function,
             # not guaranteed depth increases monotonically!
             nodes_to_search.extend(successors(curr_node))
