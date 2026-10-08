@@ -26,7 +26,8 @@ from .properties import (
     leaves as leaves,
 )
 from .generators import (
-    path_graph as path_graph,
+    path_graphs as path_graphs,
+    path_graph_from_sequence as path_graph_from_sequence,
     noodle_graph as noodle_graph,
     balanced_dendrimer_graph as balanced_dendrimer_graph,
 )
