@@ -32,7 +32,7 @@ class PrimitiveRole(Enum):
 
     Examples
     --------
-    >>> from mupt.mupr.roles import PrimitiveRole
+    >>> from mupt.roles import PrimitiveRole
     >>> PrimitiveRole.UNASSIGNED
     <PrimitiveRole.UNASSIGNED: 'unassigned'>
     >>> PrimitiveRole.UNIVERSE is not PrimitiveRole.UNASSIGNED
