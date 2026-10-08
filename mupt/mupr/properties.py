@@ -3,13 +3,17 @@ Properties of Primitives used to assess compatibility with a particular task
 E.g. checking atomicity, linearity, topology, neighbor valence, etc.
 """
 
+from typing import Callable
+
 from .primitives import (
     Primitive,
+    RootPrimitive,
     CompositePrimitive,
     AtomicPrimitive,
 )
 
 
+# Subtype-based properties
 def is_simple(prim: Primitive) -> bool:
     """Whether a Primitive has no internal structure"""
     return prim.is_simple
@@ -25,6 +29,17 @@ def supports_parents(prim: Primitive) -> bool:
     return prim.supports_parents
 
 
+def subcomposite(prim: Primitive) -> bool:
+    """Whether this Primitive's parent is a CompositePrimitive"""
+    return isinstance(prim.parent, CompositePrimitive)
+
+
+def subroot(prim: Primitive) -> bool:
+    """Whether this Primitive's parent is a RootPrimitive"""
+    return isinstance(prim.parent, RootPrimitive)
+
+
+# Atom-based properties
 def is_atom(prim: Primitive) -> bool:
     """Whether a Primitive represents a single atom from the periodic table"""
     return isinstance(prim, AtomicPrimitive)
@@ -61,6 +76,24 @@ def is_atomizable(prim: Primitive) -> bool:
         return True
 
 
+# Hierarchy properties
+def has_depth_factory(depth: int) -> Callable[["Primitive"], bool]:
+    """Create predicates for whether a Primitive has a particular depth"""
+
+    def has_depth(prim: Primitive) -> bool:
+        return prim.depth == depth
+
+    has_depth.__doc__ = f"""
+    Whether a Primitive is {depth} levels below the topmost
+    Primitive in its hierarchy (not neccesarily a RootPrimitive)"""
+
+    return has_depth
+
+
+is_dominant = has_depth_factory(0)
+is_subdominant = has_depth_factory(1)
+
+
 def is_complete(prim: Primitive) -> bool:
     """
     Check whether a Primitive represents a chemically-complete molecular system
@@ -90,6 +123,7 @@ def is_laminar(prim: CompositePrimitive) -> bool:
         return True
 
 
+# SAAMR properties
 def has_strict_SAAMR_depth(prim: Primitive) -> bool:
     """
     Check whether a Primitive hierarchy is a strict depth-3 SAAMR tree.
