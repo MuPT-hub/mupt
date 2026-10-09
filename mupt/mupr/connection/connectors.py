@@ -20,7 +20,6 @@ from typing import (
     TypeAlias,
     Union,
 )
-from warnings import warn
 
 from dataclasses import dataclass, field
 from copy import deepcopy
@@ -128,36 +127,12 @@ class Connector(RigidlyTransformable):
 
     # Geometric properties
     # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
-    # endpoint positions under the hood to get them to preserve relative orientations
-    # for local orthogonal basis under general rigid transformations;
-    #
-    # key observation is that a DIFFERENCE between positions is invariant under
+    # endpoint positions under the hood to get them to preserve relative
+    # orientations for local orthogonal basis under general rigid transformations.
+    # The key observation is that a DIFFERENCE between positions is invariant under
     # shifts of the origin, i.e. if v = (a - b), Tv = T(a - b) = T(a) - T(b),
 
-    # Attachment site position wrappers -
-    ## DEV: necessary for backward compatibility with
-    # attr reference, though could be deprecated eventually
-    @property
-    def anchor_position(self) -> Vector3:
-        """The central position that this Connector is anchored to"""
-        warn(
-            "Connector.anchor_position is slated for deprecation; "
-            "use Connector.anchor.position instead",
-            category=DeprecationWarning,
-        )
-        return self.anchor.position
-
-    @property
-    def linker_position(self) -> Vector3:
-        """The position of the off-body linker point"""
-        warn(
-            "Connector.linker_position is slated for deprecatation; "
-            "use Connector.linker.position instead",
-            category=DeprecationWarning,
-        )
-        return self.linker.position
-
-    # Bond vector
+    ## Bond vector
     @property
     def has_bond_vector(self) -> bool:
         """
@@ -409,6 +384,7 @@ class Connector(RigidlyTransformable):
             * RigidTransform.from_translation(-self.anchor.position)
         )
 
+    # TB: also consider moving impls over to .alignment
     def assign_dihedral(
         self,
         other: "Connector",
