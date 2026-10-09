@@ -14,10 +14,7 @@ class ConnectorLockedError(ConnectionError, AttributeError):
 
 
 class IncompatibleConnectorError(ConnectionError):
-    """
-    Raised when attempting to connect two Connectors
-    which are, for whatever reason, incompatible
-    """
+    """Raised when attempting to connect two Connectors which are incompatible"""
 
     pass
 
@@ -29,10 +26,7 @@ class MissingConnectorError(ConnectionError):
 
 
 class UnboundConnectorError(ConnectionError):
-    """
-    Raised when a pair of Connectors are
-    unexpectedly not bound to one another
-    """
+    """Raised when a pair of Connectors are unexpectedly not bound to one another"""
 
     pass
 
