@@ -65,3 +65,12 @@ class ConnectorManager(Protocol):
         return round(total_bond_order)
 
     chemical_valence = electronic_valence = valence  # aliases for convenience
+
+
+class HoldsConnectors(Protocol):
+    """
+    Type indicator for another class which is in some sense a 'proprietor' of
+    a collection of Connectors, but employs a ConnectorManager to manage them
+    """
+
+    connections: ConnectorManager
