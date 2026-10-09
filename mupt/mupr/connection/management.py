@@ -2,6 +2,7 @@
 
 from typing import (
     Collection,
+    Hashable,
     Iterable,
     Mapping,
     Optional,
@@ -14,6 +15,24 @@ from .types import (
     ConnectorAddress,
     ConnectorLabelLike,
 )
+
+
+def connector_address_flexible(
+    connector: ConnectorAddress | Connector,
+) -> ConnectorAddress:
+    """
+    Cast method which allows methods expecting ConnectorAddresses
+    to also accept the Connector instances themselves
+    """
+    if isinstance(connector, Connector):
+        return connector.address
+    elif isinstance(connector, Hashable):
+        return connector
+    else:
+        raise TypeError(
+            f"Cannot interpret object of type '{type(connector).__name__}' "
+            "as address of a Connector"
+        )
 
 
 class ConnectorManager(Protocol):
