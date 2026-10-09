@@ -31,7 +31,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
-from .exceptions import ConnectorLockedError, IncompatibleConnectorError
+from .exceptions import ConnectorLockedError
 from ..canonicalize import lex_order_multiset_str
 from ...mutils.referencing import Addressed
 from ...chemistry.core import BondType, BOND_ORDER
@@ -123,8 +123,6 @@ class Connector(Addressed, RigidlyTransformable):
 
         ## Protected attributes
         self._locked: bool = False
-        self._neighbor: Optional[Connector] = None
-        self._holder: Optional["HoldsConnectors"] = None
         # DEV: no call to setter; must assign via protected tangent_vector property
         self._tangent_position = None
 
@@ -475,10 +473,7 @@ class Connector(Addressed, RigidlyTransformable):
 
     def toggle_lock(self) -> None:
         """Invert current neighbor lock status"""
-        if self.is_locked:
-            self.unlock()
-        else:
-            self.lock()
+        self._locked = not self._locked
 
     def _precondition_mutable_neighbor(self, msg_postfix: str = "") -> None:
         """
@@ -491,59 +486,6 @@ class Connector(Addressed, RigidlyTransformable):
 
         if self.is_locked:
             raise ConnectorLockedError(msg)
-
-    ## Neighbor config
-    @property
-    def has_neighbor(self) -> bool:
-        """Whether this Connector has been paired with another Connector"""
-        return self._neighbor is not None
-
-    @property
-    def neighbor(self) -> Optional["Connector"]:
-        """
-        The Connector assigned to be this Connector's neighbor, if assigned
-        If unassigned, returns None
-        """
-        return self._neighbor
-
-    @neighbor.setter
-    def neighbor(self, other: "Connector") -> None:
-        self._precondition_mutable_neighbor()
-        other._precondition_mutable_neighbor()
-
-        # N.B.: if ALL positions are unset, will evaluate as antialigned
-        # TB: may relax this / allow passing alignment strategy
-        if not self.is_antialigned(other):
-            raise IncompatibleConnectorError(
-                "Candidate for neighbor Connector is not anti-aligned within tolerance"
-            )
-
-        if (
-            BondType.UNSPECIFIED not in (self.bondtype, other.bondtype)
-            and self.bond_order != other.bond_order
-        ):
-            raise IncompatibleConnectorError(
-                "Neighbor Connectors must have matching bond orders when specified"
-            )
-
-        # Check the target's previous partner before detaching either pair.
-        if (previous_neighbor := other.neighbor) is not None:
-            previous_neighbor._precondition_mutable_neighbor()
-        del self.neighbor
-        del other.neighbor
-        self._neighbor = other
-        other._neighbor = self
-
-    @neighbor.deleter
-    def neighbor(self) -> None:
-        if not self.has_neighbor:
-            return
-
-        self._precondition_mutable_neighbor()
-        self.neighbor._precondition_mutable_neighbor()
-
-        self.neighbor._neighbor = None
-        self._neighbor = None  # done second since ref is needed to find other Connector
 
     # Labelling and representation methods
     @property
