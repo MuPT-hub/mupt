@@ -19,6 +19,7 @@ from typing import (
     Optional,
     TypeAlias,
     Union,
+    TYPE_CHECKING,
 )
 
 from dataclasses import dataclass, field
@@ -27,6 +28,9 @@ from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
+
+if TYPE_CHECKING:
+    from .management import HoldsConnectors
 
 from .types import AttachmentLabel, ConnectorLabel
 from .alignment import are_antialigned
@@ -125,6 +129,7 @@ class Connector(Addressed, RigidlyTransformable):
         ## Protected attributes
         self._locked: bool = False
         self._neighbor: Optional[Connector] = None
+        self._holder: Optional["HoldsConnectors"] = None
         # DEV: no call to setter; must assign via protected tangent_vector property
         self._tangent_position = None
 
@@ -403,6 +408,37 @@ class Connector(Addressed, RigidlyTransformable):
         )
 
         return new_connector
+
+    # Holder: higher-level object which "holds" this Connector (e.g. for reverse-lookup)
+    def has_holder(self) -> bool:
+        """Check if holder has been assigned"""
+        return self._holder is not None
+
+    @property
+    def holder(self) -> Optional["HoldsConnectors"]:
+        """
+        Some governing object which 'holds' this
+        Connector as part of a larger structure
+
+        Used for reverse-lookup
+        """
+        return self._holder
+
+    @holder.setter
+    def holder(self, new_holder: "HoldsConnectors") -> None:
+        if self._locked:
+            raise ConnectorLockedError(
+                f"Cannot assign new holder to locked Connector {self}"
+            )
+        self._holder = new_holder
+
+    @holder.deleter
+    def holder(self) -> None:
+        if self._locked and not self.has_holder:
+            raise ConnectorLockedError(
+                f"Cannot remove holder of locked Connector {self}"
+            )
+        self._holder = None
 
     # Comparison methods
     def bondable_with(self, other: "Connector") -> bool:
