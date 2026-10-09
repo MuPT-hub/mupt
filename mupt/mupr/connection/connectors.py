@@ -30,7 +30,7 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
 from .alignment import are_antialigned
-from .exceptions import ConnectorLockedError
+from .exceptions import ConnectorLockedError, IncompatibleConnectorError
 
 from ..canonicalize import lex_order_multiset_str
 from ...mutils.referencing import Addressed
@@ -124,6 +124,7 @@ class Connector(Addressed, RigidlyTransformable):
 
         ## Protected attributes
         self._locked: bool = False
+        self._neighbor: Optional[Connector] = None
         # DEV: no call to setter; must assign via protected tangent_vector property
         self._tangent_position = None
 
@@ -522,6 +523,46 @@ class Connector(Addressed, RigidlyTransformable):
 
         if self.is_locked:
             raise ConnectorLockedError(msg)
+
+    ## Neighbor config
+    @property
+    def has_neighbor(self) -> bool:
+        """Whether this Connector has been paired with another Connector"""
+        return self._neighbor is not None
+
+    @property
+    def neighbor(self) -> Optional["Connector"]:
+        """
+        The Connector assigned to be this Connector's neighbor, if assigned
+        If unassigned, returns None
+        """
+        return self._neighbor
+
+    @neighbor.setter
+    def neighbor(self, other: "Connector") -> None:
+        self._precondition_mutable_neighbor()
+        other._precondition_mutable_neighbor()
+
+        # N.B.: if ALL positions are unset, will evaluate as antialigned
+        # TB: may relax this / allow passing alignment strategy
+        if not self.is_antialigned(other):
+            raise IncompatibleConnectorError(
+                "Candidate for neighbor Connector is not anti-aligned within tolerance"
+            )
+
+        self._neighbor = other
+        other._neighbor = self
+
+    @neighbor.deleter
+    def neighbor(self) -> None:
+        if not self.has_neighbor:
+            return
+
+        self._precondition_mutable_neighbor()
+        self.neighbor._precondition_mutable_neighbor()
+
+        self.neighbor._neighbor = None
+        self._neighbor = None  # done second since ref is needed to find other Connector
 
     # Labelling and representation methods
     @property
