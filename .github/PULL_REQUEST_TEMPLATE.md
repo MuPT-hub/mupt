@@ -9,4 +9,8 @@ Notable points that this PR has either accomplished or will accomplish.
 - [ ] Question1
 
 ## Status
+- [ ] Pass CI
+- [ ] Pass Copilot review
+- [ ] Pass human review
+- [ ] ...
 - [ ] Ready to go
