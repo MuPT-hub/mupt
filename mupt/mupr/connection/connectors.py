@@ -33,7 +33,7 @@ from .alignment import are_antialigned
 
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType
-from ...geometry.arraytypes import Vector3, Array4x4, as_n_vector
+from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
 from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
@@ -41,9 +41,8 @@ from ...geometry.transforms.rigid.rotations import alignment_rotation
 from ...geometry.transforms.rigid.application import RigidlyTransformable
 
 
-# DEV: would love to make this frozen, but that breaks the RigidlyTansformable
-# mechanism under-the-hood, and also prevents reassignment of the attachment
-# label, which is important in some cases
+# DEV: would love to make frozen, but that would break the RigidlyTansformable mechanism
+# Also would prevent reassignment of attachment label, which is important in some cases
 @dataclass(frozen=False)
 class AttachmentPoint(RigidlyTransformable):
     """
@@ -121,9 +120,8 @@ class Connector(RigidlyTransformable):
         )
         self.metadata: dict[Hashable, Any] = metadata or dict()
 
-        # DEV: no call to setter; must be assigned
-        # via protected tangent_vector property
-        self._tangent_position: Optional[Vector3] = None
+        # DEV: no call to setter; must assign via protected tangent_vector property
+        self._tangent_position = None
 
     # Geometric properties
     # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
@@ -166,23 +164,16 @@ class Connector(RigidlyTransformable):
         )
 
     @property
-    def bond_length(self) -> float:
-        """
-        Distance spanned by the bond vector
-
-        I.e. distance from anchor to linker positions
-        """
+    def bond_length(self) -> np.floating:
+        """Distance spanned by the bond vector, from anchor to linker positions"""
         return np.linalg.norm(self.bond_vector)
 
     @property
     def unit_bond_vector(self) -> Vector3:
-        """
-        Unit vector in the same direction as the bond,
-        oriented from anchor to linker
-        """
+        """Unit vector in same direction as bond vector, oriented anchor to linker"""
         return self.bond_vector / self.bond_length  # DEV: use normalized()?
 
-    def set_bond_length(self, new_bond_length: float) -> None:
+    def set_bond_length(self, new_bond_length: np.floating) -> None:
         """
         Adjust length of bond vector by moving linker position along
         the bond vector's span, keeping the anchor fixed in place
@@ -225,9 +216,8 @@ class Connector(RigidlyTransformable):
                 "to the bond vector of the Connector"
             )
 
-        self._tangent_position = (
-            new_tangent_vector + self.anchor.position
-        )  # DEV: move validation of tangent position orthogonality into here?
+        # DEV: move validation of tangent position orthogonality into here?
+        self._tangent_position = new_tangent_vector + self.anchor.position
 
     @property
     def unit_tangent_vector(self) -> Vector3:
@@ -277,7 +267,7 @@ class Connector(RigidlyTransformable):
 
     has_local_orthogonal_basis = has_dihedral_orientation  # alias
 
-    def local_orthonormal_basis(self) -> Array4x4:
+    def local_orthonormal_basis(self) -> Array3x3:
         """
         Return a 3x3 array representing an orthonormal basis
         for this Connector's local coordinate system
@@ -321,17 +311,6 @@ class Connector(RigidlyTransformable):
         if self.has_tangent_position:
             self._tangent_position = transformation.apply(self._tangent_position)
 
-    # Anti-aligning Connectors to one another (simulates bonding in 3D space)
-    # DEV: eventually try to move as much of the implementation of
-    # these transforms to geometry.transforms.rigid as possible
-    def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
-        """
-        Whether this Connector is anti-aligned with another Connector, i.e. whether
-        the anchor of this Connector is within some cutoff distance of the linker
-        of the other Connector, and vice-versa (with the same tolerance for both)
-        """
-        return are_antialigned(self, other, within=within)
-
     # Dihedral angle
     def dihedral_assignment_transform(
         self,
@@ -353,10 +332,9 @@ class Connector(RigidlyTransformable):
                 "without explicitly-defined dihedral plane orientations"
             )
 
-        # DEV: could technically weaken this check to when bond
-        # vectors are antiparallel (-1 dot product when normed)
-        # and difference between anchors is parallel and antiparallel
-        # with bond vectors respectively, but didn't for simplicity
+        # DEV: could technically weaken to check when bond vectors are antiparallel
+        # (i.e. -1 dot product when normed) and difference between anchors is parallel
+        # and antiparallel with bond vectors respectively, but didn't for simplicity
         if not self.is_antialigned(other, within=alignment_tolerance):
             raise ValueError(
                 "Cannot set dihedral angle with non-antialigned Connectors"
@@ -367,15 +345,10 @@ class Connector(RigidlyTransformable):
             self.tangent_vector,
             other.tangent_vector,
         )
-        ## minus accounts for reversed direction; positive with other works equally well
-        # dihedral_rotation = Rotation.from_rotvec(
-        #     -dihedral_angle_rad * self.unit_bond_vector
-        # )
         dihedral_rotation = Rotation.from_rotvec(
             dihedral_angle_rad * other.unit_bond_vector
         )
-        # first align tangents, then set dihedral
-        # to avoid explicit inter-tangent angle calculation
+        # align tangents before setting dihedral to avoid inter-tangent angle calc
         dihedral_alignment = dihedral_rotation * tangent_alignment
 
         return (
@@ -466,6 +439,14 @@ class Connector(RigidlyTransformable):
                     f"Connector can only be bonded to other Connectors or "
                     f"collection of Connectors, not with object of type {type(other)}"
                 )
+
+    def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
+        """
+        Whether this Connector is anti-aligned with another Connector, i.e. whether
+        the anchor of this Connector is within some cutoff distance of the linker
+        of the other Connector, and vice-versa (with the same tolerance for both)
+        """
+        return are_antialigned(self, other, within=within)
 
     def coincides_with(self, other: "Connector") -> bool:
         """Whether this Connector overlaps spatially with another Connector"""
