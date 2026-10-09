@@ -2,10 +2,12 @@
 
 from typing import (
     Collection,
+    Iterable,
     Mapping,
     Optional,
     Protocol,
 )
+from types import MappingProxyType
 
 from .connectors import Connector
 from .types import (
@@ -74,3 +76,88 @@ class HoldsConnectors(Protocol):
     """
 
     connections: ConnectorManager
+
+
+# Concrete ConnectorManager types
+class ConnectorManagerFrozen(ConnectorManager):
+    """ConnectorManager which does not permit mutation to connectivity after creation"""
+
+    _connectors_all: tuple[Connector, ...]
+    _connectors_free: tuple[Connector, ...]
+    _connectors_bound: tuple[Connector, ...]
+    _connectors_by_addr: MappingProxyType[ConnectorAddress, Connector]
+
+    def __new__(
+        cls,
+        *connectors: Connector,
+        # TODO: provide optimization short-circuit to allow
+        # making use of known free/bound designations
+        connectors_free: Optional[Iterable[Connector]] = None,
+        connectors_bound: Optional[Iterable[Connector]] = None,
+    ) -> "ConnectorManagerFrozen":
+        """Pre-compute connector properties prior to ConnectorManager creation"""
+        obj = super(ConnectorManagerFrozen, cls).__new__(cls)
+        obj._connectors_all = tuple(connectors)
+        obj._connectors_by_addr = MappingProxyType({
+            connector.address: connector for connector in connectors
+        })
+
+        connectors_free_accum: list[Connector] = []
+        connectors_bound_accum: list[Connector] = []
+        for connector in connectors:
+            # TB DEV: lock here is not secure as yet,
+            # since one could manually unlock after init
+            connector.lock()  # ensure not mutations allowed subsequently
+            if connector.has_neighbor:
+                connectors_bound_accum.append(connector)
+            else:
+                connectors_free_accum.append(connector)
+        obj._connectors_free = tuple(connectors_free_accum)
+        obj._connectors_bound = tuple(connectors_bound_accum)
+
+        return obj
+
+    @property
+    def connectors_by_addr(self) -> Mapping[ConnectorAddress, Connector]:
+        """
+        Mapping from the addresses of Connectors managed
+        here to the Connector instances themselves
+        """
+        return self._connectors_by_addr
+
+    @property
+    def connectors(self) -> tuple[Connector, ...]:
+        """All Connectors (either free or bound) managed here"""
+        return self._connectors_all
+
+    @property
+    def connectors_free(self) -> tuple[Connector, ...]:
+        """Connectors whose have not yet been assigned a neighbor"""
+        return self._connectors_free
+
+    @property
+    def connectors_bound(self) -> tuple[Connector, ...]:
+        """
+        Connectors (originating from children as they must) which are
+        bound and whose neighbor is also a child of this Composite
+        """
+        return self._connectors_bound
+
+    def add_connector(  # noqa: D102
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> None:
+        # TB: docstring inherited from ConnectorManager base
+        raise AttributeError(
+            f"Cannot add Connector to immutable {type(self).__name__} object"
+        )
+
+    def remove_connector(  # noqa: D102
+        self,
+        connector_address: ConnectorAddress | Connector,
+    ) -> Connector:
+        # TB: docstring inherited from ConnectorManager base
+        raise AttributeError(
+            f"Cannot remove Connector from immutable {type(self).__name__} object"
+        )
