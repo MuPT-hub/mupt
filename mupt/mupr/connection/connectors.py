@@ -52,17 +52,14 @@ from ...geometry.transforms.rigid.application import RigidlyTransformable
 @dataclass(frozen=False)
 class AttachmentPoint(RigidlyTransformable):
     """
-    A point with an associated attachment, which must come from
-    a predefined set (attachables) of allowable designations.
-
-    Forms half of a Connector; represents a spatial attachment
-    to some other body, identified by its attachment.
+    Point with an associated position and set of acceptable attachment type designations
+    Forms half of a Connector and represents a spatial attachment point to another body
     """
 
     _COMPARISON_EPS: ClassVar[float] = 1e-8
 
     attachables: set[AttachmentLabel] = field(default_factory=set)
-    attachment: Optional[AttachmentLabel] = field(default=None)
+    # TB: worth allowing option to have position unassigned (e.g. None)?
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
 
     def __eq__(self, other: "AttachmentPoint") -> bool:
@@ -85,19 +82,9 @@ class AttachmentPoint(RigidlyTransformable):
 
     def __setattr__(self, key, value):
         """
-        Protects access to .attachment and .position attrs, namely:
-        * Forces .attachment to be a member of .attachables
-        * Ensures self.position is a proper 3-vector
-
-        Assigns attr with no restrictions on any other key
+        Ensures self.position is always a proper 3-vector
+        Assigns attribute with any other key without restriction
         """
-        if key == "attachment":
-            if (value is not None) and (value not in self.attachables):
-                raise ValueError(
-                    f"Attachment '{value!s}' not designated as "
-                    f"one of attachable labels {self.attachables}"
-                )
-
         if key == "position":
             value = as_n_vector(value, dimension=3)
         return super().__setattr__(key, value)
@@ -106,7 +93,6 @@ class AttachmentPoint(RigidlyTransformable):
     def _copy_untransformed(self) -> "AttachmentPoint":
         return self.__class__(
             attachables=set(att for att in self.attachables),
-            attachment=self.attachment,
             position=np.array(self.position, copy=True),
         )
 
@@ -477,16 +463,10 @@ class Connector(Addressed, RigidlyTransformable):
             # DEVNOTE: raise TypeError instead (or at least log a warning)?
             return False
 
-        # DEV: opting for loosest possible comparison where at least on of the
-        # attachable elements overlaps between opposing pairs of attachment points
-        # opted not to check the (perhaps more obvious) "self.anchor.attachment in
-        # other.linker.attachables", etc.  because the attachment labels may be
-        # unassigned between resolution shift operations in the representation hierarchy
         return (
             (not set.isdisjoint(self.anchor.attachables, other.linker.attachables))
             and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
             and (self.bondtype == other.bondtype)
-            # TODO: also compare positions, if set?
         )
 
     def bondable_with_iter(
@@ -534,9 +514,7 @@ class Connector(Addressed, RigidlyTransformable):
         labels (not necessarily positions) with to another Connector
         """
         return (
-            # and self.anchor.attachment == other.anchor.attachment
             self.anchor.attachables == other.anchor.attachables
-            # and self.linker.attachment == other.linker.attachment
             and self.linker.attachables == other.linker.attachables
             and self.bondtype == other.bondtype
         )
@@ -692,10 +670,7 @@ class Connector(Addressed, RigidlyTransformable):
             self.anchor.attachables, self.linker.attachables
         ):
             conn_clone = self.copy()
-            conn_clone.anchor.attachment = anchor_label
             conn_clone.anchor.attachables = {anchor_label}
-
-            conn_clone.linker.attachment = linker_label
             conn_clone.linker.attachables = {linker_label}
 
             indiv_conn_map[(anchor_label, linker_label)] = conn_clone
