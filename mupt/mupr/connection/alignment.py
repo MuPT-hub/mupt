@@ -6,7 +6,8 @@ Connectors which comprise a connection. Models bonding in 3D space
 from typing import Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
-from scipy.spatial.transform import RigidTransform
+from scipy.spatial.transform import Rotation, RigidTransform
+from ...geometry.transforms.rigid.rotations import alignment_rotation
 
 from ...geometry.measure import compare_optional_positions
 
@@ -180,3 +181,68 @@ class ConnectorAntialignmentStrategy(ABC):
                 to_connector,
                 dihedral_angle_rad=dihedral_angle_rad,
             )
+
+
+class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
+    """
+    Antialignment strategy which works purely through rigid motions, i.e.
+    only translates and rotates `align_connector` without distorting or modifying it
+    """
+
+    def __init__(self, tare_dihedrals: bool = False) -> None:
+        self.tare_dihedrals = tare_dihedrals
+
+    def antialignment_transformation(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> RigidTransform:
+        """
+        Compute a rigid transformation which antialigns a pair of
+        Connectors by making the linker point of `align_connector`
+        coincident with the anchor of `to_connector`
+
+        If the two Connectors have the same bond length, the anchor of `align_connector`
+        will be coincident with the linker of the other; otherwise, the anchor will
+        merely lay on the span of the `to_connector`s bond vector
+
+        If tare_dihedrals is True (default False), will also ensure
+        that the dihedral planes of the two Connectors are coplanar.
+        This may be desirable in many cases, but comes with stricter
+        preconditions, namely both connectors having tangents define
+        """
+        bond_antialignment: Rotation = alignment_rotation(
+            align_connector.unit_bond_vector, -to_connector.unit_bond_vector
+        )
+
+        if self.tare_dihedrals:
+            tangent_alignment = alignment_rotation(
+                bond_antialignment.apply(align_connector.tangent_vector),
+                to_connector.tangent_vector,
+            )
+        else:
+            tangent_alignment = Rotation.identity()
+
+        # order of application reads bottom-to-top (rightmost operator acts first)
+        return (
+            RigidTransform.from_translation(to_connector.linker.position)
+            * RigidTransform.from_rotation(tangent_alignment)
+            * RigidTransform.from_rotation(bond_antialignment)
+            * RigidTransform.from_translation(-align_connector.anchor.position)
+        )
+
+    def _antialign(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> None:
+        """
+        Align `align_connector` rigidly to `to_connector`,
+        based on the calculated rigid alignment transform
+        """
+        align_connector.rigidly_transform(
+            transformation=self.antialignment_transformation(
+                align_connector,
+                to_connector=to_connector,
+            )
+        )
