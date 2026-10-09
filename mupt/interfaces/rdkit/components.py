@@ -140,10 +140,7 @@ def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     atom_idx = atom.GetIdx()
     atom_symbol = atom.GetSymbol()
 
-    return AttachmentPoint(
-        attachables={atom_idx, atom_symbol},
-        attachment=atom_idx,
-    )
+    return AttachmentPoint(attachables={atom_idx, atom_symbol})
 
 
 def connector_between_rdatoms(
