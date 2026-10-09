@@ -13,12 +13,10 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Generator,
     Hashable,
     Iterable,
     Optional,
     TypeAlias,
-    Union,
     TYPE_CHECKING,
 )
 
@@ -448,27 +446,6 @@ class Connector(Addressed, RigidlyTransformable):
             and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
             and (self.bondtype == other.bondtype)
         )
-
-    def bondable_with_iter(
-        self, *others: Iterable[Union["Connector", Iterable["Connector"]]]
-    ) -> Generator[bool, None, None]:
-        """
-        Whether this Connector can be connected to each of a
-        sequence of other Connectors, in the order passed
-        """
-        for other in others:
-            if isinstance(other, Connector):
-                yield self.bondable_with(other)
-            elif isinstance(other, Iterable):
-                # DEVNOTE: deliberately NOT using "yield from" to preserve parity
-                # with input (output element corresponding to iterable is now just
-                # a Generator instance, rather than a bool)
-                yield self.bondable_with_iter(*other)
-            else:
-                raise TypeError(
-                    f"Connector can only be bonded to other Connectors or "
-                    f"collection of Connectors, not with object of type {type(other)}"
-                )
 
     def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
         """
