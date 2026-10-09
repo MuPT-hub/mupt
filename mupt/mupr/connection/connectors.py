@@ -133,14 +133,14 @@ class Connector(Addressed, RigidlyTransformable):
         # DEV: no call to setter; must assign via protected tangent_vector property
         self._tangent_position = None
 
-        @property
-        def bond_order(self) -> float:
-            """
-            A numerical bond order corresponding to the
-            type of bond associated to this Connector
-            E.g. UNASSIGNED = 0.0, AROMATIC = 1.5, DOUBLE = 2.0, etc.
-            """
-            return BOND_ORDER.get(self.bondtype, 0.0)
+    @property
+    def bond_order(self) -> float:
+        """
+        A numerical bond order corresponding to the
+        type of bond associated to this Connector
+        E.g. UNASSIGNED = 0.0, AROMATIC = 1.5, DOUBLE = 2.0, etc.
+        """
+        return BOND_ORDER.get(self.bondtype, 0.0)
 
     # Geometric properties
     # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
