@@ -107,17 +107,23 @@ class Connector(RigidlyTransformable):
         label: Optional[ConnectorLabel] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
     ):
-        self.anchor = anchor if (anchor is not None) else AttachmentPoint()
-        self.linker = linker if (linker is not None) else AttachmentPoint()
+        self.anchor: AttachmentPoint = (
+            anchor if (anchor is not None) else AttachmentPoint()
+        )
+        self.linker: AttachmentPoint = (
+            linker if (linker is not None) else AttachmentPoint()
+        )
 
-        self.bondtype = bondtype
-        self.query_smarts = query_smarts
-        self.label = self.__class__.DEFAULT_LABEL if (label is None) else label
-        self.metadata = metadata or dict()
+        self.bondtype: BondType = bondtype
+        self.query_smarts: str = query_smarts  # TB: worth depcreating?
+        self.label: ConnectorLabel = (
+            self.__class__.DEFAULT_LABEL if (label is None) else label
+        )
+        self.metadata: dict[Hashable, Any] = metadata or dict()
 
         # DEV: no call to setter; must be assigned
         # via protected tangent_vector property
-        self._tangent_position = None
+        self._tangent_position: Optional[Vector3] = None
 
     # Geometric properties
     # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
