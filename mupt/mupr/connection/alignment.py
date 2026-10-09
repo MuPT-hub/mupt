@@ -8,8 +8,49 @@ from abc import ABC, abstractmethod
 
 from scipy.spatial.transform import RigidTransform
 
+from ...geometry.measure import compare_optional_positions
+
 if TYPE_CHECKING:
     from .connectors import Connector
+
+
+def are_antialigned(
+    align_connector: "Connector",
+    to_connector: "Connector",
+    within: float = 1e-6,
+) -> bool:
+    """
+    Whether `align_connector` is anti-aligned with `to_connector`, i.e. whether
+    the anchor of `align_connector` is within some cutoff distance of the linker
+    of the `to_connector`, and vice-versa (with the same tolerance for both)
+
+    This check is commutative, i.e. are_antialigned(Ca, Cb) = are_antialigned(Cb, Ca)
+
+    Parameters
+    ----------
+    align_connector: Connector
+        The Connector to transform during antialignment
+    to_connector: Connector
+        The Connector being antialigned to
+        This Connector is NOT transformed and remains static
+    within: float, default 1E-6
+        Absolute tolerance for distance between both Connectors's positions
+        Can be thought of as the radius of bounding spheres around attachment points
+
+    Returns
+    -------
+    are_antialigned: bool
+        Whether the pair of Connectors are antialigned within the chosen tolerance
+    """
+    return compare_optional_positions(
+        align_connector.anchor.position,
+        to_connector.linker.position,
+        radius=within,
+    ) and compare_optional_positions(
+        align_connector.linker.position,
+        to_connector.anchor.position,
+        radius=within,
+    )
 
 
 class ConnectorAntialignmentStrategy(ABC):
