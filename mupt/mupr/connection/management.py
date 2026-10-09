@@ -180,3 +180,60 @@ class ConnectorManagerFrozen(ConnectorManager):
         raise AttributeError(
             f"Cannot remove Connector from immutable {type(self).__name__} object"
         )
+
+
+class ConnectorManagerMutable(ConnectorManager):
+    """
+    ConnectorManager with mutable connections
+    Necessary for configuring initial connectivity
+    """
+
+    def __init__(
+        self,
+        *connectors: Connector,
+        default_label: Hashable = "CONN",
+    ) -> None:
+        self.connectors_by_addr: dict[ConnectorAddress, Connector] = {}
+        for connector in connectors:
+            connector.unlock()
+            self.add_connector(connector)
+
+    def add_connector(  # noqa: D102
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> None:
+        # TB: docstring inherited from ConnectorManager base
+        if label is not None:
+            connector.label = label
+        self.connectors_by_addr[connector.addr] = connector
+
+    def remove_connector(  # noqa: D102
+        self,
+        connector_address: ConnectorAddress | Connector,
+    ) -> Connector:
+        """Declare a Connector to be no longer managed here"""
+        return self.connectors_by_addr.pop(
+            connector_address_flexible(connector_address)
+        )
+
+    @property
+    def connectors(self) -> tuple[Connector, ...]:
+        """All Connectors (either free or bound) managed here"""
+        return tuple(self.connectors_by_addr.values())
+
+    # DEV: opting for linear search each time (rather than dynamically-updating list)
+    # since Connectors might change neighbors during bond linking
+    @property
+    def connectors_free(self) -> tuple[Connector, ...]:
+        """Managed Connectors which have no assigned neighbor"""
+        return tuple(
+            connector for connector in self.connectors if not connector.has_neighbor
+        )
+
+    @property
+    def connectors_bound(self) -> tuple[Connector, ...]:
+        """Managed Connectors which have no assigned neighbor"""
+        return tuple(
+            connector for connector in self.connectors if connector.has_neighbor
+        )
