@@ -246,3 +246,50 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
                 to_connector=to_connector,
             )
         )
+
+
+class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
+    """
+    Antialignment strategy which points-and-aims at `to-connector`
+    without requiring any rigid motion of adjoining bodies
+
+    Called "ballistic" because the action (especially when matching bond length)
+    resembles `align_connector` aiming and then "shooting" its linker at `to_connector`
+    """
+
+    def antialignment_transformation(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> RigidTransform:
+        """
+        Compute a rigid transformation which aligns a pair of Connectors by turning
+        the bond vector of `align_connector`` to face the linker point of `to_connector`
+        The anchor positions of either Connector will be unaffected
+        """
+        return (
+            RigidTransform.from_translation(align_connector.anchor.position)
+            * RigidTransform.from_rotation(
+                alignment_rotation(
+                    align_connector.bond_vector,
+                    to_connector.anchor.position - align_connector.anchor.position,
+                ),
+            )
+            * RigidTransform.from_translation(-align_connector.anchor.position)
+        )
+
+    def _antialign(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> None:
+        """
+        Align `align_connector` with `to_connector` by rotating the bond vector of
+        `align_connector` bond vector to aim at `the anchor point of `to_connector`
+        """
+        align_connector.rigidly_transform(
+            transformation=self.antialignment_transformation(
+                align_connector,
+                to_connector=to_connector,
+            )
+        )
