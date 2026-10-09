@@ -30,6 +30,7 @@ from scipy.spatial.transform import Rotation, RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
 from .alignment import are_antialigned
+from .exceptions import ConnectorLockedError
 
 from ..canonicalize import lex_order_multiset_str
 from ...mutils.referencing import Addressed
@@ -121,6 +122,8 @@ class Connector(Addressed, RigidlyTransformable):
         )
         self.metadata: dict[Hashable, Any] = metadata or dict()
 
+        ## Protected attributes
+        self._locked: bool = False
         # DEV: no call to setter; must assign via protected tangent_vector property
         self._tangent_position = None
 
@@ -478,6 +481,47 @@ class Connector(Addressed, RigidlyTransformable):
         without any change to programs which involve it
         """
         return self.coincides_with(other) and self.resembles(other)
+
+    # Interactions with neighboring Connectors
+    ## Permissions for editing neighbor
+    @property
+    def is_locked(self) -> bool:
+        """Whether editing of neighbors is allowed"""
+        return self._locked
+
+    def _lock(self) -> None:
+        self._locked = True
+
+    def lock(self) -> None:
+        """Block editing of neighbors"""
+        self._lock()
+        if self.has_neighbor:
+            self.neighbor._lock()  # ensure paired connectors remain synchronized
+
+    def _unlock(self) -> None:
+        self._locked = False
+
+    def unlock(self) -> None:
+        """Allow editing of neighbors"""
+        self._unlock()
+        if self.has_neighbor:
+            self.neighbor._unlock()  # ensure paired connectors remain synchronized
+
+    def toggle_lock(self) -> None:
+        """Invert current neighbor lock status"""
+        self._locked = not self._locked
+
+    def _precondition_mutable_neighbor(self, msg_postfix: str = "") -> None:
+        """
+        Boilerplate for checking if permission is
+        given to modify neighbor of this Connector
+        """
+        msg: str = f"{self!r} is locked and cannot be modified."
+        if msg_postfix:
+            msg += " " + msg_postfix
+
+        if self.is_locked:
+            raise ConnectorLockedError(msg)
 
     # Labelling and representation methods
     @property
