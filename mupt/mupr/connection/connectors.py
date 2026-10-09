@@ -30,6 +30,7 @@ from scipy.spatial.transform import RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
 from ..canonicalize import lex_order_multiset_str
+from ...mutils.referencing import Addressed
 from ...chemistry.core import BondType
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions, normalized
@@ -106,7 +107,7 @@ class AttachmentPoint(RigidlyTransformable):
 
 
 # Connector class proper
-class Connector(RigidlyTransformable):
+class Connector(Addressed, RigidlyTransformable):
     """
     Abstraction of the notion of a chemical bond between a known
     body (anchor) and an indeterminate neighbor body (linker)
