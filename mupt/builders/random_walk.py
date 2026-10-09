@@ -264,7 +264,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
 
                 # align linkers w/ other's anchor while
                 # leaving anchors themselves undisturbed
-                self.alignment_strategy.mutually_antialign_ballistically(
+                self.alignment_strategy.mutually_antialign(
                     conn_outgoing,
                     conn_incoming,
                 )
