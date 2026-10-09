@@ -31,13 +31,17 @@ from networkx.algorithms import compose as compose_graphs
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
 
-from .connection import (
+from .connection.connectors import (
     Connector,
-    ConnectorLabel,
-    ConnectorHandle,
     ConnectorSelector,
     canonical_form_connectors,
     make_second_resemble_first,
+)
+from .connection.types import (
+    ConnectorLabel,
+    ConnectorHandle,
+)
+from .connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
