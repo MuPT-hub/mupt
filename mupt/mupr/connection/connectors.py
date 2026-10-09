@@ -30,6 +30,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
+from .alignment import are_antialigned
 
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType
@@ -348,24 +349,13 @@ class Connector(RigidlyTransformable):
     # Anti-aligning Connectors to one another (simulates bonding in 3D space)
     # DEV: eventually try to move as much of the implementation of
     # these transforms to geometry.transforms.rigid as possible
-    def are_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
-        # DEV: was unsure of whether or not to make this a classmethod; opted for
-        # instance method instead, with the understanding that you can still call it
-        # like a classmethod (i.e. conn1.align(conn2) <-> Connector.align(conn1, conn2))
+    def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
         """
         Whether this Connector is anti-aligned with another Connector, i.e. whether
         the anchor of this Connector is within some cutoff distance of the linker
         of the other Connector, and vice-versa (with the same tolerance for both)
         """
-        return compare_optional_positions(
-            self.anchor.position,
-            other.linker.position,
-            radius=within,
-        ) and compare_optional_positions(
-            self.linker.position,
-            other.anchor.position,
-            radius=within,
-        )
+        return are_antialigned(self, other, within=within)
 
     # Dihedral angle
     def dihedral_assignment_transform(
@@ -392,7 +382,7 @@ class Connector(RigidlyTransformable):
         # vectors are antiparallel (-1 dot product when normed)
         # and difference between anchors is parallel and antiparallel
         # with bond vectors respectively, but didn't for simplicity
-        if not self.are_antialigned(other, within=alignment_tolerance):
+        if not self.is_antialigned(other, within=alignment_tolerance):
             raise ValueError(
                 "Cannot set dihedral angle with non-antialigned Connectors"
             )
