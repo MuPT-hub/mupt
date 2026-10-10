@@ -21,9 +21,9 @@ def are_antialigned(
     within: float = 1e-6,
 ) -> bool:
     """
-    Whether `align_connector` is anti-aligned with `to_connector`, i.e. whether
-    the anchor of `align_connector` is within some cutoff distance of the linker
-    of the `to_connector`, and vice-versa (with the same tolerance for both)
+    Whether align_connector is anti-aligned with to_connector, i.e. whether
+    the anchor of align_connector is within some cutoff distance of the linker
+    of the to_connector, and vice-versa (with the same tolerance for both)
 
     This check is commutative, i.e. are_antialigned(Ca, Cb) = are_antialigned(Cb, Ca)
 
@@ -58,7 +58,7 @@ class ConnectorAntialignmentStrategy(ABC):
     """
     Defines interface for antialigning one Connector with another
     I.e. Transforming one connector so that its linker is coincident to
-    the other's anchor and vice versa WITHOUT modifying the `to_connector`
+    the other's anchor and vice versa WITHOUT modifying the to_connector
     """
 
     @abstractmethod
@@ -68,8 +68,8 @@ class ConnectorAntialignmentStrategy(ABC):
         to_connector: "Connector",
     ) -> RigidTransform:
         """
-        A rigid transformation applied to `align_connector` to line it up
-        with `to_connector` for the antialignment procedure implemented here
+        A rigid transformation applied to align_connector to line it up
+        with to_connector for the antialignment procedure implemented here
         """
         ...
 
@@ -80,14 +80,14 @@ class ConnectorAntialignmentStrategy(ABC):
         to_connector: "Connector",
     ) -> None:
         """
-        Implementation of how Connector `align_connector` should be
-        acted on to antialign it to Connector `to_connector`
+        Implementation of how Connector align_connector should be
+        acted on to antialign it to Connector to_connector
 
         Note: do NOT include changes to bond length here;
-        those are bundled automatically with `antialign()`
+        those are bundled automatically with antialign()
         """
         # DEV: made this a separate method (rather than always
-        # just applying `self.antialignment_transformation()`)
+        # just applying self.antialignment_transformation())
         # to allow alignment techniques potentially not based
         # on rigid transformations to fit within this framework
         ...
@@ -101,11 +101,11 @@ class ConnectorAntialignmentStrategy(ABC):
     ) -> None:
         """
         Apply the requisite antialignment transformation and other modifications
-        to `align_connector`so that it is antialigned with `to_connector` in-place
-        WITHOUT modifying `to_connector` itself
+        to align_connectorso that it is antialigned with to_connector in-place
+        WITHOUT modifying to_connector itself
 
         If match_bond_length = True, will also stretch/compress bond
-        length on `align_connector` to match length of `to_connector`
+        length on align_connector to match length of to_connector
         """
         self._antialign(
             align_connector=align_connector,
@@ -130,10 +130,10 @@ class ConnectorAntialignmentStrategy(ABC):
         dihedral_angle_rad: Optional[float] = None,
     ) -> "Connector":
         """
-        Return a copy of `align_connector` which is antialigned with `to_connector`
-        WITHOUT modifying either `align_connector` or `to_connector`
+        Return a copy of align_connector which is antialigned with to_connector
+        WITHOUT modifying either align_connector or to_connector
 
-        Non-in-place version of `self.antialign()`
+        Non-in-place version of self.antialign()
         """
         align_connector_new = align_connector.copy()
         self.antialign(
@@ -155,7 +155,7 @@ class ConnectorAntialignmentStrategy(ABC):
         Designed to accomodate assymetric alignment schemes
 
         If a dihedral angle is provided, will also rotate
-        `align_connector` along the mutual bond axis to that angle
+        align_connector along the mutual bond axis to that angle
         """
         self.antialign(
             align_connector,
@@ -186,7 +186,7 @@ class ConnectorAntialignmentStrategy(ABC):
 class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
     """
     Antialignment strategy which works purely through rigid motions, i.e.
-    only translates and rotates `align_connector` without distorting or modifying it
+    only translates and rotates align_connector without distorting or modifying it
     """
 
     def __init__(self, tare_dihedrals: bool = False) -> None:
@@ -199,12 +199,12 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
     ) -> RigidTransform:
         """
         Compute a rigid transformation which antialigns a pair of
-        Connectors by making the linker point of `align_connector`
-        coincident with the anchor of `to_connector`
+        Connectors by making the linker point of align_connector
+        coincident with the anchor of to_connector
 
-        If the two Connectors have the same bond length, the anchor of `align_connector`
+        If the two Connectors have the same bond length, the anchor of align_connector
         will be coincident with the linker of the other; otherwise, the anchor will
-        merely lay on the span of the `to_connector`s bond vector
+        merely lay on the span of the to_connectors bond vector
 
         If tare_dihedrals is True (default False), will also ensure
         that the dihedral planes of the two Connectors are coplanar.
@@ -237,7 +237,7 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
         to_connector: "Connector",
     ) -> None:
         """
-        Align `align_connector` rigidly to `to_connector`,
+        Align align_connector rigidly to to_connector,
         based on the calculated rigid alignment transform
         """
         align_connector.rigidly_transform(
@@ -250,11 +250,11 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
 
 class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
     """
-    Antialignment strategy which points-and-aims at `to-connector`
+    Antialignment strategy which points-and-aims at to-connector
     without requiring any rigid motion of adjoining bodies
 
     Called "ballistic" because the action (especially when matching bond length)
-    resembles `align_connector` aiming and then "shooting" its linker at `to_connector`
+    resembles align_connector aiming and then "shooting" its linker at to_connector
     """
 
     def antialignment_transformation(
@@ -264,7 +264,7 @@ class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
     ) -> RigidTransform:
         """
         Compute a rigid transformation which aligns a pair of Connectors by turning
-        the bond vector of `align_connector`` to face the linker point of `to_connector`
+        the bond vector of align_connector to face the linker point of to_connector
         The anchor positions of either Connector will be unaffected
         """
         return (
@@ -284,8 +284,8 @@ class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
         to_connector: "Connector",
     ) -> None:
         """
-        Align `align_connector` with `to_connector` by rotating the bond vector of
-        `align_connector` bond vector to aim at `the anchor point of `to_connector`
+        Align align_connector with to_connector by rotating the bond vector of
+        align_connector bond vector to aim at the anchor point of to_connector
         """
         align_connector.rigidly_transform(
             transformation=self.antialignment_transformation(
