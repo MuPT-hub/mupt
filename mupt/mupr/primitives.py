@@ -1514,7 +1514,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             elem_form = self.element.symbol
 
         connectors = (
-            self.connectors[connector_handle].canonical_form()
+            self.connectors[connector_handle]
             # sort by handle to ensure canonical ordering
             for connector_handle in sorted(self.connectors.keys())
         )
