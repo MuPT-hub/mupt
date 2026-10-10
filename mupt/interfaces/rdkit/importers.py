@@ -18,12 +18,12 @@ from ...chemistry.linkers import is_linker
 from .components import atom_positions_from_rdkit, connector_between_rdatoms
 
 from .labelling import name_for_rdkit_mol
+from ...builders.heading import TraversalDirection
 from ...geometry.shapes import PointCloud
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.conversion import rdkit_atom_to_element
 
 from ...mupr.primitives import Primitive, PrimitiveHandle
-from ...mupr.connection import TraversalDirection
 
 
 def primitive_from_rdkit_atom(

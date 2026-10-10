@@ -37,12 +37,12 @@ import networkx as nx
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
 
-from .canonicalize import lex_order_multiset_str
 from .connection import (
     Connector,
     ConnectorLabel,
     ConnectorHandle,
     ConnectorSelector,
+    canonical_form_connectors,
     make_second_resemble_first,
     IncompatibleConnectorError,
     MissingConnectorError,
@@ -1489,31 +1489,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         raise NotImplementedError
 
-    # Representation methods
     # Canonical forms for core components
-    def canonical_form_connectors(self, separator: str = ":", joiner: str = "-") -> str:
-        """A canonical string representing this Primitive's Connectors"""
-        return lex_order_multiset_str(
-            (
-                self.connectors[connector_handle].canonical_form()
-                for connector_handle in sorted(
-                    self.connectors.keys()
-                )  # sort by handle to ensure canonical ordering
-            ),
-            element_repr=str,  # lambda bt : BondType.values[int(bt)]
-            separator=separator,
-            joiner=joiner,
-        )
-
-    ## DEVNOTE: for now, this doesn't need to be abstract
-    ## (just use type of Shape for all kinds of Primitive)
     def canonical_form_shape(self) -> str:
         """A canonical string representing this Primitive's shape"""
         # TODO: move this into .shape module
         # Should be responsibility of individual Shape subclasses
         return type(self.shape).__name__
 
-    # NOTE: deliberately NOT a property to indicated computing this might be expensive
+    # NOTE: deliberately NOT a property to indicate computing this might be expensive
     def canonical_form(self) -> str:
         """
         A canonical representation of a Primitive's core parts.
@@ -1522,12 +1505,19 @@ class Primitive(NodeMixin, RigidlyTransformable):
         I.e. two Primitives having the same canonical form are
         considered interchangable within a polymer system
         """
-        elem_form: str = (
-            self.element.symbol if (self.element is not None) else str(None)
-        )  # TODO: move this to external function, eventually
+        # TODO: move this to external function, eventually
+        elem_form: str = str(None)
+        if self.element is not None:
+            elem_form = self.element.symbol
+
+        connectors = (
+            self.connectors[connector_handle]
+            # sort by handle to ensure canonical ordering
+            for connector_handle in sorted(self.connectors.keys())
+        )
         return (
             f"{elem_form}"
-            f"({self.canonical_form_connectors()})"
+            f"({canonical_form_connectors(connectors)})"
             f"[shape={self.canonical_form_shape()}]"
             f"<graph_hash={self.topology.canonical_form()}>"
         )

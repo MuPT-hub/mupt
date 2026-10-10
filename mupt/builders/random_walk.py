@@ -26,7 +26,7 @@ from ..geometry.arraytypes import Shape, Dims, NumericNP, Vector3
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
-from mupt.geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.transforms.rigid import rigid_vector_coalignment
 
 from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
