@@ -10,7 +10,8 @@ description = "Drafting repository for the core functionality of the Multiscale 
 dynamic = ["version"]
 readme = "README.md"
 authors = [
-    { name = "Timotej Bernat", email = "tibe3324@colorado.edu" }
+    { name = "Timotej Bernat", email = "tibe3324@colorado.edu" },
+    { name = "Joseph R. Laforet Jr.", email = "joe.laforet@colorado.edu" },
 ]
 license = { text = "MIT" }
 classifiers = [ # See https://pypi.org/classifiers/

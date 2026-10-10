@@ -26,9 +26,9 @@ import mupt
 # -- Project information -----------------------------------------------------
 
 project = 'Multiscale Polymer Toolkit'
-copyright = ("2024, Timotej Bernat. Project structure based on the "
-             "Computational Molecular Science Python Cookiecutter version 1.10")
-author = 'Timotej Bernat'
+copyright = ("2024, Timotej Bernat, Joseph R. Laforet Jr. "
+             "Project structure based on the Computational Molecular Science Python Cookiecutter version 1.10")
+author = 'Timotej Bernat, Joseph R. Laforet Jr.'
 
 # The short X.Y version
 version = ''
@@ -195,6 +195,7 @@ html_theme = 'pydata_sphinx_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+html_css_files = ['custom.css']
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
