@@ -1,8 +1,8 @@
 """
-Core components of connections, namely:
-* AttachmentPoints, which define the positions and selectivity of the ends of a bond
-* Connectors, which comprise 2 AttachmentPoints (an "anchor" and a "linker")
-  and represent 'half' of a chemical bond, with configurable bonding selectivity
+Core components of connections, namely AttachmentPoints, which define the
+positions and selectivity of the ends of a bond, and Connectors, which
+comprise 2 AttachmentPoints (an "anchor" and a "linker") and represent
+'half' of a chemical bond, with configurable bonding selectivity
 """
 
 import logging
