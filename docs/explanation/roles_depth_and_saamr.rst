@@ -9,7 +9,7 @@ a level for blocks. A coarse-grained model might stop at beads. MuPT does
 not assign any fixed meaning to a given depth in the tree. This is what
 allows the same data structure to describe a system at many resolutions.
 
-Most of the tools MuPT hands systems off to do not work this way.
+Many tools MuPT can hand systems off to do not work this way.
 MDAnalysis organizes a system into a fixed hierarchy of
 `segments, residues, and atoms
 <https://userguide.mdanalysis.org/stable/groups_of_atoms.html>`_. The PDB
@@ -58,7 +58,9 @@ attribute, whose value is a member of the
 
 ``SEGMENT``
     An entity whose children are linked by covalent bonds, such as a polymer chain, a small
-    molecule, or an ion. Nothing is bonded *between* segments.
+    molecule, or an ion. Nothing is bonded *between* segments. The name
+    follows MDAnalysis; the PDB format calls this level a chain, and other
+    tools call it a molecule.
 
 ``RESIDUE``
     A repeating sub-unit of a segment, such as a monomer or an amino acid.
@@ -257,6 +259,39 @@ its atoms.
 Rule 6 is what gives ``SEGMENT`` its meaning. Everything covalently bonded
 together belongs to one segment, which is why a segment maps cleanly onto
 a single RDKit ``Mol`` or a single MDAnalysis segment.
+
+What breaking the rules looks like
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Nothing stops you from building a tree that breaks these rules. Take the
+hand-labeled example from above and swap the ``SEGMENT`` and ``RESIDUE``
+labels:
+
+.. code-block:: python
+
+    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    domain = Primitive(label="domain")
+    chain = Primitive(label="chain", role=PrimitiveRole.RESIDUE)  # was SEGMENT
+    unit = Primitive(label="HEL", role=PrimitiveRole.SEGMENT)     # was RESIDUE
+    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+
+    universe.attach_child(domain)
+    domain.attach_child(chain)
+    chain.attach_child(unit)
+    unit.attach_child(atom)
+
+    has_SAAMR_roles(universe)  # True: all four roles are still present
+
+    primitive_to_mdanalysis(universe, resname_map={})
+    # ValueError: RESIDUE-role Primitives must be enclosed by a SEGMENT.
+
+The tree builds, and it passes :func:`~mupt.roles.has_SAAMR_roles`,
+because that check only asks whether each role appears somewhere. The
+exporter checks how the roles are arranged and rejects the tree under
+rule 3. Putting one ``SEGMENT`` inside another fails the same way, under
+rule 4::
+
+    ValueError: SEGMENT 'outer' contains nested SEGMENT(s) ['chain'].
 
 
 How roles are used
