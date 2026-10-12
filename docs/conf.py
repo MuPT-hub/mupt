@@ -26,9 +26,9 @@ import mupt
 # -- Project information -----------------------------------------------------
 
 project = 'Multiscale Polymer Toolkit'
-copyright = ("2024, Timotej Bernat, Joseph R. Laforet Jr. "
+copyright = ("2024, The MuPT Developers. "
              "Project structure based on the Computational Molecular Science Python Cookiecutter version 1.10")
-author = 'Timotej Bernat, Joseph R. Laforet Jr.'
+author = 'The MuPT Developers'
 
 # The short X.Y version
 version = ''
