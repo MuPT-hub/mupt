@@ -67,6 +67,11 @@ Pyramidal sulfur, phosphorus, selenium and arsenic with three neighbors
 since amines invert on their own at room temperature. To check a specific
 set of atoms, pass their indices as ``centers``.
 
+Finding centers takes time linear in the number of atoms, so a melt of long
+chains costs no more per atom than a small molecule. Each branch of the
+molecule is hashed once, from its tips inward, and each ring system is hashed
+as a single unit.
+
 
 Handedness at residue junctions
 -------------------------------

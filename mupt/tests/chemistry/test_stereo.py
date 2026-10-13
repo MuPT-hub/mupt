@@ -1,6 +1,7 @@
 """Unit tests for the tetrahedral stereocenter guard"""
 # ruff: noqa: D103 ("undocumented public function")
 
+import time
 from typing import Optional
 
 import networkx as nx
@@ -46,6 +47,9 @@ PANEL: dict[str, tuple[str, list[int]]] = {
     "cis-1,4-dimethylcyclohexane": ("C[C@H]1CC[C@@H](C)CC1", [1, 4]),
     "trans-1,4-dimethylcyclohexane": ("C[C@H]1CC[C@H](C)CC1", [1, 4]),
     "cis-1,2-dimethylcyclopropane": ("C[C@H]1C[C@@H]1C", [1, 3]),
+    "cis-decalin": ("[C@H]12CCCC[C@@H]1CCCC2", [0, 5]),
+    "o-tolyl p-tolyl carbinol": ("OC(c1ccccc1C)c1ccc(C)cc1", [1]),
+    "bis(p-tolyl) carbinol": ("OC(c1ccc(C)cc1)c1ccc(C)cc1", []),
     "menthol": ("CC(C)[C@@H]1CC[C@@H](C)C[C@H]1O", [3, 6, 9]),
     "isotactic PP pentamer": (
         "CC(C)C[C@H](C)C[C@H](C)C[C@H](C)C[C@H](C)C[C@H](C)CC(C)C",
@@ -136,6 +140,44 @@ def test_pseudoasymmetric_center_is_kept() -> None:
     # inverting it gives xylaric acid. RDKit's FindPotentialStereo omits it here
     _, elements, bonds = rdkit_graph("OC(=O)[C@H](O)C(O)[C@@H](O)C(=O)O")
     assert perceive_stereocenters(elements, bonds) == [3, 5, 7]
+
+
+def polystyrene_graph(n_repeats: int) -> tuple[list[str], list[tuple[int, int]]]:
+    """Elements and bonds of CH3-[CH2-CH(C6H5)]n-CH3, with explicit hydrogens"""
+    elements: list[str] = []
+    bonds: list[tuple[int, int]] = []
+
+    def add(element: str, *bonded: int) -> int:
+        elements.append(element)
+        bonds.extend((atom, len(elements) - 1) for atom in bonded)
+        return len(elements) - 1
+
+    def add_hydrogens(atom: int, count: int) -> None:
+        for _ in range(count):
+            add("H", atom)
+
+    previous = add("C")
+    add_hydrogens(previous, 3)
+    for _ in range(n_repeats):
+        methylene = add("C", previous)
+        add_hydrogens(methylene, 2)
+        previous = add("C", methylene)
+        add_hydrogens(previous, 1)
+        ring = [add("C", previous)]
+        for _ in range(5):
+            ring.append(add("C", ring[-1]))
+            add_hydrogens(ring[-1], 1)
+        bonds.append((ring[0], ring[-1]))
+    add_hydrogens(add("C", previous), 3)
+    return elements, bonds
+
+
+def test_perception_is_linear_in_chain_length() -> None:
+    # quadratic perception takes minutes here, and recursive hashing overflows
+    elements, bonds = polystyrene_graph(2000)
+    started = time.perf_counter()
+    assert len(perceive_stereocenters(elements, bonds)) == 2000
+    assert time.perf_counter() - started < 10.0
 
 
 def test_adapter_graph_matches_rdkit() -> None:
