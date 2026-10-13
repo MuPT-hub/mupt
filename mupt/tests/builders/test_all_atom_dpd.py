@@ -949,3 +949,84 @@ def test_write_positions_updates_atoms_and_parent_shapes():
     np.testing.assert_allclose(residue.shape.centroid, expected_centroid)
     np.testing.assert_allclose(segment.shape.centroid, expected_centroid)
     np.testing.assert_allclose(root.shape.centroid, expected_centroid)
+
+
+def _polypropylene_universe(n_mid: int = 3) -> tuple[Primitive, dict[str, str]]:
+    """One isotactic polypropylene chain whose backbone stereocenters span residues"""
+    from mupt.roles import assign_SAAMR_roles
+    from mupt.tests.chemistry.test_stereo import polypropylene_chain
+
+    resname_map = {"head": "PPH", "mid": "PPM", "tail": "PPT"}
+    chain = polypropylene_chain(["head"] + ["mid"] * n_mid + ["tail"])
+    for residue in chain.children:
+        residue.metadata["residue_name"] = resname_map[residue.label]
+    root = Primitive(label="pp")
+    root.attach_child(chain)
+    assign_SAAMR_roles(root)
+    return root, resname_map
+
+
+@pytest.mark.parametrize(
+    "backbone_only",
+    [
+        True,
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                reason="AngleConstrainedRandomWalk places residue centroids, so a "
+                "CH2 at a residue junction can land flipped or flat (#116)",
+                strict=False,
+            ),
+        ),
+    ],
+)
+def test_initial_placement_preserves_stereocenters(backbone_only):
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
+    from mupt.chemistry.stereo import capture_stereo, check_stereo
+    from mupt.tests.chemistry.test_stereo import backbone_methines
+
+    root, resname_map = _polypropylene_universe()
+    methines = backbone_methines(root)
+    assert len(methines) == 4  # stereocenters spanning residue junctions
+    reference = capture_stereo(root, centers=methines if backbone_only else None)
+
+    builder = AllAtomDPDBuilder()
+    records = builder._segment_records(root)
+    assert [a for r in records for a in r.atoms] == [
+        leaf for leaf in root.leaves if leaf.is_atom
+    ]
+    box_lengths = np.full(3, 30.0)
+    for seed in range(10):
+        positions = builder._initial_positions(
+            records, box_lengths, np.random.default_rng(seed)
+        )
+        assert check_stereo(positions, reference, box_lengths=box_lengths).passed
+
+
+@pytest.mark.xfail(
+    reason="#116: soft DPD lets atoms pass through tetrahedral centers, and the "
+    "AA-DPD builder does not restrain them yet",
+    strict=False,
+)
+@pytest.mark.skipif(
+    any(
+        importlib.util.find_spec(name) is None for name in ("hoomd", "openff", "freud")
+    ),
+    reason="AA-DPD build requires HOOMD, OpenFF and freud",
+)
+def test_build_preserves_stereocenters():
+    from mupt.builders.all_atom_dpd import AllAtomDPDBuilder, AllAtomDPDSettings
+    from mupt.chemistry.stereo import capture_stereo, check_stereo
+
+    inverted = {}
+    for seed in range(10):
+        root, resname_map = _polypropylene_universe()
+        reference = capture_stereo(root)
+        settings = AllAtomDPDSettings(
+            random_seed=seed, resname_map=resname_map, device="cpu"
+        )
+        AllAtomDPDBuilder(settings=settings).build(root)
+        report = check_stereo(root, reference)
+        if not report.passed:
+            inverted[seed] = report.inverted
+    assert not inverted, f"stereocenters inverted by seed: {inverted}"

@@ -8,3 +8,4 @@ Explanation
    connectors
    roles_depth_and_saamr
    topology_to_coordinates
+   stereochemistry_guard
