@@ -966,13 +966,29 @@ def _polypropylene_universe(n_mid: int = 3) -> tuple[Primitive, dict[str, str]]:
     return root, resname_map
 
 
-def test_initial_placement_preserves_junction_stereocenters():
+@pytest.mark.parametrize(
+    "backbone_only",
+    [
+        True,
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                reason="AngleConstrainedRandomWalk places residue centroids, so a "
+                "CH2 at a residue junction can land flipped or flat (#116)",
+                strict=False,
+            ),
+        ),
+    ],
+)
+def test_initial_placement_preserves_stereocenters(backbone_only):
     from mupt.builders.all_atom_dpd import AllAtomDPDBuilder
     from mupt.chemistry.stereo import capture_stereo, check_stereo
+    from mupt.tests.chemistry.test_stereo import backbone_methines
 
     root, resname_map = _polypropylene_universe()
-    reference = capture_stereo(root)
-    assert len(reference.centers) == 4
+    methines = backbone_methines(root)
+    assert len(methines) == 4  # stereocenters spanning residue junctions
+    reference = capture_stereo(root, centers=methines if backbone_only else None)
 
     builder = AllAtomDPDBuilder()
     records = builder._segment_records(root)
@@ -988,8 +1004,8 @@ def test_initial_placement_preserves_junction_stereocenters():
 
 
 @pytest.mark.xfail(
-    reason="#116: soft DPD lets atoms pass through stereocenters at residue "
-    "junctions, and the AA-DPD builder does not restrain them yet",
+    reason="#116: soft DPD lets atoms pass through tetrahedral centers, and the "
+    "AA-DPD builder does not restrain them yet",
     strict=False,
 )
 @pytest.mark.skipif(

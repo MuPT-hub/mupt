@@ -1,13 +1,11 @@
 """Unit tests for the tetrahedral stereocenter guard"""
 # ruff: noqa: D103 ("undocumented public function")
 
-import time
 from typing import Optional
 
 import networkx as nx
 import numpy as np
 import pytest
-from rdkit import Chem
 from rdkit.Chem.rdDistGeom import EmbedMolecule
 from rdkit.Chem.rdmolfiles import MolFromSmiles
 from scipy.spatial.transform import RigidTransform, Rotation
@@ -23,7 +21,6 @@ from mupt.chemistry.stereo import (
     capture_stereo_from_arrays,
     check_stereo,
     normalized_volume,
-    perceive_stereocenters,
 )
 from mupt.interfaces.rdkit import primitive_from_rdkit, suppress_rdkit_logs
 from mupt.mupr.primitives import Primitive
@@ -31,34 +28,8 @@ from mupt.mupr.topology import TopologicalStructure
 from mupt.geometry.shapes import PointCloud
 
 MIRROR = np.array([-1.0, 1.0, 1.0])
-
-# expected stereocenters (atom indices, explicit hydrogens appended after heavy atoms)
-PANEL: dict[str, tuple[str, list[int]]] = {
-    "CHFClBr": ("F[C@H](Cl)Br", [1]),
-    "L-alanine": ("C[C@H](N)C(=O)O", [1]),
-    "(R)-2-butanol": ("C[C@@H](O)CC", [1]),
-    "ethanol": ("CCO", []),
-    "dichloromethane": ("ClCCl", []),
-    "isobutane": ("CC(C)C", []),
-    "neopentane": ("CC(C)(C)C", []),
-    "glycine": ("NCC(=O)O", []),
-    "methylcyclohexane": ("CC1CCCCC1", []),
-    "meso-tartaric acid": ("O[C@H](C(=O)O)[C@@H](O)C(=O)O", [1, 5]),
-    "cis-1,4-dimethylcyclohexane": ("C[C@H]1CC[C@@H](C)CC1", [1, 4]),
-    "trans-1,4-dimethylcyclohexane": ("C[C@H]1CC[C@H](C)CC1", [1, 4]),
-    "cis-1,2-dimethylcyclopropane": ("C[C@H]1C[C@@H]1C", [1, 3]),
-    "cis-decalin": ("[C@H]12CCCC[C@@H]1CCCC2", [0, 5]),
-    "o-tolyl p-tolyl carbinol": ("OC(c1ccccc1C)c1ccc(C)cc1", [1]),
-    "bis(p-tolyl) carbinol": ("OC(c1ccc(C)cc1)c1ccc(C)cc1", []),
-    "menthol": ("CC(C)[C@@H]1CC[C@@H](C)C[C@H]1O", [3, 6, 9]),
-    "isotactic PP pentamer": (
-        "CC(C)C[C@H](C)C[C@H](C)C[C@H](C)C[C@H](C)C[C@H](C)CC(C)C",
-        [4, 7, 10, 13, 16],
-    ),
-    "symmetric isotactic PP": ("CC[C@H](C)C[C@H](C)C[C@H](C)CC", [2, 5, 8]),
-    "methyl ethyl sulfoxide": ("C[S@](=O)CC", [1]),
-    "quaternary ammonium": ("C[N+](CC)(CCC)CCCC", [1]),
-}
+MENTHOL = "CC(C)[C@@H]1CC[C@@H](C)C[C@H]1O"
+MESO_TARTARIC_ACID = "O[C@H](C(=O)O)[C@@H](O)C(=O)O"
 
 
 def seeded_primitive(
@@ -73,16 +44,14 @@ def seeded_primitive(
         return primitive_from_rdkit(rdmol, conformer_idx=conformer_idx, label=label)
 
 
-def rdkit_graph(smiles: str) -> tuple[Chem.Mol, list[str], list[tuple[int, int]]]:
-    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
-    elements = [atom.GetSymbol() for atom in mol.GetAtoms()]
-    bonds = [(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()) for bond in mol.GetBonds()]
-    return mol, elements, bonds
-
-
 def positions_of(prim: Primitive) -> np.ndarray:
     atoms, _ = atomic_bond_graph(prim)
     return atom_positions(atoms)
+
+
+def center_signs(prim: Primitive, atoms: list[int]) -> list[int]:
+    signs = {center.atom: center.sign for center in capture_stereo(prim).centers}
+    return [signs[atom] for atom in atoms]
 
 
 # geometry
@@ -99,10 +68,9 @@ def test_normalized_volume_flips_under_reflection_only() -> None:
 
     assert normalized_volume(center, neighbors * MIRROR) == pytest.approx(-volume)
     rotation = Rotation.from_euler("xyz", [0.3, -1.1, 2.0]).as_matrix()
-    moved = neighbors @ rotation.T + np.array([4.0, -2.0, 7.0])
-    assert normalized_volume(
-        center + np.array([4.0, -2.0, 7.0]), moved
-    ) == pytest.approx(volume)
+    shift = np.array([4.0, -2.0, 7.0])
+    moved = neighbors @ rotation.T + shift
+    assert normalized_volume(center + shift, moved) == pytest.approx(volume)
     assert normalized_volume(center, 10.0 * neighbors) == pytest.approx(volume)
 
 
@@ -112,113 +80,47 @@ def test_normalized_volume_degenerate_inputs() -> None:
     assert normalized_volume(np.zeros(3), np.ones((4, 3))) == 0.0
 
 
-# perception
-@pytest.mark.parametrize("name", list(PANEL))
-def test_perceived_stereocenters(name: str) -> None:
-    smiles, expected = PANEL[name]
-    mol, elements, bonds = rdkit_graph(smiles)
-    charges = [atom.GetFormalCharge() for atom in mol.GetAtoms()]
-    assert perceive_stereocenters(elements, bonds, charges) == expected
-
-
-@pytest.mark.parametrize("name", list(PANEL))
-def test_perception_agrees_with_rdkit(name: str) -> None:
-    """Cross-check against the RDKit perception used by the FlowerMD stereo guard"""
-    smiles, _ = PANEL[name]
-    mol, elements, bonds = rdkit_graph(smiles)
-    charges = [atom.GetFormalCharge() for atom in mol.GetAtoms()]
-    rdkit_centers = sorted(
-        int(info.centeredOn)
-        for info in Chem.FindPotentialStereo(mol, cleanIt=False, flagPossible=True)
-        if info.type == Chem.StereoType.Atom_Tetrahedral
-    )
-    assert perceive_stereocenters(elements, bonds, charges) == rdkit_centers
-
-
-def test_pseudoasymmetric_center_is_kept() -> None:
-    # C3 of ribaric acid ((2R,4S)-2,3,4-trihydroxyglutaric acid) is pseudoasymmetric:
-    # inverting it gives xylaric acid. RDKit's FindPotentialStereo omits it here
-    _, elements, bonds = rdkit_graph("OC(=O)[C@H](O)C(O)[C@@H](O)C(=O)O")
-    assert perceive_stereocenters(elements, bonds) == [3, 5, 7]
-
-
-def polystyrene_graph(n_repeats: int) -> tuple[list[str], list[tuple[int, int]]]:
-    """Elements and bonds of CH3-[CH2-CH(C6H5)]n-CH3, with explicit hydrogens"""
-    elements: list[str] = []
-    bonds: list[tuple[int, int]] = []
-
-    def add(element: str, *bonded: int) -> int:
-        elements.append(element)
-        bonds.extend((atom, len(elements) - 1) for atom in bonded)
-        return len(elements) - 1
-
-    def add_hydrogens(atom: int, count: int) -> None:
-        for _ in range(count):
-            add("H", atom)
-
-    previous = add("C")
-    add_hydrogens(previous, 3)
-    for _ in range(n_repeats):
-        methylene = add("C", previous)
-        add_hydrogens(methylene, 2)
-        previous = add("C", methylene)
-        add_hydrogens(previous, 1)
-        ring = [add("C", previous)]
-        for _ in range(5):
-            ring.append(add("C", ring[-1]))
-            add_hydrogens(ring[-1], 1)
-        bonds.append((ring[0], ring[-1]))
-    add_hydrogens(add("C", previous), 3)
-    return elements, bonds
-
-
-def test_perception_is_linear_in_chain_length() -> None:
-    # quadratic perception takes minutes here, and recursive hashing overflows
-    elements, bonds = polystyrene_graph(2000)
-    started = time.perf_counter()
-    assert len(perceive_stereocenters(elements, bonds)) == 2000
-    assert time.perf_counter() - started < 10.0
-
-
-def test_adapter_graph_matches_rdkit() -> None:
-    smiles = PANEL["menthol"][0]
-    _, elements, bonds = rdkit_graph(smiles)
-    atoms, prim_bonds = atomic_bond_graph(seeded_primitive(smiles))
-    assert [atom.element.symbol for atom in atoms] == elements
-    assert prim_bonds == sorted(tuple(sorted(bond)) for bond in bonds)
-
-
 # capture
+def test_adapter_graph_matches_rdkit() -> None:
+    with suppress_rdkit_logs():
+        mol = sanitized_mol(MolFromSmiles(MENTHOL), add_Hs=True)
+    atoms, bonds = atomic_bond_graph(seeded_primitive(MENTHOL))
+    assert [atom.element.symbol for atom in atoms] == [
+        atom.GetSymbol() for atom in mol.GetAtoms()
+    ]
+    assert bonds == sorted(
+        tuple(sorted((b.GetBeginAtomIdx(), b.GetEndAtomIdx()))) for b in mol.GetBonds()
+    )
+
+
+def test_every_four_coordinate_atom_is_a_center() -> None:
+    # 2-butanol: both CH3, the CH and the CH2, but not the hydroxyl oxygen
+    reference = capture_stereo(seeded_primitive("C[C@H](O)CC"))
+    assert [center.atom for center in reference.centers] == [0, 1, 3, 4]
+
+
 def test_enantiomers_have_opposite_signs() -> None:
-    # same atom order, opposite configuration
-    sinister = capture_stereo(seeded_primitive("C[C@H](O)CC"))
-    rectus = capture_stereo(seeded_primitive("C[C@@H](O)CC"))
-    assert [c.atom for c in sinister.centers] == [c.atom for c in rectus.centers] == [1]
-    assert sinister.centers[0].sign == -rectus.centers[0].sign
+    # same atom order, opposite configuration at C2 (atom 1)
+    sinister = seeded_primitive("C[C@H](O)CC")
+    rectus = seeded_primitive("C[C@@H](O)CC")
+    assert center_signs(sinister, [1]) == [-sign for sign in center_signs(rectus, [1])]
 
 
 def test_sign_is_a_property_of_configuration_not_conformer() -> None:
     signs = {
-        center.sign
-        for seed in range(5)
-        for center in capture_stereo(
-            seeded_primitive(PANEL["menthol"][0], seed=seed)
-        ).centers
-        if center.atom == 3
+        center_signs(seeded_primitive(MENTHOL, seed=seed), [3])[0] for seed in range(5)
     }
     assert len(signs) == 1
 
 
 def test_explicit_centers_are_honored() -> None:
-    prim = seeded_primitive(PANEL["menthol"][0])
-    reference = capture_stereo(prim, centers=[6])
+    reference = capture_stereo(seeded_primitive(MENTHOL), centers=[6])
     assert [center.atom for center in reference.centers] == [6]
 
 
 def test_capture_rejects_invalid_centers() -> None:
-    prim = seeded_primitive("C[C@H](O)CC")
     with pytest.raises(ValueError, match="neighbors"):
-        capture_stereo(prim, centers=[2])  # hydroxyl oxygen
+        capture_stereo(seeded_primitive("C[C@H](O)CC"), centers=[2])  # oxygen
 
 
 def test_capture_rejects_planar_reference() -> None:
@@ -232,21 +134,11 @@ def test_capture_rejects_planar_reference() -> None:
 
 
 # checking
-@pytest.mark.parametrize(
-    "name",
-    [
-        "CHFClBr",
-        "meso-tartaric acid",
-        "cis-1,4-dimethylcyclohexane",
-        "isotactic PP pentamer",
-        "methyl ethyl sulfoxide",
-    ],
-)
-def test_reflection_inverts_every_center(name: str) -> None:
-    prim = seeded_primitive(PANEL[name][0])
+@pytest.mark.parametrize("smiles", ["F[C@H](Cl)Br", MESO_TARTARIC_ACID, MENTHOL])
+def test_reflection_inverts_every_center(smiles: str) -> None:
+    prim = seeded_primitive(smiles)
     reference = capture_stereo(prim)
     positions = positions_of(prim)
-    assert reference.centers
     assert check_stereo(positions, reference).passed
 
     report = check_stereo(positions * MIRROR, reference)
@@ -257,7 +149,7 @@ def test_reflection_inverts_every_center(name: str) -> None:
 
 
 def test_proper_motion_preserves_every_center() -> None:
-    prim = seeded_primitive(PANEL["menthol"][0])
+    prim = seeded_primitive(MENTHOL)
     reference = capture_stereo(prim)
     rotation = Rotation.from_euler("zyx", [1.0, 2.0, -0.5]).as_matrix()
     moved = positions_of(prim) @ rotation.T + np.array([10.0, -3.0, 5.0])
@@ -265,40 +157,50 @@ def test_proper_motion_preserves_every_center() -> None:
 
 
 def test_swapping_substituents_inverts_only_that_center() -> None:
-    prim = seeded_primitive(PANEL["meso-tartaric acid"][0])
+    prim = seeded_primitive(MESO_TARTARIC_ACID)
     reference = capture_stereo(prim)
     positions = positions_of(prim)
-    center = reference.centers[0]
-    first, second = center.neighbors[0], center.neighbors[1]
-    # reflect the center's bond vectors to two neighbors through the plane
-    # bisecting them, which exchanges their directions
+    # exchange the hydroxyl oxygen (0) and carboxyl carbon (2) around C2 (atom 1)
+    swapped = positions.copy()
+    swapped[0], swapped[2] = positions[2], positions[0]
+    report = check_stereo(swapped, reference)
+    assert report.inverted == [1]
+    assert len(report.with_status("preserved")) == len(reference.centers) - 1
+
+
+def test_methyl_hydrogen_swap_is_reported() -> None:
+    # the contract has no exceptions: a CH3 inversion is reported too
+    prim = seeded_primitive("C[C@H](O)CC")
+    reference = capture_stereo(prim)
+    positions = positions_of(prim)
+    methyl = reference.centers[0]
+    first, second = methyl.neighbors[1], methyl.neighbors[2]  # two hydrogens
     swapped = positions.copy()
     swapped[first], swapped[second] = positions[second], positions[first]
-    report = check_stereo(swapped, reference)
-    assert report.inverted == [center.atom]
-    assert report.statuses[reference.centers[1].atom] == "preserved"
+    assert check_stereo(swapped, reference).inverted == [methyl.atom]
 
 
 def test_flattened_and_nonfinite_centers_are_reported() -> None:
     prim = seeded_primitive("C[C@H](O)CC")
     reference = capture_stereo(prim)
-    atom = reference.centers[0].atom
+    center = reference.centers[1]
     positions = positions_of(prim)
 
     flattened = positions.copy()
-    flattened[list(reference.centers[0].neighbors), 2] = flattened[atom, 2]
-    flattened[atom] = flattened[list(reference.centers[0].neighbors)].mean(axis=0)
+    flattened[list(center.neighbors), 2] = flattened[center.atom, 2]
+    flattened[center.atom] = flattened[list(center.neighbors)].mean(axis=0)
     report = check_stereo(flattened, reference)
-    assert report.near_planar == [atom] and not report.passed
+    assert center.atom in report.near_planar and not report.passed
 
     broken = positions.copy()
-    broken[atom] = np.nan
-    assert check_stereo(broken, reference).nonfinite == [atom]
+    broken[center.atom] = np.nan
+    # every center that includes the broken atom, as center or neighbor
+    assert check_stereo(broken, reference).nonfinite == [0, 1, 3]
 
 
 def test_wrapped_coordinates_need_box() -> None:
     prim = seeded_primitive("C[C@H](O)CC")
-    reference = capture_stereo(prim)
+    reference = capture_stereo(prim, centers=[1])
     box = np.array([12.0, 12.0, 12.0])
     wrapped = positions_of(prim)
     wrapped[reference.centers[0].neighbors[0]] += box * np.array([1.0, 0.0, -1.0])
@@ -306,14 +208,14 @@ def test_wrapped_coordinates_need_box() -> None:
 
 
 def test_check_against_primitive() -> None:
-    prim = seeded_primitive(PANEL["menthol"][0])
+    prim = seeded_primitive(MENTHOL)
     reference = capture_stereo(prim)
     assert check_stereo(prim, reference).passed
 
     atoms, _ = atomic_bond_graph(prim)
     for atom in atoms:
         atom.shape = PointCloud(positions=np.asarray(atom.shape.centroid) * MIRROR)
-    assert len(check_stereo(prim, reference).inverted) == 3
+    assert len(check_stereo(prim, reference).inverted) == len(reference.centers)
 
     with pytest.raises(ValueError, match="do not match"):
         check_stereo(seeded_primitive("C[C@H](O)CC"), reference)
@@ -343,37 +245,39 @@ def polypropylene_chain(sequence: list[str]) -> Primitive:
     return chain
 
 
-def junction_centers(chain: Primitive) -> list[int]:
-    """Recorded centers which have a neighbor in another residue"""
-    atoms, _ = atomic_bond_graph(chain)
-    reference = capture_stereo(chain)
+def backbone_methines(chain: Primitive) -> list[int]:
+    """Backbone CH carbons, whose fourth neighbor is in the next residue"""
+    atoms, bonds = atomic_bond_graph(chain)
+    graph = nx.Graph(bonds)
     return [
-        center.atom
-        for center in reference.centers
-        if any(
-            atoms[n].parent is not atoms[center.atom].parent for n in center.neighbors
-        )
+        idx
+        for idx, atom in enumerate(atoms)
+        if atom.element.symbol == "C"
+        and graph.degree[idx] == 4
+        and sum(atoms[nb].element.symbol == "H" for nb in graph[idx]) == 1
+        and any(atoms[nb].parent is not atom.parent for nb in graph[idx])
     ]
 
 
 def test_junction_centers_are_captured_from_residue_templates() -> None:
     chain = polypropylene_chain(["head", "mid", "mid", "mid", "tail"])
-    reference = capture_stereo(chain)
-    assert len(reference.centers) == 4
-    # every backbone CH of a mid residue has its fourth neighbor in the next residue
-    assert len(junction_centers(chain)) == 4
+    methines = backbone_methines(chain)
+    assert len(methines) == 4
     # isotactic: every residue template defines the same handedness
-    assert len({center.sign for center in reference.centers[1:]}) == 1
+    assert len(set(center_signs(chain, methines))) == 1
 
 
 def test_junction_handedness_follows_residue_template() -> None:
-    iso = capture_stereo(polypropylene_chain(["head", "mid", "mid", "tail"]))
-    syndio = capture_stereo(
-        polypropylene_chain(["head", "mid", "mid_inverted", "tail"])
+    iso = polypropylene_chain(["head", "mid", "mid", "tail"])
+    syndio = polypropylene_chain(["head", "mid", "mid_inverted", "tail"])
+    methines = backbone_methines(iso)
+    assert methines == backbone_methines(syndio)
+    iso_signs, syndio_signs = (
+        center_signs(iso, methines),
+        center_signs(syndio, methines),
     )
-    assert [c.atom for c in iso.centers] == [c.atom for c in syndio.centers]
-    assert iso.centers[1].sign == syndio.centers[1].sign
-    assert iso.centers[2].sign == -syndio.centers[2].sign
+    assert iso_signs[1] == syndio_signs[1]
+    assert iso_signs[2] == -syndio_signs[2]
 
 
 def test_moving_residues_rigidly_keeps_junction_handedness() -> None:
