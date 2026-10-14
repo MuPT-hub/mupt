@@ -14,10 +14,10 @@ from rdkit.Chem.rdchem import (
 )
 from rdkit.Chem.rdmolops import GetMolFrags
 
-from ...chemistry.linkers import is_linker
+from ...chemistry.rdkit.linkers import is_linker
 from .components import atom_positions_from_rdkit, connector_between_rdatoms
 
-from .labelling import name_for_rdkit_mol
+from ...chemistry.rdkit.labelling import name_for_rdkit_mol
 from ...geometry.shapes import PointCloud
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.conversion import rdkit_atom_to_element

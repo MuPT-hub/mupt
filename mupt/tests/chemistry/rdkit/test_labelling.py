@@ -3,7 +3,7 @@
 import pytest
 
 from rdkit import Chem
-from mupt.interfaces.rdkit.labelling import (
+from mupt.chemistry.rdkit.labelling import (
     RDMOL_NAME_READ_PROP_PRECEDENCE,
     name_for_rdkit_mol,
 )

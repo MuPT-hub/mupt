@@ -6,7 +6,7 @@ from typing import Any
 from itertools import product as cartesian
 
 from rdkit import Chem
-from mupt.interfaces.rdkit.rdprops import (
+from mupt.chemistry.rdkit.rdprops import (
     RDObj,
     assign_property_to_rdobj,
 )

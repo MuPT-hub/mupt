@@ -30,7 +30,7 @@ from rdkit.Chem.rdmolfiles import (
 )
 
 from ..chemistry.conversion import rdkit_atom_to_element
-from ..chemistry.sanitization import sanitized_mol
+from ..chemistry.rdkit.sanitization import sanitized_mol
 from ..geometry.arraytypes import Vector3
 from ..geometry.shapes import PointCloud
 from ..interfaces.rdkit.exporters import MUPT_RDKIT_ATOM_PROPS, primitive_to_rdkit_mols
