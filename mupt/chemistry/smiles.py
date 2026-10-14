@@ -1,8 +1,4 @@
 """For providing support and validation for chemical line notations"""
-# DEV: resist the temptation to merge this into interfaces.smiles;
-# that will cause a circular import own the line
-# Namely, interfaces.rdkit depends on utils here, and mporters/exporters
-# in interfaces.smileslib depend in turn on those RDKit utils
 
 from typing import Union
 from rdkit import Chem

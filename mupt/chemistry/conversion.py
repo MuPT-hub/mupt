@@ -6,6 +6,7 @@ from rdkit.Chem.rdchem import Atom
 from periodictable.core import Ion, Isotope, isatom
 
 from .core import ELEMENTS, ElementLike
+from .rdkit.linkers import is_linker
 
 
 def element_to_rdkit_atom(element: ElementLike) -> Atom:
@@ -36,9 +37,7 @@ def rdkit_atom_to_element(atom: Atom) -> ElementLike:
             f"Expected an RDKit Atom instance, got object of type {type(atom).__name__}"
         )
 
-    # DEV: am well-aware is_linker(atom : Atom) exists in the RDKit interface
-    # ("I wrote the damn bill"), but that import here would be circular
-    atom_is_linker: bool = atom.GetAtomicNum() == 0
+    atom_is_linker: bool = is_linker(atom)
     elem: ElementLike = ELEMENTS[atom.GetAtomicNum()]
     if (mass_number := atom.GetIsotope()) != 0:
         # bypass isotope validity check ONLY for linker atoms
