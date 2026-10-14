@@ -10,7 +10,7 @@ from .core import (
     RDKitPeriodicTable as RDKitPeriodicTable,
     valence_allowed as valence_allowed,
 )
-from .linkers import (
+from .rdkit.linkers import (
     is_linker as is_linker,
     not_linker as not_linker,
     num_linkers as num_linkers,

@@ -14,7 +14,7 @@ from rdkit.Chem.rdchem import (
 )
 from rdkit.Chem.rdmolops import GetMolFrags
 
-from ...chemistry.linkers import is_linker
+from ...chemistry.rdkit.linkers import is_linker
 from .components import atom_positions_from_rdkit, connector_between_rdatoms
 
 from .labelling import name_for_rdkit_mol

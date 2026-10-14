@@ -46,11 +46,11 @@ from .depiction import (
 )
 
 # CORE CHEMISTRY UTILS WHICH ARE RDKIT-SPECIFIC
-from ...chemistry.rdloggers import (
+from ...chemistry.rdkit.rdloggers import (
     suppress_rdkit_logs as suppress_rdkit_logs,
     RDLoggerNames as RDLoggerNames,
 )
-from ...chemistry.sanitization import (
+from ...chemistry.rdkit.sanitization import (
     sanitized_mol as sanitized_mol,
     AROMATICITY_MDL as AROMATICITY_MDL,
     SANITIZE_ALL as SANITIZE_ALL,

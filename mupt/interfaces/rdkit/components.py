@@ -27,7 +27,7 @@ from rdkit.Chem.rdchem import (
 from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
 
 # Custom
-from ...chemistry.linkers import anchor_and_linker_idxs
+from ...chemistry.rdkit.linkers import anchor_and_linker_idxs
 from .selection import (
     AtomCondition,
     BondCondition,

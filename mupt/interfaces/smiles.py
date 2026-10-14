@@ -18,7 +18,7 @@ from rdkit.Chem.rdDistGeom import EmbedMolecule
 from .rdkit import primitive_from_rdkit, primitive_to_rdkit
 from ..mupr.primitives import Primitive
 from ..chemistry.smiles import DEFAULT_SMILES_READ_PARAMS, DEFAULT_SMILES_WRITE_PARAMS
-from ..chemistry.sanitization import sanitized_mol
+from ..chemistry.rdkit.sanitization import sanitized_mol
 
 
 def primitive_from_smiles(
