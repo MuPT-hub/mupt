@@ -2,7 +2,7 @@
 
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles, SmilesWriteParams
-from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS
+from ..smiles import DEFAULT_SMILES_WRITE_PARAMS
 
 
 # Static reference for RDKit mol naming

@@ -28,7 +28,7 @@ from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
 
 # Custom
 from ...chemistry.rdkit.linkers import anchor_and_linker_idxs
-from .selection import (
+from ...chemistry.rdkit.selection import (
     AtomCondition,
     BondCondition,
     logical_or,

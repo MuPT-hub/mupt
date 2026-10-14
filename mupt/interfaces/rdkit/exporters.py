@@ -14,8 +14,8 @@ from rdkit.Chem.rdchem import (
 )
 from rdkit.Geometry import Point3D
 
-from .rdprops import RDPropType, assign_property_to_rdobj
-from .labelling import RDMOL_NAME_WRITE_PROP
+from ...chemistry.rdkit.rdprops import RDPropType, assign_property_to_rdobj
+from ...chemistry.rdkit.labelling import RDMOL_NAME_WRITE_PROP
 from ... import TOOLKIT_NAME
 from ...geometry.arraytypes import Vector3
 from ...chemistry.conversion import element_to_rdkit_atom
