@@ -69,7 +69,7 @@ leaves = termini
 
 # TB: strictly-speaking, this isn't an invariant since it relies on a graph coloring
 # consider moving to dedicated submodule if impl grows more complex in the future
-def canonical_form(graph) -> str:
+def canonical_form_graph(graph) -> str:
     """
     Return a canonical form based on a graph structure and assigned coloring
     Two graphs will have the same canonical forms IFF they are isomorphic
