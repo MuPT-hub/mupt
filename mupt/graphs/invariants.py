@@ -4,10 +4,12 @@ Properties of graphs which depend only on their network structure
 predicates derived from such graph properties
 """
 
-from typing import Generator
+from typing import Generator, TypeVar
 from collections import Counter
 
 from networkx.classes import Graph
+
+GT = TypeVar("GT", bound=Graph)
 
 
 def is_indiscrete(graph: Graph) -> bool:
@@ -40,7 +42,7 @@ def is_unbranched(graph: Graph) -> bool:
     an unbranching path(s) or an isolated node
     """
     for node, node_degree in graph.degree:
-        if node_degree > 1:
+        if node_degree > 2:
             return False
     else:
         return True
@@ -54,6 +56,7 @@ def is_branched(graph: Graph) -> bool:
     return not is_unbranched(graph)
 
 
+# Node or edge subsets and induced subgraphs
 def termini(graph: Graph) -> Generator[int, None, None]:
     """Generate the all nodes of a graph which are incident to exactly one edge"""
     for node, node_degree in graph.degree:
