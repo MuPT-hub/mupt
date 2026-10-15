@@ -1,18 +1,15 @@
 """Utilities for drawing graphs"""
 
-from typing import Callable, Hashable, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from networkx.classes import Graph
 from networkx.drawing import kamada_kawai_layout, draw as draw_nx
 
-from numpy import ndarray
-
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
+from .graphtypes import GraphLayout
 from .invariants import is_indiscrete
-
-type GraphLayout = Callable[[Graph], dict[Hashable, ndarray]]
 
 
 def graph_repr(graph: Graph) -> str:

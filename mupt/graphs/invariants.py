@@ -4,13 +4,13 @@ Properties of graphs which depend only on their network structure
 predicates derived from such graph properties
 """
 
-from typing import Generator, TypeVar
+from typing import Generator
 from collections import Counter
 
 from networkx.classes import Graph
 from networkx.algorithms import connected_components
 
-GT = TypeVar("GT", bound=Graph)
+from .graphtypes import GraphLike
 
 
 def is_indiscrete(graph: Graph) -> bool:
@@ -68,7 +68,7 @@ def termini(graph: Graph) -> Generator[int, None, None]:
 leaves = termini
 
 
-def components(graph: GT) -> Generator[GT, None, None]:
+def components(graph: GraphLike) -> Generator[GraphLike, None, None]:
     """
     Generates every connected component in the graph as Graph-like instances,
     rather than the node sets that networkx.connected_components provides
@@ -84,7 +84,7 @@ chains = components
 
 # TB: strictly-speaking, this isn't an invariant since it relies on a graph coloring
 # consider moving to dedicated submodule if impl grows more complex in the future
-def canonical_form_graph(graph) -> str:
+def canonical_form_graph(graph: Graph) -> str:
     """
     Return a canonical form based on a graph structure and assigned coloring
     Two graphs will have the same canonical forms IFF they are isomorphic
