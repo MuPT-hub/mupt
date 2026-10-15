@@ -8,6 +8,7 @@ from typing import Generator, TypeVar
 from collections import Counter
 
 from networkx.classes import Graph
+from networkx.algorithms import connected_components
 
 GT = TypeVar("GT", bound=Graph)
 
@@ -65,6 +66,20 @@ def termini(graph: Graph) -> Generator[int, None, None]:
 
 
 leaves = termini
+
+
+def components(graph: GT) -> Generator[GT, None, None]:
+    """
+    Generates every connected component in the graph as Graph-like instances,
+    rather than the node sets that networkx.connected_components provides
+
+    Yielded components will have the same Graph type as the graph passed in
+    """
+    for cc_nodes in connected_components(graph):
+        yield graph.subgraph(cc_nodes)
+
+
+chains = components
 
 
 # TB: strictly-speaking, this isn't an invariant since it relies on a graph coloring
