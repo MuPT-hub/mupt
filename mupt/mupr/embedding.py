@@ -27,12 +27,12 @@ PrimitiveHandle = tuple[PrimitiveLabel, int]  # (label, uniquification index)
 from dataclasses import dataclass
 from itertools import product as cartesian
 
+from networkx.classes import Graph
 from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes
 
 # DEV: this module CANNOT import Primitive if circular imports are to be avoided
 from .connection import Connector, ConnectorHandle
-from .topology import TopologicalStructure
 
 
 class GraphEmbeddingError(ValueError):
@@ -157,7 +157,7 @@ def flexible_connector_reference(
 # TB: suppressing complexity (C901) warning for the time being
 # this is being refactored in PR #56, so should be resolved soon
 def infer_connections_from_topology(  # noqa: C901
-    topology: TopologicalStructure,
+    topology: Graph,
     mapped_connectors: Mapping[PrimitiveHandle, Mapping[ConnectorHandle, Connector]],
     n_iter_max: int = 25,  # DEV: this is just a number I made up :P
 ) -> dict[frozenset[PrimitiveHandle], frozenset[ConnectorReference]]:

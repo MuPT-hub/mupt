@@ -157,7 +157,6 @@ def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
 
     from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
     from mupt.interfaces.smiles import primitive_from_smiles
-    from mupt.mupr.topology import TopologicalStructure
 
     smiles = {
         "head": "[H]O[CH2][CH2]OC(=O)c1ccc([C:2](=O)-*)cc1",
@@ -189,7 +188,7 @@ def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
             atom.role = PrimitiveRole.PARTICLE
         handles.append(segment.attach_child(residue))
     segment.set_topology(
-        nx.path_graph(handles, create_using=TopologicalStructure),
+        nx.path_graph(handles),
         max_registration_iter=100,
     )
     root.attach_child(segment)
