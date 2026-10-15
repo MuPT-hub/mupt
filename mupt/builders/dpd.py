@@ -28,6 +28,7 @@ from networkx import all_simple_paths
 
 from .base import PlacementGenerator
 from ..mutils.iteration import sliding_window
+from ..graphs.invariants import is_branched, termini, chains
 
 from ..geometry.arraytypes import Vector3, Array2x3
 from ..geometry.measure import normalized
@@ -172,12 +173,12 @@ class DPDRandomWalk(PlacementGenerator):
         Returns the pair of node labels of the termini, i.e.
         a pair of the same value twice for single-node graphs
         """
-        termini = tuple(chain.termini)
-        LOGGER.debug(termini)
-        if len(termini) == 2:
-            return termini
-        elif len(termini) == 1:
-            return termini[0], termini[0]
+        chain_ends = tuple(termini(chain))
+        if len(chain_ends) == 2:
+            return chain_ends
+        elif len(chain_ends) == 1:
+            # for isolated nodes, return the same node twice
+            return chain_ends[0], chain_ends[0]
         else:
             raise ValueError(
                 "Unbranched topology must have either 1 or 2 terminal nodes"
@@ -186,7 +187,7 @@ class DPDRandomWalk(PlacementGenerator):
     # implementing builder contracts
     def check_preconditions(self, primitive: Primitive) -> None:
         """Enforce that no branches chains exist anywhere"""
-        if primitive.topology.is_branched:
+        if is_branched(primitive.topology):
             raise ValueError(
                 "Random walk chain builder behavior undefined for branched topologies"
             )
@@ -251,7 +252,7 @@ class DPDRandomWalk(PlacementGenerator):
         effective_radii: dict[int, float] = dict()
 
         particle_indexer: Iterator[int] = count(0)
-        for chain_idx, chain in enumerate(primitive.topology.chains):
+        for chain_idx, chain in enumerate(chains(primitive.topology)):
             head_handle, tail_handle = self.get_termini_handles(chain)
             path: list[PrimitiveHandle] = next(
                 all_simple_paths(chain, source=head_handle, target=tail_handle)
@@ -309,8 +310,6 @@ class DPDRandomWalk(PlacementGenerator):
                     handle_to_particle_idx[prim_handle_outgoing],
                     handle_to_particle_idx[prim_handle_incoming],
                 )
-                # LOGGER.debug(f'Adding a bond between "{prim_handle_outgoing}" (idx
-                # {idx_outgoing}) and "{prim_handle_incoming}" (idx {idx_incoming})')
                 bonds.append(idx_pair)
 
                 delta = self.bond_length * random_unit_vector()

@@ -56,6 +56,7 @@ from .embedding import (
 )
 
 from ..mutils.containers import UniqueRegistry
+from ..graphs.invariants import is_empty, canonical_form_graph
 from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
@@ -151,7 +152,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         # child Primitives
         self._topology = TopologicalStructure()
-        # self._topology = self.compatible_indiscrete_topology()
         self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
             UniqueRegistry()
         )
@@ -1063,7 +1063,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     @property
     def is_simple(self) -> bool:
         """Whether a Primitive has no internal structure"""
-        return self.topology.is_empty and self.is_leaf
+        return is_empty(self.topology) and self.is_leaf
 
     @property
     def topology(self) -> TopologicalStructure:
@@ -1529,7 +1529,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             f"{elem_form}"
             f"({self.canonical_form_connectors()})"
             f"[shape={self.canonical_form_shape()}]"
-            f"<graph_hash={self.topology.canonical_form()}>"
+            f"<graph_hash={canonical_form_graph(self.topology)}>"
         )
 
     def canonical_form_peppered(self) -> str:

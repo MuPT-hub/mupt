@@ -21,12 +21,13 @@ from networkx import all_simple_paths
 
 from .base import PlacementGenerator
 from ..mutils.iteration import flexible_iterator, sliding_window
+from ..graphs.invariants import is_branched, termini, chains
 
 from ..geometry.arraytypes import Shape, Dims, NumericNP, Vector3
 from ..geometry.measure import normalized
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
-from mupt.geometry.transforms.rigid import rigid_vector_coalignment
+from ..geometry.transforms.rigid import rigid_vector_coalignment
 
 from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
@@ -181,11 +182,12 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         Returns the pair of node labels of the termini, i.e.
         a pair of the same value twice for single-node graphs
         """
-        termini = tuple(chain.termini)
-        if len(termini) == 2:
-            return termini
-        elif len(termini) == 1:
-            return termini[0], termini[0]
+        chain_ends = tuple(termini(chain))
+        if len(chain_ends) == 2:
+            return chain_ends
+        elif len(chain_ends) == 1:
+            # for isolated nodes, return the same node twice
+            return chain_ends[0], chain_ends[0]
         else:
             raise ValueError(
                 "Unbranched topology must have either 1 or 2 terminal nodes"
@@ -194,7 +196,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
     # implementing builder contracts
     def check_preconditions(self, primitive: Primitive) -> None:
         """Enforce that no branches chains exist anywhere"""
-        if primitive.topology.is_branched:
+        if is_branched(primitive.topology):
             raise ValueError(
                 "Random walk chain builder behavior undefined for branched topologies"
             )
@@ -212,7 +214,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         Reorient bodies to be coincident (along a predefined axis) with
         the steps of an angle-constrained non-self-avoiding random walk
         """
-        for chain in primitive.topology.chains:
+        for chain in chains(primitive.topology):
             # DEV: taking extra care to ensure chain is oriented from end-to-end,
             # because there's no requirement (or indeed, reason to believe)
             # that the order of nodes in chain.nodes is meaningful
