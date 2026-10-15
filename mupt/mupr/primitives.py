@@ -32,7 +32,10 @@ from anytree.render import (
     ContRoundStyle,
     DoubleStyle,
 )
-import networkx as nx
+from networkx.classes import DiGraph
+from networkx.algorithms import compose as compose_graphs
+from networkx.drawing import draw as draw_nx
+from networkx.drawing.layout import kamada_kawai_layout, shell_layout
 
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
@@ -57,7 +60,11 @@ from .embedding import (
 
 from ..mutils.containers import UniqueRegistry
 from ..graphs.invariants import is_empty, canonical_form_graph
-from ..graphs.visualization import graph_repr, draw_graph, GraphLayout
+from ..graphs.visualization import (
+    GraphLayout,
+    graph_repr,
+    draw_graph,
+)
 from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
@@ -1468,7 +1475,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def __eq__(self, other: object) -> bool:
         # DEVNOTE: in order to use equivalent-but-not-identical Primitives
-        # as nodes in nx.Graph, __eq__ CANNOT evaluate similarity by hashes
+        # as nodes in networkx Graph, __eq__ CANNOT evaluate similarity by hashes
         """Check whether two primitives are equivalent, but not necessarily identical"""
         if not isinstance(other, Primitive):
             raise TypeError(f"Cannot compare Primitive to {type(other)}")
@@ -1623,7 +1630,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def visualize_topology(
         self,
         ax: Optional[Axes] = None,
-        layout: GraphLayout = nx.kamada_kawai_layout,
+        layout: GraphLayout = kamada_kawai_layout,
         **draw_kwargs,
     ) -> None:
         """Draw the connectivity of this Primitive's children to the passed Axes"""
@@ -1633,7 +1640,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         root_label: Hashable = None,
         depth: int = 0,
-    ) -> nx.DiGraph:
+    ) -> DiGraph:
         """
         Generate directed graph representing the connectivity
         of this Primitive and all its descendants
@@ -1642,15 +1649,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
             root_label = self.label
         root_handle = f"{depth}-{root_label}"
 
-        hier_tree = nx.DiGraph()
+        hier_tree = DiGraph()
         hier_tree.add_node(root_handle)
         for child_handle, child in self.children_by_handle.items():
-            hier_tree = nx.compose(
+            hier_tree = compose_graphs(
                 hier_tree,
                 child._hierarchy_tree(root_label=child_handle, depth=depth + 1),
+                # rename=(),
                 ## TODO: add mechanism for de-duplifying handles by depth
                 ## (related to planned expansion acceleration)
-                # rename=(),
             )
             hier_tree.add_edge(root_handle, child_handle)
 
@@ -1659,7 +1666,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def visualize_hierarchy(
         self,
         ax: Optional[Axes] = None,
-        layout: GraphLayout = nx.shell_layout,
+        layout: GraphLayout = shell_layout,
         **draw_kwargs,
     ) -> None:
         """
@@ -1667,7 +1674,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         all its descendants to the passed Axes
         """
         hier_tree = self._hierarchy_tree()
-        nx.draw(
+        draw_nx(
             hier_tree,
             ax=ax,
             pos=layout(hier_tree),
