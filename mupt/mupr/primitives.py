@@ -48,7 +48,7 @@ from .connection import (
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .topology import TopologicalStructure, GraphLayout
+from .topology import TopologicalStructure
 from .embedding import (
     infer_connections_from_topology,
     ConnectorReference,
@@ -57,6 +57,7 @@ from .embedding import (
 
 from ..mutils.containers import UniqueRegistry
 from ..graphs.invariants import is_empty, canonical_form_graph
+from ..graphs.visualization import graph_repr, draw_graph, GraphLayout
 from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
@@ -1557,7 +1558,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         repr_attr_strs: dict[str, str] = {
             "shape": self.canonical_form_shape(),
             "functionality": str(self.functionality),
-            "topology": repr(self.topology),
+            "topology": graph_repr(self.topology),
             "element": str(self.element),
             "label": self.label,
         }
@@ -1626,7 +1627,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         **draw_kwargs,
     ) -> None:
         """Draw the connectivity of this Primitive's children to the passed Axes"""
-        self.topology.visualize(ax=ax, layout=layout, **draw_kwargs)
+        draw_graph(self.topology, ax=ax, layout=layout, **draw_kwargs)
 
     def _hierarchy_tree(
         self,

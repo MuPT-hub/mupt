@@ -29,7 +29,7 @@ def graph_repr(graph: Graph) -> str:
 
 def draw_graph(
     graph: Graph,
-    ax: Optional[Axes] = None,
+    ax: Optional["Axes"] = None,
     layout: GraphLayout = kamada_kawai_layout,
     **draw_kwargs,
 ) -> None:
