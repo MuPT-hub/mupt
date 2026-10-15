@@ -14,9 +14,10 @@ from itertools import count
 from functools import reduce
 
 import networkx as nx
+from networkx.classes import Graph
 
 
-class TopologicalStructure(nx.Graph):
+class TopologicalStructure(Graph):
     # DEV: opting not to call this just "Topology" for now to avoid confusion,
     # ...since many molecular packages also have a class by that name
     """
@@ -31,7 +32,7 @@ class TopologicalStructure(nx.Graph):
 def path_graphs(
     chain_lengths: Iterable[int],
     node_labels: Optional[Iterator[Hashable]] = None,
-    create_using: type[nx.Graph] = TopologicalStructure,
+    create_using: type[Graph] = Graph,
 ) -> Generator[nx.Graph, None, None]:
     """
     Generate a sequence of path graphs according to a
@@ -50,7 +51,7 @@ def path_graphs(
 def noodle_graph(
     chain_lengths: Iterable[int],
     node_labels: Optional[Iterator[Hashable]] = None,
-    create_using: type[nx.Graph] = TopologicalStructure,
+    create_using: type[Graph] = Graph,
 ) -> nx.Graph:
     """
     Generate a single graph representing a collection of disjoint linear

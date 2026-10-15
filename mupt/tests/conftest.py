@@ -12,7 +12,6 @@ import networkx as nx
 from periodictable import elements
 
 from ..mupr.primitives import Primitive
-from ..mupr.topology import TopologicalStructure
 from ..geometry.coordinates.reference import origin
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
@@ -249,10 +248,7 @@ def build_SAAMR_polymer_system(
 
             # Set path graph topology
             molprim.set_topology(
-                nx.path_graph(
-                    molprim.children_by_handle.keys(),
-                    create_using=TopologicalStructure,
-                ),
+                nx.path_graph(molprim.children_by_handle.keys()),
                 max_registration_iter=100,
             )
 
@@ -569,10 +565,7 @@ def depth4_bonded_system() -> Primitive:
     chain.attach_child(head_prim)
     chain.attach_child(tail_prim)
     chain.set_topology(
-        nx.path_graph(
-            chain.children_by_handle.keys(),
-            create_using=TopologicalStructure,
-        ),
+        nx.path_graph(chain.children_by_handle.keys()),
         max_registration_iter=100,
     )
 

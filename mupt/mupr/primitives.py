@@ -32,7 +32,7 @@ from anytree.render import (
     ContRoundStyle,
     DoubleStyle,
 )
-from networkx.classes import DiGraph
+from networkx.classes import Graph, DiGraph
 from networkx.algorithms import compose as compose_graphs
 from networkx.drawing import draw as draw_nx
 from networkx.drawing.layout import kamada_kawai_layout, shell_layout
@@ -51,7 +51,6 @@ from .connection import (
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .topology import TopologicalStructure
 from .embedding import (
     infer_connections_from_topology,
     ConnectorReference,
@@ -159,7 +158,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             self.element = element
 
         # child Primitives
-        self._topology = TopologicalStructure()
+        self._topology = Graph()
         self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
             UniqueRegistry()
         )
@@ -998,9 +997,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     # Topology
     # Consistency checks between topology and other internal attributes
-    def check_children_bijective_to_topology_nodes(
-        self, topology: TopologicalStructure
-    ) -> None:
+    def check_children_bijective_to_topology_nodes(self, topology: Graph) -> None:
         """
         Verify that a 1:1 correspondence exists between
         the handles of the child Primitives registered to this Primitive
@@ -1024,7 +1021,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
             )
 
     def check_internal_connections_bijective_to_topology_edges(
-        self, topology: TopologicalStructure
+        self,
+        topology: Graph,
     ) -> None:
         """
         Verify that a 1:1 correspondence exists between the internal connections
@@ -1050,10 +1048,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 "internal connection(s) are unrepresented in the topology"
             )
 
-    def check_topology_compatible(
-        self,
-        topology: Optional[TopologicalStructure] = None,
-    ) -> None:
+    def check_topology_compatible(self, topology: Optional[Graph] = None) -> None:
         """
         Check sufficient conditions for a topology
         to be compatible with self's children and Connectors.
@@ -1074,19 +1069,19 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return is_empty(self.topology) and self.is_leaf
 
     @property
-    def topology(self) -> TopologicalStructure:
+    def topology(self) -> Graph:
         """The connectivity of the immediate children of this Primitive"""
         return self._topology
 
     @topology.setter
-    def topology(self, new_topology: TopologicalStructure) -> None:
+    def topology(self, new_topology: Graph) -> None:
         raise AttributeError(
             f"Direct assignment to topology is prohibited; "
             f"use {self.__class__.__name__}.set_topology() method instead"
         )
 
     def set_topology(
-        self, new_topology: TopologicalStructure, max_registration_iter: int = 100
+        self, new_topology: Graph, max_registration_iter: int = 100
     ) -> None:
         """
         Assign a new topology to this Primitive, squashing any prior internal
@@ -1097,7 +1092,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         iterations of the registration algorithm to finish converging;
         If registration fails the first time, try increasing max_registration_iter
         """
-        if not isinstance(new_topology, TopologicalStructure):
+        if not isinstance(new_topology, Graph):
             raise TypeError(f"Invalid topology type {type(new_topology)}")
 
         self.set_connectivity_from_topology(
@@ -1108,7 +1103,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         self.check_self_consistent()
 
-    def compatible_indiscrete_topology(self) -> TopologicalStructure:
+    def compatible_indiscrete_topology(self) -> Graph:
         """
         An indiscrete (i.e. edgeless) topology over
         the currently-registered child Primitives
@@ -1116,7 +1111,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         Passes all necessary self-consistency checks,
         though not sufficient ones in general
         """
-        new_topology = TopologicalStructure()
+        new_topology = Graph()
         new_topology.add_nodes_from(self.children_by_handle.keys())
 
         return new_topology
@@ -1139,7 +1134,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def set_connectivity_from_topology(
         self,
-        topology: TopologicalStructure,
+        topology: Graph,
         connector_registration_max_iter: int = 25,
     ) -> None:
         """
@@ -1448,7 +1443,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             subprimitive.parent = clone_primitive
 
         # transfer topology
-        clone_primitive._topology = TopologicalStructure(self._topology)
+        clone_primitive._topology = Graph(self._topology)
         # DEV: include self-consistency check in here for good measure?
 
         return clone_primitive

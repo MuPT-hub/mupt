@@ -18,7 +18,7 @@ type GraphLayout = Callable[[Graph], dict[Hashable, ndarray]]
 def graph_repr(graph: Graph) -> str:
     """
     Temporary port of deprecated TopologicalStructure.__repr__
-    Moved over
+    Moved over for backwards compatibility until Primitive is reworked
     """
     return (
         f"{graph.__class__.__name__}"

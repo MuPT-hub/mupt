@@ -24,7 +24,7 @@ from typing import (
 from itertools import count
 
 import numpy as np
-from networkx import all_simple_paths
+from networkx import Graph, all_simple_paths
 
 from .base import PlacementGenerator
 from ..mutils.iteration import sliding_window
@@ -36,7 +36,6 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
-from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
@@ -164,9 +163,7 @@ class DPDRandomWalk(PlacementGenerator):
         self.output_name = output_name
 
     # optional helper methods (to declutter casework from main logic)
-    def get_termini_handles(
-        self, chain: TopologicalStructure
-    ) -> tuple[Hashable, Hashable]:
+    def get_termini_handles(self, chain: Graph) -> tuple[Hashable, Hashable]:
         """
         Find the terminal node(s) of what is assumed to be a linear (path) graph
 

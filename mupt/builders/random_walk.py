@@ -17,7 +17,7 @@ from collections import defaultdict
 
 import numpy as np
 from scipy.spatial.transform import RigidTransform
-from networkx import all_simple_paths
+from networkx import Graph, all_simple_paths
 
 from .base import PlacementGenerator
 from ..mutils.iteration import flexible_iterator, sliding_window
@@ -29,7 +29,6 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 
-from ..mupr.topology import TopologicalStructure
 from ..mupr.connection import Connector
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
@@ -173,9 +172,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
         self.rng = rng
 
     # optional helper methods (to declutter casework from main logic)
-    def get_termini_handles(
-        self, chain: TopologicalStructure
-    ) -> tuple[Hashable, Hashable]:
+    def get_termini_handles(self, chain: Graph) -> tuple[Hashable, Hashable]:
         """
         Find the terminal node(s) of what is assumed to be a linear (path) graph
 

@@ -23,7 +23,6 @@ from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives import Primitive
-from mupt.mupr.topology import TopologicalStructure
 from mupt.roles import assign_SAAMR_roles
 
 
@@ -94,9 +93,7 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
         for unit_name in sequence_repeat_units(args.chain_len):
             segment.attach_child(lexicon[unit_name].copy())
         segment.set_topology(
-            nx.path_graph(
-                segment.children_by_handle.keys(), create_using=TopologicalStructure
-            ),
+            nx.path_graph(segment.children_by_handle.keys()),
             max_registration_iter=100,
         )
         root.attach_child(segment)
