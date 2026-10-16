@@ -3,10 +3,10 @@
 import pytest
 
 from mupt.chemistry.core import BondType
+from mupt.builders.heading import TraversalDirection
 from mupt.mupr.connection import (
     Connector,
     AttachmentPoint,
-    TraversalDirection,
 )
 
 
