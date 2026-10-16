@@ -2,13 +2,13 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from networkx.classes import Graph
-from networkx.drawing import kamada_kawai_layout, draw as draw_nx
+from networkx.classes import Graph, DiGraph
+from networkx.drawing import kamada_kawai_layout, draw as draw_nx, draw_networkx
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-from .graphtypes import GraphLayout
+from .graphtypes import GraphLayout, GraphPositions
 from .invariants import is_indiscrete
 
 
@@ -56,3 +56,32 @@ def draw_graph(
         pos=layout(graph),
         **draw_kwargs,
     )
+
+
+def draw_networkx_tree(
+    tree: DiGraph,
+    pos: Optional[GraphPositions] = None,
+    ax: Optional["Axes"] = None,
+    margins: float = 0.25,
+    **kwargs,
+) -> "Axes":
+    """
+    Draw a directed graph with separated arcs for parallel edges
+
+    Thin wrapper around draw_networkx()
+    See networkx.drawing documentation for kwarg details
+    """
+    from networkx import nx_agraph  # nice pygraphviz layouts
+
+    if "with_labels" not in kwargs:
+        kwargs["with_labels"] = True
+
+    if ax is None:
+        ax = default_graph_axes(margins=margins)
+
+    if pos is None:
+        pos = nx_agraph.graphviz_layout(tree, prog="dot")
+
+    draw_networkx(tree, pos=pos, **kwargs)
+
+    return ax
