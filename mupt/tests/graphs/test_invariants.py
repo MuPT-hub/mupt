@@ -15,6 +15,7 @@ from networkx.generators import (
     tadpole_graph,
     heawood_graph,  # TB: can be any branched graph for tests; chose a personal favorite
     caveman_graph,
+    balanced_tree,
 )
 
 from mupt.graphs.graphtypes import Node
@@ -23,6 +24,7 @@ from mupt.graphs.invariants import (
     is_indiscrete,
     is_unbranched,
     is_branched,
+    is_acyclic,
     is_linear,
     components,
     termini,
@@ -38,6 +40,7 @@ class GraphInvariantExample:
     is_empty: bool
     is_unbranched: bool
     is_branched: bool
+    is_acyclic: bool
     is_linear: bool
 
 
@@ -50,24 +53,27 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=True,
             is_empty=True,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         GraphInvariantExample(
             null_graph(create_using=DiGraph),
             is_indiscrete=True,
             is_empty=True,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         GraphInvariantExample(
             Graph(),
             is_indiscrete=True,
             is_empty=True,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         # trivial graph (one node, no edges)
         GraphInvariantExample(
@@ -75,8 +81,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=True,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         # alternate form of the empty graph
         GraphInvariantExample(
@@ -84,8 +91,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=True,
             is_empty=True,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         # alternate form of the trivial graph
         GraphInvariantExample(
@@ -93,24 +101,27 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=True,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         GraphInvariantExample(
             path_graph(3),
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         GraphInvariantExample(
             path_graph(3, create_using=DiGraph),
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         # test with disconnected components (in this case, isolated nodes)
         GraphInvariantExample(
@@ -118,8 +129,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=True,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         # Cyclic graphs - unbranched, but not linear
         GraphInvariantExample(
@@ -127,16 +139,18 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=False,
+            is_linear=False,
         ),
         GraphInvariantExample(
             cycle_graph(5, create_using=DiGraph),
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=False,
+            is_linear=False,
         ),
         # graphs with loops
         ## 2-cycle "head" is still linear
@@ -145,8 +159,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         ## 3-cycle "head" introduces branching
         GraphInvariantExample(
@@ -154,8 +169,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=False,
-            is_linear=False,
             is_branched=True,
+            is_acyclic=False,
+            is_linear=False,
         ),
         # graphs with branches
         ## alternate form of the trivial graph
@@ -164,8 +180,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=True,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         ## equivalent to a 2-node path graph
         GraphInvariantExample(
@@ -173,8 +190,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         ## equivalent to a 3-node path graph
         GraphInvariantExample(
@@ -182,8 +200,9 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=True,
-            is_linear=True,
             is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
         ),
         ## branching of star graph finally "kicks in"
         GraphInvariantExample(
@@ -191,24 +210,46 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=False,
-            is_linear=False,
             is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
         ),
         GraphInvariantExample(
             star_graph(3, create_using=DiGraph),
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=False,
-            is_linear=False,
             is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
         ),
+        # special graphs
         GraphInvariantExample(
             heawood_graph(),
             is_indiscrete=False,
             is_empty=False,
             is_unbranched=False,
-            is_linear=False,
             is_branched=True,
+            is_acyclic=False,
+            is_linear=False,
+        ),
+        GraphInvariantExample(
+            balanced_tree(2, 3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
+        ),
+        GraphInvariantExample(
+            balanced_tree(2, 3, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
         ),
     )
 
@@ -233,15 +274,21 @@ def test_is_unbranched(graph_example: GraphInvariantExample) -> None:
 
 
 @pytest.mark.parametrize("graph_example", graph_invariant_examples())
-def test_is_linear(graph_example: GraphInvariantExample) -> None:
-    """Test that the is_linear() invariant is calculated correctly"""
-    assert is_linear(graph_example.graph) == graph_example.is_linear
-
-
-@pytest.mark.parametrize("graph_example", graph_invariant_examples())
 def test_is_branched(graph_example: GraphInvariantExample) -> None:
     """Test that the is_branched() invariant is calculated correctly"""
     assert is_branched(graph_example.graph) == graph_example.is_branched
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_acyclic(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_acyclic() invariant is calculated correctly"""
+    assert is_acyclic(graph_example.graph) == graph_example.is_acyclic
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_linear(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_linear() invariant is calculated correctly"""
+    assert is_linear(graph_example.graph) == graph_example.is_linear
 
 
 # Subgraph enumeration
