@@ -13,12 +13,11 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Generator,
     Hashable,
     Iterable,
     Optional,
     TypeAlias,
-    Union,
+    TYPE_CHECKING,
 )
 
 from dataclasses import dataclass, field
@@ -28,11 +27,16 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
+if TYPE_CHECKING:
+    from .management import HoldsConnectors
+
 from .types import AttachmentLabel, ConnectorLabel
 from .alignment import are_antialigned
+from .exceptions import ConnectorLockedError, IncompatibleConnectorError
 
 from ..canonicalize import lex_order_multiset_str
-from ...chemistry.core import BondType
+from ...mutils.referencing import Addressed
+from ...chemistry.core import BondType, BOND_ORDER
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions
 from ...geometry.coordinates.basis import is_orthonormal
@@ -46,32 +50,19 @@ from ...geometry.transforms.rigid.application import RigidlyTransformable
 @dataclass(frozen=False)
 class AttachmentPoint(RigidlyTransformable):
     """
-    A point with an associated attachment, which must come from
-    a predefined set (attachables) of allowable designations.
-
-    Forms half of a Connector; represents a spatial attachment
-    to some other body, identified by its attachment.
+    Point with an associated position and set of acceptable attachment type designations
+    Forms half of a Connector and represents a spatial attachment point to another body
     """
 
     attachables: set[AttachmentLabel] = field(default_factory=set)
-    attachment: Optional[AttachmentLabel] = field(default=None)
+    # TB: worth allowing option to have position unassigned (e.g. None)?
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
 
     def __setattr__(self, key, value):
         """
-        Protects access to .attachment and .position attrs, namely:
-        * Forces .attachment to be a member of .attachables
-        * Ensures self.position is a proper 3-vector
-
-        Assigns attr with no restrictions on any other key
+        Ensures self.position is always a proper 3-vector
+        Assigns attribute with any other key without restriction
         """
-        if key == "attachment":
-            if (value is not None) and (value not in self.attachables):
-                raise ValueError(
-                    f"Attachment '{value!s}' not designated as "
-                    f"one of attachable labels {self.attachables}"
-                )
-
         if key == "position":
             value = as_n_vector(value, dimension=3)
         return super().__setattr__(key, value)
@@ -80,7 +71,6 @@ class AttachmentPoint(RigidlyTransformable):
     def _copy_untransformed(self) -> "AttachmentPoint":
         return self.__class__(
             attachables=set(att for att in self.attachables),
-            attachment=self.attachment,
             position=np.array(self.position, copy=True),
         )
 
@@ -89,7 +79,7 @@ class AttachmentPoint(RigidlyTransformable):
 
 
 # Connector class proper
-class Connector(RigidlyTransformable):
+class Connector(Addressed, RigidlyTransformable):
     """
     Abstraction of the notion of a chemical bond between a known
     body (anchor) and an indeterminate neighbor body (linker)
@@ -120,8 +110,21 @@ class Connector(RigidlyTransformable):
         )
         self.metadata: dict[Hashable, Any] = metadata or dict()
 
+        ## Protected attributes
+        self._locked: bool = False
+        self._neighbor: Optional[Connector] = None
+        self._holder: Optional["HoldsConnectors"] = None
         # DEV: no call to setter; must assign via protected tangent_vector property
         self._tangent_position = None
+
+    @property
+    def bond_order(self) -> float:
+        """
+        A numerical bond order corresponding to the
+        type of bond associated to this Connector
+        E.g. UNASSIGNED = 0.0, AROMATIC = 1.5, DOUBLE = 2.0, etc.
+        """
+        return BOND_ORDER.get(self.bondtype, 0.0)
 
     # Geometric properties
     # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
@@ -399,6 +402,37 @@ class Connector(RigidlyTransformable):
 
         return new_connector
 
+    # Holder: higher-level object which "holds" this Connector (e.g. for reverse-lookup)
+    def has_holder(self) -> bool:
+        """Check if holder has been assigned"""
+        return self._holder is not None
+
+    @property
+    def holder(self) -> Optional["HoldsConnectors"]:
+        """
+        Some governing object which 'holds' this
+        Connector as part of a larger structure
+
+        Used for reverse-lookup
+        """
+        return self._holder
+
+    @holder.setter
+    def holder(self, new_holder: "HoldsConnectors") -> None:
+        if self._locked:
+            raise ConnectorLockedError(
+                f"Cannot assign new holder to locked Connector {self}"
+            )
+        self._holder = new_holder
+
+    @holder.deleter
+    def holder(self) -> None:
+        if self._locked and not self.has_holder:
+            raise ConnectorLockedError(
+                f"Cannot remove holder of locked Connector {self}"
+            )
+        self._holder = None
+
     # Comparison methods
     def bondable_with(self, other: "Connector") -> bool:
         """Whether this Connector is bondable with another Connector instance"""
@@ -407,38 +441,11 @@ class Connector(RigidlyTransformable):
                 False  # DEVNOTE: raise TypeError instead (or at least log a warning)?
             )
 
-        # DEV: opting for loosest possible comparison where at least on of the
-        # attachable elements overlaps between opposing pairs of attachment points
-        # opted not to check the (perhaps more obvious) "self.anchor.attachment in
-        # other.linker.attachables", etc.  because the attachment labels may be
-        # unassigned between resolution shift operations in the representation hierarchy
         return (
             (not set.isdisjoint(self.anchor.attachables, other.linker.attachables))
             and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
             and (self.bondtype == other.bondtype)
-            # TODO: also compare positions, if set?
         )
-
-    def bondable_with_iter(
-        self, *others: Iterable[Union["Connector", Iterable["Connector"]]]
-    ) -> Generator[bool, None, None]:
-        """
-        Whether this Connector can be connected to each of a
-        sequence of other Connectors, in the order passed
-        """
-        for other in others:
-            if isinstance(other, Connector):
-                yield self.bondable_with(other)
-            elif isinstance(other, Iterable):
-                # DEVNOTE: deliberately NOT using "yield from" to preserve parity
-                # with input (output element corresponding to iterable is now just
-                # a Generator instance, rather than a bool)
-                yield self.bondable_with_iter(*other)
-            else:
-                raise TypeError(
-                    f"Connector can only be bonded to other Connectors or "
-                    f"collection of Connectors, not with object of type {type(other)}"
-                )
 
     def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
         """
@@ -464,9 +471,7 @@ class Connector(RigidlyTransformable):
         labels (not necessarily positions) with to another Connector
         """
         return (
-            # and self.anchor.attachment == other.anchor.attachment
             self.anchor.attachables == other.anchor.attachables
-            # and self.linker.attachment == other.linker.attachment
             and self.linker.attachables == other.linker.attachables
             and self.bondtype == other.bondtype
         )
@@ -477,6 +482,87 @@ class Connector(RigidlyTransformable):
         without any change to programs which involve it
         """
         return self.coincides_with(other) and self.resembles(other)
+
+    # Interactions with neighboring Connectors
+    ## Permissions for editing neighbor
+    @property
+    def is_locked(self) -> bool:
+        """Whether editing of neighbors is allowed"""
+        return self._locked
+
+    def _lock(self) -> None:
+        self._locked = True
+
+    def lock(self) -> None:
+        """Block editing of neighbors"""
+        self._lock()
+        if self.has_neighbor:
+            self.neighbor._lock()  # ensure paired connectors remain synchronized
+
+    def _unlock(self) -> None:
+        self._locked = False
+
+    def unlock(self) -> None:
+        """Allow editing of neighbors"""
+        self._unlock()
+        if self.has_neighbor:
+            self.neighbor._unlock()  # ensure paired connectors remain synchronized
+
+    def toggle_lock(self) -> None:
+        """Invert current neighbor lock status"""
+        self._locked = not self._locked
+
+    def _precondition_mutable_neighbor(self, msg_postfix: str = "") -> None:
+        """
+        Boilerplate for checking if permission is
+        given to modify neighbor of this Connector
+        """
+        msg: str = f"{self!r} is locked and cannot be modified."
+        if msg_postfix:
+            msg += " " + msg_postfix
+
+        if self.is_locked:
+            raise ConnectorLockedError(msg)
+
+    ## Neighbor config
+    @property
+    def has_neighbor(self) -> bool:
+        """Whether this Connector has been paired with another Connector"""
+        return self._neighbor is not None
+
+    @property
+    def neighbor(self) -> Optional["Connector"]:
+        """
+        The Connector assigned to be this Connector's neighbor, if assigned
+        If unassigned, returns None
+        """
+        return self._neighbor
+
+    @neighbor.setter
+    def neighbor(self, other: "Connector") -> None:
+        self._precondition_mutable_neighbor()
+        other._precondition_mutable_neighbor()
+
+        # N.B.: if ALL positions are unset, will evaluate as antialigned
+        # TB: may relax this / allow passing alignment strategy
+        if not self.is_antialigned(other):
+            raise IncompatibleConnectorError(
+                "Candidate for neighbor Connector is not anti-aligned within tolerance"
+            )
+
+        self._neighbor = other
+        other._neighbor = self
+
+    @neighbor.deleter
+    def neighbor(self) -> None:
+        if not self.has_neighbor:
+            return
+
+        self._precondition_mutable_neighbor()
+        self.neighbor._precondition_mutable_neighbor()
+
+        self.neighbor._neighbor = None
+        self._neighbor = None  # done second since ref is needed to find other Connector
 
     # Labelling and representation methods
     @property
@@ -541,10 +627,7 @@ class Connector(RigidlyTransformable):
             self.anchor.attachables, self.linker.attachables
         ):
             conn_clone = self.copy()
-            conn_clone.anchor.attachment = anchor_label
             conn_clone.anchor.attachables = {anchor_label}
-
-            conn_clone.linker.attachment = linker_label
             conn_clone.linker.attachables = {linker_label}
 
             indiv_conn_map[(anchor_label, linker_label)] = conn_clone

@@ -7,11 +7,14 @@ class ConnectionError(Exception):
     pass
 
 
+class ConnectorLockedError(ConnectionError, AttributeError):
+    """Raised when attempting to modify immutable attributes on a locked Connector"""
+
+    pass
+
+
 class IncompatibleConnectorError(ConnectionError):
-    """
-    Raised when attempting to connect two Connectors
-    which are, for whatever reason, incompatible
-    """
+    """Raised when attempting to connect two Connectors which are incompatible"""
 
     pass
 
@@ -23,9 +26,6 @@ class MissingConnectorError(ConnectionError):
 
 
 class UnboundConnectorError(ConnectionError):
-    """
-    Raised when a pair of Connectors are
-    unexpectedly not bound to one another
-    """
+    """Raised when a pair of Connectors are unexpectedly not bound to one another"""
 
     pass
