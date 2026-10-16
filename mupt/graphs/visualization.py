@@ -5,17 +5,13 @@ from typing import Generator, Optional, TYPE_CHECKING
 from inspect import signature
 from collections import defaultdict
 
-from networkx.classes import Graph, DiGraph, MultiGraph
-from networkx.drawing import (
-    spring_layout,
-    draw_networkx,
-    draw_networkx_edges,
-)
+from networkx.classes import Graph, DiGraph
+from networkx.drawing import kamada_kawai_layout, draw as draw_nx, draw_networkx
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-from .graphtypes import GraphEdge, GraphPositions
+from .graphtypes import GraphLayout, GraphPositions
 from .invariants import is_indiscrete
 
 
@@ -104,37 +100,12 @@ def draw_networkx_with_arcs(
     if "with_labels" not in kwargs:
         kwargs["with_labels"] = True
 
-    edgelist = kwargs.pop("edgelist", G.edges)  # handle edgelist manually
-    _ = kwargs.pop("connectionstyle", None)  # prevent connectionstyle override
-
-    # TB DEV: these kwargs filters are lifted from internals of draw_networkx()
-    valid_edge_kwds = signature(draw_networkx_edges).parameters.keys()
-    edge_kwargs = {k: v for k, v in kwargs.items() if k in valid_edge_kwds}
-
-    if ax is None:
-        ax = default_graph_axes(margins=margins)
-
-    if pos is None:
-        pos = spring_layout(G)
-
-    # N.B.: the "edge_indices" logic inside draw_networkx() doesn't correctly handle
-    # distinct connectionstyles for each parallel multiedge in a multigraph
-    # viz. -|#|= edges in 4-node path unexpectedly refs styles like [0 | 0 1 2 | 0 1])
-    # Drawing edge-by-edge ensures the arcs drawn respect their assigned connectionstyle
-    draw_networkx(G, pos=pos, ax=ax, edgelist=[], **kwargs)  # skip edge drawing here
-    arc_styles = determine_arc_radii(G, base_arc_radius=base_arc_radius)
-    for edge in edgelist:
-        draw_networkx_edges(
-            G,
-            pos=pos,
-            ax=ax,
-            edgelist=[edge],
-            connectionstyle=arc_styles[edge],
-            arrows=True,  # suppress warning on edge w/ connectionstyle on simple Graphs
-            **edge_kwargs,
-        )
-
-    return ax
+    draw_nx(
+        graph,
+        ax=ax,
+        pos=layout(graph),
+        **draw_kwargs,
+    )
 
 
 def draw_networkx_tree(
