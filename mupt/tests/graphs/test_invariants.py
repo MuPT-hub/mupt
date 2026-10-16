@@ -338,7 +338,13 @@ def test_components(
 
 @pytest.mark.parametrize(
     "graph,termini_expected",
-    [],
+    [
+        (path_graph(1), {0}),
+        (path_graph(10), {0, 9}),
+        (path_graph(10, create_using=DiGraph), {0, 9}),
+        (star_graph(3), {1, 2, 3}),
+        (balanced_tree(2, 2), {3, 4, 5, 6}),
+    ],
 )
 def test_termini(graph: Graph, termini_expected: set[Node]) -> None:
     """Test that identification of terminal/leaf nodes returns the expected results"""
