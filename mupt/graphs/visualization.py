@@ -1,10 +1,17 @@
 """Utilities for drawing graphs"""
 
 from typing import Generator, Optional, TYPE_CHECKING
+
+from inspect import signature
 from collections import defaultdict
 
 from networkx.classes import Graph, DiGraph, MultiGraph
-from networkx.drawing import kamada_kawai_layout, draw as draw_nx, draw_networkx
+from networkx.drawing.layout import spring_layout, kamada_kawai_layout
+from networkx.drawing import (
+    draw as draw_nx,
+    draw_networkx,
+    draw_networkx_edges,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -80,68 +87,6 @@ def determine_arc_radii(
     return conn_style_map
 
 
-def determine_arc_radii(
-    graph: Graph | MultiGraph,
-    base_arc_radius: int | float = 0.1,
-) -> dict[GraphEdge, float]:
-    """
-    Determine radii needed for each edge of a simple graph or multigraph
-    to display symmetric-looking arcs for (possibly parallel) edges when rendered
-
-    Arc radii will be scaled to be equidistant by increments of the base arc radius
-    E.g. the scaling factor for various small examples will be:
-    * N=1: O----O ==> (0,)
-
-    * N=2: O====O ==> (-1/2, 1/2)
-
-            ____
-    * N=3: O----O ==> (-1, 0, 1)
-            ▔▔
-            ____
-    * N=4: O====O ==> (-3/2, -1/2, 1/2, 3/2)
-            ▔▔
-    etc.
-    """
-    # truncate to second element to cut off edge key in the case of MultiGraph
-    # only want to compare on the basis of the unordered pair of nodes
-    edges_by_node_pair = defaultdict(list)
-    for edge in graph.edges:
-        a, b, *_ = edge
-        edges_by_node_pair[frozenset((a, b))].append(edge)
-
-    conn_style_map: dict[GraphEdge, float] = dict()
-    for parallel_edges in edges_by_node_pair.values():
-        num_parallel_edges: int = len(parallel_edges)
-
-        arc_radii: Generator[float, None, None] = (
-            base_arc_radius * increment / 2
-            for increment in range(1 - num_parallel_edges, num_parallel_edges, 2)
-        )
-        for arc_radius, edge in zip(arc_radii, parallel_edges):
-            conn_style_map[edge] = arc_radius
-
-    return conn_style_map
-
-
-def determine_arc_styles(
-    graph: Graph | MultiGraph,
-    base_arc_radius: int | float = 0.1,
-) -> dict[GraphEdge, str]:
-    """
-    Compile map from graph edges to format string containing arc radii cues
-
-    When assigned to "connectionstyle" of each edge according to the return map,
-    will ensure parallel edges in graph are rendered nicely
-    """
-    return {
-        edge: f"arc3,rad={arc_radius}"
-        for edge, arc_radius in determine_arc_radii(
-            graph,
-            base_arc_radius=base_arc_radius,
-        ).items()
-    }
-
-
 def draw_networkx_with_arcs(
     G: Graph | MultiGraph,  # TB: MultiGraph < Graph already; just making explicit
     pos: Optional[GraphPositions] = None,
@@ -178,10 +123,7 @@ def draw_networkx_with_arcs(
     # viz. -|#|= edges in 4-node path unexpectedly refs styles like [0 | 0 1 2 | 0 1])
     # Drawing edge-by-edge ensures the arcs drawn respect their assigned connectionstyle
     draw_networkx(G, pos=pos, ax=ax, edgelist=[], **kwargs)  # skip edge drawing here
-    arc_styles: dict[GraphEdge, str] = determine_arc_styles(
-        G,
-        base_arc_radius=base_arc_radius,
-    )
+    arc_styles = determine_arc_radii(G, base_arc_radius=base_arc_radius)
     for edge in edgelist:
         draw_networkx_edges(
             G,
@@ -194,6 +136,24 @@ def draw_networkx_with_arcs(
         )
 
     return ax
+
+
+def draw_graph(
+    graph: Graph,
+    ax: Optional["Axes"] = None,
+    layout: GraphLayout = kamada_kawai_layout,
+    **draw_kwargs,
+) -> None:
+    """Draw the topology's graph"""
+    if "with_labels" not in draw_kwargs:
+        draw_kwargs["with_labels"] = True
+
+    draw_nx(
+        graph,
+        ax=ax,
+        pos=layout(graph),
+        **draw_kwargs,
+    )
 
 
 def draw_networkx_tree(
