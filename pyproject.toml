@@ -10,7 +10,7 @@ description = "Drafting repository for the core functionality of the Multiscale 
 dynamic = ["version"]
 readme = "README.md"
 authors = [
-    { name = "Timotej Bernat", email = "tibe3324@colorado.edu" }
+    { name = "The MuPT Developers" },
 ]
 license = { text = "MIT" }
 classifiers = [ # See https://pypi.org/classifiers/

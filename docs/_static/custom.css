@@ -1,0 +1,8 @@
+/* Let the navbar brand ("Multiscale Polymer Toolkit documentation") take the
+   width it needs instead of a fixed sidebar-width column, so it never runs
+   into the top-level navigation links. */
+.bd-header .navbar-header-items__start {
+  flex: 0 0 auto;
+  width: auto;
+  margin-right: 2rem;
+}
