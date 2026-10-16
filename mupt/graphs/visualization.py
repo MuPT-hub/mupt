@@ -12,6 +12,22 @@ from .graphtypes import GraphLayout
 from .invariants import is_indiscrete
 
 
+def default_graph_axes(margins: float = 0.25) -> "Axes":
+    """
+    Default strategy for creating a blank single-axis figure to draw graphs onto
+
+    Useful as default for creating axes when None have been provided
+    """
+    from matplotlib.pyplot import figure
+
+    fig = figure()
+    ax = fig.add_axes((0, 0, 1, 1))  # full figure
+    ax.margins(margins)
+    ax.set_axis_off()
+
+    return ax
+
+
 def graph_repr(graph: Graph) -> str:
     """
     Temporary port of deprecated TopologicalStructure.__repr__
