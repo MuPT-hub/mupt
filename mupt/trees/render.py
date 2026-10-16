@@ -26,7 +26,6 @@ RENDER_STYLE_ALIASES: dict[Type[ConcreteStyle], tuple[str, ...]] = {
     ),
     ContStyle: (
         "cont",
-        "continued",
         "contstyle",
         "cont_style",
     ),
