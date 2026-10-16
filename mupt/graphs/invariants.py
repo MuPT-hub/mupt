@@ -68,7 +68,7 @@ def is_linear(graph: Graph) -> bool:
 
     All connected components of such a graph are path graphs
     """
-    return is_indiscrete(graph) and is_acyclic(graph)
+    return is_unbranched(graph) and is_acyclic(graph)
 
 
 # Node or edge subsets and induced subgraphs
