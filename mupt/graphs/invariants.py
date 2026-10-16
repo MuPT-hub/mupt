@@ -75,7 +75,7 @@ def is_linear(graph: Graph) -> bool:
 def termini(graph: Graph) -> Generator[int, None, None]:
     """Generate the all nodes of a graph which are incident to exactly one edge"""
     for node, node_degree in graph.degree:
-        if node_degree == 1:
+        if node_degree <= 1:
             yield node
 
 
