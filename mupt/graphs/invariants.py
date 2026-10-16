@@ -8,7 +8,7 @@ from typing import Generator
 from collections import Counter
 
 from networkx.classes import Graph
-from networkx.algorithms import connected_components
+from networkx.algorithms import connected_components, simple_cycles
 
 from .graphtypes import GraphLike
 
@@ -39,22 +39,36 @@ def is_empty(graph: Graph) -> bool:
 
 def is_unbranched(graph: Graph) -> bool:
     """
-    Whether EVERY connected component of a graph is either
-    an unbranching path(s) or an isolated node
+    Whether the graph contains NO branching nodes
+
+    Every connected component of such a graph is either
+    a path, a cycle, or an isolated node
     """
-    for node, node_degree in graph.degree:
-        if node_degree > 2:
-            return False
-    else:
-        return True
-
-
-is_linear = is_unbranched
+    return all(node_degree <= 2 for node, node_degree in graph.degree)
 
 
 def is_branched(graph: Graph) -> bool:
-    """Whether the topology contains any branching nodes"""
-    return not is_unbranched(graph)
+    """Whether the graph contains ANY branching nodes"""
+    return any(node_degree > 2 for node, node_degree in graph.degree)
+
+
+def is_acyclic(graph: Graph) -> bool:
+    """Whether the graph (directed or not) contains any cycles"""
+    try:
+        _cycle = next(simple_cycles(graph))
+    except StopIteration:
+        return True
+    else:
+        return False
+
+
+def is_linear(graph: Graph) -> bool:
+    """
+    Whether a graph is unbranched AND acyclic
+
+    All connected components of such a graph are path graphs
+    """
+    return is_indiscrete(graph) and is_acyclic(graph)
 
 
 # Node or edge subsets and induced subgraphs
