@@ -295,28 +295,45 @@ def test_is_linear(graph_example: GraphInvariantExample) -> None:
 @pytest.mark.parametrize(
     "graph,component_nodes_expected",
     [
-        (path_graph("abcd"), ({"a", "b", "c", "d"},)),
-        (caveman_graph(3, 3), ({0, 1, 2}, {3, 4, 5}, {6, 7, 8})),
-        (empty_graph([0.5772, 2.7182, 3.1415]), ({0.5772}, {2.7182}, {3.1415})),
+        (path_graph("abcd"), {frozenset({"a", "b", "c", "d"})}),
+        (
+            caveman_graph(3, 3),
+            {
+                frozenset({0, 1, 2}),
+                frozenset({3, 4, 5}),
+                frozenset({6, 7, 8}),
+            },
+        ),
+        (
+            empty_graph([0.5772, 2.7182, 3.1415]),
+            {
+                frozenset({0.5772}),
+                frozenset({2.7182}),
+                frozenset({3.1415}),
+            },
+        ),
         (
             # TB: wanted to test this with directed cycles, only to find
             # networkx does not implement connected_components for DiGraphs :(
             disjoint_union(cycle_graph(3), cycle_graph(5)),
-            ({0, 1, 2}, {3, 4, 5, 6, 7}),
+            {frozenset({0, 1, 2}), frozenset({3, 4, 5, 6, 7})},
         ),
     ],
 )
 def test_components(
     graph: Graph,
-    component_nodes_expected: tuple[set[Node]],
+    component_nodes_expected: set[frozenset[Node]],
 ) -> None:
     """
     Test that connected components of a graph are correctly
     identified AND returned as same type as that graph
     """
+    component_nodes_actual: set[frozenset[Node]] = set()
     for component in components(graph):
         assert type(component) is type(graph)
-        assert set(component) in component_nodes_expected
+        component_nodes_actual.add(frozenset(component))
+
+    assert component_nodes_actual == component_nodes_expected
 
 
 @pytest.mark.parametrize(
