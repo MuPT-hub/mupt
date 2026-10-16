@@ -6,9 +6,8 @@ from inspect import signature
 from collections import defaultdict
 
 from networkx.classes import Graph, DiGraph, MultiGraph
-from networkx.drawing.layout import spring_layout, kamada_kawai_layout
 from networkx.drawing import (
-    draw as draw_nx,
+    spring_layout,
     draw_networkx,
     draw_networkx_edges,
 )
@@ -16,7 +15,7 @@ from networkx.drawing import (
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-from .graphtypes import GraphEdge, GraphLayout, GraphPositions
+from .graphtypes import GraphEdge, GraphPositions
 from .invariants import is_indiscrete
 
 
@@ -136,24 +135,6 @@ def draw_networkx_with_arcs(
         )
 
     return ax
-
-
-def draw_graph(
-    graph: Graph,
-    ax: Optional["Axes"] = None,
-    layout: GraphLayout = kamada_kawai_layout,
-    **draw_kwargs,
-) -> None:
-    """Draw the topology's graph"""
-    if "with_labels" not in draw_kwargs:
-        draw_kwargs["with_labels"] = True
-
-    draw_nx(
-        graph,
-        ax=ax,
-        pos=layout(graph),
-        **draw_kwargs,
-    )
 
 
 def draw_networkx_tree(
