@@ -1,17 +1,15 @@
 """Utilities for drawing graphs"""
 
 from typing import Generator, Optional, TYPE_CHECKING
-
-from inspect import signature
 from collections import defaultdict
 
-from networkx.classes import Graph, DiGraph
+from networkx.classes import Graph, DiGraph, MultiGraph
 from networkx.drawing import kamada_kawai_layout, draw as draw_nx, draw_networkx
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-from .graphtypes import GraphLayout, GraphPositions
+from .graphtypes import GraphEdge, GraphLayout, GraphPositions
 from .invariants import is_indiscrete
 
 
@@ -82,23 +80,15 @@ def determine_arc_radii(
     return conn_style_map
 
 
-def draw_networkx_with_arcs(
-    G: Graph | MultiGraph,  # TB: MultiGraph < Graph already; just making explicit
-    pos: Optional[GraphPositions] = None,
+def draw_graph(
+    graph: Graph,
     ax: Optional["Axes"] = None,
-    base_arc_radius: float = 0.1,
-    margins: float = 0.25,
-    **kwargs,
-) -> "Axes":
-    """
-    Draw an undirected graph with separated arcs
-    for parallel edges, if it is a multigraph
-
-    Thin wrapper around draw_networkx() and draw_networkx_edges()
-    See networkx.drawing documentation for kwarg details
-    """
-    if "with_labels" not in kwargs:
-        kwargs["with_labels"] = True
+    layout: GraphLayout = kamada_kawai_layout,
+    **draw_kwargs,
+) -> None:
+    """Draw the topology's graph"""
+    if "with_labels" not in draw_kwargs:
+        draw_kwargs["with_labels"] = True
 
     draw_nx(
         graph,
