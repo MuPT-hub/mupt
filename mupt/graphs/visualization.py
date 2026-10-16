@@ -1,14 +1,15 @@
 """Utilities for drawing graphs"""
 
-from typing import Optional, TYPE_CHECKING
+from typing import Generator, Optional, TYPE_CHECKING
+from collections import defaultdict
 
-from networkx.classes import Graph, DiGraph
+from networkx.classes import Graph, DiGraph, MultiGraph
 from networkx.drawing import kamada_kawai_layout, draw as draw_nx, draw_networkx
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-from .graphtypes import GraphLayout, GraphPositions
+from .graphtypes import GraphEdge, GraphLayout, GraphPositions
 from .invariants import is_indiscrete
 
 
@@ -38,6 +39,45 @@ def graph_repr(graph: Graph) -> str:
         f"(num_objects={graph.number_of_nodes()}, "
         f"indiscrete={is_indiscrete(graph)})"
     )
+
+
+def determine_arc_radii(
+    graph: Graph | MultiGraph,
+    base_arc_radius: int | float = 0.1,
+) -> dict[GraphEdge, str]:
+    """
+    Configure a graph to display symmetric-looking arcs for
+    (possibly parallel) edges rendered when drawing that graph
+
+    Arc radii will be scaled up from the chosen base radius, e.g.
+    * N=1: O----O ==> (0,)
+            ____
+    * N=2: O    O ==> (-1, 1)
+            ▔▔
+            ____
+    * N=3: O----O ==> (-1, 0, 1)
+            ▔▔
+    etc.
+    """
+    # truncate to second element to cut off edge key in the case of MultiGraph
+    # only want to compare on the basis of the unordered pair of nodes
+    edges_by_node_pair = defaultdict(list)
+    for edge in graph.edges:
+        a, b, *_ = edge
+        edges_by_node_pair[frozenset((a, b))].append(edge)
+
+    conn_style_map: dict[GraphEdge, str] = dict()
+    for parallel_edges in edges_by_node_pair.values():
+        num_parallel_edges: int = len(parallel_edges)
+
+        arc_radii: Generator[float, None, None] = (
+            base_arc_radius * increment
+            for increment in range(1 - num_parallel_edges, num_parallel_edges, 2)
+        )
+        for arc_radius, edge in zip(arc_radii, parallel_edges):
+            conn_style_map[edge] = f"arc3,rad={arc_radius}"
+
+    return conn_style_map
 
 
 def draw_graph(
