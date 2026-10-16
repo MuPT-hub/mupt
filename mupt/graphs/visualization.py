@@ -1,10 +1,17 @@
 """Utilities for drawing graphs"""
 
 from typing import Generator, Optional, TYPE_CHECKING
+
+from inspect import signature
 from collections import defaultdict
 
 from networkx.classes import Graph, DiGraph, MultiGraph
-from networkx.drawing import kamada_kawai_layout, draw as draw_nx, draw_networkx
+from networkx.drawing.layout import spring_layout, kamada_kawai_layout
+from networkx.drawing import (
+    draw as draw_nx,
+    draw_networkx,
+    draw_networkx_edges,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -78,6 +85,57 @@ def determine_arc_radii(
             conn_style_map[edge] = f"arc3,rad={arc_radius}"
 
     return conn_style_map
+
+
+def draw_networkx_with_arcs(
+    G: Graph | MultiGraph,  # TB: MultiGraph < Graph already; just making explicit
+    pos: Optional[GraphPositions] = None,
+    ax: Optional["Axes"] = None,
+    base_arc_radius: float = 0.1,
+    margins: float = 0.25,
+    **kwargs,
+) -> "Axes":
+    """
+    Draw an undirected graph with separated arcs
+    for parallel edges, if it is a multigraph
+
+    Thin wrapper around draw_networkx() and draw_networkx_edges()
+    See networkx.drawing documentation for kwarg details
+    """
+    if "with_labels" not in kwargs:
+        kwargs["with_labels"] = True
+
+    edgelist = kwargs.pop("edgelist", G.edges)  # handle edgelist manually
+    _ = kwargs.pop("connectionstyle", None)  # prevent connectionstyle override
+
+    # TB DEV: these kwargs filters are lifted from internals of draw_networkx()
+    valid_edge_kwds = signature(draw_networkx_edges).parameters.keys()
+    edge_kwargs = {k: v for k, v in kwargs.items() if k in valid_edge_kwds}
+
+    if ax is None:
+        ax = default_graph_axes(margins=margins)
+
+    if pos is None:
+        pos = spring_layout(G)
+
+    # N.B.: the "edge_indices" logic inside draw_networkx() doesn't correctly handle
+    # distinct connectionstyles for each parallel multiedge in a multigraph
+    # viz. -|#|= edges in 4-node path unexpectedly refs styles like [0 | 0 1 2 | 0 1])
+    # Drawing edge-by-edge ensures the arcs drawn respect their assigned connectionstyle
+    draw_networkx(G, pos=pos, ax=ax, edgelist=[], **kwargs)  # skip edge drawing here
+    arc_styles = determine_arc_radii(G, base_arc_radius=base_arc_radius)
+    for edge in edgelist:
+        draw_networkx_edges(
+            G,
+            pos=pos,
+            ax=ax,
+            edgelist=[edge],
+            connectionstyle=arc_styles[edge],
+            arrows=True,  # suppress warning on edge w/ connectionstyle on simple Graphs
+            **edge_kwargs,
+        )
+
+    return ax
 
 
 def draw_graph(
