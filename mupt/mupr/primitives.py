@@ -1665,15 +1665,13 @@ def visualize_topology(
 
 
 def visualize_hierarchy(
-    prim: Primitive,
+    self,
     hierarchy_tree: Optional[DiGraph] = None,
-    use_handles_for_labels: bool = True,
-    root_label: Optional[PrimitiveLabel] = None,
     **kwargs,
 ) -> "Axes":
     """
     Draw a networkx DiGraph representation of the partial order
-    of a Primitive and all Primitives below it in the hierarchy
+    of this Primitive and all Primitives below it in the hierarchy
 
     Can accept a pre-calculated hierarchy tree or, if None is provided,
     will extract one from the current Primitive
@@ -1683,19 +1681,6 @@ def visualize_hierarchy(
     from mupt.graphs.visualization import draw_networkx_tree
 
     if hierarchy_tree is None:
-        hierarchy_tree = prim.hierarchy_tree()
-
-    if use_handles_for_labels:
-        label_map: dict[Primitive, Union[PrimitiveHandle, PrimitiveLabel]] = {
-            subprim: handle
-            for prim in hierarchy_tree
-            for handle, subprim in prim.children_by_handle.items()
-            if subprim in hierarchy_tree
-        }
-        if prim in hierarchy_tree:
-            label_map[prim] = prim.label if (root_label is None) else root_label
-
-        kwargs.setdefault("with_labels", True)
-        kwargs.setdefault("labels", label_map)
+        hierarchy_tree = self._hierarchy_tree()
 
     return draw_networkx_tree(hierarchy_tree, **kwargs)
