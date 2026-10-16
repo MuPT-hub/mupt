@@ -27,7 +27,6 @@ from anytree.search import findall, findall_by_attr
 from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
 from networkx.algorithms import compose as compose_graphs
-from networkx.drawing.layout import kamada_kawai_layout
 
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
@@ -52,11 +51,7 @@ from .embedding import (
 from ..mutils.containers import UniqueRegistry
 from ..trees.render import ConcreteStyle, tree_render_style
 from ..graphs.invariants import is_empty, canonical_form_graph
-from ..graphs.visualization import (
-    GraphLayout,
-    graph_repr,
-    draw_graph,
-)
+from ..graphs.visualization import graph_repr
 from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
@@ -1588,12 +1583,20 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Graph drawing
     def visualize_topology(
         self,
-        ax: Optional[Axes] = None,
-        layout: GraphLayout = kamada_kawai_layout,
+        ax: Optional["Axes"] = None,
+        base_arc_radius: float = 0.1,
+        # TODO: add support for coloring rules
         **draw_kwargs,
-    ) -> None:
+    ) -> "Axes":
         """Draw the connectivity of this Primitive's children to the passed Axes"""
-        draw_graph(self.topology, ax=ax, layout=layout, **draw_kwargs)
+        from mupt.graphs.visualization import draw_networkx_with_arcs
+
+        return draw_networkx_with_arcs(
+            self.topology,
+            ax=ax,
+            base_arc_radius=base_arc_radius,
+            **draw_kwargs,
+        )
 
     def _hierarchy_tree(
         self,
@@ -1603,6 +1606,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         Generate directed graph representing the connectivity
         of this Primitive and all its descendants
+
+        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
         """
         if root_label is None:
             root_label = self.label
@@ -1611,7 +1616,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         hier_tree = DiGraph()
         hier_tree.add_node(root_tag)
         for child_handle, child in self.children_by_handle.items():
-            child_label, child_idx = child_handle
             child_tag: str = f"{depth + 1}-{child_handle}"
 
             hier_tree = compose_graphs(
