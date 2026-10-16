@@ -1616,7 +1616,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         hier_tree = DiGraph()
         hier_tree.add_node(root_tag)
         for child_handle, child in self.children_by_handle.items():
-            child_label, child_idx = child_handle
             child_tag: str = f"{depth + 1}-{child_handle}"
 
             hier_tree = compose_graphs(
