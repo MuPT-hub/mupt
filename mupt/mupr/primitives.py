@@ -27,8 +27,7 @@ from anytree.search import findall, findall_by_attr
 from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
 from networkx.algorithms import compose as compose_graphs
-from networkx.drawing import draw as draw_nx
-from networkx.drawing.layout import kamada_kawai_layout, shell_layout
+from networkx.drawing.layout import kamada_kawai_layout
 
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
@@ -1607,11 +1606,14 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         if root_label is None:
             root_label = self.label
-        root_handle = f"{depth}-{root_label}"
+        root_tag = f"{depth}-{root_label}"
 
         hier_tree = DiGraph()
-        hier_tree.add_node(root_handle)
+        hier_tree.add_node(root_tag)
         for child_handle, child in self.children_by_handle.items():
+            child_label, child_idx = child_handle
+            child_tag: str = f"{depth + 1}-{child_handle}"
+
             hier_tree = compose_graphs(
                 hier_tree,
                 child._hierarchy_tree(root_label=child_handle, depth=depth + 1),
@@ -1619,25 +1621,27 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 ## TODO: add mechanism for de-duplifying handles by depth
                 ## (related to planned expansion acceleration)
             )
-            hier_tree.add_edge(root_handle, child_handle)
+            hier_tree.add_edge(root_tag, child_tag)
 
         return hier_tree
 
     def visualize_hierarchy(
         self,
-        ax: Optional[Axes] = None,
-        layout: GraphLayout = shell_layout,
-        **draw_kwargs,
-    ) -> None:
+        hierarchy_tree: Optional[DiGraph] = None,
+        **kwargs,
+    ) -> "Axes":
         """
-        Draw the hierarchy of this Primitive and
-        all its descendants to the passed Axes
+        Draw a networkx DiGraph representation of the partial order
+        of this Primitive and all Primitives below it in the hierarchy
+
+        Can accept a pre-calculated hierarchy tree or, if None is provided,
+        will extract one from the current Primitive
+
+        See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
         """
-        hier_tree = self._hierarchy_tree()
-        draw_nx(
-            hier_tree,
-            ax=ax,
-            pos=layout(hier_tree),
-            with_labels=True,
-            **draw_kwargs,
-        )
+        from mupt.graphs.visualization import draw_networkx_tree
+
+        if hierarchy_tree is None:
+            hierarchy_tree = self._hierarchy_tree()
+
+        return draw_networkx_tree(hierarchy_tree, **kwargs)
