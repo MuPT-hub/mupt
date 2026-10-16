@@ -53,7 +53,7 @@ def is_branched(graph: Graph) -> bool:
 
 
 def is_acyclic(graph: Graph) -> bool:
-    """Whether the graph (directed or not) contains any cycles"""
+    """Whether the graph (directed or not) contains no cycles"""
     try:
         _cycle = next(simple_cycles(graph))
     except StopIteration:
@@ -73,7 +73,7 @@ def is_linear(graph: Graph) -> bool:
 
 # Node or edge subsets and induced subgraphs
 def termini(graph: Graph) -> Generator[int, None, None]:
-    """Generate the all nodes of a graph which are incident to exactly one edge"""
+    """Generate the all nodes of a graph which are incident to at most one edge"""
     for node, node_degree in graph.degree:
         if node_degree <= 1:
             yield node
