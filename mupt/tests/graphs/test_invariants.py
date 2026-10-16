@@ -4,13 +4,17 @@ import pytest
 from dataclasses import dataclass
 
 from networkx.classes import Graph, DiGraph
+from networkx.algorithms import disjoint_union
 from networkx.generators import (
     null_graph,
+    empty_graph,
     trivial_graph,
+    cycle_graph,
     path_graph,
     star_graph,
     tadpole_graph,
     heawood_graph,  # TB: can be any branched graph for tests; chose a personal favorite
+    caveman_graph,
 )
 
 from mupt.graphs.graphtypes import Node
@@ -35,15 +39,10 @@ class GraphInvariantExample:
     is_branched: bool
 
 
-# is_indiscrete=,
-# is_empty=,
-# is_unbranched=,
-# is_branched=,
-
-
 def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
     """Examples which are to be reused in tests here"""
     return (
+        # empty graph (no nodes or edges)
         GraphInvariantExample(
             null_graph(),
             is_indiscrete=True,
@@ -65,6 +64,7 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=True,
             is_branched=False,
         ),
+        # trivial graph (one node, no edges)
         GraphInvariantExample(
             trivial_graph(),
             is_indiscrete=True,
@@ -102,7 +102,31 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=True,
             is_branched=False,
         ),
-        # 2-cycle "head" is still linear
+        # test with disconnected components (in this case, isolated nodes)
+        GraphInvariantExample(
+            empty_graph(4),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # Cyclic graphs - unbranched, but not linear
+        GraphInvariantExample(
+            cycle_graph(5),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        GraphInvariantExample(
+            cycle_graph(5, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # graphs with loops
+        ## 2-cycle "head" is still linear
         GraphInvariantExample(
             tadpole_graph(2, 3),
             is_indiscrete=False,
@@ -110,7 +134,7 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=True,
             is_branched=False,
         ),
-        # 3-cycle "head" introduces branching
+        ## 3-cycle "head" introduces branching
         GraphInvariantExample(
             tadpole_graph(3, 3),
             is_indiscrete=False,
@@ -118,7 +142,8 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=False,
             is_branched=True,
         ),
-        # alternate form of the trivial graph
+        # graphs with branches
+        ## alternate form of the trivial graph
         GraphInvariantExample(
             star_graph(0),
             is_indiscrete=True,
@@ -126,7 +151,7 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=True,
             is_branched=False,
         ),
-        # equivalent to a 2-node path graph
+        ## equivalent to a 2-node path graph
         GraphInvariantExample(
             star_graph(1),
             is_indiscrete=False,
@@ -134,7 +159,7 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=True,
             is_branched=False,
         ),
-        # equivalent to a 3-node path graph
+        ## equivalent to a 3-node path graph
         GraphInvariantExample(
             star_graph(2),
             is_indiscrete=False,
@@ -142,7 +167,7 @@ def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
             is_unbranched=True,
             is_branched=False,
         ),
-        # branching of star graph finally "kicks in"
+        ## branching of star graph finally "kicks in"
         GraphInvariantExample(
             star_graph(3),
             is_indiscrete=False,
@@ -195,11 +220,21 @@ def test_is_branched(graph_example: GraphInvariantExample) -> None:
 # Subgraph enumeration
 @pytest.mark.parametrize(
     "graph,component_nodes_expected",
-    [],
+    [
+        (path_graph("abcd"), ({"a", "b", "c", "d"},)),
+        (caveman_graph(3, 3), ({0, 1, 2}, {3, 4, 5}, {6, 7, 8})),
+        (empty_graph([0.5772, 2.7182, 3.1415]), ({0.5772}, {2.7182}, {3.1415})),
+        (
+            # TB: wanted to test this with directed cycles, only to find
+            # networkx does not implement connected_components for DiGraphs :(
+            disjoint_union(cycle_graph(3), cycle_graph(5)),
+            ({0, 1, 2}, {3, 4, 5, 6, 7}),
+        ),
+    ],
 )
 def test_components(
     graph: Graph,
-    component_nodes_expected: frozenset[set[Node]],
+    component_nodes_expected: tuple[set[Node]],
 ) -> None:
     """
     Test that connected components of a graph are correctly
@@ -207,7 +242,7 @@ def test_components(
     """
     for component in components(graph):
         assert type(component) is type(graph)
-        assert set(component.nodes) in component_nodes_expected
+        assert set(component) in component_nodes_expected
 
 
 @pytest.mark.parametrize(

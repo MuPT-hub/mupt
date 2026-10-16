@@ -57,6 +57,7 @@ def path_graph_from_sequence(
 
 # TODO: handle index uniquification over union of path_graph_from_sequence
 # perhaps even absorb path_graphs/noodle_graphs
+# TB: looking for disjoint_union, if restricting to int-only indices
 
 
 def path_graphs(
