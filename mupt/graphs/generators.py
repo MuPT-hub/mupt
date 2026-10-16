@@ -17,7 +17,7 @@ from networkx.generators import path_graph, balanced_tree
 from networkx.algorithms import compose, union as graph_union
 from networkx.relabel import relabel_nodes
 
-from graphtypes import GraphLike
+from .graphtypes import GraphLike
 
 
 def path_graph_from_sequence(

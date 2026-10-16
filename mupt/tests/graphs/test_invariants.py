@@ -3,7 +3,15 @@
 import pytest
 from dataclasses import dataclass
 
-from networkx.classes import Graph
+from networkx.classes import Graph, DiGraph
+from networkx.generators import (
+    null_graph,
+    trivial_graph,
+    path_graph,
+    star_graph,
+    tadpole_graph,
+    heawood_graph,  # TB: can be any branched graph for tests; chose a personal favorite
+)
 
 from mupt.graphs.graphtypes import Node
 from mupt.graphs.invariants import (
@@ -27,9 +35,136 @@ class GraphInvariantExample:
     is_branched: bool
 
 
+# is_indiscrete=,
+# is_empty=,
+# is_unbranched=,
+# is_branched=,
+
+
 def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
     """Examples which are to be reused in tests here"""
-    return ()
+    return (
+        GraphInvariantExample(
+            null_graph(),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        GraphInvariantExample(
+            null_graph(create_using=DiGraph),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        GraphInvariantExample(
+            Graph(),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        GraphInvariantExample(
+            trivial_graph(),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # alternate form of the empty graph
+        GraphInvariantExample(
+            path_graph(0),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # alternate form of the trivial graph
+        GraphInvariantExample(
+            path_graph(1),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        GraphInvariantExample(
+            path_graph(3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        GraphInvariantExample(
+            path_graph(3, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # 2-cycle "head" is still linear
+        GraphInvariantExample(
+            tadpole_graph(2, 3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # 3-cycle "head" introduces branching
+        GraphInvariantExample(
+            tadpole_graph(3, 3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+        ),
+        # alternate form of the trivial graph
+        GraphInvariantExample(
+            star_graph(0),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # equivalent to a 2-node path graph
+        GraphInvariantExample(
+            star_graph(1),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # equivalent to a 3-node path graph
+        GraphInvariantExample(
+            star_graph(2),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+        ),
+        # branching of star graph finally "kicks in"
+        GraphInvariantExample(
+            star_graph(3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+        ),
+        GraphInvariantExample(
+            star_graph(3, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+        ),
+        GraphInvariantExample(
+            heawood_graph(),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+        ),
+    )
 
 
 # Graph predicates
