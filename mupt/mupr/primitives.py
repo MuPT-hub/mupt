@@ -24,14 +24,7 @@ from collections import defaultdict
 
 from anytree.node import NodeMixin
 from anytree.search import findall, findall_by_attr
-from anytree.render import (
-    RenderTree,
-    AbstractStyle,
-    AsciiStyle,
-    ContStyle,
-    ContRoundStyle,
-    DoubleStyle,
-)
+from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
 from networkx.algorithms import compose as compose_graphs
 from networkx.drawing import draw as draw_nx
@@ -58,6 +51,7 @@ from .embedding import (
 )
 
 from ..mutils.containers import UniqueRegistry
+from ..trees.render import ConcreteStyle, tree_render_style
 from ..graphs.invariants import is_empty, canonical_form_graph
 from ..graphs.visualization import (
     GraphLayout,
@@ -1585,40 +1579,21 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return repr_brief
 
-    # TODO: move this to external util
     def hierarchy_summary(
         self,
         to_depth: Optional[int] = None,
+        style: Union[str, ConcreteStyle, type[ConcreteStyle]] = "round",
         render_attr: str = "label",
-        style: Union[str, AbstractStyle] = ContStyle(),
     ) -> str:
         """
         A printable representation of this Primitive
         and all its descendants in the hierarchy
         """
-        style_aliases: dict[str, AbstractStyle] = {
-            "cont": ContStyle(),
-            "Cont": ContStyle(),
-            "continued": ContStyle(),
-            "ContStyle": ContStyle(),
-            "cont_round": ContRoundStyle(),
-            "ContRound": ContRoundStyle(),
-            "ContRoundStyle": ContRoundStyle(),
-            "ascii": AsciiStyle(),
-            "ASCII": AsciiStyle(),
-            "AsciiStyle": AsciiStyle(),
-            "double": DoubleStyle(),
-            "Double": DoubleStyle(),
-            "DoubleStyle": DoubleStyle(),
-        }
-        if isinstance(style, str):
-            style = style_aliases[style]
-
         return RenderTree(
             self,
-            style=style,
-            # DEV: revisit "childiter" parameter config?
+            style=tree_render_style(style),
             maxlevel=to_depth,
+            # childiter=list
         ).by_attr(render_attr)
 
     # Graph drawing
