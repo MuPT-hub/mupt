@@ -1,4 +1,4 @@
-"""Unit tests for graph visualizaiton helpers and drawing funnctionality"""
+"""Unit tests for graph visualization helpers and drawing functionality"""
 
 import pytest  # noqa: F401
 
