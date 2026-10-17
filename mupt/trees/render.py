@@ -29,7 +29,7 @@ RENDER_STYLE_ALIASES: dict[Type[ConcreteStyle], tuple[str, ...]] = {
         "continued",
         "contstyle",
         "cont_style",
-    )
+    ),
     ContRoundStyle: (
         "round",
         "countround",
