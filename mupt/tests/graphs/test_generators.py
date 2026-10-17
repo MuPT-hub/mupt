@@ -1,6 +1,6 @@
 """Testing that graph generators produce the networks they claim to"""
 
-import pytest  # noqa: F401
+import pytest
 
 from typing import Optional
 from collections import defaultdict
@@ -113,12 +113,68 @@ def test_dendrimer_graph_indices(
     assert unordered_eges_actual == unordered_eges_expected
 
 
-def test_dendrimer_graph_labels() -> None:
+@pytest.mark.parametrize(
+    "graph,label_attr_name,labels_expected",
+    [
+        # test defaults
+        (dendrimer_graph(), "label", {"core", "branch", "leaf"}),
+        (
+            dendrimer_graph(coord_number=3, num_generations=2),
+            "label",
+            {"core", "branch", "leaf"},
+        ),
+        (
+            dendrimer_graph(coord_number=3, coord_number_core=2, num_generations=2),
+            "label",
+            {"core", "branch", "leaf"},
+        ),
+        # test missing branch labels in degenerate graphs
+        (
+            dendrimer_graph(coord_number=3, num_generations=1),
+            "label",
+            {"core", "leaf"},
+        ),
+        (
+            dendrimer_graph(coord_number=1, coord_number_core=2, num_generations=2),
+            "label",
+            {"core", "leaf"},
+        ),
+        # test custom label names
+        (dendrimer_graph(label_attr_name="other"), "other", {"core", "branch", "leaf"}),
+        (
+            dendrimer_graph(
+                label_attr_name="another",
+                core="foo",
+                shell_inner="bar",
+                shell_outer="baz",
+            ),
+            "another",
+            {"foo", "bar", "baz"},
+        ),
+        (
+            dendrimer_graph(
+                label_attr_name="yet another",
+                core="foo",
+                shell_inner="bar",
+                shell_outer="bar",
+            ),
+            "yet another",
+            {"foo", "bar"},
+        ),
+    ],
+)
+def test_dendrimer_graph_labels(
+    graph: Graph,
+    label_attr_name: str,
+    labels_expected: set[str],
+) -> None:
     """
     Test that the 3 nodes types in a dendrimer graph
     (core, branch, and leaf) are labelled as expected
     """
-    ...
+    print(get_node_attributes(graph, label_attr_name))
+    labels_actual: set[str] = set(get_node_attributes(graph, label_attr_name).values())
+    assert labels_actual == labels_expected
 
 
 @pytest.mark.parametrize(
