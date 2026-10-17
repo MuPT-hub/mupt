@@ -1593,7 +1593,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             # childiter=list
         ).by_attr(render_attr)
 
-    def _hierarchy_tree(
+    def hierarchy_tree(
         self,
         *args,
         **kwargs,
@@ -1663,6 +1663,6 @@ def visualize_hierarchy(hierarchy_tree: Union[DiGraph, Primitive], **kwargs) -> 
     from mupt.graphs.visualization import draw_networkx_tree
 
     if isinstance(hierarchy_tree, Primitive):
-        hierarchy_tree = hierarchy_tree._hierarchy_tree()
+        hierarchy_tree = hierarchy_tree.hierarchy_tree()
 
     return draw_networkx_tree(hierarchy_tree, **kwargs)
