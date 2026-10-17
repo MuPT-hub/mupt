@@ -26,7 +26,6 @@ from anytree.node import NodeMixin
 from anytree.search import findall, findall_by_attr
 from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
-from networkx.algorithms import compose as compose_graphs
 
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
@@ -49,6 +48,7 @@ from .embedding import (
 )
 
 from ..mutils.containers import UniqueRegistry
+from ..trees.digraph import anytree_to_networkx
 from ..trees.render import ConcreteStyle, tree_render_style
 from ..graphs.invariants import is_empty, canonical_form_graph
 from ..graphs.visualization import graph_repr
@@ -1598,7 +1598,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # TODO: add support for coloring rules
         **draw_kwargs,
     ) -> "Axes":
-        """Draw the connectivity of this Primitive's children to the passed Axes"""
+        """
+        Draw the connectivity of this Primitive's children to the passed Axes
+
+        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
+        """
         from mupt.graphs.visualization import draw_networkx_with_arcs
 
         return draw_networkx_with_arcs(
@@ -1610,34 +1614,16 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def _hierarchy_tree(
         self,
-        root_label: Hashable = None,
-        depth: int = 0,
+        *args,
+        **kwargs,
     ) -> DiGraph:
         """
-        Generate directed graph representing the connectivity
-        of this Primitive and all its descendants
+        Generate directed graph representing the hierarchy
+        defined by this Primitive and all its descendants
 
-        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
+        See mupt.trees.digraph.anytree_to_networkx for arg/kwarg options
         """
-        if root_label is None:
-            root_label = self.label
-        root_tag = f"{depth}-{root_label}"
-
-        hier_tree = DiGraph()
-        hier_tree.add_node(root_tag)
-        for child_handle, child in self.children_by_handle.items():
-            child_tag: str = f"{depth + 1}-{child_handle}"
-
-            hier_tree = compose_graphs(
-                hier_tree,
-                child._hierarchy_tree(root_label=child_handle, depth=depth + 1),
-                # rename=(),
-                ## TODO: add mechanism for de-duplifying handles by depth
-                ## (related to planned expansion acceleration)
-            )
-            hier_tree.add_edge(root_tag, child_tag)
-
-        return hier_tree
+        return anytree_to_networkx(self, *args, **kwargs)
 
     def visualize_hierarchy(
         self,
