@@ -2,17 +2,13 @@
 
 import pytest
 
-from typing import Optional
+from typing import Collection, Hashable, Optional
 from collections import defaultdict
 
 from networkx.classes import Graph, get_node_attributes
 from networkx.algorithms import is_isomorphic
 
-from mupt.graphs.generators import (  # noqa: F401
-    path_graph_from_sequence,
-    dendrimer_graph,
-    noodle_graph,
-)
+from mupt.graphs.generators import path_graph_from_sequence, dendrimer_graph
 
 
 # Reference dendrimer graph networkx
@@ -246,3 +242,25 @@ class TestDendrimerGraph:
 
         print(degrees_by_node_type_expected, degrees_by_node_type)
         assert degrees_by_node_type == degrees_by_node_type_expected
+
+
+@pytest.mark.parametrize(
+    "sequence,label_attr",
+    [
+        ("qwertyuiop", "label"),
+        ("qwertyuiop", "key"),
+        (["head", "mid", "mid", "mid", "mid", "tail"], "label"),
+        (["head", "mid", "mid", "mid", "mid", "tail"], "foo"),
+        ((12, 23, 34, 45, 56), "label"),
+        ((12, 23, 34, 45, 56), "phrase"),
+    ],
+)
+def test_path_graph_from_sequence(
+    sequence: Collection[Hashable],
+    label_attr: str,
+) -> None:
+    """Test that path graphs made from sequences correctly store labels"""
+    graph = path_graph_from_sequence(sequence, label_attr=label_attr)
+    for i, label_expected in enumerate(sequence):
+        assert label_attr in graph.nodes[i]
+        assert graph.nodes[i][label_attr] == label_expected
