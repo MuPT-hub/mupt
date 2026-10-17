@@ -26,7 +26,6 @@ from anytree.node import NodeMixin
 from anytree.search import findall, findall_by_attr
 from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
-from networkx.algorithms import compose as compose_graphs
 
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
@@ -49,6 +48,7 @@ from .embedding import (
 )
 
 from ..mutils.containers import UniqueRegistry
+from ..trees.digraph import anytree_to_networkx
 from ..trees.render import ConcreteStyle, tree_render_style
 from ..graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
 from ..geometry.arraytypes import Vector3
@@ -1595,32 +1595,16 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def _hierarchy_tree(
         self,
-        root_label: Hashable = None,
-        depth: int = 0,
+        *args,
+        **kwargs,
     ) -> DiGraph:
         """
         Generate a directed graph representing the partial order
         on this Primitive and all its descendants in the hierarchy
+
+        See mupt.trees.digraph.anytree_to_networkx for arg/kwarg options
         """
-        if root_label is None:
-            root_label = self.label
-        root_tag = f"{depth}-{root_label}"
-
-        hier_tree = DiGraph()
-        hier_tree.add_node(root_tag)
-        for child_handle, child in self.children_by_handle.items():
-            child_tag: str = f"{depth + 1}-{child_handle}"
-
-            hier_tree = compose_graphs(
-                hier_tree,
-                child._hierarchy_tree(root_label=child_handle, depth=depth + 1),
-                # rename=(),
-                ## TODO: add mechanism for de-duplifying handles by depth
-                ## (related to planned expansion acceleration)
-            )
-            hier_tree.add_edge(root_tag, child_tag)
-
-        return hier_tree
+        return anytree_to_networkx(self, *args, **kwargs)
 
 
 # Primitive visualization functions
