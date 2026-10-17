@@ -1628,6 +1628,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def visualize_hierarchy(
         self,
         hierarchy_tree: Optional[DiGraph] = None,
+        use_handles_for_labels: bool = True,
+        root_label: Optional[PrimitiveLabel] = None,
         **kwargs,
     ) -> "Axes":
         """
@@ -1643,5 +1645,17 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         if hierarchy_tree is None:
             hierarchy_tree = self.hierarchy_tree()
+
+        if use_handles_for_labels:
+            label_map: dict[Primitive, PrimitiveHandle] = {
+                subprim: handle
+                for prim in hierarchy_tree
+                for handle, subprim in prim.children_by_handle.items()
+            }
+            label_map[self] = self.label if (root_label is None) else root_label
+
+            kwargs["with_labels"] = True
+            kwargs["labels"] = label_map
+            print(label_map)
 
         return draw_networkx_tree(hierarchy_tree, **kwargs)
