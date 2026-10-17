@@ -8,3 +8,12 @@ from .render import (
     RENDER_STYLES_BY_ALIAS as RENDER_STYLES_BY_ALIAS,
     tree_render_style as tree_render_style,
 )
+from .subselect import (
+    NodePredicate as NodePredicate,
+    NodeLike as NodeLike,
+    primoprogenitors as primoprogenitors,
+)
+from .digraph import (
+    anytree_to_networkx as anytree_to_networkx,
+    networkx_to_anytree as networkx_to_anytree,
+)
