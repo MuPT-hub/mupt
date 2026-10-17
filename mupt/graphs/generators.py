@@ -98,7 +98,7 @@ def noodle_graph(
     )
 
 
-def balanced_dendrimer_graph(
+def dendrimer_graph(
     coord_number: int = 3,
     coord_number_core: Optional[int] = None,
     num_generations: int = 5,

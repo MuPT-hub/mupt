@@ -33,7 +33,7 @@ from .generators import (
     path_graphs as path_graphs,
     path_graph_from_sequence as path_graph_from_sequence,
     noodle_graph as noodle_graph,
-    balanced_dendrimer_graph as balanced_dendrimer_graph,
+    dendrimer_graph as dendrimer_graph,
 )
 # DEV: excluding .visualization utils at toplevel
 # to decouple from matplotlib/pygraphviz dependencies
