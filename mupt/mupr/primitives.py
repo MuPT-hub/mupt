@@ -1612,7 +1612,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
             **draw_kwargs,
         )
 
-    def _hierarchy_tree(
+    def hierarchy_tree(
         self,
         *args,
         **kwargs,
@@ -1642,6 +1642,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         from mupt.graphs.visualization import draw_networkx_tree
 
         if hierarchy_tree is None:
-            hierarchy_tree = self._hierarchy_tree()
+            hierarchy_tree = self.hierarchy_tree()
 
         return draw_networkx_tree(hierarchy_tree, **kwargs)
