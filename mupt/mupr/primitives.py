@@ -1605,7 +1605,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """Draw the connectivity of this Primitive's children to the passed Axes"""
         draw_graph(self.topology, ax=ax, layout=layout, **draw_kwargs)
 
-    def _hierarchy_tree(
+    def hierarchy_tree(
         self,
         root_label: Hashable = None,
         depth: int = 0,
@@ -1652,6 +1652,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         from mupt.graphs.visualization import draw_networkx_tree
 
         if hierarchy_tree is None:
-            hierarchy_tree = self._hierarchy_tree()
+            hierarchy_tree = self.hierarchy_tree()
 
         return draw_networkx_tree(hierarchy_tree, **kwargs)
