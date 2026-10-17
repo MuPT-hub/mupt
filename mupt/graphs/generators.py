@@ -99,22 +99,66 @@ def noodle_graph(
 
 
 def balanced_dendrimer_graph(
-    core: Hashable = "core",
-    shell_inner: Hashable = "branch",
-    shell_outer: Hashable = "terminus",
     coord_number: int = 3,
     coord_number_core: Optional[int] = None,
     num_generations: int = 5,
     label_attr_name: str = "label",
+    core: Hashable = "core",
+    shell_inner: Hashable = "branch",
+    shell_outer: Hashable = "leaf",
 ) -> Graph:
     """
-    Generate a Cayley graph, i.e. a tree whose non-leaf
-    nodes all have the same fixed node degree
+    Generate a graph which represents the connectivity of repeat units in
+    a dendrimer formed via divergent (i.e. "from core outwards") synthesis
 
-    Can specify named labels for the core, branching, and leaf nodes
+    Represented as a tree emanating from a distinguished "core" node and
+    terminating at "leaves" all a topological distance <num_generations> from the core.
+    Each branch off of the core is a Cayley graph with branching degree <coord_number>
 
-    Useful simplified model for the connectivity of a
-    dendrimer molecule at the repeat-unit level
+    The nodes in the graph will have the following degrees:
+    | Node type  | Degree            |
+    | -----------+------------------ |
+    | Core       | coord_number_core |
+    | Leaf       | 1                 |
+    | All others | coord_number      |
+
+    Can also specify named labels for the core, branch, and leaf nodes
+
+    Parameters
+    ----------
+    coord_number: int = 3
+        The degree of every node which isn't the leaf or core
+
+        Represents the number of bonds each generation of monomers
+        can make to other repeat units when added to the tree,
+        INCLUDING the bond back towards the core
+    coord_number_core: Optional[int], default None
+        The degree of the core node
+        If None, will default to the value of <coord_number>
+        Allows for configuration of the functionality of the core unit
+
+        E.g. PAMAM dendrimers have 4-neighbored
+        cores but only 3-neighbored branches
+    num_generations: int, default 5
+        The distance from the core to any leaf
+
+        Corresponds to the number of synthetic steps needed in a
+        divergent synthesis to achieve a molecule resembling this tree
+    label_attr_name: str, default "label"
+        The node attribute to which to bind node labels
+        These labels identify the type of nodes in the trees
+    core: Hashable, default "core"
+        Label to use for the distinguished core node
+    shell_inner: Hashable, default "branch"
+        Label to use for all intermediate "branch"
+        nodes between the core and the leaves
+    shell_outer: Hashable, default "leaf",
+        Label to use for all leaf nodes
+
+    Returns
+    -------
+    dendrimer_graph : Graph
+        An undirected Graph representing the dendrimer's repeat unit connectivity
     """
     if coord_number_core is None:
         coord_number_core = coord_number
@@ -125,8 +169,11 @@ def balanced_dendrimer_graph(
 
     for branch_num in range(coord_number_core):
         branch_tree: DiGraph = balanced_tree(
-            coord_number,
-            num_generations,
+            # incoming edge from center counts as one extra neigbhor
+            coord_number - 1,
+            # "extra" generation comes from connecting this subtree to the core
+            num_generations - 1,
+            # make directed initially to use in/out-degree info for orientation
             create_using=DiGraph,
         )
         relabel_nodes(
@@ -148,6 +195,3 @@ def balanced_dendrimer_graph(
         dendr_graph.add_edge(CORE_NODE, branch_core_node)
 
     return dendr_graph
-
-
-cayley_graph = balanced_dendrimer_graph
