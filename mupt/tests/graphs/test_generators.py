@@ -2,7 +2,10 @@
 
 import pytest  # noqa: F401
 
-from networkx.classes import Graph
+from typing import Optional
+from collections import defaultdict
+
+from networkx.classes import Graph, get_node_attributes
 from networkx.algorithms import is_isomorphic
 
 from mupt.graphs.generators import (  # noqa: F401
@@ -118,9 +121,62 @@ def test_dendrimer_graph_labels() -> None:
     ...
 
 
-def test_dendrimer_graph_degrees() -> None:
+@pytest.mark.parametrize(
+    "coord_number,coord_number_core,num_generations",
+    [
+        (2, 3, 4),
+        (2, None, 4),
+        (3, 5, 2),
+        (3, None, 2),
+        (1, 2, 5),
+        (1, None, 5),
+        (5, 3, 1),
+        (5, None, 1),
+        (5, 3, 2),
+        (5, None, 2),
+        (1, 3, 2),
+        (1, None, 2),
+    ],
+)
+def test_dendrimer_graph_degrees(
+    coord_number: int,
+    coord_number_core: Optional[int],
+    num_generations: int,
+) -> None:
     """
     Test that the degree of every node type matches what one
     would expected from the specified coordination numbers
     """
-    ...
+    LABEL_ATTR: str = "label"  # creative, I know
+    CORE_NAME: str = "core"
+    BRANCH_NAME: str = "branch"
+    LEAF_NAME: str = "leaf"
+
+    dendr = dendrimer_graph(
+        coord_number=coord_number,
+        coord_number_core=coord_number_core,
+        num_generations=num_generations,
+        label_attr_name=LABEL_ATTR,
+        core=CORE_NAME,
+        shell_inner=BRANCH_NAME,
+        shell_outer=LEAF_NAME,
+    )
+
+    degrees_by_node_type = defaultdict(set)
+    for node, label in get_node_attributes(dendr, LABEL_ATTR).items():
+        degrees_by_node_type[label].add(dendr.degree[node])
+    degrees_by_node_type = dict(degrees_by_node_type)
+
+    if coord_number_core is None:
+        coord_number_core = coord_number
+
+    degrees_by_node_type_expected = {
+        CORE_NAME: {coord_number_core},
+        LEAF_NAME: {1},
+    }
+    if (num_generations > 1) and (coord_number > 1):
+        # branch nodes may not be present for certain degenerate dendrimer graphs
+        degrees_by_node_type_expected[BRANCH_NAME] = {coord_number}
+
+    print(degrees_by_node_type_expected, degrees_by_node_type)
+    assert degrees_by_node_type == degrees_by_node_type_expected
