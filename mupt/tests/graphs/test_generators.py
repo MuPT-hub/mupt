@@ -83,156 +83,166 @@ def dendrimer_graph_examples_with_references() -> tuple[tuple[Graph, Graph], ...
 
 
 # Tests proper
-@pytest.mark.parametrize(
-    "dendr_graph_expected,dendr_graph_actual",
-    dendrimer_graph_examples_with_references(),
-)
-def test_dendrimer_graph_networkx(
-    dendr_graph_expected: Graph,
-    dendr_graph_actual: Graph,
-) -> None:
-    """Test that the connectivity of a dendrimer graph is assigned as expected"""
-    assert is_isomorphic(dendr_graph_actual, dendr_graph_expected)
+class TestDendrimerGraph:
+    """Encapsulation for dendrimer_graph unit tests"""
 
-
-@pytest.mark.parametrize(
-    "dendr_graph_expected,dendr_graph_actual",
-    dendrimer_graph_examples_with_references(),
-)
-def test_dendrimer_graph_indices(
-    dendr_graph_expected: Graph,
-    dendr_graph_actual: Graph,
-) -> None:
-    """Test that the nodes and edges in a dendrimer graph are assigned as expected"""
-    assert set(dendr_graph_actual.nodes) == set(dendr_graph_expected.nodes)
-
-    # normalize to ignore order of nodes in each edge (irrelevant for comparison)
-    unordered_eges_expected = {frozenset(edge) for edge in dendr_graph_actual.edges}
-    unordered_eges_actual = {frozenset(edge) for edge in dendr_graph_actual.edges}
-
-    assert unordered_eges_actual == unordered_eges_expected
-
-
-@pytest.mark.parametrize(
-    "graph,label_attr_name,labels_expected",
-    [
-        # test defaults
-        (dendrimer_graph(), "label", {"core", "branch", "leaf"}),
-        (
-            dendrimer_graph(coord_number=3, num_generations=2),
-            "label",
-            {"core", "branch", "leaf"},
-        ),
-        (
-            dendrimer_graph(coord_number=3, coord_number_core=2, num_generations=2),
-            "label",
-            {"core", "branch", "leaf"},
-        ),
-        # test missing branch labels in degenerate graphs
-        (
-            dendrimer_graph(coord_number=3, num_generations=1),
-            "label",
-            {"core", "leaf"},
-        ),
-        (
-            dendrimer_graph(coord_number=1, coord_number_core=2, num_generations=2),
-            "label",
-            {"core", "leaf"},
-        ),
-        # test custom label names
-        (dendrimer_graph(label_attr_name="other"), "other", {"core", "branch", "leaf"}),
-        (
-            dendrimer_graph(
-                label_attr_name="another",
-                core="foo",
-                shell_inner="bar",
-                shell_outer="baz",
-            ),
-            "another",
-            {"foo", "bar", "baz"},
-        ),
-        (
-            dendrimer_graph(
-                label_attr_name="yet another",
-                core="foo",
-                shell_inner="bar",
-                shell_outer="bar",
-            ),
-            "yet another",
-            {"foo", "bar"},
-        ),
-    ],
-)
-def test_dendrimer_graph_labels(
-    graph: Graph,
-    label_attr_name: str,
-    labels_expected: set[str],
-) -> None:
-    """
-    Test that the 3 nodes types in a dendrimer graph
-    (core, branch, and leaf) are labelled as expected
-    """
-    print(get_node_attributes(graph, label_attr_name))
-    labels_actual: set[str] = set(get_node_attributes(graph, label_attr_name).values())
-    assert labels_actual == labels_expected
-
-
-@pytest.mark.parametrize(
-    "coord_number,coord_number_core,num_generations",
-    [
-        (2, 3, 4),
-        (2, None, 4),
-        (3, 5, 2),
-        (3, None, 2),
-        (1, 2, 5),
-        (1, None, 5),
-        (5, 3, 1),
-        (5, None, 1),
-        (5, 3, 2),
-        (5, None, 2),
-        (1, 3, 2),
-        (1, None, 2),
-    ],
-)
-def test_dendrimer_graph_degrees(
-    coord_number: int,
-    coord_number_core: Optional[int],
-    num_generations: int,
-) -> None:
-    """
-    Test that the degree of every node type matches what one
-    would expected from the specified coordination numbers
-    """
-    LABEL_ATTR: str = "label"  # creative, I know
-    CORE_NAME: str = "core"
-    BRANCH_NAME: str = "branch"
-    LEAF_NAME: str = "leaf"
-
-    dendr = dendrimer_graph(
-        coord_number=coord_number,
-        coord_number_core=coord_number_core,
-        num_generations=num_generations,
-        label_attr_name=LABEL_ATTR,
-        core=CORE_NAME,
-        shell_inner=BRANCH_NAME,
-        shell_outer=LEAF_NAME,
+    @pytest.mark.parametrize(
+        "dendr_graph_expected,dendr_graph_actual",
+        dendrimer_graph_examples_with_references(),
     )
+    def test_dendrimer_graph_networkx(
+        self,
+        dendr_graph_expected: Graph,
+        dendr_graph_actual: Graph,
+    ) -> None:
+        """Test that the connectivity of a dendrimer graph is assigned as expected"""
+        assert is_isomorphic(dendr_graph_actual, dendr_graph_expected)
 
-    degrees_by_node_type = defaultdict(set)
-    for node, label in get_node_attributes(dendr, LABEL_ATTR).items():
-        degrees_by_node_type[label].add(dendr.degree[node])
-    degrees_by_node_type = dict(degrees_by_node_type)
+    @pytest.mark.parametrize(
+        "dendr_graph_expected,dendr_graph_actual",
+        dendrimer_graph_examples_with_references(),
+    )
+    def test_dendrimer_graph_indices(
+        self,
+        dendr_graph_expected: Graph,
+        dendr_graph_actual: Graph,
+    ) -> None:
+        """Test that the nodes & edges in a dendrimer graph are assigned as expected"""
+        assert set(dendr_graph_actual.nodes) == set(dendr_graph_expected.nodes)
 
-    if coord_number_core is None:
-        coord_number_core = coord_number
+        # normalize to ignore order of nodes in each edge (irrelevant for comparison)
+        unordered_eges_expected = {frozenset(edge) for edge in dendr_graph_actual.edges}
+        unordered_eges_actual = {frozenset(edge) for edge in dendr_graph_actual.edges}
 
-    degrees_by_node_type_expected = {
-        CORE_NAME: {coord_number_core},
-        LEAF_NAME: {1},
-    }
-    if (num_generations > 1) and (coord_number > 1):
-        # branch nodes may not be present for certain degenerate dendrimer graphs
-        degrees_by_node_type_expected[BRANCH_NAME] = {coord_number}
+        assert unordered_eges_actual == unordered_eges_expected
 
-    print(degrees_by_node_type_expected, degrees_by_node_type)
-    assert degrees_by_node_type == degrees_by_node_type_expected
+    @pytest.mark.parametrize(
+        "graph,label_attr_name,labels_expected",
+        [
+            # test defaults
+            (dendrimer_graph(), "label", {"core", "branch", "leaf"}),
+            (
+                dendrimer_graph(coord_number=3, num_generations=2),
+                "label",
+                {"core", "branch", "leaf"},
+            ),
+            (
+                dendrimer_graph(coord_number=3, coord_number_core=2, num_generations=2),
+                "label",
+                {"core", "branch", "leaf"},
+            ),
+            # test missing branch labels in degenerate graphs
+            (
+                dendrimer_graph(coord_number=3, num_generations=1),
+                "label",
+                {"core", "leaf"},
+            ),
+            (
+                dendrimer_graph(coord_number=1, coord_number_core=2, num_generations=2),
+                "label",
+                {"core", "leaf"},
+            ),
+            # test custom label names
+            (
+                dendrimer_graph(label_attr_name="other"),
+                "other",
+                {"core", "branch", "leaf"},
+            ),
+            (
+                dendrimer_graph(
+                    label_attr_name="another",
+                    core="foo",
+                    shell_inner="bar",
+                    shell_outer="baz",
+                ),
+                "another",
+                {"foo", "bar", "baz"},
+            ),
+            (
+                dendrimer_graph(
+                    label_attr_name="yet another",
+                    core="foo",
+                    shell_inner="bar",
+                    shell_outer="bar",
+                ),
+                "yet another",
+                {"foo", "bar"},
+            ),
+        ],
+    )
+    def test_dendrimer_graph_labels(
+        self,
+        graph: Graph,
+        label_attr_name: str,
+        labels_expected: set[str],
+    ) -> None:
+        """
+        Test that the 3 nodes types in a dendrimer graph
+        (core, branch, and leaf) are labelled as expected
+        """
+        print(get_node_attributes(graph, label_attr_name))
+        labels_actual: set[str] = set(
+            get_node_attributes(graph, label_attr_name).values()
+        )
+        assert labels_actual == labels_expected
+
+    @pytest.mark.parametrize(
+        "coord_number,coord_number_core,num_generations",
+        [
+            (2, 3, 4),
+            (2, None, 4),
+            (3, 5, 2),
+            (3, None, 2),
+            (1, 2, 5),
+            (1, None, 5),
+            (5, 3, 1),
+            (5, None, 1),
+            (5, 3, 2),
+            (5, None, 2),
+            (1, 3, 2),
+            (1, None, 2),
+        ],
+    )
+    def test_dendrimer_graph_degrees(
+        self,
+        coord_number: int,
+        coord_number_core: Optional[int],
+        num_generations: int,
+    ) -> None:
+        """
+        Test that the degree of every node type matches what one
+        would expected from the specified coordination numbers
+        """
+        LABEL_ATTR: str = "label"  # creative, I know
+        CORE_NAME: str = "core"
+        BRANCH_NAME: str = "branch"
+        LEAF_NAME: str = "leaf"
+
+        dendr = dendrimer_graph(
+            coord_number=coord_number,
+            coord_number_core=coord_number_core,
+            num_generations=num_generations,
+            label_attr_name=LABEL_ATTR,
+            core=CORE_NAME,
+            shell_inner=BRANCH_NAME,
+            shell_outer=LEAF_NAME,
+        )
+
+        degrees_by_node_type = defaultdict(set)
+        for node, label in get_node_attributes(dendr, LABEL_ATTR).items():
+            degrees_by_node_type[label].add(dendr.degree[node])
+        degrees_by_node_type = dict(degrees_by_node_type)
+
+        if coord_number_core is None:
+            coord_number_core = coord_number
+
+        degrees_by_node_type_expected = {
+            CORE_NAME: {coord_number_core},
+            LEAF_NAME: {1},
+        }
+        if (num_generations > 1) and (coord_number > 1):
+            # branch nodes may not be present for certain degenerate dendrimer graphs
+            degrees_by_node_type_expected[BRANCH_NAME] = {coord_number}
+
+        print(degrees_by_node_type_expected, degrees_by_node_type)
+        assert degrees_by_node_type == degrees_by_node_type_expected
