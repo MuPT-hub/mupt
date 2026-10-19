@@ -176,7 +176,6 @@ class TestDendrimerGraph:
         Test that the 3 nodes types in a dendrimer graph
         (core, branch, and leaf) are labelled as expected
         """
-        print(get_node_attributes(graph, label_attr_name))
         labels_actual: set[str] = set(
             get_node_attributes(graph, label_attr_name).values()
         )
@@ -240,7 +239,6 @@ class TestDendrimerGraph:
             # branch nodes may not be present for certain degenerate dendrimer graphs
             degrees_by_node_type_expected[BRANCH_NAME] = {coord_number}
 
-        print(degrees_by_node_type_expected, degrees_by_node_type)
         assert degrees_by_node_type == degrees_by_node_type_expected
 
 
