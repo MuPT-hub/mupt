@@ -34,7 +34,7 @@ def primoprogenitors(
     ----------
     root: NodeMixin
         The node highest in the tree to be traversed
-    predicate: NodeNodePredicate
+    predicate: NodePredicate
         A callable indicating whether a node should be selected
     to_depth : Optional[int], default None
         An optional cap on the depth of the search;
