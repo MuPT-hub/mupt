@@ -48,21 +48,24 @@ def primoprogenitors(
     node_selected : NodeMixin
         The first node along a given branch found to satisfy the predicate
     """
-    # DEV: would be nice to support multiple roots to initialize search queue,
-    # but that would require ensuring ALL pairs of roots are non-relatives,
-    nodes_to_search: deque[NodeLike] = deque([root])
+    # DEV: could potentially support multiple initial roots, provided one has an
+    # efficient way to precheck ALL pairs of those roots are not ancestors/descendants
+    ROOT_DEPTH: int = 0
+    nodes_to_search: deque[tuple[NodeLike, int]] = deque([(root, ROOT_DEPTH)])
     while nodes_to_search:
-        curr_node = nodes_to_search.popleft()  # O(1) pop which preserves BFS order
-        if predicate(curr_node):
-            yield curr_node
+        node, depth = nodes_to_search.popleft()  # O(1) pop which preserves BFS order
+        if predicate(node):
+            yield node
 
         # TB: +1 is annoying as hell, but is needed to be consistent with
         # anytree's `maxlevel` analog (I contend that max depth of 2 should
         # include nodes w/ depth 2, rather than bottoming out at 1; cest la vie)
-        elif (to_depth is None) or ((curr_node.depth + 1) < to_depth):
-            # N.B.: with arbitrary successor function,
-            # not guaranteed depth increases monotonically!
-            nodes_to_search.extend(successors(curr_node))
+        elif (to_depth is None) or ((depth + 1) < to_depth):
+            nodes_to_search.extend(
+                (successor, depth + 1) for successor in successors(node)
+            )
+            # N.B.: with arbitrary successor function, node.depth is not guaranteed to
+            # increase monotonically, nevermind incrementally; local tally combats this
 
 
 pruned_BFS_subelection = primoprogenitors
