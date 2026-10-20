@@ -1,0 +1,352 @@
+"""Unit tests for graph invariants"""
+
+import pytest
+from dataclasses import dataclass
+
+from networkx.classes import Graph, DiGraph
+from networkx.algorithms import disjoint_union
+from networkx.generators import (
+    null_graph,
+    empty_graph,
+    trivial_graph,
+    cycle_graph,
+    path_graph,
+    star_graph,
+    tadpole_graph,
+    heawood_graph,  # TB: can be any branched graph for tests; chose a personal favorite
+    caveman_graph,
+    balanced_tree,
+)
+
+from mupt.graphs.graphtypes import Node
+from mupt.graphs.invariants import (
+    is_empty,
+    is_indiscrete,
+    is_unbranched,
+    is_branched,
+    is_acyclic,
+    is_linear,
+    components,
+    termini,
+)
+
+
+@dataclass
+class GraphInvariantExample:
+    """Encapsulation to allow reuse the same graph examples across multiple tests"""
+
+    graph: Graph
+    is_indiscrete: bool
+    is_empty: bool
+    is_unbranched: bool
+    is_branched: bool
+    is_acyclic: bool
+    is_linear: bool
+
+
+def graph_invariant_examples() -> tuple[GraphInvariantExample, ...]:
+    """Examples which are to be reused in tests here"""
+    return (
+        # empty graph (no nodes or edges)
+        GraphInvariantExample(
+            null_graph(),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        GraphInvariantExample(
+            null_graph(create_using=DiGraph),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        GraphInvariantExample(
+            Graph(),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        # trivial graph (one node, no edges)
+        GraphInvariantExample(
+            trivial_graph(),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        # alternate form of the empty graph
+        GraphInvariantExample(
+            path_graph(0),
+            is_indiscrete=True,
+            is_empty=True,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        # alternate form of the trivial graph
+        GraphInvariantExample(
+            path_graph(1),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        GraphInvariantExample(
+            path_graph(3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        GraphInvariantExample(
+            path_graph(3, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        # test with disconnected components (in this case, isolated nodes)
+        GraphInvariantExample(
+            empty_graph(4),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        # Cyclic graphs - unbranched, but not linear
+        GraphInvariantExample(
+            cycle_graph(5),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=False,
+            is_linear=False,
+        ),
+        GraphInvariantExample(
+            cycle_graph(5, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=False,
+            is_linear=False,
+        ),
+        # graphs with loops
+        ## 2-cycle "head" is still linear
+        GraphInvariantExample(
+            tadpole_graph(2, 3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        ## 3-cycle "head" introduces branching
+        GraphInvariantExample(
+            tadpole_graph(3, 3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=False,
+            is_linear=False,
+        ),
+        # graphs with branches
+        ## alternate form of the trivial graph
+        GraphInvariantExample(
+            star_graph(0),
+            is_indiscrete=True,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        ## equivalent to a 2-node path graph
+        GraphInvariantExample(
+            star_graph(1),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        ## equivalent to a 3-node path graph
+        GraphInvariantExample(
+            star_graph(2),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=True,
+            is_branched=False,
+            is_acyclic=True,
+            is_linear=True,
+        ),
+        ## branching of star graph finally "kicks in"
+        GraphInvariantExample(
+            star_graph(3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
+        ),
+        GraphInvariantExample(
+            star_graph(3, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
+        ),
+        # special graphs
+        GraphInvariantExample(
+            heawood_graph(),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=False,
+            is_linear=False,
+        ),
+        GraphInvariantExample(
+            balanced_tree(2, 3),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
+        ),
+        GraphInvariantExample(
+            balanced_tree(2, 3, create_using=DiGraph),
+            is_indiscrete=False,
+            is_empty=False,
+            is_unbranched=False,
+            is_branched=True,
+            is_acyclic=True,
+            is_linear=False,
+        ),
+    )
+
+
+# Graph predicates
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_indiscrete(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_indiscrete() invariant is calculated correctly"""
+    assert is_indiscrete(graph_example.graph) == graph_example.is_indiscrete
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_empty(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_empty() invariant is calculated correctly"""
+    assert is_empty(graph_example.graph) == graph_example.is_empty
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_unbranched(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_unbranched() invariant is calculated correctly"""
+    assert is_unbranched(graph_example.graph) == graph_example.is_unbranched
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_branched(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_branched() invariant is calculated correctly"""
+    assert is_branched(graph_example.graph) == graph_example.is_branched
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_acyclic(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_acyclic() invariant is calculated correctly"""
+    assert is_acyclic(graph_example.graph) == graph_example.is_acyclic
+
+
+@pytest.mark.parametrize("graph_example", graph_invariant_examples())
+def test_is_linear(graph_example: GraphInvariantExample) -> None:
+    """Test that the is_linear() invariant is calculated correctly"""
+    assert is_linear(graph_example.graph) == graph_example.is_linear
+
+
+# Subgraph enumeration
+@pytest.mark.parametrize(
+    "graph,component_nodes_expected",
+    [
+        (path_graph("abcd"), {frozenset({"a", "b", "c", "d"})}),
+        (
+            caveman_graph(3, 3),
+            {
+                frozenset({0, 1, 2}),
+                frozenset({3, 4, 5}),
+                frozenset({6, 7, 8}),
+            },
+        ),
+        (
+            empty_graph([0.5772, 2.7182, 3.1415]),
+            {
+                frozenset({0.5772}),
+                frozenset({2.7182}),
+                frozenset({3.1415}),
+            },
+        ),
+        (
+            # TB: wanted to test this with directed cycles, only to find
+            # networkx does not implement connected_components for DiGraphs :(
+            disjoint_union(cycle_graph(3), cycle_graph(5)),
+            {frozenset({0, 1, 2}), frozenset({3, 4, 5, 6, 7})},
+        ),
+    ],
+)
+def test_components(
+    graph: Graph,
+    component_nodes_expected: set[frozenset[Node]],
+) -> None:
+    """
+    Test that connected components of a graph are correctly
+    identified AND returned as same type as that graph
+    """
+    component_nodes_actual: set[frozenset[Node]] = set()
+    for component in components(graph):
+        assert type(component) is type(graph)
+        component_nodes_actual.add(frozenset(component))
+
+    assert component_nodes_actual == component_nodes_expected
+
+
+@pytest.mark.parametrize(
+    "graph,termini_expected",
+    [
+        (path_graph(1), {0}),
+        (path_graph(10), {0, 9}),
+        (path_graph(10, create_using=DiGraph), {0, 9}),
+        (star_graph(3), {1, 2, 3}),
+        (balanced_tree(2, 2), {3, 4, 5, 6}),
+    ],
+)
+def test_termini(graph: Graph, termini_expected: set[Node]) -> None:
+    """Test that identification of terminal/leaf nodes returns the expected results"""
+    termini_actual: set[Node] = set(termini(graph))
+    assert termini_actual == termini_expected
