@@ -55,13 +55,17 @@ def determine_arc_radii(
     Configure a graph to display symmetric-looking arcs for
     (possibly parallel) edges rendered when drawing that graph
 
-    Arc radii will be scaled up from the chosen base radius, e.g.
+    Arc radii will be scaled to be equidistant by increments of the base arc radius
+    E.g. the scaling factor for various small examples will be:
     * N=1: O----O ==> (0,)
-            ____
-    * N=2: O    O ==> (-1, 1)
-            ▔▔
+
+    * N=2: O====O ==> (-1/2, 1/2)
+
             ____
     * N=3: O----O ==> (-1, 0, 1)
+            ▔▔
+            ____
+    * N=4: O====O ==> (-3/2, -1/2, 1/2, 3/2)
             ▔▔
     etc.
     """
@@ -77,10 +81,12 @@ def determine_arc_radii(
         num_parallel_edges: int = len(parallel_edges)
 
         arc_radii: Generator[float, None, None] = (
-            base_arc_radius * increment
+            base_arc_radius * increment / 2
             for increment in range(1 - num_parallel_edges, num_parallel_edges, 2)
         )
         for arc_radius, edge in zip(arc_radii, parallel_edges):
+            # TB TODO: split off the calculation of these
+            # values from the bundling into format strings
             conn_style_map[edge] = f"arc3,rad={arc_radius}"
 
     return conn_style_map
