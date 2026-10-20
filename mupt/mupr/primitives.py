@@ -1656,6 +1656,5 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
             kwargs["with_labels"] = True
             kwargs["labels"] = label_map
-            print(label_map)
 
         return draw_networkx_tree(hierarchy_tree, **kwargs)
