@@ -8,6 +8,8 @@ from typing import (
     TypeVar,
     TypeAlias,
 )
+from collections import deque
+
 from anytree.node import NodeMixin
 
 NodeLike = TypeVar("NodeLike", bound=NodeMixin, covariant=True)
@@ -48,10 +50,9 @@ def primoprogenitors(
     """
     # DEV: would be nice to support multiple roots to initialize search queue,
     # but that would require ensuring ALL pairs of roots are non-relatives,
-    # which naively seems like an O(N^2) precheck (cleverer solutions probably exist)
-    nodes_to_search: list[NodeLike] = [root]
+    nodes_to_search: deque[NodeLike] = deque([root])
     while nodes_to_search:
-        curr_node = nodes_to_search.pop(0)
+        curr_node = nodes_to_search.popleft()  # O(1) pop which preserves BFS order
         if predicate(curr_node):
             yield curr_node
 
