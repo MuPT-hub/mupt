@@ -50,10 +50,10 @@ def graph_repr(graph: Graph) -> str:
 def determine_arc_radii(
     graph: Graph | MultiGraph,
     base_arc_radius: int | float = 0.1,
-) -> dict[GraphEdge, str]:
+) -> dict[GraphEdge, float]:
     """
-    Configure a graph to display symmetric-looking arcs for
-    (possibly parallel) edges rendered when drawing that graph
+    Determine radii needed for each edge of a simple graph or multigraph
+    to display symmetric-looking arcs for (possibly parallel) edges when rendered
 
     Arc radii will be scaled to be equidistant by increments of the base arc radius
     E.g. the scaling factor for various small examples will be:
@@ -76,7 +76,7 @@ def determine_arc_radii(
         a, b, *_ = edge
         edges_by_node_pair[frozenset((a, b))].append(edge)
 
-    conn_style_map: dict[GraphEdge, str] = dict()
+    conn_style_map: dict[GraphEdge, float] = dict()
     for parallel_edges in edges_by_node_pair.values():
         num_parallel_edges: int = len(parallel_edges)
 
@@ -85,11 +85,28 @@ def determine_arc_radii(
             for increment in range(1 - num_parallel_edges, num_parallel_edges, 2)
         )
         for arc_radius, edge in zip(arc_radii, parallel_edges):
-            # TB TODO: split off the calculation of these
-            # values from the bundling into format strings
-            conn_style_map[edge] = f"arc3,rad={arc_radius}"
+            conn_style_map[edge] = arc_radius
 
     return conn_style_map
+
+
+def determine_arc_styles(
+    graph: Graph | MultiGraph,
+    base_arc_radius: int | float = 0.1,
+) -> dict[GraphEdge, str]:
+    """
+    Compile map from graph edges to format string containing arc radii cues
+
+    When assigned to "connectionstyle" of each edge according to the return map,
+    will ensure parallel edges in graph are rendered nicely
+    """
+    return {
+        edge: f"arc3,rad={arc_radius}"
+        for edge, arc_radius in determine_arc_radii(
+            graph,
+            base_arc_radius=base_arc_radius,
+        ).items()
+    }
 
 
 def draw_networkx_with_arcs(
@@ -128,7 +145,10 @@ def draw_networkx_with_arcs(
     # viz. -|#|= edges in 4-node path unexpectedly refs styles like [0 | 0 1 2 | 0 1])
     # Drawing edge-by-edge ensures the arcs drawn respect their assigned connectionstyle
     draw_networkx(G, pos=pos, ax=ax, edgelist=[], **kwargs)  # skip edge drawing here
-    arc_styles = determine_arc_radii(G, base_arc_radius=base_arc_radius)
+    arc_styles: dict[GraphEdge, str] = determine_arc_styles(
+        G,
+        base_arc_radius=base_arc_radius,
+    )
     for edge in edgelist:
         draw_networkx_edges(
             G,
