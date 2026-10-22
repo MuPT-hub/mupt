@@ -17,7 +17,6 @@ dependencies:
 
   # Mathematics and scientific computing
   - numpy
-  - mkl<2026.2 # pin to workaround numpy mkl issue: https://github.com/ultralytics/ultralytics/issues/26836
   - scipy>=1.16.0 # required to allow use of RigidTransform
   - sympy
 
