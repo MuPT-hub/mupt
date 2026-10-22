@@ -16,10 +16,23 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
     """
     A dummy tree for testing subselection routines
 
+    base
+    ├── tail_0
+    │   ├── group_0
+    │   │   └── moiety_0
+    │   └── atom_1
+    ├── tail_1
+    ├── group_1
+    │   ├── moiety_1
+    │   │   └── atom_2
+    │   ├── moiety_2
+    │   └── atom_0
+    └── atom_3
+
     Returns the root of the tree and a dict to each
     node in the tree, each node keyed by its name
     """
-    node_name_map: dict[str, str | None] = {
+    node_name_map: dict[str, Optional[str]] = {
         ROOT_KW: None,
         "tail_0": "base",
         "tail_1": "base",
