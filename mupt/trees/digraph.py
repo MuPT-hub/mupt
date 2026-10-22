@@ -1,6 +1,15 @@
 """For converting back-and-forth between anytree and networkx DiGraphs"""
 
-from typing import Any, Callable, Hashable, Iterable, Optional, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Hashable,
+    Iterable,
+    Mapping,
+    Optional,
+    TypeVar,
+    Union,
+)
 
 from anytree.node import NodeMixin
 from anytree.exporter import DictExporter
@@ -22,9 +31,20 @@ def anytree_to_networkx(
     filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
     stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
     max_depth: Optional[int] = None,
-    node_converter: Callable[[NodeMixin], H] = lambda x: x,
+    node_converter: Union[
+        Callable[[NodeMixin], H],
+        Mapping[NodeMixin, H],
+    ] = lambda x: x,
 ) -> DiGraph:
     """Convert a tree into a directed NetworkX graph"""
+    if isinstance(node_converter, Mapping):
+
+        def _node_converter(nd: NodeMixin) -> H:
+            return node_converter[nd]
+
+    else:
+        _node_converter = node_converter  # type: ignore
+
     node_iter: AbstractIter = iter_type(
         node, filter_=filter_predicate, stop=stop_predicate, maxlevel=max_depth
     )
@@ -39,13 +59,13 @@ def anytree_to_networkx(
 
     digraph = DiGraph()
     for subnode in node_iter:
-        node_converted: H = node_converter(subnode)
+        node_converted: H = _node_converter(subnode)
         digraph.add_node(
             node_converted,
             **node_exporter.export(subnode),
         )
         if (parent := subnode.parent) is not None:
-            parent_converted: H = node_converter(parent)
+            parent_converted: H = _node_converter(parent)
             if parent_converted in digraph:
                 digraph.add_edge(parent_converted, node_converted)
 
