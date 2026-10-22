@@ -9,24 +9,24 @@ from networkx.classes import DiGraph
 from mupt.trees.digraph import anytree_to_networkx
 
 
-def test_anytree_to_networkx() -> None:
-    """Test anytree Node trees are correctly converted to networkx directed graphs"""
-    ...
+RESERVED_ATTR_NAME: str = "value"
 
 
-def examples_tree_simple():
+def example_tree_simple():
     """
     A small tree with names and custom attributes
 
-    root
+    root  (value=0)
     ├── group_1  (value=1)
-    └── group_2  (value=2)
-        └── atom_0  (value=3)
+    ├── group_2  (value=2)
+    │   └── atom_0  (value=3)
+    └── atom_1  (value=3)
     """
-    root = Node("root")
-    _group_1 = Node("group_1", parent=root, value=1)
-    group_2 = Node("group_2", parent=root, value=2)
-    _atom_0 = Node("atom_0", parent=group_2, value=3)
+    root = Node("root", **{RESERVED_ATTR_NAME: 0})
+    _group_1 = Node("group_1", parent=root, **{RESERVED_ATTR_NAME: 1})
+    group_2 = Node("group_2", parent=root, **{RESERVED_ATTR_NAME: 2})
+    _atom_0 = Node("atom_0", parent=group_2, **{RESERVED_ATTR_NAME: 3})
+    _atom_1 = Node("atom_0", parent=root, **{RESERVED_ATTR_NAME: 4})
 
     return root
 
@@ -54,7 +54,7 @@ def example_tree_deep(depth: int) -> Node:
 @pytest.mark.parametrize(
     "root",
     [
-        examples_tree_simple(),
+        example_tree_simple(),
         example_tree_deep(5),
         example_tree_deep(15),
         example_tree_broad(4),
@@ -97,10 +97,35 @@ class TestDiGraphStructure:
         assert set(digraph.edges()) == edges_expected
 
 
+class TestDigraphAttrbutes:
+    """
+    Bundled tests to ensure Node attributes are transferred
+    into their networkx node counterparts on conversion
+    """
+
+    def test_node_name(self) -> None:
+        """Test that name gets transferred over"""
+        root = example_tree_simple()
+        digraph = anytree_to_networkx(root)
+
+        for node in PreOrderIter(root):
+            assert digraph.nodes[node].get("name") == node.name
+
+    def test_node_custom_attr(self) -> None:
+        """Test that custom fields are also copied over"""
+        root = example_tree_simple()
+        digraph = anytree_to_networkx(root)
+
+        for node in PreOrderIter(root):
+            custom_attr_expected = getattr(node, RESERVED_ATTR_NAME)
+            custom_attr_actual = digraph.nodes[node].get(RESERVED_ATTR_NAME)
+            assert custom_attr_actual == custom_attr_expected
+
+
 class TestDigraphFilter:
     """
-    Bundled tests checking that filtering nodes by attributes, predicate, or depth
-    prunes the expected nodes from the returned tree
+    Bundled tests checking that filtering nodes by attributes, predicate,
+    or depth prunes the expected nodes from the returned tree
     """
 
     ...
