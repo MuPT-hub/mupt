@@ -60,10 +60,17 @@ jobs:
           python -m pip install . --no-deps
           micromamba list
 
-      - name: Debug environment
+      - name: Debug pytest vers
         run: |
           which pytest
+
+      - name: Debug mupt imoprt
+        run: |
+          which python
           python -c "import mupt"
+
+      - name: Debug pytest call
+        run: |
           python -m pytest --collect-only mupt/tests/
 
       - name: Run tests
