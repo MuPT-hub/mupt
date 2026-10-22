@@ -48,6 +48,7 @@ def anytree_to_networkx(
         node, filter_=filter_predicate, stop=stop_predicate, maxlevel=max_depth
     )
 
+    # TB TODO: rework to fix dropped edges bug when using PostOrderIter
     digraph = DiGraph()
     for subnode in node_iter:
         node_converted: H = node_converter(subnode)
