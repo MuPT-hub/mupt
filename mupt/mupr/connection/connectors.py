@@ -164,7 +164,6 @@ class Connector(RigidlyTransformable):
         (i.e. definite spanning direction away from anchor) defined
         """
         # TODO: determine appropriate practical tolerances for "nonzero" bond vector
-        warn("test", category=DeprecationWarning)
         return not np.allclose(
             self.anchor.position, self.linker.position, rtol=1e-6, atol=1e-8
         )
@@ -631,9 +630,8 @@ class Connector(RigidlyTransformable):
     def bondable_with(self, other: "Connector") -> bool:
         """Whether this Connector is bondable with another Connector instance"""
         if not isinstance(other, Connector):
-            return (
-                False  # DEVNOTE: raise TypeError instead (or at least log a warning)?
-            )
+            # DEVNOTE: raise TypeError instead (or at least log a warning)?
+            return False
 
         # DEV: opting for loosest possible comparison where at least on of the
         # attachable elements overlaps between opposing pairs of attachment points
