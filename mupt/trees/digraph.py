@@ -34,18 +34,15 @@ def anytree_to_networkx(
 ) -> DiGraph:
     """Convert a tree into a directed NetworkX graph"""
     if isinstance(node_converter, Mapping):
+        node_converter = node_converter.__getitem__
 
-        def _node_converter(nd: NodeMixin) -> H:
-            return node_converter[nd]
-
-    else:
-        _node_converter = node_converter  # type: ignore
-
-    # dict_exporter.maxlevel is forced 1 to avoid copying nodes as attributes
-    # not to be confused with max level for tree traversal)
     if node_exporter is None:
-        node_exporter = DictExporter()
-    node_exporter.maxlevel = 1
+        # force dict_exporter.maxlevel=1 to avoid recursively copying other nodes``
+        # as attributes ;not to be confused with max level for tree traversal)
+        node_exporter = DictExporter(maxlevel=1)
+
+    if node_exporter.maxlevel != 1:
+        raise ValueError("Externally-supplied DictExporter must have maxlevel=1")
 
     node_iter: AbstractIter = iter_type(
         node, filter_=filter_predicate, stop=stop_predicate, maxlevel=max_depth
@@ -53,13 +50,13 @@ def anytree_to_networkx(
 
     digraph = DiGraph()
     for subnode in node_iter:
-        node_converted: H = _node_converter(subnode)
+        node_converted: H = node_converter(subnode)
         digraph.add_node(
             node_converted,
             **node_exporter.export(subnode),
         )
         if (parent := subnode.parent) is not None:
-            parent_converted: H = _node_converter(parent)
+            parent_converted: H = node_converter(parent)
             if parent_converted in digraph:
                 digraph.add_edge(parent_converted, node_converted)
 
