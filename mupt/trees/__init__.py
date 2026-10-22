@@ -15,5 +15,5 @@ from .subselect import (
 )
 from .digraph import (
     anytree_to_networkx as anytree_to_networkx,
-    networkx_to_anytree as networkx_to_anytree,
+    # networkx_to_anytree as networkx_to_anytree,
 )
