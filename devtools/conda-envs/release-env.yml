@@ -7,7 +7,7 @@ dependencies:
   - python>=3.12,<3.14  # <3.14 because of https://github.com/openforcefield/openff-units/pull/178
   - pip
   - jupyterlab
-  - brotli==1.2.0
+  - pre-commit
 
   # Unit testing
   - pytest
@@ -16,8 +16,8 @@ dependencies:
   - nbval
 
   # Mathematics and scientific computing
-  # - numpy>=2.0
   - numpy
+  - mkl<2026.2 # pin to workaround numpy mkl issue: https://github.com/ultralytics/ultralytics/issues/26836
   - scipy>=1.16.0 # required to allow use of RigidTransform
   - sympy
 
