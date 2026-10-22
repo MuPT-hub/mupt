@@ -1,10 +1,8 @@
 """For converting back-and-forth between anytree and networkx DiGraphs"""
 
 from typing import (
-    Any,
     Callable,
     Hashable,
-    Iterable,
     Mapping,
     Optional,
     TypeVar,
@@ -20,14 +18,12 @@ from networkx import DiGraph
 from .subselect import NodePredicate
 
 H = TypeVar("H", bound=Hashable)
-type AttrIter = Iterable[tuple[Hashable, Any]]
 
 
 def anytree_to_networkx(
     node: NodeMixin,
-    dict_type: type = dict,
+    node_exporter: Optional[DictExporter] = None,
     iter_type: type[AbstractIter] = PreOrderIter,
-    attr_iter: Optional[Callable[[AttrIter], AttrIter]] = None,
     filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
     stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
     max_depth: Optional[int] = None,
@@ -45,16 +41,14 @@ def anytree_to_networkx(
     else:
         _node_converter = node_converter  # type: ignore
 
+    # dict_exporter.maxlevel is forced 1 to avoid copying nodes as attributes
+    # not to be confused with max level for tree traversal)
+    if node_exporter is None:
+        node_exporter = DictExporter()
+    node_exporter.maxlevel = 1
+
     node_iter: AbstractIter = iter_type(
         node, filter_=filter_predicate, stop=stop_predicate, maxlevel=max_depth
-    )
-    node_exporter = DictExporter(
-        dictcls=dict_type,
-        attriter=attr_iter,
-        childiter=list,  # tuple,
-        # Will be exporting attributes on a node-by-node basis;
-        # max level for tree traversal is set in node_iter.maxlevel
-        maxlevel=1,
     )
 
     digraph = DiGraph()
