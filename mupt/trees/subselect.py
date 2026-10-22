@@ -51,6 +51,9 @@ def primoprogenitors(
     # DEV: could potentially support multiple initial roots, provided one has an
     # efficient way to precheck ALL pairs of those roots are not ancestors/descendants
     ROOT_DEPTH: int = 0
+    if (to_depth is not None) and (to_depth <= ROOT_DEPTH):
+        return
+
     nodes_to_search: deque[tuple[NodeLike, int]] = deque([(root, ROOT_DEPTH)])
     while nodes_to_search:
         node, depth = nodes_to_search.popleft()  # O(1) pop which preserves BFS order
