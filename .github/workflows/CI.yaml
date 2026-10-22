@@ -21,7 +21,8 @@ on:
 defaults:
   run:
     # conda setup requires this special shell
-    shell: bash -l {0}
+    # shell: bash -l {0}
+    shell: bash {0}
 
 jobs:
   test:
