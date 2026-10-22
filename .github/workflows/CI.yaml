@@ -21,8 +21,7 @@ on:
 defaults:
   run:
     # conda setup requires this special shell
-    # shell: bash -l {0}
-    shell: bash {0}
+    shell: bash -l {0}
 
 jobs:
   test:
@@ -49,6 +48,7 @@ jobs:
           generate-run-shell: false # recommended fix to weird ENOENT error (https://github.com/mamba-org/setup-micromamba/issues/130)
           environment-file: devtools/conda-envs/release-env.yml
           environment-name: mupt-env
+          init-shell: bash
           condarc: |
             channels:
               - conda-forge
