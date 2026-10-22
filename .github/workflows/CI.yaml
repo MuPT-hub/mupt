@@ -29,8 +29,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        #os: [macOS-latest, ubuntu-latest]
-        os: [ubuntu-latest]
+        os: [macOS-latest, ubuntu-latest]
         python-version: ["3.12", "3.13"]
 
     steps:
@@ -42,6 +41,13 @@ jobs:
           uname -a
           df -h
           ulimit -a
+
+      - name: Pin MKL on Linux (temporary workaround)
+        if: runner.os == 'Linux'
+        shell: bash
+        # Work around https://github.com/ultralytics/ultralytics/issues/26836
+        run: |
+          printf '%s\n' '  - mkl<2026.2' >> devtools/conda-envs/release-env.yml
 
       # More info on options: https://github.com/marketplace/actions/setup-micromamba
       - uses: mamba-org/setup-micromamba@v1
