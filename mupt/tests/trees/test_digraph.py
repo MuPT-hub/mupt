@@ -51,16 +51,18 @@ def example_tree_deep(depth: int) -> Node:
     return root
 
 
-@pytest.mark.parametrize(
-    "root",
-    [
+def example_trees() -> tuple[Node, ...]:
+    """Combined set of tree examples useful for parameterize"""
+    return (
         example_tree_simple(),
         example_tree_deep(5),
         example_tree_deep(15),
         example_tree_broad(4),
         example_tree_broad(14),
-    ],
-)
+    )
+
+
+@pytest.mark.parametrize("root", example_trees())
 class TestDiGraphStructure:
     """
     Bundled tests which ensure connectivity, return types, and node counts
@@ -179,3 +181,40 @@ class TestDigraphFilter:
         assert digraph.has_edge(
             nodes_by_name["root"], nodes_by_name["atom_1"]
         ) and not digraph.has_edge(nodes_by_name["root"], nodes_by_name["atom_0"])
+
+
+class TestDigraphDepth:
+    """Bundled tests to ensure max_depth criterion is respected on traversal"""
+
+    @pytest.mark.parametrize("root", example_trees())
+    def test_max_depth_1_root_only(self, root: Node) -> None:
+        """Test that max_depth=1 traverses no farther than the root"""
+        digraph = anytree_to_networkx(root, max_depth=1)
+        assert set(digraph.nodes) == {root}
+
+    @pytest.mark.parametrize("root", example_trees())
+    def test_max_depth_2_captures_root_and_children(self, root) -> None:
+        """Test that max_depth=2 traverses no farther than root and children"""
+        nodes_expected = set.union({root}, set(root.children))
+        digraph = anytree_to_networkx(root, max_depth=2)
+
+        assert set(digraph.nodes) == nodes_expected
+
+    @pytest.mark.parametrize("width", (1, 3, 10))
+    def test_max_depth_2_shallow_tree(self, width: int) -> None:
+        """Test that flat tree with only children is fully exported at max_depth=2"""
+        root = example_tree_broad(width)
+        digraph = anytree_to_networkx(root, max_depth=2)
+
+        assert digraph.number_of_nodes() == 1 + width
+
+    @pytest.mark.parametrize("depth", (1, 3, 10))
+    def test_max_depth_excess(self, depth: int) -> None:
+        """
+        Test that max_depth no less than of the deepest
+        node in the graph does not exclude any nodes
+        """
+        root = example_tree_deep(depth)
+        digraph = anytree_to_networkx(root, max_depth=depth + 1)
+
+        assert digraph.number_of_nodes() == root.size
