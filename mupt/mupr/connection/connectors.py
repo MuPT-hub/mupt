@@ -150,7 +150,7 @@ class Connector(RigidlyTransformable):
     def linker_position(self) -> Vector3:
         """The position of the off-body linker point"""
         warn(
-            "Connector.linker_position is slated for deprecatation; "
+            "Connector.linker_position is slated for deprecation; "
             "use Connector.linker.position instead",
             category=DeprecationWarning,
         )
@@ -164,6 +164,7 @@ class Connector(RigidlyTransformable):
         (i.e. definite spanning direction away from anchor) defined
         """
         # TODO: determine appropriate practical tolerances for "nonzero" bond vector
+        warn("test", category=DeprecationWarning)
         return not np.allclose(
             self.anchor.position, self.linker.position, rtol=1e-6, atol=1e-8
         )
