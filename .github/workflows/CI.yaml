@@ -29,8 +29,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [macOS-latest, ubuntu-latest]
-        os: [macos-14, ubuntu-22.04]
+        os: [macOS-latest, ubuntu-latest]
         python-version: ["3.12", "3.13"]
 
     steps:
@@ -61,9 +60,15 @@ jobs:
           python -m pip install . --no-deps
           micromamba list
 
+      - name: Debug environment
+        run: |
+          which pytest
+          python -c "import mupt"
+          python -m pytest --collect-only mupt/tests/
+
       - name: Run tests
         run: |
-          pytest -v --color=yes mupt/tests/
+          pytest -v --cov=mupt --cov-report=xml --color=yes mupt/tests/
 
       - name: Run example notebook tests
         run: |
