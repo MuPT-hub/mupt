@@ -29,7 +29,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macOS-latest, ubuntu-latest]
+        # os: [macOS-latest, ubuntu-latest]
+        os: [macos-14, ubuntu-22.04]
         python-version: ["3.12", "3.13"]
 
     steps:
@@ -48,7 +49,6 @@ jobs:
           generate-run-shell: false # recommended fix to weird ENOENT error (https://github.com/mamba-org/setup-micromamba/issues/130)
           environment-file: devtools/conda-envs/release-env.yml
           environment-name: mupt-env
-          init-shell: bash
           condarc: |
             channels:
               - conda-forge
@@ -63,7 +63,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -v --cov=mupt --cov-report=xml --color=yes ./mupt/tests/
+          pytest -v --cov=mupt --cov-report=xml --color=yes mupt/tests/
 
       - name: Run example notebook tests
         run: |
