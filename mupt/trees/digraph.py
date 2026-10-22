@@ -38,13 +38,13 @@ def anytree_to_networkx(
     )
 
     digraph = DiGraph()
-    for node in node_iter:
-        node_converted: H = node_converter(node)
+    for subnode in node_iter:
+        node_converted: H = node_converter(subnode)
         digraph.add_node(
             node_converted,
-            **node_exporter.export(node),
+            **node_exporter.export(subnode),
         )
-        if (parent := node.parent) is not None:
+        if (parent := subnode.parent) is not None:
             parent_converted: H = node_converter(parent)
             if parent_converted in digraph:
                 digraph.add_edge(parent_converted, node_converted)
