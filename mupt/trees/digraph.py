@@ -46,7 +46,8 @@ def anytree_to_networkx(
         )
         if (parent := node.parent) is not None:
             parent_converted: H = node_converter(parent)
-            digraph.add_edge(parent_converted, node_converted)
+            if parent_converted in digraph:
+                digraph.add_edge(parent_converted, node_converted)
 
     return digraph
 
