@@ -121,6 +121,20 @@ class TestDigraphAttrbutes:
             custom_attr_actual = digraph.nodes[node].get(RESERVED_ATTR_NAME)
             assert custom_attr_actual == custom_attr_expected
 
+    def test_node_converter(self) -> None:
+        """
+        Test that conversion of Nodes to other Hashable types in
+        DiGraph acts like an isomorphic relabelling
+        """
+        root = example_tree_simple()
+        node_remap = {nd: i for i, nd in enumerate(PreOrderIter(root))}
+        digraph = anytree_to_networkx(
+            root,
+            node_converter=node_remap,
+        )
+
+        assert set(digraph.nodes) == set(node_remap.values())
+
 
 class TestDigraphFilter:
     """
