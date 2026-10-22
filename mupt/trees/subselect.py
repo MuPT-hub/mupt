@@ -71,4 +71,4 @@ def primoprogenitors(
             # increase monotonically, nevermind incrementally; local tally combats this
 
 
-pruned_BFS_subelection = primoprogenitors
+pruned_BFS_subselection = primoprogenitors
