@@ -26,7 +26,7 @@ def example_tree_simple():
     _group_1 = Node("group_1", parent=root, **{RESERVED_ATTR_NAME: 1})
     group_2 = Node("group_2", parent=root, **{RESERVED_ATTR_NAME: 2})
     _atom_0 = Node("atom_0", parent=group_2, **{RESERVED_ATTR_NAME: 3})
-    _atom_1 = Node("atom_0", parent=root, **{RESERVED_ATTR_NAME: 4})
+    _atom_1 = Node("atom_1", parent=root, **{RESERVED_ATTR_NAME: 4})
 
     return root
 
@@ -97,6 +97,18 @@ class TestDiGraphStructure:
         assert set(digraph.edges()) == edges_expected
 
 
+def test_trivial_graph() -> None:
+    """
+    Test that the degenerate case of a childless root
+    is correctly converted to the trivial one-node graph
+    """
+    root = Node("root")
+    digraph = anytree_to_networkx(root)
+
+    assert set(digraph.nodes) == {root}
+    assert digraph.number_of_edges() == 0
+
+
 class TestDigraphAttrbutes:
     """
     Bundled tests to ensure Node attributes are transferred
@@ -138,8 +150,32 @@ class TestDigraphAttrbutes:
 
 class TestDigraphFilter:
     """
-    Bundled tests checking that filtering nodes by attributes, predicate,
-    or depth prunes the expected nodes from the returned tree
+    Bundled tests checking that filtering nodes by predicate,
+    prunes the expected nodes from the returned tree
     """
 
-    ...
+    def test_filter_predicate_nodes(self) -> None:
+        """Test that filter only includes the desired nodes"""
+        root = example_tree_simple()
+
+        def filter_predicate(node) -> bool:
+            return not node.name.startswith("group")
+
+        digraph = anytree_to_networkx(root, filter_predicate=filter_predicate)
+        assert set(digraph.nodes) == set(filter(filter_predicate, PreOrderIter(root)))
+
+    def test_filter_predicate_edges(self) -> None:
+        """
+        Test that no edges are placed between nodes whose
+        intermediate relative has been filtered out
+        """
+        root = example_tree_simple()
+        nodes_by_name = {nd.name: nd for nd in PreOrderIter(root)}
+
+        def filter_predicate(node) -> bool:
+            return not node.name.startswith("group")
+
+        digraph = anytree_to_networkx(root, filter_predicate=filter_predicate)
+        assert digraph.has_edge(
+            nodes_by_name["root"], nodes_by_name["atom_1"]
+        ) and not digraph.has_edge(nodes_by_name["root"], nodes_by_name["atom_0"])
