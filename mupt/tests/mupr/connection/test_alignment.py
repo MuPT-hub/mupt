@@ -88,7 +88,7 @@ def test_are_antialigned(
     "alignment",
     [
         ConnectorAntialignmentRigid(),
-        # ConnectorAntialignmentBallistic(),
+        ConnectorAntialignmentBallistic(),
     ],
 )
 class TestAntialignment:
@@ -97,13 +97,16 @@ class TestAntialignment:
     ConnectorAntialignmentStrategy is expected to implement
     """
 
-    def test_antialignment_application(
+    def test_mutual_antialignment(
         self, alignment: ConnectorAntialignmentStrategy
     ) -> None:
-        """Test that"""
+        """
+        Test that mutual antialignment does indeed result in
+        both Connectors being antialigned to one another
+        """
         conn_a = randomly_placed_connector(0, 1)
         conn_b = randomly_placed_connector(1, 0)
 
-        alignment.antialign(conn_b, to_connector=conn_a, match_bond_length=True)
+        alignment.mutually_antialign(conn_b, to_connector=conn_a)
 
         assert are_antialigned(conn_a, conn_b)
