@@ -1,4 +1,9 @@
-"""Abstractions of connections between two primitives"""
+"""
+Core components of connections, namely AttachmentPoints, which define the
+positions and selectivity of the ends of a bond, and Connectors, which
+comprise 2 AttachmentPoints (an "anchor" and a "linker") and represent
+'half' of a chemical bond, with configurable bonding selectivity
+"""
 
 import logging
 
@@ -13,102 +18,27 @@ from typing import (
     Iterable,
     Optional,
     TypeAlias,
-    TypeVar,
     Union,
 )
 from warnings import warn
 
 from dataclasses import dataclass, field
-from enum import Enum
 from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-from ..chemistry.core import BondType
-from ..geometry.arraytypes import Vector3, Array4x4, as_n_vector
-from ..geometry.measure import compare_optional_positions
-from ..geometry.coordinates.basis import is_orthonormal
-from ..geometry.transforms.linear import rejector
-from ..geometry.transforms.rigid.rotations import alignment_rotation
-from ..geometry.transforms.rigid.application import RigidlyTransformable
+from .types import AttachmentLabel, ConnectorLabel
 
-
-# Label typehints
-ConnectorLabel = TypeVar("ConnectorLabel", bound=Hashable)
-ConnectorHandle = tuple[ConnectorLabel, int]
-AttachmentLabel = TypeVar(
-    "AttachmentLabel", bound=Hashable
-)  # TODO: narrow down this type as use cases become clearer
-
-
-# Custom Exceptions
-class ConnectionError(Exception):
-    """Raised when Connector-related errors as encountered"""
-
-    pass
-
-
-class IncompatibleConnectorError(ConnectionError):
-    """
-    Raised when attempting to connect two Connectors
-    which are, for whatever reason, incompatible
-    """
-
-    pass
-
-
-class MissingConnectorError(ConnectionError):
-    """Raised when a required Connector is missing"""
-
-    pass
-
-
-class UnboundConnectorError(ConnectionError):
-    """
-    Raised when a pair of Connectors are
-    unexpectedly not bound to one another
-    """
-
-    pass
-
-
-# Helper classes
-class TraversalDirection(Enum):
-    """
-    Uniquifying label indicating whether a connection
-    faces "forward" or "backward" along a path graph
-
-    Indication is relative to an arbitrary-but-consistent absolute
-    direction of traversal along the path from end-to-end
-    """
-
-    AMBI = 0
-    ANTERO = 1
-    RETRO = 2
-
-    @classmethod
-    def complement(cls, direction: "TraversalDirection") -> "TraversalDirection":
-        """
-        Get the complement (i.e. "opposite") direction to a given TraversalDirection
-
-        Parameters
-        ----------
-        direction : TraversalDirection
-            The direction to get the complement of
-
-        Returns
-        -------
-        TraversalDirection
-            The complement of the given direction
-        """
-        if direction == cls.ANTERO:
-            return cls.RETRO
-        elif direction == cls.RETRO:
-            return cls.ANTERO
-        elif direction == cls.AMBI:
-            return cls.AMBI
+from ..canonicalize import lex_order_multiset_str
+from ...chemistry.core import BondType
+from ...geometry.arraytypes import Vector3, Array4x4, as_n_vector
+from ...geometry.measure import compare_optional_positions
+from ...geometry.coordinates.basis import is_orthonormal
+from ...geometry.transforms.linear import rejector
+from ...geometry.transforms.rigid.rotations import alignment_rotation
+from ...geometry.transforms.rigid.application import RigidlyTransformable
 
 
 # DEV: would love to make this frozen, but that breaks the RigidlyTansformable
@@ -124,9 +54,29 @@ class AttachmentPoint(RigidlyTransformable):
     to some other body, identified by its attachment.
     """
 
+    _COMPARISON_EPS: ClassVar[float] = 1e-8
+
     attachables: set[AttachmentLabel] = field(default_factory=set)
     attachment: Optional[AttachmentLabel] = field(default=None)
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
+
+    def __eq__(self, other: "AttachmentPoint") -> bool:
+        """Compare two AttachmentPoint instances for equivalence"""
+        if not isinstance(other, AttachmentPoint):
+            raise TypeError(
+                f"Cannot compare {type(self).__name__} to {type(other).__name__}"
+            )
+
+        # TB: remove attachment comparison once .attachment is deprecated downstack
+        return (
+            (self.attachables == other.attachables)
+            and (self.attachment == other.attachment)
+            and compare_optional_positions(
+                self.position,
+                other.position,
+                radius=self._COMPARISON_EPS,
+            )
+        )
 
     def __setattr__(self, key, value):
         """
@@ -177,17 +127,23 @@ class Connector(RigidlyTransformable):
         label: Optional[ConnectorLabel] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
     ):
-        self.anchor = anchor if (anchor is not None) else AttachmentPoint()
-        self.linker = linker if (linker is not None) else AttachmentPoint()
+        self.anchor: AttachmentPoint = (
+            anchor if (anchor is not None) else AttachmentPoint()
+        )
+        self.linker: AttachmentPoint = (
+            linker if (linker is not None) else AttachmentPoint()
+        )
 
-        self.bondtype = bondtype
-        self.query_smarts = query_smarts
-        self.label = self.__class__.DEFAULT_LABEL if (label is None) else label
-        self.metadata = metadata or dict()
+        self.bondtype: BondType = bondtype
+        self.query_smarts: str = query_smarts  # TB: worth depcreating?
+        self._label: ConnectorLabel = (
+            self.__class__.DEFAULT_LABEL if (label is None) else label
+        )
+        self.metadata: dict[Hashable, Any] = metadata or dict()
 
         # DEV: no call to setter; must be assigned
         # via protected tangent_vector property
-        self._tangent_position = None
+        self._tangent_position: Optional[Vector3] = None
 
     # Geometric properties
     # DEV: implemented vector properties (e.g. bond/tangent/normal) by tracking
@@ -214,7 +170,7 @@ class Connector(RigidlyTransformable):
     def linker_position(self) -> Vector3:
         """The position of the off-body linker point"""
         warn(
-            "Connector.linker_position is slated for deprecatation; "
+            "Connector.linker_position is slated for deprecation; "
             "use Connector.linker.position instead",
             category=DeprecationWarning,
         )
@@ -694,9 +650,8 @@ class Connector(RigidlyTransformable):
     def bondable_with(self, other: "Connector") -> bool:
         """Whether this Connector is bondable with another Connector instance"""
         if not isinstance(other, Connector):
-            return (
-                False  # DEVNOTE: raise TypeError instead (or at least log a warning)?
-            )
+            # DEVNOTE: raise TypeError instead (or at least log a warning)?
+            return False
 
         # DEV: opting for loosest possible comparison where at least on of the
         # attachable elements overlaps between opposing pairs of attachment points
@@ -843,7 +798,7 @@ class Connector(RigidlyTransformable):
         of the anchor and linker point are both non-empty
         """
         counterpart = self.copy()
-        counterpart.anchor, counterpart.linker = self.linker, self.anchor
+        counterpart.anchor, counterpart.linker = counterpart.linker, counterpart.anchor
         if self.has_tangent_position:
             # NOTE: since vector if defined by difference to tangent point,
             # updated tangent point can be set directly from this difference,
@@ -851,6 +806,19 @@ class Connector(RigidlyTransformable):
             counterpart.tangent_vector = self.tangent_vector
 
         return counterpart
+
+
+def canonical_form_connectors(
+    connectors: Iterable[Connector],
+    separator: str = ":",
+    joiner: str = "-",
+) -> str:
+    """A hashable string representing a collection of Connectors in canonical form"""
+    return lex_order_multiset_str(
+        map(Connector.canonical_form, connectors),
+        separator=separator,
+        joiner=joiner,
+    )
 
 
 # Selection between pairs of Connectors
@@ -877,8 +845,3 @@ def make_second_resemble_first(
     new_connector.linker.attachables.update(connector1.linker.attachables)
 
     return new_connector
-
-
-# DEV: provide implementations which make some attempt to
-# reconcile spatial info attache to respective Connectors
-...

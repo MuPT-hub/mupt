@@ -6,7 +6,6 @@ dissipative particle dynamics (DPD) simulations
 import logging
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.DEBUG)
 
 import freud
 import gsd.hoomd
@@ -27,6 +26,7 @@ import numpy as np
 from networkx import Graph, all_simple_paths
 
 from .base import PlacementGenerator
+from .heading import TraversalDirection
 from ..mutils.iteration import sliding_window
 from ..graphs.invariants import is_branched, termini, chains
 
@@ -36,7 +36,6 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
-from ..mupr.connection import TraversalDirection
 from ..mupr.primitives import Primitive, PrimitiveHandle
 
 
