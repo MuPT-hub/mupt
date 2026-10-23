@@ -798,7 +798,7 @@ class Connector(RigidlyTransformable):
         of the anchor and linker point are both non-empty
         """
         counterpart = self.copy()
-        counterpart.anchor, counterpart.linker = self.linker, self.anchor
+        counterpart.anchor, counterpart.linker = counterpart.linker, counterpart.anchor
         if self.has_tangent_position:
             # NOTE: since vector if defined by difference to tangent point,
             # updated tangent point can be set directly from this difference,

@@ -68,9 +68,8 @@ def test_counterpart_non_identical() -> None:
         (conn_original.anchor, conn_counter.linker),
         (conn_original.linker, conn_counter.anchor),
     ):
-        assert (att_point_original == att_point_counter) and (
-            att_point_original is not att_point_counter
-        )
+        assert att_point_original == att_point_counter
+        assert att_point_original is not att_point_counter
 
 
 @pytest.mark.parametrize(
