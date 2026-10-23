@@ -4,7 +4,7 @@ import pytest
 from itertools import product as cartesian
 
 import numpy as np
-import numpy.testing as nptest
+from numpy.testing import assert_allclose
 
 from mupt.geometry.transforms.rigid import random_rigid_transformation
 from mupt.geometry.shapes import (
@@ -91,7 +91,7 @@ def test_comparison(
 @pytest.mark.parametrize("shape,volume_expected", shapes_with_volumes())
 def test_volume(shape: BoundedShape, volume_expected: float) -> None:
     """Test that volume calculation is accurate"""
-    nptest.assert_allclose(shape.volume, volume_expected)
+    assert_allclose(shape.volume, volume_expected)
 
 
 @pytest.mark.parametrize(
@@ -147,7 +147,7 @@ def test_volume_scaling(shape: BoundedShape, scaling_factor: float) -> None:
     v_orig: float = shape.volume
     v_scaled: float = shape.scaled(scaling_factor).volume
 
-    nptest.assert_allclose(v_scaled / v_orig, scaling_factor**3)
+    assert_allclose(v_scaled / v_orig, scaling_factor**3)
 
 
 @pytest.mark.parametrize("shape", shapes_mixed())
@@ -175,7 +175,7 @@ def test_volume_transformed(
     shape_transformed = shape.rigidly_transformed(
         random_rigid_transformation(translation_bound=1.0)
     )
-    nptest.assert_allclose(
+    assert_allclose(
         shape_transformed.volume, volume_expected
     )  # rigid motions have unit determinant and shouldn't affect volumes
 
