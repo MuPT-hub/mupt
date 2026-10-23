@@ -6,7 +6,9 @@ from networkx.algorithms import equivalence_classes
 
 from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
-from mupt.mupr.connection import Connector, AttachmentPoint
+
+from mupt.mupr.connection.connectors import Connector, AttachmentPoint
+from mupt.mupr.connection.exceptions import ConnectorLockedError
 
 
 # Counterpart tests
