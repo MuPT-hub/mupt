@@ -67,15 +67,10 @@ class AttachmentPoint(RigidlyTransformable):
                 f"Cannot compare {type(self).__name__} to {type(other).__name__}"
             )
 
-        # TB: remove attachment comparison once .attachment is deprecated downstack
-        return (
-            (self.attachables == other.attachables)
-            and (self.attachment == other.attachment)
-            and compare_optional_positions(
-                self.position,
-                other.position,
-                radius=self._COMPARISON_EPS,
-            )
+        return (self.attachables == other.attachables) and compare_optional_positions(
+            self.position,
+            other.position,
+            radius=self._COMPARISON_EPS,
         )
 
     def __setattr__(self, key, value):
