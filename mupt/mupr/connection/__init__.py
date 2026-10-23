@@ -13,6 +13,7 @@ from .exceptions import (
     IncompatibleConnectorError as IncompatibleConnectorError,
     MissingConnectorError as MissingConnectorError,
     UnboundConnectorError as UnboundConnectorError,
+    ConnectorLockedError as ConnectorLockedError,
 )
 from .connectors import (
     AttachmentPoint as AttachmentPoint,
