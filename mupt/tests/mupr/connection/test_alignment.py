@@ -6,8 +6,10 @@ import pytest
 from typing import Hashable, Optional
 
 import numpy as np
+from numpy.testing import assert_allclose
 from scipy.spatial.transform import Rotation, RigidTransform
 
+from mupt.geometry.measure import compare_optional_positions, normalized
 from mupt.geometry.coordinates.directions import random_unit_vector
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint
 from mupt.mupr.connection.alignment import (
@@ -96,6 +98,48 @@ class TestAntialignment:
     Tests for the calculation and application methods each
     ConnectorAntialignmentStrategy is expected to implement
     """
+
+    def test_one_sided_alignment_no_bond_match(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """
+        Test that one-sided antialignment WITHOUT bond length matching
+        causes the bond_vector of align_connector to point from its anchor
+        to the anchor of to_connector (but not necessarily the other way around)
+
+        More precisely, check the align_connectors bond vector lies on
+        the span of the vector difference between the two anchor sites
+        """
+        conn_a = randomly_placed_connector(0, 1)
+        conn_b = randomly_placed_connector(1, 0)
+
+        alignment.antialign(conn_b, to_connector=conn_a, match_bond_length=False)
+
+        similarity: float = np.dot(
+            conn_b.unit_bond_vector,
+            # order of subtraction guarantees same direction, precludes -1.0
+            normalized(conn_a.anchor.position - conn_b.anchor.position),
+        )
+
+        assert_allclose(similarity, 1.0)
+
+    def test_one_sided_antialignment_bond_match(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """
+        Test that one-sided antialignment WITH bond matching causes the bond
+        vector of align_connector to face the anchor of to_connector AND the
+        linker of align_connector to be coincident with the anchor of to_connector
+        """
+        conn_a = randomly_placed_connector(0, 1)
+        conn_b = randomly_placed_connector(1, 0)
+
+        alignment.antialign(conn_b, to_connector=conn_a, match_bond_length=True)
+
+        assert compare_optional_positions(
+            conn_b.linker.position,
+            conn_a.anchor.position,
+        )
 
     def test_mutual_antialignment(
         self, alignment: ConnectorAntialignmentStrategy
