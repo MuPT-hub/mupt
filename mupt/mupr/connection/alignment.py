@@ -6,6 +6,7 @@ Connectors which comprise a connection. Models bonding in 3D space
 from typing import Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
+from numpy.linalg import norm
 from scipy.spatial.transform import Rotation, RigidTransform
 from ...geometry.transforms.rigid.rotations import alignment_rotation
 
@@ -92,6 +93,19 @@ class ConnectorAntialignmentStrategy(ABC):
         # on rigid transformations to fit within this framework
         ...
 
+    @abstractmethod
+    def _match_bond_length(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> None:
+        """
+        Ensure both connectors have the same bond length
+        (i.e. anchor-to-linker distance) after an alignment
+        transformation has been applied
+        """
+        ...
+
     def antialign(
         self,
         align_connector: "Connector",
@@ -101,18 +115,24 @@ class ConnectorAntialignmentStrategy(ABC):
     ) -> None:
         """
         Apply the requisite antialignment transformation and other modifications
-        to align_connectorso that it is antialigned with to_connector in-place
+        to align_connector so that it is antialigned with to_connector in-place
         WITHOUT modifying to_connector itself
 
         If match_bond_length = True, will also stretch/compress bond
         length on align_connector to match length of to_connector
+
+        N.B.: antialign() only constitues HALF of a complete Connector antialignment
+        Call mutually_antialign() to ensure BOTH Connectors are aligned properly
         """
         self._antialign(
             align_connector=align_connector,
             to_connector=to_connector,
         )
         if match_bond_length:
-            align_connector.set_bond_length(to_connector.bond_length)
+            self._match_bond_length(
+                align_connector=align_connector,
+                to_connector=to_connector,
+            )
 
         # NOTE: sentinel (rather than default 0.0) weakens
         # preconditions on tangents when no dihedral is specified
@@ -231,6 +251,14 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
             * RigidTransform.from_translation(-align_connector.anchor.position)
         )
 
+    def _match_bond_length(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> None:
+        """Set bond length of align_connector to that of to_connector"""
+        align_connector.set_bond_length(to_connector.bond_length)
+
     def _antialign(
         self,
         align_connector: "Connector",
@@ -277,6 +305,20 @@ class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
             )
             * RigidTransform.from_translation(-align_connector.anchor.position)
         )
+
+    def _match_bond_length(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+    ) -> None:
+        """
+        Set align_connector's bond length to be the distance
+        from its anchor to the anchor of to_connector
+        """
+        separation = norm(
+            align_connector.anchor.position - to_connector.anchor.position
+        )
+        align_connector.set_bond_length(separation)
 
     def _antialign(
         self,
