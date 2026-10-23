@@ -20,11 +20,11 @@ def randomly_placed_connector(
     sampler = np_random if rng is None else rng
     conn = Connector(
         anchor=AttachmentPoint(
-            markers={anchor_marker},
+            {anchor_marker},
             position=sampler.uniform(low=-L, high=L, size=3),
         ),
         linker=AttachmentPoint(
-            markers={linker_marker},
+            {linker_marker},
             position=sampler.uniform(low=-L, high=L, size=3),
         ),
     )
