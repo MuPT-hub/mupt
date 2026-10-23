@@ -21,12 +21,10 @@ def randomly_placed_connector(
     conn = Connector(
         anchor=AttachmentPoint(
             {anchor_marker},
-            attachment=anchor_marker,
             position=sampler.uniform(low=-L, high=L, size=3),
         ),
         linker=AttachmentPoint(
             {linker_marker},
-            attachment=linker_marker,
             position=sampler.uniform(low=-L, high=L, size=3),
         ),
     )
