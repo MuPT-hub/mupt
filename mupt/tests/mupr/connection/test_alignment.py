@@ -44,25 +44,33 @@ def randomly_placed_connector(
 
 
 @pytest.fixture(scope="module")
-def rng() -> np.random.Generator():
+def rng() -> np.random.Generator:
     """Seeded random number shared among tests here"""
     return np.random.default_rng(seed=5772)
 
 
 ## Tests proper
 @pytest.mark.parametrize(
-    "perturbation,tolerance",
+    "perturbation,tolerance,expected_antialigned",
     [
-        (0.0, 1e-6),
-        (0.0, 1e-12),
-        (1e-6, 1e-12),
-        (0.1, 1.0),
-        (1e-6, 1e-12),
+        (0.0, 1e-6, True),
+        (0.0, 1e-12, True),
+        (1e-6, 1e-12, False),
+        (1e-6, 1e-5, True),
+        (1e-12, 1e-6, True),
+        (1e-1, 1e0, True),
+        (1e-2, 1e2, True),
+        (1e2, 1e-2, False),
+        # DEV: comparison exactly ON the surface of an
+        # epsilon ball is dicey; result is essentially random
+        (1e-6 - 1e-8, 1e-6 + 1e-8, True),
+        (1e-6 + 1e-8, 1e-6 - 1e-8, False),
     ],
 )
 def test_are_antialigned(
     perturbation: float,
     tolerance: float,
+    expected_antialigned: bool,
     rng: np.random.Generator,
 ) -> None:
     """
@@ -73,7 +81,7 @@ def test_are_antialigned(
     conn_counter = conn.counterpart()
     conn_counter.anchor.position += perturbation * random_unit_vector(rng=rng)
 
-    assert are_antialigned(conn, conn_counter, within=tolerance)
+    assert are_antialigned(conn, conn_counter, within=tolerance) == expected_antialigned
 
 
 @pytest.mark.parametrize(
