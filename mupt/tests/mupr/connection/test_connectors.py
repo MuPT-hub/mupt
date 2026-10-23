@@ -51,6 +51,28 @@ def test_counterpart(connector: Connector):
     # and counterpart.tangent_vector == connector.tangent_vector
 
 
+def test_counterpart_non_identical() -> None:
+    """
+    Test that anchor and linker of counterpart are equivalent to
+    the linker and anchor, respectively, of the original Connector
+    WITHOUT being literally the same instances
+    """
+    conn_original = Connector(
+        anchor=AttachmentPoint({1}, position=[1.0, 2.0, 3.0]),
+        linker=AttachmentPoint({2}, position=[4.0, 5.0, 6.0]),
+        bondtype=BondType.DOUBLE,
+    )
+    conn_counter = conn_original.counterpart()
+
+    for att_point_original, att_point_counter in (
+        (conn_original.anchor, conn_counter.linker),
+        (conn_original.linker, conn_counter.anchor),
+    ):
+        assert (att_point_original == att_point_counter) and (
+            att_point_original is not att_point_counter
+        )
+
+
 @pytest.mark.parametrize(
     "conn",
     [
