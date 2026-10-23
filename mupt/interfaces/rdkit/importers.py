@@ -105,7 +105,6 @@ def primitive_from_rdkit_component(
     attachables_factory: AttachablesFactory = DEFAULT_ATTACHABLES_FACTORY,
     connector_labeller: ConnectorLabeller = DEFAULT_CONNECTOR_LABELLER,
     smiles_writer_params: SmilesWriteParams = DEFAULT_SMILES_WRITE_PARAMS,
-    **kwargs,
 ) -> CompositePrimitive:
     """
     Initialize a Primitive hierarchy from an RDKit Mol representing a single molecule

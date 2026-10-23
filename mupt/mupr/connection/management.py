@@ -205,7 +205,7 @@ class ConnectorManagerMutable(ConnectorManager):
     ) -> None:
         # TB: docstring inherited from ConnectorManager base
         if label is not None:
-            connector.label = label
+            connector.label = label(connector) if callable(label) else label
         self.connectors_by_addr[connector.addr] = connector
 
     def remove_connector(  # noqa: D102
