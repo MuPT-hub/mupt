@@ -54,9 +54,29 @@ class AttachmentPoint(RigidlyTransformable):
     to some other body, identified by its attachment.
     """
 
+    _COMPARISON_EPS: ClassVar[float] = 1e-8
+
     attachables: set[AttachmentLabel] = field(default_factory=set)
     attachment: Optional[AttachmentLabel] = field(default=None)
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
+
+    def __eq__(self, other: "AttachmentPoint") -> bool:
+        """Compare two AttachmentPoint instances for equivalence"""
+        if not isinstance(other, AttachmentPoint):
+            raise TypeError(
+                f"Cannot compare {type(self).__name__} to {type(other).__name__}"
+            )
+
+        # TB: remove attachment comparison once .attachment is deprecated downstack
+        return (
+            (self.attachables == other.attachables)
+            and (self.attachment == other.attachment)
+            and compare_optional_positions(
+                self.position,
+                other.position,
+                radius=self._COMPARISON_EPS,
+            )
+        )
 
     def __setattr__(self, key, value):
         """
