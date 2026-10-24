@@ -52,6 +52,25 @@ from mupt.trees.render import ConcreteStyle, tree_render_style
         ("dOuBlE", DoubleStyle),
         ("doublestyle", DoubleStyle),
         ("double_style", DoubleStyle),
+        # Non-styles
+        pytest.param(
+            "totally-bogus-nonexistant-style",
+            None,
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="Invalid style key",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            2718,
+            None,
+            marks=pytest.mark.xfail(
+                raises=TypeError,
+                reason="Not a type from which style can be inferred",
+                strict=True,
+            ),
+        ),
     ],
 )
 def test_tree_render_style(
