@@ -276,7 +276,23 @@ def test_neighbor_assignment():
     assert (conn0.neighbor == conn1) and (conn1.neighbor == conn0)
 
 
-def test_connector_lock_blocks_delete() -> None:
+def test_connector_neighbor_persistence() -> None:
+    """
+    Test that the former neighbor of a Connector 'forgets'
+    the aforementioned Connector when its neighbor is rebound
+    """
+    conn_a = Connector()
+    conn_b = Connector()
+    conn_c = Connector()
+
+    conn_a.neighbor = conn_b
+    conn_a.neighbor = conn_c
+
+    assert conn_b.neighbor is not conn_a
+    assert conn_b.neighbor is None
+
+
+def test_connector_lock_blocks_neighbor_delete() -> None:
     """Test that a locked connector cannot have an existing neighbor removed"""
     conn0 = Connector(
         anchor=AttachmentPoint({1, 2}),

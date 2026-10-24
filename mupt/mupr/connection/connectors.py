@@ -567,6 +567,8 @@ class Connector(Addressed, RigidlyTransformable):
                 "Candidate for neighbor Connector is not anti-aligned within tolerance"
             )
 
+        # ensure no trace of this Connectors remains recorded on the previous neighbor
+        del self.neighbor
         self._neighbor = other
         other._neighbor = self
 
