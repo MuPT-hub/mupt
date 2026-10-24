@@ -443,7 +443,7 @@ class Connector(Addressed, RigidlyTransformable):
 
     @holder.deleter
     def holder(self) -> None:
-        if self._locked and not self.has_holder:
+        if self._locked and self.has_holder:
             raise ConnectorLockedError(
                 f"Cannot remove holder of locked Connector {self}"
             )
