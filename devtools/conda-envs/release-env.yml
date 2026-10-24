@@ -23,6 +23,7 @@ dependencies:
   # Graphs
   - anytree
   - networkx
+  - pygraphviz
 
   # Visualization
   - rich
