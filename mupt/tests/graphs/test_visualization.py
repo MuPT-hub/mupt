@@ -2,12 +2,15 @@
 
 import pytest
 
-from networkx.classes import MultiGraph
+from networkx.classes import DiGraph, MultiGraph
+from networkx.generators import star_graph
 
 from mupt.graphs.visualization import (
     default_graph_axes,
     determine_arc_radii,
     determine_arc_styles,
+    draw_networkx_with_arcs,
+    draw_networkx_tree,
 )
 
 
@@ -25,6 +28,12 @@ def epitomic_multigraph() -> MultiGraph:
         for edge, multiplicity in edge_multiplicities.items()
         for _ in range(multiplicity)
     ])
+
+
+@pytest.fixture
+def example_tree() -> DiGraph:
+    """A directed graph representing a simple tree"""
+    return star_graph(5, create_using=DiGraph)
 
 
 @pytest.mark.parametrize("margins", (0.05, 0.1, 0.25))
@@ -87,3 +96,13 @@ def test_determine_arc_styles(epitomic_multigraph: MultiGraph) -> None:
     )
 
     assert arc_radii_actual == arc_radii_expected
+
+
+def test_draw_networkx_with_arcs(epitomic_multigraph: MultiGraph) -> None:
+    """Smoke test for graph drawing with differentiated multigraph arcs"""
+    _ = draw_networkx_with_arcs(epitomic_multigraph)
+
+
+def test_draw_networkx_tree(example_tree: DiGraph) -> None:
+    """Smoke test for graph drawing with differentiated multigraph arcs"""
+    _ = draw_networkx_tree(example_tree)
