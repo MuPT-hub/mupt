@@ -191,12 +191,12 @@ class ConnectorManagerMutable(ConnectorManager):
     def __init__(
         self,
         *connectors: Connector,
-        default_label: Hashable = "CONN",
+        default_label: Optional[ConnectorLabelLike] = None,
     ) -> None:
         self.connectors_by_addr: dict[ConnectorAddress, Connector] = {}
         for connector in connectors:
             connector.unlock()
-            self.add_connector(connector)
+            self.add_connector(connector, label=default_label)
 
     def add_connector(  # noqa: D102
         self,
