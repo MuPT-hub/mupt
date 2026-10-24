@@ -1,6 +1,6 @@
 """Utilities for printing and drawing trees from the anytree library"""
 
-from typing import Type, Union
+from typing import Union
 
 from anytree.render import (
     AbstractStyle,
@@ -17,7 +17,7 @@ ConcreteStyle = Union[*AbstractStyle.__subclasses__()]
 
 # Rendering and printing trees
 ## DEV: add any other common aliases here, as all-lowercase
-RENDER_STYLE_ALIASES: dict[Type[ConcreteStyle], tuple[str, ...]] = {
+RENDER_STYLE_ALIASES: dict[type[ConcreteStyle], tuple[str, ...]] = {
     AsciiStyle: (
         "asc",
         "ascii",
@@ -32,7 +32,7 @@ RENDER_STYLE_ALIASES: dict[Type[ConcreteStyle], tuple[str, ...]] = {
     ),
     ContRoundStyle: (
         "round",
-        "countround",
+        "contround",
         "controundstyle",
         "cont_round_style",
     ),
@@ -51,7 +51,7 @@ RENDER_STYLES_BY_ALIAS: dict[str, ConcreteStyle] = {
 
 
 def tree_render_style(
-    style: Union[str, ConcreteStyle, Type[ConcreteStyle]],
+    style: Union[str, ConcreteStyle, type[ConcreteStyle]],
 ) -> ConcreteStyle:
     """
     Obtain a render style object which can be passed on to anytree renderers
