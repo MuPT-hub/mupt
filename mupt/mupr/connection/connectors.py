@@ -524,7 +524,10 @@ class Connector(Addressed, RigidlyTransformable):
 
     def toggle_lock(self) -> None:
         """Invert current neighbor lock status"""
-        self._locked = not self._locked
+        if self.is_locked:
+            self.unlock()
+        else:
+            self.lock()
 
     def _precondition_mutable_neighbor(self, msg_postfix: str = "") -> None:
         """
