@@ -11,7 +11,7 @@ from typing import (
 
 from anytree.node import NodeMixin
 from anytree.exporter import DictExporter
-from anytree.iterators import AbstractIter, PreOrderIter
+from anytree.iterators import PreOrderIter
 
 from networkx import DiGraph
 
@@ -23,7 +23,6 @@ H = TypeVar("H", bound=Hashable)
 def anytree_to_networkx(
     node: NodeMixin,
     node_exporter: Optional[DictExporter] = None,
-    iter_type: type[AbstractIter] = PreOrderIter,
     filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
     stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
     max_depth: Optional[int] = None,
@@ -44,11 +43,9 @@ def anytree_to_networkx(
     if node_exporter.maxlevel != 1:
         raise ValueError("Externally-supplied DictExporter must have maxlevel=1")
 
-    node_iter: AbstractIter = iter_type(
+    node_iter = PreOrderIter(
         node, filter_=filter_predicate, stop=stop_predicate, maxlevel=max_depth
     )
-
-    # TB TODO: rework to fix dropped edges bug when using PostOrderIter
     digraph = DiGraph()
     for subnode in node_iter:
         node_converted: H = node_converter(subnode)
