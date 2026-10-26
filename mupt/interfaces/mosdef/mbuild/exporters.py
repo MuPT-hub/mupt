@@ -92,8 +92,8 @@ def primitive_to_mbuild(
     if predicate is None:
         # TB TODO: add support for complete hierarchy export if no predicate is provided
         raise NotImplementedError(
-            "Full-hierarchy export to mbuil not yet supported;"
-            "please suply a predicate tp sub-select a cross-section to export"
+            "Full-hierarchy export to mbuild not yet supported;"
+            "please supply a predicate to sub-select a cross-section to export"
         )
 
     particle_of: dict[int, Compound] = {}  # fast lookup later for mBuild bonds.
