@@ -272,6 +272,7 @@ class Connector(RigidlyTransformable):
         """
         return np.cross(self.bond_vector, self.tangent_vector)
 
+    @property
     def unit_normal_vector(self) -> Vector3:
         """Unit vector in the same direction as the normal vector"""
         return self.normal_vector / np.linalg.norm(self.normal_vector)
