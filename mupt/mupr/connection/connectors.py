@@ -34,7 +34,7 @@ from .alignment import are_antialigned
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
-from ...geometry.measure import compare_optional_positions
+from ...geometry.measure import compare_optional_positions, normalized
 from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
 from ...geometry.transforms.rigid.rotations import alignment_rotation
@@ -191,7 +191,7 @@ class Connector(RigidlyTransformable):
     @property
     def unit_bond_vector(self) -> Vector3:
         """Unit vector in same direction as bond vector, oriented anchor to linker"""
-        return self.bond_vector / self.bond_length  # DEV: use normalized()?
+        return normalized(self.bond_vector)
 
     def set_bond_length(self, new_bond_length: np.floating) -> None:
         """
@@ -242,7 +242,7 @@ class Connector(RigidlyTransformable):
     @property
     def unit_tangent_vector(self) -> Vector3:
         """Unit vector in the same direction as the tangent vector"""
-        return self.tangent_vector / np.linalg.norm(self.tangent_vector)
+        return normalized(self.tangent_vector)
 
     def set_tangent_from_coplanar_point(self, coplanar_point: Vector3) -> None:
         """
@@ -275,7 +275,7 @@ class Connector(RigidlyTransformable):
     @property
     def unit_normal_vector(self) -> Vector3:
         """Unit vector in the same direction as the normal vector"""
-        return self.normal_vector / np.linalg.norm(self.normal_vector)
+        return normalized(self.normal_vector)
 
     # Local orthonormal basis (formed from unit bond, tangent, and normal vectors)
     @property
