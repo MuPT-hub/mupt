@@ -51,8 +51,10 @@ from .embedding import (
 from ..mutils.containers import UniqueRegistry
 from ..trees.render import ConcreteStyle, tree_render_style
 from ..graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
+from ..geometry.arraytypes import Vector3
 from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
+from ..geometry.coordinates.reference import ORIGIN2
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 from ..roles import PrimitiveRole
 
@@ -1628,6 +1630,8 @@ def visualize_topology(
     prim: Primitive,
     ax: Optional["Axes"] = None,
     base_arc_radius: float = 0.1,
+    use_shapes_for_pos: bool = True,
+    default_pos: Vector3 = ORIGIN2,
     # TODO: add support for coloring rules
     **draw_kwargs,
 ) -> "Axes":
@@ -1638,8 +1642,24 @@ def visualize_topology(
     """
     from mupt.graphs.visualization import draw_networkx_with_arcs
 
+    graph = prim.topology
+    if use_shapes_for_pos:
+        pos_from_shapes: dict[Primitive, Vector3] = {}
+        for child_handle in graph.nodes:
+            child = prim.fetch_child(child_handle)
+            if child.shape is None:
+                center = default_pos.copy()
+            else:
+                ## DEV: 3D positions are rendered just fine by networkx,
+                # but screw up draw_networkx_labels. Internally for render,
+                # networkx just cuts off the z-coordinate, so we'll do the same here
+                center = child.shape.centroid[:-1]
+
+            pos_from_shapes[child_handle] = center
+        draw_kwargs["pos"] = pos_from_shapes
+
     return draw_networkx_with_arcs(
-        prim.topology,
+        graph,
         ax=ax,
         base_arc_radius=base_arc_radius,
         **draw_kwargs,
