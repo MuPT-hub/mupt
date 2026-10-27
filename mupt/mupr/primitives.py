@@ -1591,28 +1591,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
             # childiter=list
         ).by_attr(render_attr)
 
-    # Graph drawing
-    def visualize_topology(
-        self,
-        ax: Optional["Axes"] = None,
-        base_arc_radius: float = 0.1,
-        # TODO: add support for coloring rules
-        **draw_kwargs,
-    ) -> "Axes":
-        """
-        Draw the connectivity of this Primitive's children to the passed Axes
-
-        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
-        """
-        from mupt.graphs.visualization import draw_networkx_with_arcs
-
-        return draw_networkx_with_arcs(
-            self.topology,
-            ax=ax,
-            base_arc_radius=base_arc_radius,
-            **draw_kwargs,
-        )
-
     def _hierarchy_tree(
         self,
         root_label: Hashable = None,
@@ -1642,23 +1620,45 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return hier_tree
 
-    def visualize_hierarchy(
-        self,
-        hierarchy_tree: Optional[DiGraph] = None,
-        **kwargs,
-    ) -> "Axes":
-        """
-        Draw a networkx DiGraph representation of the partial order
-        of this Primitive and all Primitives below it in the hierarchy
 
-        Can accept a pre-calculated hierarchy tree or, if None is provided,
-        will extract one from the current Primitive
+# Primitive visualization functions
+## TB: for context, detached these methods to allow cleaner break from viz dependencies
+## eventually will move to mupr.primitives.visualize.py or the like
+def visualize_topology(
+    prim: Primitive,
+    ax: Optional["Axes"] = None,
+    base_arc_radius: float = 0.1,
+    # TODO: add support for coloring rules
+    **draw_kwargs,
+) -> "Axes":
+    """
+    Draw the connectivity of a Primitive's children to the passed Axes
 
-        See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
-        """
-        from mupt.graphs.visualization import draw_networkx_tree
+    See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
+    """
+    from mupt.graphs.visualization import draw_networkx_with_arcs
 
-        if hierarchy_tree is None:
-            hierarchy_tree = self._hierarchy_tree()
+    return draw_networkx_with_arcs(
+        prim.topology,
+        ax=ax,
+        base_arc_radius=base_arc_radius,
+        **draw_kwargs,
+    )
 
-        return draw_networkx_tree(hierarchy_tree, **kwargs)
+
+def visualize_hierarchy(hierarchy_tree: Union[DiGraph, Primitive], **kwargs) -> "Axes":
+    """
+    Draw a networkx DiGraph representation of the partial order
+    of a Primitive and all Primitives below it in the hierarchy
+
+    Can accept a pre-calculated hierarchy tree or, if None is provided,
+    will extract one from the current Primitive
+
+    See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
+    """
+    from mupt.graphs.visualization import draw_networkx_tree
+
+    if isinstance(hierarchy_tree, Primitive):
+        hierarchy_tree = hierarchy_tree._hierarchy_tree()
+
+    return draw_networkx_tree(hierarchy_tree, **kwargs)
