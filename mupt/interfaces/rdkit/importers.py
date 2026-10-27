@@ -203,13 +203,107 @@ def primitive_from_rdkit_component(
     #        )
     # }
 
-    ## Assembly
-    rdmol_primitive = CompositePrimitive(
-        children=atomic_primitives.values(),
-        shape=shape,
-        metadata=metadata,
-        label=label,
+    # 1) Insert child Primitives for each atom (EVEN linkers -
+    # this keeps indices in sync for final handle assignment)
+    ## DEV: as-implemented, handle idx **SHOULD** match
+    ## atom idx, but it never hurts to be explicit :P
+    linker_idxs: set[int] = set()
+    atom_idx_to_handle_map: dict[int, PrimitiveHandle] = dict()
+
+    # DEV: opting not to get atoms implicitly from bonds to
+    # handle single, unbonded atom (e.g. noble gas) uniformly
+    for atom in rdmol_chain.GetAtoms():
+        atom_idx = atom.GetIdx()
+        if is_linker(atom):
+            linker_idxs.add(atom_idx)
+
+        atom_prim = primitive_from_rdkit_atom(
+            rdmol_chain,
+            atom_idx,
+            conformer_idx=conformer_idx,
+            # will attach per-bond to avoid matching connector handles to bond idxs
+            attach_connectors=False,
+        )
+        atom_idx_to_handle_map[atom_idx] = rdmol_primitive.attach_child(
+            atom_prim, label=atom_label
+        )
+
+    # 2) forge connections between Primitives corresponding to bonded atoms
+    # (propagating external Connectors up to mol primitive)
+    for bond in rdmol_chain.GetBonds():
+        begin_idx = bond.GetBeginAtomIdx()
+        end_idx = bond.GetEndAtomIdx()
+
+        # Primitive 1 + associated Connector
+        begin_prim_handle = atom_idx_to_handle_map[begin_idx]
+        begin_prim = rdmol_primitive.fetch_child(begin_prim_handle)
+        begin_conn = connector_between_rdatoms(
+            rdmol_chain,
+            from_atom_idx=begin_idx,
+            to_atom_idx=end_idx,
+            conformer_idx=conformer_idx,
+            **kwargs,
+        )
+        begin_conn_handle = begin_prim.register_connector(begin_conn)
+        rdmol_primitive.bind_external_connector(
+            begin_prim_handle, begin_conn_handle, label=external_linker_label
+        )
+
+        # Primitive 2 + associated Connector
+        end_prim_handle = atom_idx_to_handle_map[end_idx]
+        end_prim = rdmol_primitive.fetch_child(end_prim_handle)
+        end_conn = connector_between_rdatoms(
+            rdmol_chain,
+            from_atom_idx=end_idx,
+            to_atom_idx=begin_idx,
+            conformer_idx=conformer_idx,
+            **kwargs,
+        )
+        end_conn_handle = end_prim.register_connector(end_conn)
+        rdmol_primitive.bind_external_connector(
+            end_prim_handle, end_conn_handle, label=external_linker_label
+        )
+
+        # joining of the pair of Connectors
+        rdmol_primitive.connect_children(
+            begin_prim_handle,
+            begin_conn_handle,
+            end_prim_handle,
+            end_conn_handle,
+        )
+
+    # 3) excise temporary linker Primitives no longer needed as doorstops
+    for linker_idx in linker_idxs:
+        rdmol_primitive.detach_child(atom_idx_to_handle_map[linker_idx])
+
+    # 3a) insert traversal direction info based on 1-2 map number convention
+    for ext_conn_handle, conn_ref in rdmol_primitive.external_connectors.items():
+        atom_primitive = rdmol_primitive.fetch_child(conn_ref.primitive_handle)
+        ext_conn = rdmol_primitive.fetch_connector(ext_conn_handle)
+
+        if (mapnum := atom_primitive.metadata.get("molAtomMapNumber")) in {1, 2}:
+            chain_direction = TraversalDirection(mapnum)
+            ext_conn.anchor.markers.add(chain_direction)
+            ext_conn.linker.markers.add(TraversalDirection.complement(chain_direction))
+
+    # 4) Inject conformer info
+    ## DEV: there are many avenues to do this
+    ## (e.g. collate shape from children, if not None on all),
+    ## but opted for the simplest for now
+    non_linker_conformer = atom_positions_from_rdkit(
+        rdmol_chain,
+        conformer_idx=conformer_idx,
+        atom_idxs=sorted(
+            atom_idx_to_handle_map.keys() - linker_idxs
+        ),  # preserve atom order
     )
+    if (
+        non_linker_conformer is not None
+    ):  # can't just check if Falsy in case this is an array (would need all() then)
+        rdmol_primitive.shape = PointCloud(
+            positions=non_linker_conformer
+        )  # exploit default NoneType value
+    rdmol_primitive.check_self_consistent()
 
     return rdmol_primitive
 
