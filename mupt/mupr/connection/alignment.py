@@ -37,7 +37,7 @@ def are_antialigned(
         This Connector is NOT transformed and remains static
     within: float, default 1E-6
         Absolute tolerance for distance between both Connectors's positions
-        Can be thought of as the radius of bounding spheres around attachment points
+        Can be thought of as the radius of bounding spheres around an AttachmentPoint
 
     Returns
     -------
