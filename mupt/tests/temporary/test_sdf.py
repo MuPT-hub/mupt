@@ -514,7 +514,7 @@ def test_streamed_segment_attached_to_universe_reexports_mupt_props(
     single_polyethylene_3mer,
     polyethylene_resname_map,
 ):
-    """A streamed segment remains exportable after attachment to a new root."""
+    """A streamed segment remains exportable after binding to a new root."""
     first_path = tmp_path / "streamed-first.mupt.sdf"
     second_path = tmp_path / "streamed-second.mupt.sdf"
     write_primitive_to_sdf(
