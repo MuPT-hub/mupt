@@ -140,7 +140,7 @@ def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     atom_idx = atom.GetIdx()
     atom_symbol = atom.GetSymbol()
 
-    return AttachmentPoint(attachables={atom_idx, atom_symbol})
+    return AttachmentPoint(markers={atom_idx, atom_symbol})
 
 
 def connector_between_rdatoms(
@@ -185,8 +185,8 @@ def connector_between_rdatoms(
         This is called after all other fields of the Connector have been set
         (i.e. can make use of those fields in determination of the label)
 
-    anchor_factory and linker_factory should only define how the
-    attachment and attachables of each AttachmentPoint are defined.
+    The anchor_factory and linker_factory callables should only
+    define how the markers of eachAttachmentPoint are defined.
     Positions of each point will be set later if conformer information is available
 
     Returns

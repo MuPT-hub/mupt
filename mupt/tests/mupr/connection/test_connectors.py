@@ -46,8 +46,8 @@ def test_counterpart(connector: Connector):
     counterpart = connector.counterpart()
 
     assert (
-        counterpart.linker.attachables == connector.anchor.attachables
-        and counterpart.anchor.attachables == connector.linker.attachables
+        counterpart.linker.markers == connector.anchor.markers
+        and counterpart.anchor.markers == connector.linker.markers
         and counterpart.bondtype == connector.bondtype
     )
     # TODO: compare positional info?
@@ -79,7 +79,7 @@ def test_counterpart_non_identical() -> None:
     "conn",
     [
         # test with the empty connector the verify that counterpart
-        # bondability fails when attachment points are empty
+        # bondability fails when AttachmentPoint ends are empty
         Connector(),
         Connector(
             anchor=AttachmentPoint({"a", "b", TraversalDirection.RETRO}),
@@ -95,10 +95,10 @@ def test_counterpart_non_identical() -> None:
 def test_connector_counterpart_bondable(conn: Connector) -> None:
     """
     Test that the co-Connector produced by Connector.counterpart()
-    is bondable to the original when attachment points are nonempty
+    is bondable to the original when AttachmentPoint objects are nonempty
     """
     # False only when nonempty
-    conn_empty = (not conn.anchor.attachables) or (not conn.linker.attachables)
+    conn_empty = (not conn.anchor.markers) or (not conn.linker.markers)
     counterpart_bondable = Connector.bondable_with(conn, conn.counterpart())
 
     # XOR, since conditions are mutually-exclusive
@@ -219,7 +219,7 @@ C4 = Connector(
             Connector(),
             Connector(),
             False,
-        ),  # should fail, empty two attachment point sets must be disjoint
+        ),  # should fail, two empty AttachmentPoint marker sets must be disjoint
         (C1, C2, False),  # should fail, anchorables of C1 not in linkables of C1
         (C1, C3, False),  # should fail, bond types differ
         (C1, C4, True),  # should NOT fail, compatible connectors

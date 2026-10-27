@@ -202,10 +202,8 @@ def primitive_from_rdkit_chain(
 
         if (mapnum := atom_primitive.metadata.get("molAtomMapNumber")) in {1, 2}:
             chain_direction = TraversalDirection(mapnum)
-            ext_conn.anchor.attachables.add(chain_direction)
-            ext_conn.linker.attachables.add(
-                TraversalDirection.complement(chain_direction)
-            )
+            ext_conn.anchor.markers.add(chain_direction)
+            ext_conn.linker.markers.add(TraversalDirection.complement(chain_direction))
 
     # 4) Inject conformer info
     ## DEV: there are many avenues to do this
