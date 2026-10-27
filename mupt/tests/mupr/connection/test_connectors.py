@@ -1,0 +1,256 @@
+"""Unit tests for Connector objects"""
+
+import pytest
+from warnings import catch_warnings, simplefilter, WarningMessage
+
+from networkx.algorithms import equivalence_classes
+
+from mupt.chemistry.core import BondType
+from mupt.builders.heading import TraversalDirection
+from mupt.mupr.connection import Connector, AttachmentPoint
+
+
+# Counterpart tests
+CA = Connector(
+    anchor=AttachmentPoint({1}),
+    linker=AttachmentPoint({2}),
+    bondtype=BondType.DOUBLE,
+)
+# variant of CA with positional info; should compare as non-coincident
+CB = Connector(
+    anchor=AttachmentPoint({1}),
+    linker=AttachmentPoint({2}, position=[1, 2, 3]),
+    bondtype=BondType.DOUBLE,
+)
+CC = Connector(
+    anchor=AttachmentPoint({2}),
+    linker=AttachmentPoint({1, 3}),
+    bondtype=BondType.AROMATIC,
+)
+CD = Connector(
+    anchor=AttachmentPoint({"same"}),
+    linker=AttachmentPoint({"same"}),
+    bondtype=BondType.SINGLE,
+)
+
+
+@pytest.mark.parametrize(
+    "connector",
+    [CA, CB, CC, CD],
+)
+def test_counterpart(connector: Connector):
+    """Test that a Connector's counterpart has the expected anchor/linker attributes"""
+    counterpart = connector.counterpart()
+
+    assert (
+        counterpart.linker.attachables == connector.anchor.attachables
+        and counterpart.anchor.attachables == connector.linker.attachables
+        and counterpart.bondtype == connector.bondtype
+    )
+    # TODO: compare positional info?
+    # and counterpart.tangent_vector == connector.tangent_vector
+
+
+def test_counterpart_non_identical() -> None:
+    """
+    Test that anchor and linker of counterpart are equivalent to
+    the linker and anchor, respectively, of the original Connector
+    WITHOUT being literally the same instances
+    """
+    conn_original = Connector(
+        anchor=AttachmentPoint({1}, position=[1.0, 2.0, 3.0]),
+        linker=AttachmentPoint({2}, position=[4.0, 5.0, 6.0]),
+        bondtype=BondType.DOUBLE,
+    )
+    conn_counter = conn_original.counterpart()
+
+    for att_point_original, att_point_counter in (
+        (conn_original.anchor, conn_counter.linker),
+        (conn_original.linker, conn_counter.anchor),
+    ):
+        assert att_point_original == att_point_counter
+        assert att_point_original is not att_point_counter
+
+
+@pytest.mark.parametrize(
+    "conn",
+    [
+        # test with the empty connector the verify that counterpart
+        # bondability fails when attachment points are empty
+        Connector(),
+        Connector(
+            anchor=AttachmentPoint({"a", "b", TraversalDirection.RETRO}),
+            linker=AttachmentPoint({"c", TraversalDirection.ANTERO}),
+            bondtype=BondType.SINGLE,
+        ),
+        CA,
+        CB,
+        CC,
+        CD,
+    ],
+)
+def test_connector_counterpart_bondable(conn: Connector) -> None:
+    """
+    Test that the co-Connector produced by Connector.counterpart()
+    is bondable to the original when attachment points are nonempty
+    """
+    # False only when nonempty
+    conn_empty = (not conn.anchor.attachables) or (not conn.linker.attachables)
+    counterpart_bondable = Connector.bondable_with(conn, conn.counterpart())
+
+    # XOR, since conditions are mutually-exclusive
+    assert conn_empty ^ counterpart_bondable
+
+
+# Comparison tests
+## only use counterparts in subsequent tests if prior counterpart tests have passed
+## DEV: creating here since expected result must contain same literal Connector instance
+CA_COPY = CA.copy()
+CA_COUNTERPART = CA.counterpart()
+
+CB_COPY = CB.copy()
+CB_COUNTERPART = CB.counterpart()
+
+CC_COPY = CC.copy()
+CC_COUNTERPART = CC.counterpart()
+
+CD_COPY = CD.copy()
+CD_COUNTERPART = CD.counterpart()
+
+
+@pytest.mark.parametrize(
+    "connectors,equiv_classes_expected",
+    [
+        (  # all 3 example prototype are non-fungible
+            (CA, CB, CC, CD),
+            {
+                frozenset([CA]),
+                frozenset([CB]),
+                frozenset([CC]),
+                frozenset([CD]),
+            },
+        ),
+        (  # test that copies are practially indistinguishable from originals
+            (
+                CA,
+                CA_COPY,
+                CB,
+                CB_COPY,
+                CC,
+                CC_COPY,
+            ),
+            {
+                frozenset([CA, CA_COPY]),
+                frozenset([CB, CB_COPY]),
+                frozenset([CC, CC_COPY]),
+            },
+        ),
+        (  # these Connectors are distinct from their counterparts
+            (CA, CA_COUNTERPART, CB, CB_COUNTERPART),
+            {
+                frozenset([CA]),
+                frozenset([CA_COUNTERPART]),
+                frozenset([CB]),
+                frozenset([CB_COUNTERPART]),
+            },
+        ),
+        (  # this Connector is actually designed to be equivalent to its counterpart
+            (CD, CD_COUNTERPART),
+            {frozenset([CD, CD_COUNTERPART])},
+        ),
+    ],
+)
+def test_connector_fungibility(
+    connectors: tuple[Connector, ...],
+    equiv_classes_expected: set[frozenset[Connector]],
+) -> None:
+    """
+    Test that total comparison of Connectors for fungibility
+    (i.e. interchangeability) groups together Connectors as expected
+    """
+    equiv_classes_actual = equivalence_classes(
+        connectors,
+        relation=Connector.fungible_with,
+    )
+
+    assert equiv_classes_actual == equiv_classes_expected
+
+
+C1 = Connector(
+    anchor=AttachmentPoint({"a"}),
+    linker=AttachmentPoint({"z"}),
+    bondtype=BondType.DOUBLE,
+)
+C2 = Connector(
+    anchor=AttachmentPoint({"b"}),
+    linker=AttachmentPoint({"a"}),
+    bondtype=BondType.SINGLE,
+)
+C3 = Connector(
+    anchor=AttachmentPoint({"z"}),
+    linker=AttachmentPoint({"a"}),
+    bondtype=BondType.SINGLE,
+)
+C4 = Connector(
+    anchor=AttachmentPoint({"z"}),
+    linker=AttachmentPoint({"a"}),
+    bondtype=BondType.DOUBLE,
+)
+
+
+@pytest.mark.parametrize(
+    "conn1, conn2, expected_bondable",
+    [
+        (
+            Connector(),
+            Connector(),
+            False,
+        ),  # should fail, empty two attachment point sets must be disjoint
+        (C1, C2, False),  # should fail, anchorables of C1 not in linkables of C1
+        (C1, C3, False),  # should fail, bond types differ
+        (C1, C4, True),  # should NOT fail, compatible connectors
+    ],
+)
+def test_connector_bondability(
+    conn1: Connector, conn2: Connector, expected_bondable: bool
+) -> None:
+    """Test bondability checks between two Connectors"""
+    assert Connector.bondable_with(conn1, conn2) == expected_bondable
+
+
+def test_anchor_position_depr_warnings_caught() -> None:
+    """
+    Test that Connector.anchor_position is marked
+    deprecated in favor of Connector.anchor.position
+    """
+    conn = Connector()
+
+    with catch_warnings(record=True) as caught:
+        simplefilter("always")  # un-suppress in local scope
+        _ = conn.anchor_position
+
+        assert len(caught) == 1
+        depr_warn: WarningMessage = caught[0]
+        warn_msg: str = str(depr_warn.message)
+
+        assert depr_warn.category is DeprecationWarning
+        assert ("Connector.anchor_position" in warn_msg) and ("deprecation" in warn_msg)
+
+
+def test_linker_position_depr_warnings_caught() -> None:
+    """
+    Test that Connector.linker_position is marked
+    deprecated in favor of Connector.linker.position
+    """
+    conn = Connector()
+
+    with catch_warnings(record=True) as caught:
+        simplefilter("always")  # un-suppress in local scope
+        _ = conn.linker_position
+
+        assert len(caught) == 1
+        depr_warn: WarningMessage = caught[0]
+        warn_msg: str = str(depr_warn.message)
+
+        assert depr_warn.category is DeprecationWarning
+        assert ("Connector.linker_position" in warn_msg) and ("deprecation" in warn_msg)
