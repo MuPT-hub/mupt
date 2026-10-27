@@ -1588,7 +1588,11 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # TODO: add support for coloring rules
         **draw_kwargs,
     ) -> "Axes":
-        """Draw the connectivity of this Primitive's children to the passed Axes"""
+        """
+        Draw the connectivity of this Primitive's children to the passed Axes
+
+        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
+        """
         from mupt.graphs.visualization import draw_networkx_with_arcs
 
         return draw_networkx_with_arcs(
@@ -1604,10 +1608,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
         depth: int = 0,
     ) -> DiGraph:
         """
-        Generate directed graph representing the connectivity
-        of this Primitive and all its descendants
-
-        See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
+        Generate a directed graph representing the partial order
+        on this Primitive and all its descendants in the hierarchy
         """
         if root_label is None:
             root_label = self.label
