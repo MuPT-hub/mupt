@@ -50,8 +50,7 @@ from .embedding import (
 
 from ..mutils.containers import UniqueRegistry
 from ..trees.render import ConcreteStyle, tree_render_style
-from ..graphs.invariants import is_empty, canonical_form_graph
-from ..graphs.visualization import graph_repr
+from ..graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
 from ..geometry.shapes import BoundedTransformableShape
 from ..geometry.transforms.rigid import RigidlyTransformable
 from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
@@ -1538,7 +1537,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         repr_attr_strs: dict[str, str] = {
             "shape": self.canonical_form_shape(),
             "functionality": str(self.functionality),
-            "topology": graph_repr(self.topology),
+            "topology": self.graph_repr(self.topology),
             "element": str(self.element),
             "label": self.label,
         }
@@ -1547,6 +1546,18 @@ class Primitive(NodeMixin, RigidlyTransformable):
         )
 
         return f"{self.__class__.__name__}({attr_str})"
+
+    @staticmethod
+    def graph_repr(graph: Graph) -> str:
+        """
+        Temporary port of deprecated TopologicalStructure.__repr__
+        Moved over for backwards compatibility until Primitive is reworked
+        """
+        return (
+            f"{graph.__class__.__name__}"
+            f"(num_objects={graph.number_of_nodes()}, "
+            f"indiscrete={is_indiscrete(graph)})"
+        )
 
     def _repr_brief(
         self,
