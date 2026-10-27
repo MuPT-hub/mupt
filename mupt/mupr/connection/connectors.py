@@ -46,17 +46,16 @@ from ...geometry.transforms.rigid.application import RigidlyTransformable
 
 
 # DEV: would love to make frozen, but that would break the RigidlyTansformable mechanism
-# Also would prevent reassignment of attachment label, which is important in some cases
 @dataclass(frozen=False)
 class AttachmentPoint(RigidlyTransformable):
     """
-    Point with an associated position and set of acceptable attachment type designations
+    Point with an associated position and set of acceptable marker designations
     Forms half of a Connector and represents a spatial attachment point to another body
     """
 
     _COMPARISON_EPS: ClassVar[float] = 1e-8
 
-    attachables: set[AttachmentLabel] = field(default_factory=set)
+    markers: set[AttachmentLabel] = field(default_factory=set)
     # TB: worth allowing option to have position unassigned (e.g. None)?
     position: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
 
@@ -67,7 +66,7 @@ class AttachmentPoint(RigidlyTransformable):
                 f"Cannot compare {type(self).__name__} to {type(other).__name__}"
             )
 
-        return (self.attachables == other.attachables) and compare_optional_positions(
+        return (self.markers == other.markers) and compare_optional_positions(
             self.position,
             other.position,
             radius=self._COMPARISON_EPS,
@@ -85,7 +84,7 @@ class AttachmentPoint(RigidlyTransformable):
     # Implementing RigidTransformable contracts
     def _copy_untransformed(self) -> "AttachmentPoint":
         return self.__class__(
-            attachables=set(att for att in self.attachables),
+            markers=set(att for att in self.markers),
             position=np.array(self.position, copy=True),
         )
 
@@ -457,8 +456,8 @@ class Connector(Addressed, RigidlyTransformable):
             return False
 
         return (
-            (not set.isdisjoint(self.anchor.attachables, other.linker.attachables))
-            and (not set.isdisjoint(self.linker.attachables, other.anchor.attachables))
+            (not set.isdisjoint(self.anchor.markers, other.linker.markers))
+            and (not set.isdisjoint(self.linker.markers, other.anchor.markers))
             and (self.bondtype == other.bondtype)
         )
 
@@ -486,8 +485,8 @@ class Connector(Addressed, RigidlyTransformable):
         labels (not necessarily positions) with to another Connector
         """
         return (
-            self.anchor.attachables == other.anchor.attachables
-            and self.linker.attachables == other.linker.attachables
+            self.anchor.markers == other.anchor.markers
+            and self.linker.markers == other.linker.markers
             and self.bondtype == other.bondtype
         )
 
@@ -644,11 +643,11 @@ class Connector(Addressed, RigidlyTransformable):
         """
         indiv_conn_map = dict()
         for anchor_label, linker_label in cartesian(
-            self.anchor.attachables, self.linker.attachables
+            self.anchor.markers, self.linker.markers
         ):
             conn_clone = self.copy()
-            conn_clone.anchor.attachables = {anchor_label}
-            conn_clone.linker.attachables = {linker_label}
+            conn_clone.anchor.markers = {anchor_label}
+            conn_clone.linker.markers = {linker_label}
 
             indiv_conn_map[(anchor_label, linker_label)] = conn_clone
         return indiv_conn_map
@@ -659,7 +658,7 @@ class Connector(Addressed, RigidlyTransformable):
         Connector but has its linker and anchor sites swapped
 
         By construction, the counterpart will always be bondable with
-        this Connector (and vice versa), assuming the attachables set
+        this Connector (and vice versa), assuming the markers set
         of the anchor and linker point are both non-empty
         """
         counterpart = self.copy()
@@ -708,7 +707,7 @@ def make_second_resemble_first(
 ) -> Connector:
     """Select the first of a pair of Connectors, but merge their linkables"""
     new_connector = connector2.copy()
-    new_connector.anchor.attachables.update(connector1.anchor.attachables)
-    new_connector.linker.attachables.update(connector1.linker.attachables)
+    new_connector.anchor.markers.update(connector1.anchor.markers)
+    new_connector.linker.markers.update(connector1.linker.markers)
 
     return new_connector

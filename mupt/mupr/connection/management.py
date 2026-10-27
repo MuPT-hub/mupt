@@ -208,7 +208,7 @@ class ConnectorManagerMutable(ConnectorManager):
             connector.label = label(connector) if callable(label) else label
         self.connectors_by_addr[connector.addr] = connector
 
-    def remove_connector(  # noqa: D102
+    def remove_connector(
         self,
         connector_address: ConnectorAddress | Connector,
     ) -> Connector:
