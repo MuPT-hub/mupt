@@ -582,10 +582,12 @@ class Connector(RigidlyTransformable):
         counterpart = self.copy()
         counterpart.anchor, counterpart.linker = counterpart.linker, counterpart.anchor
         if self.has_tangent_position:
-            # NOTE: since vector if defined by difference to tangent point,
-            # updated tangent point can be set directly from this difference,
-            # since anchor is updated about the origin
-            counterpart.tangent_vector = self.tangent_vector
+            # swap of anchor and linker positions, along with (b, t, n) -> (-b, -t, n)
+            # local basis vector mapping ensures the counterpart satisfies:
+            # * bond vector is antiparallel
+            # * the dihedral angle (as measured between the normals) is 0.0 rad
+            # * the handedness of the coordinate system is preserved
+            counterpart.tangent_vector = -self.tangent_vector
 
         return counterpart
 
