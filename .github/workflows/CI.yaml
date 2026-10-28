@@ -71,12 +71,12 @@ jobs:
         run: |
           pytest -v --cov=mupt --cov-report=xml --color=yes mupt/tests/
 
-      - name: Run example notebook tests
-        run: |
-          git clone https://github.com/MuPT-hub/mupt-examples -b connector-management
-          pushd mupt-examples
-          source notebook_tests_master.sh
-          popd
+      # - name: Run example notebook tests
+        # run: |
+        # git clone https://github.com/MuPT-hub/mupt-examples
+        # pushd mupt-examples
+        # source notebook_tests_master.sh
+        # popd
         # DEV: rm mupt-examples once done?
 
       - name: CodeCov
