@@ -1,48 +1,19 @@
 """Unit tests for Connector bond antialignment protocols"""
 
-# ruff: noqa: F401
-
 import pytest
-from typing import Hashable, Optional
 
 import numpy as np
 from numpy.testing import assert_allclose
-from scipy.spatial.transform import Rotation, RigidTransform
 
+from . import randomly_placed_connector
 from mupt.geometry.measure import compare_optional_positions, normalized
 from mupt.geometry.coordinates.directions import random_unit_vector
-from mupt.mupr.connection.connectors import Connector, AttachmentPoint
 from mupt.mupr.connection.alignment import (
     are_antialigned,
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentRigid,
     ConnectorAntialignmentBallistic,
 )
-
-
-def randomly_placed_connector(
-    anchor_marker: Hashable = 0,
-    linker_marker: Hashable = 1,
-    L: float = 5.0,
-    rng: Optional[np.random.Generator] = None,
-) -> Connector:
-    """
-    Produce a marked Connector with both attachment point
-    positions chosen uniformly randomly from [-L, L]**3
-    """
-    sampler = np.random if rng is None else rng
-    return Connector(
-        anchor=AttachmentPoint(
-            {anchor_marker},
-            attachment=anchor_marker,
-            position=sampler.uniform(low=-L, high=L, size=3),
-        ),
-        linker=AttachmentPoint(
-            {linker_marker},
-            attachment=linker_marker,
-            position=sampler.uniform(low=-L, high=L, size=3),
-        ),
-    )
 
 
 @pytest.fixture(scope="module")
