@@ -61,6 +61,6 @@ def anytree_to_networkx(
     return digraph
 
 
-def networkx_to_anytree(digraph: DiGraph) -> NodeMixin:
-    """Convert a tree into a directed NetworkX graph"""
-    raise NotImplementedError
+# def networkx_to_anytree(digraph: DiGraph) -> NodeMixin:
+#     """Convert a tree into a directed NetworkX graph"""
+#     raise NotImplementedError
