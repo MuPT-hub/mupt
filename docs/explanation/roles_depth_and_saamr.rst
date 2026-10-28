@@ -148,7 +148,7 @@ level for you:
 
     from mupt.chemistry import ELEMENTS
     from mupt.mupr.primitives.primitives_legacy import Primitive
-    from mupt.mupr.properties import has_strict_SAAMR_depth
+    from mupt.mupr.primitives.properties import has_strict_SAAMR_depth
     from mupt.roles import assign_SAAMR_roles, has_SAAMR_roles
 
     universe = Primitive(label="universe")
