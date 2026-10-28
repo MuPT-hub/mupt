@@ -22,7 +22,7 @@ from mupt.geometry.coordinates.reference import origin
 from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from mupt.interfaces.smiles import primitive_from_smiles
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import Primitive
 from mupt.roles import assign_SAAMR_roles
 
 

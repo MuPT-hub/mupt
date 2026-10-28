@@ -13,7 +13,7 @@ from rdkit.Chem.rdmolfiles import SDMolSupplier, SDWriter
 
 import mupt.interfaces.rdkit.exporters as rdkit_exporters
 import mupt.temporary.sdf as temporary_sdf
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import Primitive
 from mupt.roles import PrimitiveRole
 from mupt.temporary.sdf import (
     MUPT_SDF_ATOM_PROPS,

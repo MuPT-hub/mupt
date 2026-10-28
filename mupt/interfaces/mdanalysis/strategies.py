@@ -6,7 +6,7 @@ from typing import Optional
 
 import numpy as np
 
-from ...mupr.primitives import Primitive
+from ...mupr.primitives.primitives_legacy import Primitive
 from .._shared.topology import (
     _bond_order_from_conn_ref,
     _pdb_resname,

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ...mupr.embedding import ConnectorReference
-from ...mupr.primitives import Primitive
+from ...mupr.primitives.primitives_legacy import Primitive
 from .._shared.topology import (
     _pdb_resname,
     build_saamr_role_topology_index,

@@ -20,7 +20,7 @@ from ... import TOOLKIT_NAME
 from ...geometry.arraytypes import Vector3
 from ...chemistry.conversion import element_to_rdkit_atom
 from ...mupr.connection import Connector
-from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
 from .strategies import (
     AllAtomRDKitExportStrategy,
     RDKitExportStrategy,

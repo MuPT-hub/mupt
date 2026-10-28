@@ -36,7 +36,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
-from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
 
 
 def pbc(positions: Vector3, box: Sequence[float]) -> Vector3:

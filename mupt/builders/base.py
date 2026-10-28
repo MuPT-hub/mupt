@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 from scipy.spatial.transform import RigidTransform
 
-from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
 
 
 class PlacementGenerator(ABC):
