@@ -62,15 +62,6 @@ from mupt.trees.render import ConcreteStyle, tree_render_style
                 strict=True,
             ),
         ),
-        pytest.param(
-            2718,
-            None,
-            marks=pytest.mark.xfail(
-                raises=TypeError,
-                reason="Not a type from which style can be inferred",
-                strict=True,
-            ),
-        ),
     ],
 )
 def test_tree_render_style(
@@ -84,3 +75,14 @@ def test_tree_render_style(
     # DEV: regrettably, AbstractStyle subtypes don't implement __eq__, so
     # distinct instances cannot be compared; need to compare types instead
     assert type(tree_render_style(style)) is style_type_expected
+
+
+def test_render_tree_rejects_invalid_types() -> None:
+    """
+    Test that invalid keys for render style correctly raise Exception
+
+    DEVNOTE: had previously done this as a pytest.param w/ TypeError in
+    test_render_tree_style, but codecov is apparently blind to this
+    """
+    with pytest.raises(TypeError):
+        _ = tree_render_style(2718)
