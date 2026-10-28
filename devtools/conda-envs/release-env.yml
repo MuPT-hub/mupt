@@ -26,6 +26,7 @@ dependencies:
 
   # Visualization
   - rich
+  - pygraphviz
   - matplotlib
   - ipympl
 
