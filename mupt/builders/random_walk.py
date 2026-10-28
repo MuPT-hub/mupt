@@ -29,7 +29,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 
-from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
 from ..mupr.connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentBallistic,

@@ -11,7 +11,7 @@ import numpy as np
 import networkx as nx
 from periodictable import elements
 
-from ..mupr.primitives import Primitive
+from ..mupr.primitives.primitives_legacy import Primitive
 from ..geometry.coordinates.reference import origin
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
