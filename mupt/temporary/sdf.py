@@ -40,7 +40,7 @@ from ..interfaces.rdkit.strategies import RDKitExportStrategy
 
 from ..mutils.filepaths.pathutils import asstrpath
 from ..mupr.connection import Connector
-from ..mupr.primitives import Primitive
+from ..mupr.primitives.primitives_legacy import Primitive
 from ..roles import PrimitiveRole
 
 

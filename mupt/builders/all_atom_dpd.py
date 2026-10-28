@@ -52,7 +52,7 @@ from ..interfaces._shared.topology import (
     connector_reference_sort_key,
     resolve_to_atom_cached,
 )
-from ..mupr.primitives import Primitive
+from ..mupr.primitives.primitives_legacy import Primitive
 from ..roles import PrimitiveRole
 
 LOGGER = logging.getLogger(__name__)
