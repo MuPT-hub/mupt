@@ -23,7 +23,7 @@ from ...geometry.shapes import PointCloud
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.conversion import rdkit_atom_to_element
 
-from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
 
 
 def primitive_from_rdkit_atom(

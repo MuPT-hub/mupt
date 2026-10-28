@@ -1,4 +1,7 @@
-"""Fundamental data structures for multiscale molecular representation"""
+"""
+Legacy implementation of one-size-fits-all Primitive
+Preserving during process of changeover to more modular and capable implementation
+"""
 
 import logging
 
@@ -30,37 +33,37 @@ from networkx.classes import Graph, DiGraph
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
 
-from .connection.connectors import (
+from ..connection.connectors import (
     Connector,
     ConnectorSelector,
     canonical_form_connectors,
     make_second_resemble_first,
 )
-from .connection.types import (
+from ..connection.types import (
     ConnectorLabel,
     ConnectorHandle,
 )
-from .connection.exceptions import (
+from ..connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .embedding import (
+from ..embedding import (
     infer_connections_from_topology,
     ConnectorReference,
     flexible_connector_reference,
 )
 
-from ..mutils.containers import UniqueRegistry
-from ..trees.digraph import anytree_to_networkx
-from ..trees.render import ConcreteStyle, tree_render_style
-from ..graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
-from ..geometry.arraytypes import Vector3
-from ..geometry.shapes import BoundedTransformableShape
-from ..geometry.transforms.rigid import RigidlyTransformable
-from ..geometry.coordinates.reference import ORIGIN2
-from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
-from ..roles import PrimitiveRole
+from ...mutils.containers import UniqueRegistry
+from ...trees.digraph import anytree_to_networkx
+from ...trees.render import ConcreteStyle, tree_render_style
+from ...graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
+from ...geometry.arraytypes import Vector3
+from ...geometry.shapes import BoundedTransformableShape
+from ...geometry.transforms.rigid import RigidlyTransformable
+from ...geometry.coordinates.reference import ORIGIN2
+from ...chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
+from ...roles import PrimitiveRole
 
 
 class AtomicityError(AttributeError):

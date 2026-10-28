@@ -15,7 +15,7 @@ from scipy.spatial.transform import RigidTransform
 from mupt.chemistry.core import BondType
 from mupt.geometry.shapes import PointCloud
 from mupt.mupr.connection import AttachmentPoint, Connector
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import Primitive
 from mupt.roles import PrimitiveRole
 
 

@@ -6,7 +6,7 @@ from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.Chem.rdmolops import AddHs
 
 from mupt.chemistry.core import valence_allowed
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import Primitive
 from mupt.interfaces.rdkit.importers import primitive_from_rdkit
 
 
