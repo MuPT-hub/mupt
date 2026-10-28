@@ -84,5 +84,5 @@ def test_render_tree_rejects_invalid_types() -> None:
     DEVNOTE: had previously done this as a pytest.param w/ TypeError in
     test_render_tree_style, but codecov is apparently blind to this
     """
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="Unsupported type for tree render style"):
         _ = tree_render_style(2718)
