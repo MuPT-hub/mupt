@@ -64,7 +64,8 @@ def tree_render_style(
             return RENDER_STYLES_BY_ALIAS[style.lower()]
         except KeyError:
             raise ValueError(f'Unrecognized tree render style string: "{style}"')
-    elif issubclass(style, ConcreteStyle):
+    # DEV: if style is NOT type, will raise DISTINCT TypeError from the one raised below
+    elif isinstance(style, type) and issubclass(style, ConcreteStyle):
         return style()
     else:
         raise TypeError(f"Unsupported type for tree render style: {type(style)}")
