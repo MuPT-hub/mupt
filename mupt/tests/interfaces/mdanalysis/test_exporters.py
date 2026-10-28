@@ -13,7 +13,7 @@ from anytree import PreOrderIter
 
 from mupt.chemistry import ELEMENTS
 from mupt.mupr.primitives.primitives_legacy import Primitive
-from mupt.mupr.properties import has_strict_SAAMR_depth
+from mupt.mupr.primitives.properties import has_strict_SAAMR_depth
 from mupt.roles import assign_SAAMR_roles, PrimitiveRole
 from mupt.interfaces.mdanalysis.exporters import primitive_to_mdanalysis
 from mupt.interfaces.mdanalysis.strategies import AllAtomExportStrategy
