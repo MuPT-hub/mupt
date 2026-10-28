@@ -1,11 +1,14 @@
 """Unit tests for Connector objects"""
 
 import pytest
+from numpy.testing import assert_allclose
 
 from networkx.algorithms import equivalence_classes
 
+from . import randomly_placed_connector
 from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
+from mupt.geometry.coordinates.directions import random_tangent
 from mupt.mupr.connection import Connector, AttachmentPoint
 
 
@@ -99,6 +102,17 @@ def test_connector_counterpart_bondable(conn: Connector) -> None:
 
     # XOR, since conditions are mutually-exclusive
     assert conn_empty ^ counterpart_bondable
+
+
+def test_counterpart_orthogonal_basis() -> None:
+    """Ensure that a Connector's counterpart is geometrically compatible with itself"""
+    conn = randomly_placed_connector()
+    conn.tangent_vector = random_tangent(conn.bond_vector)
+    conn_counter = conn.counterpart()
+
+    assert_allclose(conn.bond_vector / conn_counter.bond_vector, -1.0)
+    assert_allclose(conn.tangent_vector / conn_counter.tangent_vector, -1.0)
+    assert_allclose(conn.normal_vector / conn_counter.normal_vector, 1.0)
 
 
 # Comparison tests
