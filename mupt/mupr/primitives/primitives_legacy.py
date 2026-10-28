@@ -31,7 +31,6 @@ from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
 
 from scipy.spatial.transform import RigidTransform
-from matplotlib.axes import Axes
 
 from ..connection.connectors import (
     Connector,
@@ -58,10 +57,8 @@ from ...mutils.containers import UniqueRegistry
 from ...trees.digraph import anytree_to_networkx
 from ...trees.render import ConcreteStyle, tree_render_style
 from ...graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
-from ...geometry.arraytypes import Vector3
 from ...geometry.shapes import BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
-from ...geometry.coordinates.reference import ORIGIN2
 from ...chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
 from ...roles import PrimitiveRole
 
@@ -1600,92 +1597,15 @@ class Primitive(NodeMixin, RigidlyTransformable):
             # childiter=list
         ).by_attr(render_attr)
 
-    def _hierarchy_tree(
+    def hierarchy_tree(
         self,
-        root_label: Hashable = None,
-        depth: int = 0,
+        *args,
+        **kwargs,
     ) -> DiGraph:
         """
         Generate a directed graph representing the partial order
         on this Primitive and all its descendants in the hierarchy
+
+        See mupt.trees.digraph.anytree_to_networkx for arg/kwarg options
         """
-        if root_label is None:
-            root_label = self.label
-        root_tag = f"{depth}-{root_label}"
-
-        hier_tree = DiGraph()
-        hier_tree.add_node(root_tag)
-        for child_handle, child in self.children_by_handle.items():
-            child_tag: str = f"{depth + 1}-{child_handle}"
-
-            hier_tree = compose_graphs(
-                hier_tree,
-                child._hierarchy_tree(root_label=child_handle, depth=depth + 1),
-                # rename=(),
-                ## TODO: add mechanism for de-duplifying handles by depth
-                ## (related to planned expansion acceleration)
-            )
-            hier_tree.add_edge(root_tag, child_tag)
-
-        return hier_tree
-
-
-# Primitive visualization functions
-## TB: for context, detached these methods to allow cleaner break from viz dependencies
-## eventually will move to mupr.primitives.visualize.py or the like
-def visualize_topology(
-    prim: Primitive,
-    ax: Optional["Axes"] = None,
-    base_arc_radius: float = 0.1,
-    use_shapes_for_pos: bool = True,
-    default_pos: Vector3 = ORIGIN2,
-    # TODO: add support for coloring rules
-    **draw_kwargs,
-) -> "Axes":
-    """
-    Draw the connectivity of a Primitive's children to the passed Axes
-
-    See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
-    """
-    from mupt.graphs.visualization import draw_networkx_with_arcs
-
-    graph = prim.topology
-    if use_shapes_for_pos:
-        pos_from_shapes: dict[Primitive, Vector3] = {}
-        for child_handle in graph.nodes:
-            child = prim.fetch_child(child_handle)
-            if child.shape is None:
-                center = default_pos.copy()
-            else:
-                ## DEV: 3D positions are rendered just fine by networkx,
-                # but screw up draw_networkx_labels. Internally for render,
-                # networkx just cuts off the z-coordinate, so we'll do the same here
-                center = child.shape.centroid[:-1]
-
-            pos_from_shapes[child_handle] = center
-        draw_kwargs["pos"] = pos_from_shapes
-
-    return draw_networkx_with_arcs(
-        graph,
-        ax=ax,
-        base_arc_radius=base_arc_radius,
-        **draw_kwargs,
-    )
-
-
-def visualize_hierarchy(hierarchy_tree: Union[DiGraph, Primitive], **kwargs) -> "Axes":
-    """
-    Draw a networkx DiGraph representation of the partial order
-    of a Primitive and all Primitives below it in the hierarchy
-
-    Can accept a pre-calculated hierarchy tree or, if None is provided,
-    will extract one from the current Primitive
-
-    See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
-    """
-    from mupt.graphs.visualization import draw_networkx_tree
-
-    if isinstance(hierarchy_tree, Primitive):
-        hierarchy_tree = hierarchy_tree._hierarchy_tree()
-
-    return draw_networkx_tree(hierarchy_tree, **kwargs)
+        return anytree_to_networkx(self, *args, **kwargs)
