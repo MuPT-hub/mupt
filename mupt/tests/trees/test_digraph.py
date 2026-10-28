@@ -4,6 +4,8 @@ import pytest
 
 from anytree.node import Node
 from anytree.iterators import PreOrderIter
+from anytree.exporter import DictExporter
+
 from networkx.classes import DiGraph
 
 from mupt.trees.digraph import anytree_to_networkx
@@ -218,3 +220,17 @@ class TestDigraphDepth:
         digraph = anytree_to_networkx(root, max_depth=depth + 1)
 
         assert digraph.number_of_nodes() == root.size
+
+    def test_custom_node_exporter_max_depth_clamp(self) -> None:
+        """
+        Test that non-recursive node export (i.e. maxlevel=1) is enforce
+        if bespoke DictExporter is passed in to digraph conversion
+        """
+        root = example_tree_simple()
+        exporter = DictExporter(maxlevel=5)
+
+        with pytest.raises(
+            ValueError,
+            match="Externally-supplied DictExporter must have maxlevel=1",
+        ):
+            _ = anytree_to_networkx(root, node_exporter=exporter)
