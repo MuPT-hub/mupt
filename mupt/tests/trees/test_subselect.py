@@ -57,6 +57,15 @@ def example_tree_with_root() -> tuple[dict[str, Node], Node]:
     return node_map, node_map[ROOT_KW]
 
 
+def test_empty_subselection_on_shallow_depth() -> None:
+    """Test that no nodes are generated when to_depth is not a non-positive integer"""
+    root = Node(name="root")
+    node_gen = primoprogenitors(root, lambda node: "t" in node.name, to_depth=-1)
+
+    with pytest.raises(StopIteration):
+        _ = next(node_gen)
+
+
 @pytest.mark.parametrize(
     "predicate,to_depth,selected_expected_names",
     [
