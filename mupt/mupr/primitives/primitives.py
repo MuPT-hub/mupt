@@ -3,7 +3,15 @@ Base classes for Primitives, the fundamental datatype
 within MuPT's multiscale molecular representation
 """
 
-from typing import Any, ClassVar, Collection, Hashable, Optional, Self
+from typing import (
+    Any,
+    ClassVar,
+    Collection,
+    Hashable,
+    Optional,
+    Self,
+    Union,
+)
 
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
@@ -11,6 +19,7 @@ type PrimitiveAddress = Hashable
 from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
 from anytree.search import findall
+from anytree.render import RenderTree
 
 from networkx.classes import DiGraph
 
@@ -27,6 +36,7 @@ from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
 from ...trees.digraph import anytree_to_networkx
 from ...trees.subselect import NodePredicate
+from ...trees.render import tree_render_style, ConcreteStyle
 
 
 class Primitive(
@@ -287,3 +297,34 @@ class Primitive(
     def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
+
+    # Depiction
+    def __str__(self) -> str:
+        """
+        Output of calling str(...) on this Primitive
+
+        Also the default representation of this Primitive
+        when it is used as a node in any NetworkX graph
+        """
+        return f"{self.label!s}[{str(self.address)[: self.ADDRESS_PREVIEW_LEN]}]"
+
+    # DEV: will likely have to change for subtypes
+    # def __repr__(self) -> str:
+    #     raise NotImplementedError
+
+    def hierarchy_summary(
+        self,
+        to_depth: Optional[int] = None,
+        style: Union[str, ConcreteStyle, type[ConcreteStyle]] = "round",
+        render_attr: str = "label",
+        # TB: may consider fallback to address (or start of it) instead of default label
+    ) -> str:
+        """
+        A printable representation of this Primitive
+        and all its descendants in the hierarchy
+        """
+        return RenderTree(
+            self,
+            style=tree_render_style(style),
+            maxlevel=to_depth,
+        ).by_attr(render_attr)
