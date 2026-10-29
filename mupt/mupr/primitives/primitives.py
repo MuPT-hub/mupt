@@ -93,13 +93,14 @@ class Primitive(
     connections: ConnectorManager
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
+    _mass: Optional[float]
     metadata: dict[Hashable, Any]
 
     _frozen_connections: bool
     _frozen_hierarchy: bool
 
     # Creation
-    ## N.B.: deliberately not placeing __init__ method here;
+    ## N.B.: deliberately not placing __init__ method here;
     ## should NOT be able to create instance of Primitive base
     ## TB: given that, may consider pivoting from Protocol -> ABC?
     def _init(
@@ -107,6 +108,7 @@ class Primitive(
         # DEV: connectors deliberately omitted here; subtype each handle in unique way
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
+        mass: Optional[float] = None,
         metadata: Optional[dict] = None,
     ) -> None:
         """
@@ -119,8 +121,9 @@ class Primitive(
 
         # instance attrs
         self._shape = shape
-        self.metadata = metadata or dict()
         self._label = label
+        self._mass = mass
+        self.metadata = metadata or dict()
 
     @property
     def label(self) -> PrimitiveLabel:
@@ -143,6 +146,13 @@ class Primitive(
         if new_label is None:
             new_label = self.DEFAULT_LABEL
         self._label = new_label
+
+    @property  # TB: eventually, incorporate info about units
+    def mass(self) -> Optional[float]:
+        """The assigned molecular mass of this Primitive"""
+        return self._mass
+
+    # DEV: deliberately omitting setter; subtypes will impl particular procedures for it
 
     # Wrapped properties
     @property
