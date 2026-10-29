@@ -146,14 +146,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if element is not None:
             self.element = element
 
-        # child Primitives
-        self._topology = Graph()
-        self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
-            UniqueRegistry()
-        )
-        if children is not None:
-            self._children_by_handle.register_from(children)
-
         # off-body connections
         self._connectors: UniqueRegistry[ConnectorHandle, Connector] = UniqueRegistry()
         if connectors is not None:
@@ -166,6 +158,16 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self._role = role
         self.label = type(self).DEFAULT_LABEL if (label is None) else label
         self.metadata = metadata or dict()
+
+        # child Primitives
+        self._topology = Graph()
+        self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
+            UniqueRegistry()
+        )
+        if children is not None:
+            for child in children:
+                self.attach_child(child)
+            # self._children_by_handle.register_from(children)
 
     # Chemical atom and bond properties
     @property
