@@ -11,8 +11,11 @@ type PrimitiveAddress = Hashable
 from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
 
+from scipy.spatial.transform import RigidTransform
+
 from ..connection.connectors import Connector
 from ..connection.management import ConnectorManager
+from ..connection.alignment import ConnectorAntialignmentBallistic
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
@@ -210,3 +213,38 @@ class Primitive(
                 connectors_to_visit.remove(orig_neighbor)
 
         return clone_with_hierarchy
+
+    # Geometry
+    @property
+    def shape(self) -> Optional[BoundedTransformableShape]:
+        """The external shape of this Primitive"""
+        return self._shape
+
+    def _rigidly_transform_shape(self, transformation: RigidTransform) -> None:
+        """Apply rigid transformation to just the shape of this Primitive"""
+        if isinstance(self.shape, RigidlyTransformable):  # TB: just check if not None?
+            self.shape.rigidly_transform(transformation)
+
+    def _rigidly_transform_connectors(self, transformation: RigidTransform) -> None:
+        """Apply rigid transformation to just the Conenctors managed by Primitive"""
+        # DEV: this should NOT be a configurable arg; always want ballistic here
+        antialign_strategy = ConnectorAntialignmentBallistic()
+        for connector in self.connections.connectors:
+            connector.rigidly_transform(transformation)
+            if connector.has_neighbor:
+                antialign_strategy.antialign(
+                    align_connector=connector,
+                    to_connector=connector.neighbor,  # keep neighbor fixed
+                    match_bond_length=True,
+                    dihedral_angle_rad=None,  # may configure in future
+                )
+
+    ## Implement RigidlyTransformable contract
+    def _rigidly_transform(self, transformation: RigidTransform) -> None:
+        """Apply a rigid transformation to all parts of a Primitive which support it"""
+        self._rigidly_transform_connectors(transformation)
+        self._rigidly_transform_shape(transformation)
+        for subprimitive in self.descendants:  # descendants avoids recursive calls
+            # N.B.: not transforming sub-primitives' Connectors since they are, in
+            # aggregrate THE SAME Connectors managed here (don't double-transform)
+            subprimitive._rigidly_transform_shape(transformation)
