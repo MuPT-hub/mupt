@@ -41,6 +41,33 @@ class Primitive(
     SUPPORTS_CHILDREN: ClassVar[bool] = False
     SUPPORTS_PARENTS: ClassVar[bool] = False
 
+    # TB: am slightly uneasy of working around class hierarchy inversion this way,
+    # but does definitely make preconditions and properties over Primitives much simpler
+    @property
+    def is_simple(self) -> bool:
+        """Whether this Primitives is considered indivisible within its hierarchy"""
+        # DEV: this is a mechanism to prevent Simples from being the parents of any
+        # other Primitive without passing type info backward up the inheritance tree
+        return self.IS_SIMPLE
+
+    @property
+    def supports_children(self) -> bool:
+        """
+        Whether this Primitive is capable of having other
+        Primitives below it (i.e. at a "finer" resolution)
+        in the MuPT molecular representation hierarchy
+        """
+        return self.SUPPORTS_CHILDREN
+
+    @property
+    def supports_parents(self) -> bool:
+        """
+        Whether this Primitive is capable of being bound as the child of
+        another "parent" Primitive (which is at a "coarser" resolution)
+        in the MuPT molecular representation hierarchy
+        """
+        return self.SUPPORTS_PARENTS
+
     # Instance attributes
     connections: ConnectorManager
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
