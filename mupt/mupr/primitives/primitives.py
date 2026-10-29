@@ -3,12 +3,13 @@ Base classes for Primitives, the fundamental datatype
 within MuPT's multiscale molecular representation
 """
 
-from typing import Any, ClassVar, Collection, Hashable, Optional
+from typing import Any, ClassVar, Collection, Hashable, Optional, Self
 
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 
 from anytree.node import NodeMixin
+from anytree.iterators import LevelOrderIter
 
 from ..connection.connectors import Connector
 from ..connection.management import ConnectorManager
@@ -135,3 +136,77 @@ class Primitive(
     def functionality(self) -> int:
         """Number of free Connections this Primitive has access to"""
         return self.connections.functionality
+
+    # Copying
+    def _copy_instance(self) -> Self:
+        """
+        Make copy of the current Primitive, WITHOUT any
+        hierarchical or Connection information included
+        """
+        raise NotImplementedError  # TB TODO: should be abstractmethod, eventually
+
+    def _copy_hierarchy(self) -> tuple[Self, dict["Primitive", "Primitive"]]:
+        """
+        Copy the current Primitive and the hierarchy of all its Primitive ancestors
+
+        Return the root of the copied hierarchy (a Primitive analogous to this one)
+        and a map from the existing Primitives addresses to the newly-created ones
+        """
+        # TB: convert parts to address-based reference, if possible?
+        orig_prim_to_new_prim: dict[Primitive, Primitive] = dict()
+        own_copy: Self = orig_prim_to_new_prim[self]
+
+        for subprim in LevelOrderIter(self):
+            clone_no_hierarchy_subprim = subprim._copy_instance()
+            orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
+
+            # new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
+            new_parent: Optional[Primitive] = orig_prim_to_new_prim.get(
+                subprim.parent, None
+            )
+            clone_no_hierarchy_subprim.parent = new_parent
+
+        return own_copy, orig_prim_to_new_prim
+
+    ## implement Copyable contract on RigidlyTransformable
+    def _copy_untransformed(self) -> Self:
+        """
+        Create a copy which has a complete hierarchy and connectivity below it
+        Does not apply any rigid transformation to itself or sub-components
+
+        Connections outside the "cone" below this Primtive will be severed in the copy
+        """
+        clone_with_hierarchy, orig_prim_to_copy = self._copy_hierarchy()
+        orig_conn_to_copy: dict[Connector, Connector] = dict()
+
+        for connector in self.connections.connectors:
+            connector_copy = connector.copy()
+            del connector_copy.neighbor  # just to be safe
+
+            # DEV: not using dict.get(), since we WANT a KeyError if holders are unset
+            new_holder = orig_prim_to_copy[connector.holder]
+            # add_connector should propagate Connector copies through all Primitives
+            # in the copied hierarchy, including it among *this* clone's connectors
+            # to be implemented on Simples going on - TB: slight inheritance inversion?
+            new_holder.add_connector(connector_copy)
+
+            orig_conn_to_copy[connector] = connector_copy
+
+        # not using dict.items() to avoid calamity from dict modification during iter
+        # needed to prevent double-counting bonds via their two constituent Connectors
+        connectors_to_visit: set[Connector] = set(orig_conn_to_copy)
+        while connectors_to_visit:
+            # regardless of neighbor status, remove *this* Connector from search pool
+            orig_connector = connectors_to_visit.pop()
+            if not orig_connector.has_neighbor:
+                continue
+
+            # Connector is "internal" <=> its neighbor is also managed by this Primitive
+            if (orig_neighbor := orig_connector.neighbor) in orig_conn_to_copy:
+                copy_connector = orig_conn_to_copy[orig_connector]
+
+                # to avoid double-counting bonds, don't visit original neighbor later
+                copy_connector.neighbor = orig_conn_to_copy.pop(orig_neighbor)
+                connectors_to_visit.remove(orig_neighbor)
+
+        return clone_with_hierarchy
