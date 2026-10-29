@@ -174,6 +174,6 @@ def draw_networkx_tree(
     if pos is None:
         pos = nx_agraph.graphviz_layout(tree, prog="dot")
 
-    draw_networkx(tree, pos=pos, **kwargs)
+    draw_networkx(tree, ax=ax, pos=pos, **kwargs)
 
     return ax
