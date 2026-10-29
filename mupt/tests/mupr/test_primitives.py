@@ -26,8 +26,8 @@ def test_hierarchy_tree_preserves_equivalent_siblings() -> None:
     """Keep separate hierarchy nodes for equivalent sibling Primitives"""
     # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4328033416
     root = Primitive(label="root")
-    left = Primitive()
-    right = Primitive()
+    left = Primitive(label="left")
+    right = Primitive(label="right")
     root.attach_child(left)
     root.attach_child(right)
 
