@@ -10,6 +10,9 @@ type PrimitiveAddress = Hashable
 
 from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
+from anytree.search import findall
+
+from networkx.classes import DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
@@ -21,6 +24,8 @@ from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
+from ...trees.digraph import anytree_to_networkx
+from ...trees.subselect import NodePredicate
 
 
 class Primitive(
@@ -248,3 +253,31 @@ class Primitive(
             # N.B.: not transforming sub-primitives' Connectors since they are, in
             # aggregrate THE SAME Connectors managed here (don't double-transform)
             subprimitive._rigidly_transform_shape(transformation)
+
+    # Hierarchy
+    def search_hierarchy_by(
+        self,
+        predicate: NodePredicate["Primitive"],
+        halt_when: Optional[NodePredicate["Primitive"]] = None,
+        to_depth: Optional[int] = None,
+        min_count: Optional[int] = None,
+        max_count: Optional[int] = None,
+    ) -> tuple["Primitive"]:
+        """
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+
+        Matching descendant Primitives are returned in traversal preorder from the root
+        """
+        return findall(
+            self,
+            filter_=predicate,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
+
+    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
+        """Generate a directed Graph representing the hierarchy below this Primitive"""
+        return anytree_to_networkx(self, *args, **kwargs)
