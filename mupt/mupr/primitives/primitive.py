@@ -8,6 +8,7 @@ from typing import (
     ClassVar,
     Collection,
     Hashable,
+    Iterable,
     Optional,
     Self,
     Union,
@@ -351,9 +352,61 @@ class SupportsChildren(Primitive):
     these Primitives are nodes which allow OUTGOING directed edges
     """
 
-    # Hierarchy
     children_by_address: WeakValueDictionary[PrimitiveAddress, "SupportsParents"]
-    ...
+
+    def _init_children(
+        self,
+        children: Optional[Iterable["SupportsParents"]] = None,
+    ) -> None:
+        """
+        Perform one-time initialization of children-related attributes and, if
+        provided, bind children to self from collection of parent-capable Primitives
+        """
+        self.children_by_address = WeakValueDictionary()
+        if children is None:
+            children = tuple()
+
+        for subprimitive in children:
+            self.attach_child(subprimitive, label=subprimitive.label)
+
+    def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
+        """
+        Lookup a child Primitive by its address and
+        return the Primitive instance, if present
+        """
+        return self.children_by_address[prim_addr]  # raise KeyError if not present
+
+    fetch_primitive = child
+
+    # Hierarchy management
+    # TB: consider making these wrappers & moving core logic to _pre_attach/_post_attach
+
+    ## Attachment
+    def attach_child(
+        self,
+        child: "SupportsParents",
+        label: Optional[PrimitiveLabel] = None,
+    ) -> PrimitiveAddress:
+        """
+        Register a new child Primitive as existing below
+        this one in the resolution hierarchy
+        """
+        child.parent = self
+        child.label = label
+        self.children_by_address[child.address] = child
+
+        return child.address
+
+    ## Detachment
+    def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
+        """
+        Unregister an existing child Primitive, making it no
+        be longer below this one in the resolution hierarchy
+        """
+        child = self.children_by_address.pop(prim_addr)
+        child.parent = None
+
+        return child
 
 
 class SupportsParents(Primitive):
