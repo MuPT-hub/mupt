@@ -16,6 +16,8 @@ from typing import (
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 
+from weakref import WeakValueDictionary
+
 from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
 from anytree.search import findall
@@ -338,3 +340,29 @@ class Primitive(
             style=tree_render_style(style),
             maxlevel=to_depth,
         ).by_attr(render_attr)
+
+
+class SupportsChildren(Primitive):
+    """
+    Type of Primitive which is allowed to have
+    other Primitives "beneath" it in a hierarchy.
+
+    I.e. interpreting a representation hierarchy as a rooted tree,
+    these Primitives are nodes which allow OUTGOING directed edges
+    """
+
+    # Hierarchy
+    children_by_address: WeakValueDictionary[PrimitiveAddress, "SupportsParents"]
+    ...
+
+
+class SupportsParents(Primitive):
+    """
+    Type of Primitive which is allowed to have
+    other Primitives "above" it in a hierarchy
+
+    I.e. interpreting a representation hierarchy as a rooted tree,
+    these Primitives are nodes which allow INCOMING directed edges
+    """
+
+    ...
