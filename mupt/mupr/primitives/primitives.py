@@ -16,8 +16,9 @@ from networkx.classes import DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
+from ..connection.types import ConnectorAddress
 from ..connection.connectors import Connector
-from ..connection.management import ConnectorManager
+from ..connection.management import ConnectorManager, connector_address_flexible
 from ..connection.alignment import ConnectorAntialignmentBallistic
 
 from ...mutils.referencing import Addressed
@@ -281,3 +282,8 @@ class Primitive(
     def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
         """Generate a directed Graph representing the hierarchy below this Primitive"""
         return anytree_to_networkx(self, *args, **kwargs)
+
+    # Topology
+    def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
+        """Fetch a connector managed by this Priomitive, if it exists"""
+        return self.connections.connector(connector_address_flexible(conn))
