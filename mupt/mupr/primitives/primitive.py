@@ -28,7 +28,7 @@ from networkx.classes import DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
-from ..connection.types import ConnectorAddress
+from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
 from ..connection.management import ConnectorManager, connector_address_flexible
 from ..connection.alignment import ConnectorAntialignmentBallistic
@@ -192,6 +192,8 @@ class Primitive(
             clone_no_hierarchy_subprim = subprim._copy_instance()
             orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
 
+            ## TB TODO: SupportsChildren is more accurate annotation, but
+            ## inverts inheritance hierarhyc; find way to get best of both
             # new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
             new_parent: Optional[Primitive] = orig_prim_to_new_prim.get(
                 subprim.parent, None
@@ -418,4 +420,42 @@ class SupportsParents(Primitive):
     these Primitives are nodes which allow INCOMING directed edges
     """
 
-    ...
+    # Topology
+    def inject_connector_into_hierarchy(
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """
+        Introduce a new Connector into circulation throughout the hierarchy above
+        All ancestors of this Primitive will also manage this Connector instance
+
+        Returns the address of the injected Connector
+        """
+        for anc in self.ancestors:
+            anc._add_connector(connector, label=label)
+        return connector.address
+
+    def withdraw_connector_from_hierarchy(
+        self,
+        connector_address: ConnectorAddress | Connector,
+        preserve_neighbor: bool = False,
+    ) -> Connector:
+        """
+        Remove a Connector from circulation in levels of the hierarchy above
+        Connector will still be managed within THIS Primitive,
+
+        Neighbor of Connector will be severed by default to prevent corruption of
+        hierarchy; can manually override if desired by passing "preserve_neighbor=True"
+
+        Returns the withdrawn Connector
+        """
+        connector_address = connector_address_flexible(connector_address)
+        for ancestor in self.ancestors:
+            # TB: these all point to the same Connector instance, so assigning to
+            # var is technically redundant for all but the last iter of the loop
+            connector = ancestor._remove_connector(connector_address)
+
+        if not preserve_neighbor:
+            del connector.neighbor
+        return connector
