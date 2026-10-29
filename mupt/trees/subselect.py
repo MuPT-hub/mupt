@@ -40,8 +40,10 @@ def primoprogenitors(
         A callable indicating whether a node should be selected
     to_depth : Optional[int], default None
         An optional cap on the depth of the search;
-        No nodes with depth to the root greater than
-        or equal to `to_depth` will be yielded
+        No nodes which require greater than or equal to
+        `to_depth` iteration to reach will be yielded
+
+        to_depth=None (default) imposes no depth cap
 
     Yields
     ------
