@@ -3,13 +3,14 @@ Base classes for Primitives, the fundamental datatype
 within MuPT's multiscale molecular representation
 """
 
-from typing import Any, ClassVar, Hashable, Optional
+from typing import Any, ClassVar, Collection, Hashable, Optional
 
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 
 from anytree.node import NodeMixin
 
+from ..connection.connectors import Connector
 from ..connection.management import ConnectorManager
 
 from ...mutils.referencing import Addressed
@@ -76,3 +77,61 @@ class Primitive(
 
     _frozen_connections: bool
     _frozen_hierarchy: bool
+
+    # Creation
+    ## N.B.: deliberately not placeing __init__ method here;
+    ## should NOT be able to create instance of Primitive base
+    ## TB: given that, may consider pivoting from Protocol -> ABC?
+    def _init(
+        self,
+        # DEV: connectors deliberately omitted here; subtype each handle in unique way
+        shape: Optional[BoundedTransformableShape] = None,
+        label: Optional[PrimitiveLabel] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """
+        Boilerplate initialization of hidden attrs, with defaults
+        To be called inside __init__ of concrete subtypes
+        """
+        # hidden flags - mutable by default
+        self._frozen_connections = False
+        self._frozen_hierarchy = False
+
+        # instance attrs
+        self._shape = shape
+        self.metadata = metadata or dict()
+        self._label = label
+
+    @property
+    def label(self) -> PrimitiveLabel:
+        """
+        A distinguishing label which can be assigned
+        by the user for identification purposes
+        """
+        if self._label is None:
+            # Attempt fallbacks to fetch label
+            if "label" in self.metadata:
+                self._label = self.metadata["label"]
+            else:
+                self._label = self.DEFAULT_LABEL
+
+        return self._label
+
+    @label.setter
+    def label(self, new_label: Optional[PrimitiveLabel]) -> None:
+        """Assign a new label to this Primitive"""
+        if new_label is None:
+            new_label = self.DEFAULT_LABEL
+        self._label = new_label
+
+    # Wrapped properties
+    @property
+    def connectors(self) -> Collection[Connector]:
+        """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
+        # TODO: also provide convenient access to connectors_free and connectors_bound
+        return self.connections.connectors
+
+    @property
+    def functionality(self) -> int:
+        """Number of free Connections this Primitive has access to"""
+        return self.connections.functionality
