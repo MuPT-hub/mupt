@@ -1,3 +1,5 @@
+"""Tests for the mupt.mupr.primitives module"""
+
 from typing import Generator
 
 import pytest
@@ -62,7 +64,9 @@ def test_visualize_hierarchy_with_converted_nodes(hierarchy_axes: Axes) -> None:
     assert [text.get_text() for text in ax.texts] == ["root"]
 
 
-@pytest.mark.parametrize("selection", ("depth_limit", "filtered_child", "filtered_root"))
+@pytest.mark.parametrize(
+    "selection", ("depth_limit", "filtered_child", "filtered_root")
+)
 def test_visualize_hierarchy_labels_only_included_nodes(
     selection: str,
     hierarchy_axes: Axes,
