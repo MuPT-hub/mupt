@@ -1,42 +1,179 @@
 """Utilities for drawing graphs"""
 
-from typing import Optional, TYPE_CHECKING
+from typing import Generator, Optional, TYPE_CHECKING
 
-from networkx.classes import Graph
-from networkx.drawing import kamada_kawai_layout, draw as draw_nx
+from inspect import signature
+from collections import defaultdict
+
+from networkx.classes import Graph, DiGraph, MultiGraph
+from networkx.drawing import (
+    spring_layout,
+    draw_networkx,
+    draw_networkx_edges,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-from .graphtypes import GraphLayout
-from .invariants import is_indiscrete
+from .graphtypes import GraphEdge, GraphPositions
 
 
-def graph_repr(graph: Graph) -> str:
+def default_graph_axes(margins: float = 0.25) -> "Axes":
     """
-    Temporary port of deprecated TopologicalStructure.__repr__
-    Moved over for backwards compatibility until Primitive is reworked
+    Default strategy for creating a blank single-axis figure to draw graphs onto
+
+    Useful as default for creating axes when None have been provided
     """
-    return (
-        f"{graph.__class__.__name__}"
-        f"(num_objects={graph.number_of_nodes()}, "
-        f"indiscrete={is_indiscrete(graph)})"
-    )
+    from matplotlib.pyplot import figure
+
+    fig = figure()
+    ax = fig.add_axes((0, 0, 1, 1))  # full figure
+    ax.margins(margins)
+    ax.set_axis_off()
+
+    return ax
 
 
-def draw_graph(
-    graph: Graph,
+def determine_arc_radii(
+    graph: Graph | MultiGraph,
+    base_arc_radius: int | float = 0.1,
+) -> dict[GraphEdge, float]:
+    """
+    Determine radii needed for each edge of a simple graph or multigraph
+    to display symmetric-looking arcs for (possibly parallel) edges when rendered
+
+    Arc radii will be scaled to be equidistant by increments of the base arc radius
+    E.g. the scaling factor for various small examples will be:
+    * N=1: O----O ==> (0,)
+
+    * N=2: O====O ==> (-1/2, 1/2)
+
+            ____
+    * N=3: O----O ==> (-1, 0, 1)
+            ▔▔
+            ____
+    * N=4: O====O ==> (-3/2, -1/2, 1/2, 3/2)
+            ▔▔
+    etc.
+    """
+    # truncate to second element to cut off edge key in the case of MultiGraph
+    # only want to compare on the basis of the unordered pair of nodes
+    edges_by_node_pair = defaultdict(list)
+    for edge in graph.edges:
+        a, b, *_ = edge
+        edges_by_node_pair[frozenset((a, b))].append(edge)
+
+    conn_style_map: dict[GraphEdge, float] = dict()
+    for parallel_edges in edges_by_node_pair.values():
+        num_parallel_edges: int = len(parallel_edges)
+
+        arc_radii: Generator[float, None, None] = (
+            base_arc_radius * increment / 2
+            for increment in range(1 - num_parallel_edges, num_parallel_edges, 2)
+        )
+        for arc_radius, edge in zip(arc_radii, parallel_edges):
+            conn_style_map[edge] = arc_radius
+
+    return conn_style_map
+
+
+def determine_arc_styles(
+    graph: Graph | MultiGraph,
+    base_arc_radius: int | float = 0.1,
+) -> dict[GraphEdge, str]:
+    """
+    Compile map from graph edges to format string containing arc radii cues
+
+    When assigned to "connectionstyle" of each edge according to the return map,
+    will ensure parallel edges in graph are rendered nicely
+    """
+    return {
+        edge: f"arc3,rad={arc_radius}"
+        for edge, arc_radius in determine_arc_radii(
+            graph,
+            base_arc_radius=base_arc_radius,
+        ).items()
+    }
+
+
+def draw_networkx_with_arcs(
+    G: Graph | MultiGraph,  # TB: MultiGraph < Graph already; just making explicit
+    pos: Optional[GraphPositions] = None,
     ax: Optional["Axes"] = None,
-    layout: GraphLayout = kamada_kawai_layout,
-    **draw_kwargs,
-) -> None:
-    """Draw the topology's graph"""
-    if "with_labels" not in draw_kwargs:
-        draw_kwargs["with_labels"] = True
+    base_arc_radius: float = 0.1,
+    margins: float = 0.25,
+    **kwargs,
+) -> "Axes":
+    """
+    Draw an undirected graph with separated arcs
+    for parallel edges, if it is a multigraph
 
-    draw_nx(
-        graph,
-        ax=ax,
-        pos=layout(graph),
-        **draw_kwargs,
+    Thin wrapper around draw_networkx() and draw_networkx_edges()
+    See networkx.drawing documentation for kwarg details
+    """
+    if "with_labels" not in kwargs:
+        kwargs["with_labels"] = True
+
+    edgelist = kwargs.pop("edgelist", G.edges)  # handle edgelist manually
+    _ = kwargs.pop("connectionstyle", None)  # prevent connectionstyle override
+
+    # TB DEV: these kwargs filters are lifted from internals of draw_networkx()
+    valid_edge_kwds = signature(draw_networkx_edges).parameters.keys()
+    edge_kwargs = {k: v for k, v in kwargs.items() if k in valid_edge_kwds}
+
+    if ax is None:
+        ax = default_graph_axes(margins=margins)
+
+    if pos is None:
+        pos = spring_layout(G)
+
+    # N.B.: the "edge_indices" logic inside draw_networkx() doesn't correctly handle
+    # distinct connectionstyles for each parallel multiedge in a multigraph
+    # viz. -|#|= edges in 4-node path unexpectedly refs styles like [0 | 0 1 2 | 0 1])
+    # Drawing edge-by-edge ensures the arcs drawn respect their assigned connectionstyle
+    draw_networkx(G, pos=pos, ax=ax, edgelist=[], **kwargs)  # skip edge drawing here
+    arc_styles: dict[GraphEdge, str] = determine_arc_styles(
+        G,
+        base_arc_radius=base_arc_radius,
     )
+    for edge in edgelist:
+        draw_networkx_edges(
+            G,
+            pos=pos,
+            ax=ax,
+            edgelist=[edge],
+            connectionstyle=arc_styles[edge],
+            arrows=True,  # suppress warning on edge w/ connectionstyle on simple Graphs
+            **edge_kwargs,
+        )
+
+    return ax
+
+
+def draw_networkx_tree(
+    tree: DiGraph,
+    pos: Optional[GraphPositions] = None,
+    ax: Optional["Axes"] = None,
+    margins: float = 0.25,
+    **kwargs,
+) -> "Axes":
+    """
+    Draw a directed graph with separated arcs for parallel edges
+
+    Thin wrapper around draw_networkx()
+    See networkx.drawing documentation for kwarg details
+    """
+    from networkx import nx_agraph  # nice pygraphviz layouts
+
+    if "with_labels" not in kwargs:
+        kwargs["with_labels"] = True
+
+    if ax is None:
+        ax = default_graph_axes(margins=margins)
+
+    if pos is None:
+        pos = nx_agraph.graphviz_layout(tree, prog="dot")
+
+    draw_networkx(tree, ax=ax, pos=pos, **kwargs)
+
+    return ax
