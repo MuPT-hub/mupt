@@ -31,7 +31,56 @@ def anytree_to_networkx(
         Mapping[NodeMixin, H],
     ] = lambda x: x,
 ) -> DiGraph:
-    """Convert a tree into a directed NetworkX graph"""
+    """
+    Convert a tree represented by an anytree NodeMixin to a directed NetworkX graph
+
+    Parameters
+    ----------
+    node : NodeMixin
+        The root node to begin tree traversal from
+
+        This can be any object which inherits from
+        the anytree NodeMixin, including anytree Node
+    node_exporter: Optional[DictExporter] = None,
+        An optional DictExporter instance which prescribes how node
+        attr data should be mapped into attributes on networkx Graph nodes
+
+        N.B.: any DictExporter instance passed in here MUST have maxlevel=1
+        this ensures other nodes don't get duplicated as Graph node attributes
+    filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
+        An optional condition on nodes which indicates which
+        nodes to make part of the resulting networkx DiGraph;
+        any nodes which do NOT satisfy this condition will be omitted
+
+        If None, all visited nodes will be included in the final DiGraph
+    stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
+        An optional condition on nodes which, if met, will
+        halt tree traversal and return the DiGraph in the
+        state it was in when this condition was met by a node
+
+        If None, will traverse all nodes, barring any excluded by max_depth
+    max_depth: Optional[int] = None,
+        An optional number of iterations from the root to search before halting
+
+        If None, no such search depth limit is enforced
+    node_converter: Union[Callable[[NodeMixin], H], Mapping[NodeMixin, H]]
+            default lambda x: x
+        An optional mechanism for converting node objects to other
+        objects for use as nodes in the final networkx DiGraph
+        Can be either a callable object like a function,
+        or a mapping keyed by anytree NodeMixin objects like a dict
+
+        If left unspecified (i.e. None), makes networkx nodes
+        the literal NodeMixin objects in the original tree
+
+    Returns
+    -------
+    digraph : DiGraph
+        A directed networkx graph representing the (filtered) tree
+
+        N.B.: the returned graph MAY have multiple connected components;
+        this can happen, for instance, if all intermediate nodes are filtered out
+    """
     if isinstance(node_converter, Mapping):
         node_converter = node_converter.__getitem__
 
