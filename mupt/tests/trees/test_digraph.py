@@ -151,6 +151,36 @@ class TestDigraphAttrbutes:
 
         assert set(digraph.nodes) == set(node_remap.values())
 
+    def test_node_converter_mapping_for_subtree(self) -> None:
+        """Only look up exported subtree nodes in the converter mapping"""
+        # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946172
+        root = Node("root")
+        branch = Node("branch", parent=root)
+        leaf = Node("leaf", parent=branch)
+        node_remap = {branch: "branch", leaf: "leaf"}
+
+        digraph = anytree_to_networkx(branch, node_converter=node_remap)
+
+        assert set(digraph.nodes) == {"branch", "leaf"}
+        assert set(digraph.edges) == {("branch", "leaf")}
+
+    def test_node_converter_mapping_omits_filtered_parent(self) -> None:
+        """Allow filtered parents to be absent from the converter mapping"""
+        # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946172
+        root = Node("root")
+        branch = Node("branch", parent=root)
+        leaf = Node("leaf", parent=branch)
+        node_remap = {root: "root", leaf: "leaf"}
+
+        digraph = anytree_to_networkx(
+            root,
+            node_converter=node_remap,
+            filter_predicate=lambda node: node is not branch,
+        )
+
+        assert set(digraph.nodes) == {"root", "leaf"}
+        assert digraph.number_of_edges() == 0
+
 
 class TestDigraphFilter:
     """
