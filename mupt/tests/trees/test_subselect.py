@@ -160,7 +160,7 @@ def test_primoprogenitors_invariant_enforced(
 ) -> None:
     """
     Test the primoprogenitors enforce the defining invariant that
-    no ancestor of a selected node satisfies the selection prediction
+    no ancestor of a selected node satisfies the selection predicate
     """
     _, root = example_tree_with_root
     for node_selected in primoprogenitors(root, predicate):
