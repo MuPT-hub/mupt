@@ -25,8 +25,9 @@ from collections import defaultdict
 from anytree.node import NodeMixin
 from anytree.search import findall, findall_by_attr
 from anytree.render import RenderTree
+from anytree.exporter import DictExporter
+
 from networkx.classes import Graph, DiGraph
-from networkx.algorithms import compose as compose_graphs
 
 from scipy.spatial.transform import RigidTransform
 from matplotlib.axes import Axes
@@ -49,6 +50,7 @@ from .embedding import (
 )
 
 from ..mutils.containers import UniqueRegistry
+from ..trees.digraph import anytree_to_networkx
 from ..trees.render import ConcreteStyle, tree_render_style
 from ..graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
 from ..geometry.arraytypes import Vector3
@@ -146,14 +148,6 @@ class Primitive(NodeMixin, RigidlyTransformable):
         if element is not None:
             self.element = element
 
-        # child Primitives
-        self._topology = Graph()
-        self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
-            UniqueRegistry()
-        )
-        if children is not None:
-            self._children_by_handle.register_from(children)
-
         # off-body connections
         self._connectors: UniqueRegistry[ConnectorHandle, Connector] = UniqueRegistry()
         if connectors is not None:
@@ -166,6 +160,16 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self._role = role
         self.label = type(self).DEFAULT_LABEL if (label is None) else label
         self.metadata = metadata or dict()
+
+        # child Primitives
+        self._topology = Graph()
+        self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
+            UniqueRegistry()
+        )
+        if children is not None:
+            for child in children:
+                self.attach_child(child)
+            # self._children_by_handle.register_from(children)
 
     # Chemical atom and bond properties
     @property
@@ -1593,34 +1597,24 @@ class Primitive(NodeMixin, RigidlyTransformable):
             # childiter=list
         ).by_attr(render_attr)
 
-    def _hierarchy_tree(
+    def hierarchy_tree(
         self,
-        root_label: Hashable = None,
-        depth: int = 0,
+        node_exporter: Optional[DictExporter] = None,
+        max_depth: Optional[int] = None,
     ) -> DiGraph:
         """
         Generate a directed graph representing the partial order
         on this Primitive and all its descendants in the hierarchy
+
+        See mupt.trees.digraph.anytree_to_networkx for arg/kwarg options
         """
-        if root_label is None:
-            root_label = self.label
-        root_tag = f"{depth}-{root_label}"
-
-        hier_tree = DiGraph()
-        hier_tree.add_node(root_tag)
-        for child_handle, child in self.children_by_handle.items():
-            child_tag: str = f"{depth + 1}-{child_handle}"
-
-            hier_tree = compose_graphs(
-                hier_tree,
-                child._hierarchy_tree(root_label=child_handle, depth=depth + 1),
-                # rename=(),
-                ## TODO: add mechanism for de-duplifying handles by depth
-                ## (related to planned expansion acceleration)
-            )
-            hier_tree.add_edge(root_tag, child_tag)
-
-        return hier_tree
+        return anytree_to_networkx(
+            self,
+            node_exporter=node_exporter,
+            max_depth=max_depth,
+            # DEV: lock out node_converter option here; downstream consumers like
+            # visualize_hierarchy _require_ graph node to be literal Primitive instances
+        )
 
 
 # Primitive visualization functions
@@ -1666,7 +1660,13 @@ def visualize_topology(
     )
 
 
-def visualize_hierarchy(hierarchy_tree: Union[DiGraph, Primitive], **kwargs) -> "Axes":
+def visualize_hierarchy(
+    prim: Primitive,
+    hierarchy_tree: Optional[DiGraph] = None,
+    use_handles_for_labels: bool = True,
+    root_label: Optional[PrimitiveLabel] = None,
+    **kwargs,
+) -> "Axes":
     """
     Draw a networkx DiGraph representation of the partial order
     of a Primitive and all Primitives below it in the hierarchy
@@ -1678,7 +1678,19 @@ def visualize_hierarchy(hierarchy_tree: Union[DiGraph, Primitive], **kwargs) -> 
     """
     from mupt.graphs.visualization import draw_networkx_tree
 
-    if isinstance(hierarchy_tree, Primitive):
-        hierarchy_tree = hierarchy_tree._hierarchy_tree()
+    if hierarchy_tree is None:
+        hierarchy_tree = prim.hierarchy_tree()
+
+    if use_handles_for_labels:
+        label_map: dict[Primitive, Union[PrimitiveHandle, PrimitiveLabel]] = {
+            subprim: handle
+            for prim in hierarchy_tree
+            for handle, subprim in prim.children_by_handle.items()
+            if subprim in hierarchy_tree
+        }
+        label_map[prim] = prim.label if (root_label is None) else root_label
+
+        kwargs["with_labels"] = True
+        kwargs["labels"] = label_map
 
     return draw_networkx_tree(hierarchy_tree, **kwargs)
