@@ -73,7 +73,7 @@ jobs:
 
       - name: Run example notebook tests
         run: |
-          git clone https://github.com/MuPT-hub/mupt-examples -b graph-draw
+          git clone https://github.com/MuPT-hub/mupt-examples
           pushd mupt-examples
           source notebook_tests_master.sh
           popd
