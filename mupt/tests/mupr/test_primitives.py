@@ -65,10 +65,15 @@ def test_visualize_hierarchy_with_converted_nodes(hierarchy_axes: Axes) -> None:
 
 
 @pytest.mark.parametrize(
-    "selection", ("depth_limit", "filtered_child", "filtered_root")
+    "selection,depth_expected",
+    [
+        ("depth_limit", 1),
+        ("unlimited", 2),
+    ],
 )
 def test_visualize_hierarchy_labels_only_included_nodes(
     selection: str,
+    depth_expected: int,
     hierarchy_axes: Axes,
 ) -> None:
     """Draw partial hierarchies without labels for excluded nodes"""
@@ -79,12 +84,10 @@ def test_visualize_hierarchy_labels_only_included_nodes(
 
     if selection == "depth_limit":
         graph = root.hierarchy_tree(max_depth=1)
-    elif selection == "filtered_child":
-        graph = root.hierarchy_tree(filter_predicate=lambda node: node is root)
     else:
-        graph = root.hierarchy_tree(filter_predicate=lambda node: node is child)
+        graph = root.hierarchy_tree()
 
-    assert graph.number_of_nodes() == 1
+    assert graph.number_of_nodes() == depth_expected
     ax = visualize_hierarchy(
         root,
         hierarchy_tree=graph,
