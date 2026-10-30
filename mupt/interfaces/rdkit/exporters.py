@@ -20,7 +20,7 @@ from ... import TOOLKIT_NAME
 from ...geometry.arraytypes import Vector3
 from ...chemistry.conversion import element_to_rdkit_atom
 from ...mupr.connection import Connector
-from ...mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
+from ...mupr.primitives.primitives_legacy import PrimitiveLegacy, PrimitiveHandle
 from .strategies import (
     AllAtomRDKitExportStrategy,
     RDKitExportStrategy,
@@ -28,7 +28,7 @@ from .strategies import (
 )
 
 
-def rdkit_atom_from_atomic_primitive(atomic_primitive: Primitive) -> Atom:
+def rdkit_atom_from_atomic_primitive(atomic_primitive: PrimitiveLegacy) -> Atom:
     """Convert an atomic Primitive to an RDKit Atom"""
     if not (atomic_primitive.is_atom and atomic_primitive.is_simple):
         raise ValueError("Cannot export non-atomic Primitive to RDKit Atom")
@@ -45,7 +45,7 @@ def rdkit_atom_from_atomic_primitive(atomic_primitive: Primitive) -> Atom:
 # but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
 def primitive_to_rdkit(  # noqa: C901
-    primitive: Primitive,
+    primitive: PrimitiveLegacy,
     default_atom_position: Optional[Vector3] = None,
 ) -> Mol:
     ## JL DEV: This is the legacy flattened exporter. We recommend replacing downstream
@@ -94,7 +94,7 @@ def primitive_to_rdkit(  # noqa: C901
 
     # special case for atomic Primitives; easier to contract into hierarchy
     # containing that single atom as child (less casework)
-    temp_prim: Optional[Primitive] = None
+    temp_prim: Optional[PrimitiveLegacy] = None
     lone_atom_label: Optional[PrimitiveHandle] = None
     if primitive.is_atom:
         if primitive.parent is not None:
@@ -102,7 +102,7 @@ def primitive_to_rdkit(  # noqa: C901
                 "Export for unisolated atomic Primitives "
                 "(i.e. with pre-existing parents) is not supported"
             )
-        temp_prim = Primitive(label="temp")
+        temp_prim = PrimitiveLegacy(label="temp")
         lone_atom_label: PrimitiveHandle = temp_prim.attach_child(primitive)
 
     # 1) insert atoms
@@ -226,7 +226,7 @@ def _pdb_chain_and_resid(global_residue_idx: int) -> tuple[str, int]:
     return PDB_CHAIN_IDS[chain_idx], resid_offset + 1
 
 
-def _atom_pdb_name(atom: Primitive, atom_idx_in_residue: int) -> str:
+def _atom_pdb_name(atom: PrimitiveLegacy, atom_idx_in_residue: int) -> str:
     """Return a PDB-width atom name from element and residue-local index."""
     atom_name = f"{atom.element.symbol}{atom_idx_in_residue + 1}"
     if len(atom.element.symbol) == 1:
@@ -363,7 +363,7 @@ def _mol_from_rdkit_data(
 
 
 def primitive_to_rdkit_mols(
-    primitive: Primitive,
+    primitive: PrimitiveLegacy,
     resname_map: dict[str, str],
     default_atom_position: Optional[Vector3] = None,
     strategy: Optional[RDKitExportStrategy] = None,
