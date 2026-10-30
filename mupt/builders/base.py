@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 from scipy.spatial.transform import RigidTransform
 
-from ..mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
+from ..mupr.primitives.primitives_legacy import PrimitiveLegacy, PrimitiveHandle
 
 
 class PlacementGenerator(ABC):
@@ -29,7 +29,7 @@ class PlacementGenerator(ABC):
     # simply not check anything (establish this as the default behavior)
     def check_preconditions(
         self,
-        primitive: Primitive,
+        primitive: PrimitiveLegacy,
     ) -> None:
         """
         Check that the given Primitive meets any preconditions for this builder
@@ -44,7 +44,7 @@ class PlacementGenerator(ABC):
     @abstractmethod
     def _generate_placements(
         self,
-        primitive: Primitive,
+        primitive: PrimitiveLegacy,
     ) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         """
         Implement generation of rigid transformations
@@ -54,7 +54,7 @@ class PlacementGenerator(ABC):
 
     def generate_placements(
         self,
-        primitive: Primitive,
+        primitive: PrimitiveLegacy,
     ) -> Iterable[tuple[PrimitiveHandle, RigidTransform]]:
         """
         Accepts a Primitive (with associated topology, connections, and

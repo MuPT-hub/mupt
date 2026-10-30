@@ -3,10 +3,10 @@ Properties of Primitives used to assess compatibility with a particular task
 E.g. checking atomicity, linearity, adherence to a "standard" hierarchy, etc.
 """
 
-from .primitives_legacy import Primitive
+from .primitives_legacy import PrimitiveLegacy
 
 
-def has_strict_SAAMR_depth(prim: Primitive) -> bool:
+def has_strict_SAAMR_depth(prim: PrimitiveLegacy) -> bool:
     """Check whether a Primitive hierarchy is a strict depth-3 SAAMR tree.
 
     A strict SAAMR tree has exactly four levels:

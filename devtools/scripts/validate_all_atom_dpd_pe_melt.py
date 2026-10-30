@@ -22,7 +22,7 @@ from mupt.geometry.coordinates.reference import origin
 from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from mupt.interfaces.smiles import primitive_from_smiles
-from mupt.mupr.primitives.primitives_legacy import Primitive
+from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
 from mupt.roles import assign_SAAMR_roles
 
 
@@ -44,7 +44,7 @@ def sequence_repeat_units(chain_len: int) -> list[str]:
     return ["head", *("ethane" for _ in range(chain_len - 2)), "tail"]
 
 
-def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
+def build_pe_lexicon(axis: int = 0) -> dict[str, PrimitiveLegacy]:
     """Build oriented PE repeat-unit primitives from the script SMILES table."""
     lexicon = {}
     with suppress_rdkit_logs():
@@ -78,7 +78,7 @@ def build_pe_lexicon(axis: int = 0) -> dict[str, Primitive]:
     return lexicon
 
 
-def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
+def build_pe_melt_primitive(args: argparse.Namespace) -> PrimitiveLegacy:
     """Build a deterministic all-atom PE primitive without pytest fixtures.
 
     This function intentionally constructs local residue templates and chain
@@ -87,9 +87,9 @@ def build_pe_melt_primitive(args: argparse.Namespace) -> Primitive:
     """
     np.random.seed(args.seed)
     lexicon = build_pe_lexicon()
-    root = Primitive(label="pe_melt")
+    root = PrimitiveLegacy(label="pe_melt")
     for chain_idx in range(args.n_chains):
-        segment = Primitive(label=f"chain_{chain_idx:04d}")
+        segment = PrimitiveLegacy(label=f"chain_{chain_idx:04d}")
         for unit_name in sequence_repeat_units(args.chain_len):
             segment.attach_child(lexicon[unit_name].copy())
         segment.set_topology(

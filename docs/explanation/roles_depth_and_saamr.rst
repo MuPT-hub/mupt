@@ -77,7 +77,7 @@ attribute, whose value is a member of the
 A few properties of roles are worth knowing:
 
 - **Roles are opt-in.** MuPT never assigns roles on its own. Either you set
-  them when building a Primitive (``Primitive(..., role=PrimitiveRole.RESIDUE)``),
+  them when building a Primitive (``PrimitiveLegacy(..., role=PrimitiveRole.RESIDUE)``),
   set them afterwards (``prim.role = PrimitiveRole.RESIDUE``), or call a
   helper such as :func:`~mupt.roles.assign_SAAMR_roles`.
 - **Roles are preserved by copying.** ``Primitive.copy()`` carries roles
@@ -147,14 +147,14 @@ level for you:
 .. code-block:: python
 
     from mupt.chemistry import ELEMENTS
-    from mupt.mupr.primitives.primitives_legacy import Primitive
+    from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
     from mupt.mupr.primitives.properties import has_strict_SAAMR_depth
     from mupt.roles import assign_SAAMR_roles, has_SAAMR_roles
 
-    universe = Primitive(label="universe")
-    chain = Primitive(label="chain")
-    unit = Primitive(label="HEL")
-    atom = Primitive(label="He", element=ELEMENTS[2])
+    universe = PrimitiveLegacy(label="universe")
+    chain = PrimitiveLegacy(label="chain")
+    unit = PrimitiveLegacy(label="HEL")
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
 
     universe.attach_child(chain)
     chain.attach_child(unit)
@@ -177,11 +177,11 @@ the domain node is simply left ``UNASSIGNED``:
     from mupt.interfaces.mdanalysis import primitive_to_mdanalysis
     from mupt.roles import PrimitiveRole
 
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    domain = Primitive(label="domain")  # UNASSIGNED: transparent
-    chain = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
-    unit = Primitive(label="HEL", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    domain = PrimitiveLegacy(label="domain")  # UNASSIGNED: transparent
+    chain = PrimitiveLegacy(label="chain", role=PrimitiveRole.SEGMENT)
+    unit = PrimitiveLegacy(label="HEL", role=PrimitiveRole.RESIDUE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
 
     universe.attach_child(domain)
     domain.attach_child(chain)
@@ -269,11 +269,11 @@ labels:
 
 .. code-block:: python
 
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    domain = Primitive(label="domain")
-    chain = Primitive(label="chain", role=PrimitiveRole.RESIDUE)  # was SEGMENT
-    unit = Primitive(label="HEL", role=PrimitiveRole.SEGMENT)     # was RESIDUE
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    domain = PrimitiveLegacy(label="domain")
+    chain = PrimitiveLegacy(label="chain", role=PrimitiveRole.RESIDUE)  # was SEGMENT
+    unit = PrimitiveLegacy(label="HEL", role=PrimitiveRole.SEGMENT)     # was RESIDUE
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
 
     universe.attach_child(domain)
     domain.attach_child(chain)

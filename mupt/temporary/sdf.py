@@ -40,7 +40,7 @@ from ..interfaces.rdkit.strategies import RDKitExportStrategy
 
 from ..mutils.filepaths.pathutils import asstrpath
 from ..mupr.connection import Connector
-from ..mupr.primitives.primitives_legacy import Primitive
+from ..mupr.primitives.primitives_legacy import PrimitiveLegacy
 from ..roles import PrimitiveRole
 
 
@@ -80,7 +80,7 @@ def _mupt_sdf_path(path: str | Path) -> Path:
 
 
 def write_primitive_to_sdf(
-    primitive: Primitive,
+    primitive: PrimitiveLegacy,
     path: str | Path,
     resname_map: dict[str, str],
     default_atom_position: Optional[Vector3] = None,
@@ -157,10 +157,10 @@ def _particle_from_sdf_atom(
     mol: Mol,
     atom_idx: int,
     atom_positions: Optional[dict[int, np.ndarray]],
-) -> Primitive:
+) -> PrimitiveLegacy:
     """Build a PARTICLE primitive from one MuPT SDF atom."""
     atom = mol.GetAtomWithIdx(atom_idx)
-    particle = Primitive(
+    particle = PrimitiveLegacy(
         element=rdkit_atom_to_element(atom),
         label=_required_atom_prop(atom, "mupt_particle_label"),
         metadata=atom.GetPropsAsDict(includePrivate=True, includeComputed=False),
@@ -238,7 +238,7 @@ def _record_metadata(mol: Mol) -> dict:
 # TB: supressing linter complexity (C901) warning for now,
 # but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
-def _build_segment_from_mol(mol: Mol) -> Primitive:  # noqa: C901
+def _build_segment_from_mol(mol: Mol) -> PrimitiveLegacy:  # noqa: C901
     """Rebuild one SEGMENT hierarchy from one MuPT SDF record."""
     atom_positions = _atom_positions_by_index(mol)
     for atom in mol.GetAtoms():
@@ -258,7 +258,7 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:  # noqa: C901
             or _required_atom_prop(atom, "mupt_segment_index") != segment_index
         ):
             raise ValueError("MuPT SDF record has inconsistent SEGMENT identity")
-    segment = Primitive(
+    segment = PrimitiveLegacy(
         label=segment_label,
         metadata=_record_metadata(mol),
         role=PrimitiveRole.SEGMENT,
@@ -296,7 +296,7 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:  # noqa: C901
     atom_connector_handles = {}
     for residue_index in sorted(residue_data):
         data = residue_data[residue_index]
-        residue = Primitive(
+        residue = PrimitiveLegacy(
             label=data["label"],
             metadata={
                 "mupt_residue_index": residue_index,
@@ -402,7 +402,7 @@ def _build_segment_from_mol(mol: Mol) -> Primitive:  # noqa: C901
 def iter_primitives_from_mupt_sdf(
     path: str | Path,
     sanitize: bool = False,
-) -> Iterator[Primitive]:
+) -> Iterator[PrimitiveLegacy]:
     """Yield one rebuilt SEGMENT primitive per temporary MuPT SDF record.
 
     Parameters
@@ -448,7 +448,9 @@ def iter_primitives_from_mupt_sdf(
             yield _build_segment_from_mol(mol)
 
 
-def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primitive:
+def primitive_from_mupt_sdf(
+    path: str | Path, sanitize: bool = False
+) -> PrimitiveLegacy:
     """Read a temporary MuPT SDF file into a role-aware Primitive hierarchy.
 
     Parameters
@@ -470,7 +472,7 @@ def primitive_from_mupt_sdf(path: str | Path, sanitize: bool = False) -> Primiti
         Per-record SDF metadata is preserved on rebuilt SEGMENT nodes because
         SDF has no file-level metadata scope for reconstructing root metadata.
     """
-    universe = Primitive(label="MuPT SDF", role=PrimitiveRole.UNIVERSE)
+    universe = PrimitiveLegacy(label="MuPT SDF", role=PrimitiveRole.UNIVERSE)
     for segment in iter_primitives_from_mupt_sdf(path, sanitize=sanitize):
         universe.attach_child(segment)
     return universe

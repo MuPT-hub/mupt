@@ -5,14 +5,14 @@ from typing import Optional, Union
 from networkx.classes import DiGraph
 from matplotlib.axes import Axes
 
-from .primitives_legacy import Primitive, PrimitiveLabel, PrimitiveHandle
+from .primitives_legacy import PrimitiveLegacy, PrimitiveLabel, PrimitiveHandle
 from ...graphs.visualization import draw_networkx_with_arcs, draw_networkx_tree
 from ...geometry.arraytypes import Vector2
 from ...geometry.coordinates.reference import ORIGIN2
 
 
 def visualize_topology(
-    prim: Primitive,
+    prim: PrimitiveLegacy,
     ax: Optional["Axes"] = None,
     base_arc_radius: float = 0.1,
     use_shapes_for_pos: bool = True,
@@ -27,7 +27,7 @@ def visualize_topology(
     """
     graph = prim.topology
     if use_shapes_for_pos:
-        pos_from_shapes: dict[Primitive, Vector2] = {}
+        pos_from_shapes: dict[PrimitiveLegacy, Vector2] = {}
         for child_handle in graph.nodes:
             child = prim.fetch_child(child_handle)
             if child.shape is None:
@@ -50,7 +50,7 @@ def visualize_topology(
 
 
 def visualize_hierarchy(
-    prim: Primitive,
+    prim: PrimitiveLegacy,
     hierarchy_tree: Optional[DiGraph] = None,
     use_handles_for_labels: bool = True,
     root_label: Optional[PrimitiveLabel] = None,
@@ -69,7 +69,7 @@ def visualize_hierarchy(
         hierarchy_tree = prim.hierarchy_tree()
 
     if use_handles_for_labels:
-        label_map: dict[Primitive, Union[PrimitiveHandle, PrimitiveLabel]] = {
+        label_map: dict[PrimitiveLegacy, Union[PrimitiveHandle, PrimitiveLabel]] = {
             subprim: handle
             for prim in hierarchy_tree
             for handle, subprim in prim.children_by_handle.items()
