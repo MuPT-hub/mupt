@@ -11,7 +11,7 @@ from mupt.chemistry import ELEMENTS
 from mupt.interfaces.rdkit import exporters as rdkit_exporters
 from mupt.interfaces.rdkit import primitive_to_rdkit_mols
 from mupt.interfaces.smiles import primitive_from_smiles
-from mupt.mupr.primitives.primitives_legacy import Primitive
+from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
 from mupt.roles import PrimitiveRole
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
@@ -28,7 +28,7 @@ def _rdkit_mols(*args, **kwargs):
     return list(primitive_to_rdkit_mols(*args, **kwargs))
 
 
-def _count_internal_connections(root: Primitive) -> int:
+def _count_internal_connections(root: PrimitiveLegacy) -> int:
     """Count MuPT-owned internal connections below a hierarchy root."""
     return sum(
         len(node.internal_connections)
@@ -37,14 +37,14 @@ def _count_internal_connections(root: Primitive) -> int:
     )
 
 
-def _universe_from_residue(residue: Primitive) -> Primitive:
+def _universe_from_residue(residue: PrimitiveLegacy) -> PrimitiveLegacy:
     """Wrap a repeat-unit primitive in the role-aware SAAMR hierarchy."""
     residue.role = PrimitiveRole.RESIDUE
     for atom in residue.leaves:
         atom.role = PrimitiveRole.PARTICLE
-    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
+    segment = PrimitiveLegacy(label="chain", role=PrimitiveRole.SEGMENT)
     segment.attach_child(residue)
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(segment)
     return universe
 
@@ -148,10 +148,10 @@ def test_primitive_to_rdkit_mols_sets_pdb_residue_info(
 
 def test_primitive_to_rdkit_mols_uses_residue_metadata_name_for_instance_labels():
     """Residue metadata supports generated labels not present in resname_map."""
-    residue = Primitive(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
+    residue = PrimitiveLegacy(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
     residue.metadata["residue_name"] = "PSH"
     residue.attach_child(
-        Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+        PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
     )
     universe = _universe_from_residue(residue)
 
@@ -262,8 +262,8 @@ def test_primitive_to_rdkit_mols_pdb_roundtrip_preserves_wrapped_chain_bond(
 
 def test_primitive_to_rdkit_mols_rejects_empty_segment():
     """Topology collection rejects SEGMENT-role nodes without residues."""
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    universe.attach_child(Primitive(label="empty", role=PrimitiveRole.SEGMENT))
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(PrimitiveLegacy(label="empty", role=PrimitiveRole.SEGMENT))
 
     with pytest.raises(ValueError, match="contains no RESIDUE"):
         _rdkit_mols(universe, {})
@@ -271,9 +271,9 @@ def test_primitive_to_rdkit_mols_rejects_empty_segment():
 
 def test_primitive_to_rdkit_mols_rejects_empty_residue():
     """Topology collection rejects RESIDUE-role nodes without particle leaves."""
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
-    segment.attach_child(Primitive(label="empty", role=PrimitiveRole.RESIDUE))
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
+    segment.attach_child(PrimitiveLegacy(label="empty", role=PrimitiveRole.RESIDUE))
     universe.attach_child(segment)
 
     with pytest.raises(ValueError, match="no PARTICLE leaves"):
@@ -282,10 +282,10 @@ def test_primitive_to_rdkit_mols_rejects_empty_residue():
 
 def test_primitive_to_rdkit_mols_rejects_unassigned_root():
     """Exporter errors at traversal time when the root lacks UNIVERSE role."""
-    universe = Primitive(label="universe")
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
-    residue = Primitive(label="res", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = PrimitiveLegacy(label="universe")
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
+    residue = PrimitiveLegacy(label="res", role=PrimitiveRole.RESIDUE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
     universe.attach_child(segment)
     segment.attach_child(residue)
     residue.attach_child(atom)
