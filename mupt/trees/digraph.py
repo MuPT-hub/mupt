@@ -23,10 +23,7 @@ def anytree_to_networkx(
     node: NodeLike,
     node_exporter: Optional[DictExporter] = None,
     max_depth: Optional[int] = None,
-    node_converter: Union[
-        Callable[[NodeLike], H],
-        Mapping[NodeLike, H],
-    ] = lambda x: x,
+    node_converter: Union[Callable[[NodeLike], H], Mapping[NodeLike, H]] = lambda x: x,
 ) -> DiGraph:
     """
     Convert a tree represented by an anytree NodeMixin to a directed NetworkX graph

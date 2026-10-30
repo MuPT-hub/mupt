@@ -51,13 +51,14 @@ def test_visualize_hierarchy_with_converted_nodes(hierarchy_axes: Axes) -> None:
     """Draw converted node IDs with the default labeling options"""
     # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4344040109
     root = Primitive(label="root")
-    graph = root.hierarchy_tree(node_converter=lambda node: node.label)
+    graph = root.hierarchy_tree()
 
     ax = visualize_hierarchy(
         root,
         hierarchy_tree=graph,
-        pos={"root": (0, 0)},
+        pos={root: (0, 0)},
         ax=hierarchy_axes,
+        use_handles_for_labels=True,
     )
 
     assert ax is hierarchy_axes

@@ -25,6 +25,8 @@ from collections import defaultdict
 from anytree.node import NodeMixin
 from anytree.search import findall, findall_by_attr
 from anytree.render import RenderTree
+from anytree.exporter import DictExporter
+
 from networkx.classes import Graph, DiGraph
 
 from scipy.spatial.transform import RigidTransform
@@ -1597,8 +1599,8 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def hierarchy_tree(
         self,
-        *args,
-        **kwargs,
+        node_exporter: Optional[DictExporter] = None,
+        max_depth: Optional[int] = None,
     ) -> DiGraph:
         """
         Generate a directed graph representing the partial order
@@ -1606,7 +1608,13 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         See mupt.trees.digraph.anytree_to_networkx for arg/kwarg options
         """
-        return anytree_to_networkx(self, *args, **kwargs)
+        return anytree_to_networkx(
+            self,
+            node_exporter=node_exporter,
+            max_depth=max_depth,
+            # DEV: lock out node_converter option here; downstream consumers like
+            # visualize_hierarchy _require_ graph node to be literal Primitive instances
+        )
 
 
 # Primitive visualization functions
