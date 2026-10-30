@@ -16,6 +16,7 @@ from typing import (
 
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
+type Metadata = dict[Hashable, Any]
 
 from weakref import WeakValueDictionary
 
@@ -97,7 +98,7 @@ class Primitive(
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
     _mass: Optional[float]
-    metadata: dict[Hashable, Any]
+    metadata: Metadata
 
     _frozen_connections: bool
     _frozen_hierarchy: bool
@@ -112,7 +113,7 @@ class Primitive(
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        metadata: Optional[dict] = None,
+        metadata: Optional[Metadata] = None,
     ) -> None:
         """
         Boilerplate initialization of hidden attrs, with defaults

@@ -5,11 +5,11 @@ resolution Primitives which can be both parent and child of other Primitives
 Used as the "connective tissue" between the root and simples of a hierarachy
 """
 
-from typing import Any, ClassVar, Hashable, Iterable, Optional, Self
+from typing import ClassVar, Iterable, Optional, Self
 
 from copy import deepcopy
 
-from .primitive import PrimitiveLabel, SupportsChildren, SupportsParents
+from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.shapes.shapes import BoundedTransformableShape
 
@@ -32,7 +32,7 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        metadata: Optional[dict[Hashable, Any]] = None,
+        metadata: Optional[Metadata] = None,
     ) -> None:
         self._init(shape=shape, label=label, mass=mass, metadata=metadata)
         self.connections = ConnectorManagerMutable()

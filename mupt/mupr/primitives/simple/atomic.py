@@ -5,7 +5,7 @@ from typing import ClassVar, Iterable, Optional, Self
 from copy import deepcopy
 
 from .simple import SimplePrimitive
-from ..primitive import PrimitiveLabel
+from ..primitive import PrimitiveLabel, Metadata
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager
 from ....geometry.shapes.shapes import BoundedTransformableShape
@@ -26,7 +26,7 @@ class AtomicPrimitive(SimplePrimitive):
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
-        metadata: Optional[dict] = None,
+        metadata: Optional[Metadata] = None,
     ) -> None:
         # TODO: add option to accept element symbol or atomic number
         if not isatom(element):
