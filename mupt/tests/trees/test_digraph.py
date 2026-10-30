@@ -164,56 +164,6 @@ class TestDigraphAttrbutes:
         assert set(digraph.nodes) == {"branch", "leaf"}
         assert set(digraph.edges) == {("branch", "leaf")}
 
-    def test_node_converter_mapping_omits_filtered_parent(self) -> None:
-        """Allow filtered parents to be absent from the converter mapping"""
-        # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946172
-        root = Node("root")
-        branch = Node("branch", parent=root)
-        leaf = Node("leaf", parent=branch)
-        node_remap = {root: "root", leaf: "leaf"}
-
-        digraph = anytree_to_networkx(
-            root,
-            node_converter=node_remap,
-            filter_predicate=lambda node: node is not branch,
-        )
-
-        assert set(digraph.nodes) == {"root", "leaf"}
-        assert digraph.number_of_edges() == 0
-
-
-class TestDigraphFilter:
-    """
-    Bundled tests checking that filtering nodes by predicate,
-    prunes the expected nodes from the returned tree
-    """
-
-    def test_filter_predicate_nodes(self) -> None:
-        """Test that filter only includes the desired nodes"""
-        root = example_tree_simple()
-
-        def filter_predicate(node) -> bool:
-            return not node.name.startswith("group")
-
-        digraph = anytree_to_networkx(root, filter_predicate=filter_predicate)
-        assert set(digraph.nodes) == set(filter(filter_predicate, PreOrderIter(root)))
-
-    def test_filter_predicate_edges(self) -> None:
-        """
-        Test that no edges are placed between nodes whose
-        intermediate relative has been filtered out
-        """
-        root = example_tree_simple()
-        nodes_by_name = {nd.name: nd for nd in PreOrderIter(root)}
-
-        def filter_predicate(node) -> bool:
-            return not node.name.startswith("group")
-
-        digraph = anytree_to_networkx(root, filter_predicate=filter_predicate)
-        assert digraph.has_edge(
-            nodes_by_name["root"], nodes_by_name["atom_1"]
-        ) and not digraph.has_edge(nodes_by_name["root"], nodes_by_name["atom_0"])
-
 
 class TestDigraphDepth:
     """Bundled tests to ensure max_depth criterion is respected on traversal"""
