@@ -9,26 +9,23 @@ from typing import (
     Union,
 )
 
-from anytree.node import NodeMixin
 from anytree.exporter import DictExporter
 from anytree.iterators import PreOrderIter
 
 from networkx import DiGraph
 
-from .subselect import NodePredicate
+from .subselect import NodeLike
 
 H = TypeVar("H", bound=Hashable)
 
 
 def anytree_to_networkx(
-    node: NodeMixin,
+    node: NodeLike,
     node_exporter: Optional[DictExporter] = None,
-    filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
-    stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
     max_depth: Optional[int] = None,
     node_converter: Union[
-        Callable[[NodeMixin], H],
-        Mapping[NodeMixin, H],
+        Callable[[NodeLike], H],
+        Mapping[NodeLike, H],
     ] = lambda x: x,
 ) -> DiGraph:
     """
@@ -47,18 +44,6 @@ def anytree_to_networkx(
 
         N.B.: any DictExporter instance passed in here MUST have maxlevel=1
         this ensures other nodes don't get duplicated as Graph node attributes
-    filter_predicate: Optional[NodePredicate[NodeMixin]] = None,
-        An optional condition on nodes which indicates which
-        nodes to make part of the resulting networkx DiGraph;
-        any nodes which do NOT satisfy this condition will be omitted
-
-        If None, all visited nodes will be included in the final DiGraph
-    stop_predicate: Optional[NodePredicate[NodeMixin]] = None,
-        An optional condition on nodes which, if met, will
-        halt tree traversal and return the DiGraph in the
-        state it was in when this condition was met by a node
-
-        If None, will traverse all nodes, barring any excluded by max_depth
     max_depth: Optional[int] = None,
         An optional number of iterations from the root to search before halting
 
@@ -86,15 +71,13 @@ def anytree_to_networkx(
 
     if node_exporter is None:
         # force dict_exporter.maxlevel=1 to avoid recursively copying other nodes``
-        # as attributes ;not to be confused with max level for tree traversal)
+        # as attributes; not to be confused with max level for tree traversal)
         node_exporter = DictExporter(maxlevel=1)
 
     if node_exporter.maxlevel != 1:
         raise ValueError("Externally-supplied DictExporter must have maxlevel=1")
 
-    node_iter = PreOrderIter(
-        node, filter_=filter_predicate, stop=stop_predicate, maxlevel=max_depth
-    )
+    node_iter = PreOrderIter(node, maxlevel=max_depth)
     digraph = DiGraph()
     for subnode in node_iter:
         node_converted: H = node_converter(subnode)
