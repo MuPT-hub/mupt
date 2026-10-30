@@ -23,12 +23,13 @@ class AtomicPrimitive(SimplePrimitive):
     def __init__(
         self,
         element: ElementLike,
+        # TODO: add option to accept element symbol or atomic number
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
+        # N.B.: 'mass' deliberately omitted; taken form Element
         metadata: Optional[Metadata] = None,
     ) -> None:
-        # TODO: add option to accept element symbol or atomic number
         if not isatom(element):
             raise TypeError(f"Invalid element type {type(element)}")
         self._element = element
@@ -37,6 +38,7 @@ class AtomicPrimitive(SimplePrimitive):
             connections=connections,
             shape=shape,
             label=label,
+            mass=element.mass,
             metadata=metadata,
         )
 
