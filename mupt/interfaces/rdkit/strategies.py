@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ...mupr.embedding import ConnectorReference
-from ...mupr.primitives.primitives_legacy import Primitive
+from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
 from .._shared.topology import (
     _pdb_resname,
     build_saamr_role_topology_index,
@@ -21,8 +21,8 @@ from .._shared.topology import (
 class RDKitMolData:
     """Container for one segment's RDKit-exportable topology data."""
 
-    segment: Primitive
-    atoms: list[Primitive] = field(default_factory=list)
+    segment: PrimitiveLegacy
+    atoms: list[PrimitiveLegacy] = field(default_factory=list)
     atom_positions: list[np.ndarray] = field(default_factory=list)
     atom_resnames: list[str] = field(default_factory=list)
     atom_insertion_codes: list[str] = field(default_factory=list)
@@ -30,10 +30,10 @@ class RDKitMolData:
     atom_particle_labels: list[str] = field(default_factory=list)
     atom_resids: list[int] = field(default_factory=list)
     bonds: list[tuple[int, int]] = field(default_factory=list)
-    bond_refs: list[tuple[Primitive, tuple[ConnectorReference, ConnectorReference]]] = (
-        field(default_factory=list)
-    )
-    linker_refs: list[tuple[int, Primitive, ConnectorReference]] = field(
+    bond_refs: list[
+        tuple[PrimitiveLegacy, tuple[ConnectorReference, ConnectorReference]]
+    ] = field(default_factory=list)
+    linker_refs: list[tuple[int, PrimitiveLegacy, ConnectorReference]] = field(
         default_factory=list
     )
 
@@ -43,7 +43,7 @@ class RDKitExportStrategy(ABC):
 
     @abstractmethod
     def iter_mol_data(
-        self, root: Primitive, resname_map: dict[str, str]
+        self, root: PrimitiveLegacy, resname_map: dict[str, str]
     ) -> Iterator[RDKitMolData]:
         """Yield one topology dataset per RDKit Mol to build."""
 
@@ -74,11 +74,11 @@ class AllAtomRDKitExportStrategy(RDKitExportStrategy):
     # but in the future this should be refactored to be more modular
     # and contain less branched business logic in one place
     def iter_mol_data(  # noqa: C901
-        self, root: Primitive, resname_map: dict[str, str]
+        self, root: PrimitiveLegacy, resname_map: dict[str, str]
     ) -> Iterator[RDKitMolData]:
         """Yield one RDKit topology dataset per SEGMENT-role node."""
         index = build_saamr_role_topology_index(root)
-        endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
+        endpoint_cache: dict[tuple[int, object, object], PrimitiveLegacy] = {}
         residue_records_by_segment = {id(segment): [] for segment in index.segments}
         for residue_record in iter_saamr_residue_records(index):
             residue_records_by_segment[id(residue_record.segment)].append(

@@ -36,7 +36,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 from ..geometry.shapes import Sphere, Ellipsoid
 
-from ..mupr.primitives.primitives_legacy import Primitive, PrimitiveHandle
+from ..mupr.primitives.primitives_legacy import PrimitiveLegacy, PrimitiveHandle
 
 
 def pbc(positions: Vector3, box: Sequence[float]) -> Vector3:
@@ -181,7 +181,7 @@ class DPDRandomWalk(PlacementGenerator):
             )
 
     # implementing builder contracts
-    def check_preconditions(self, primitive: Primitive) -> None:
+    def check_preconditions(self, primitive: PrimitiveLegacy) -> None:
         """Enforce that no branches chains exist anywhere"""
         if is_branched(primitive.topology):
             raise ValueError(
@@ -200,7 +200,7 @@ class DPDRandomWalk(PlacementGenerator):
     # but in the future this should be refactored to be more modular
     # and contain less branched business logic in one place
     def _generate_placements(  # noqa: C901
-        self, primitive: Primitive
+        self, primitive: PrimitiveLegacy
     ) -> Generator[tuple[PrimitiveHandle, np.ndarray], None, None]:
         """
         Trying to use universe of chains to set monomer positions
@@ -267,7 +267,7 @@ class DPDRandomWalk(PlacementGenerator):
                 # determine reference anchor points for effective radius
                 # scaling and orientation back-calculation post-simulation
                 anchor_positions = np.zeros((2, 3), dtype=float)
-                bead_prim: Primitive = primitive.fetch_child(bead_handle)
+                bead_prim: PrimitiveLegacy = primitive.fetch_child(bead_handle)
                 for conn_handle, conn in bead_prim.connectors.items():
                     traver_dir: TraversalDirection = next(
                         att

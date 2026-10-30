@@ -12,7 +12,7 @@ from anytree import PreOrderIter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .mupr.primitives.primitives_legacy import Primitive
+    from .mupr.primitives.primitives_legacy import PrimitiveLegacy
 
 
 class PrimitiveRole(Enum):
@@ -46,7 +46,7 @@ class PrimitiveRole(Enum):
     PARTICLE = "particle"
 
 
-def has_SAAMR_roles(prim: "Primitive") -> bool:
+def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
     """Check whether a Primitive hierarchy has all four SAAMR roles assigned.
 
     This checks for role *presence* in the tree, not structural depth.
@@ -78,7 +78,7 @@ def has_SAAMR_roles(prim: "Primitive") -> bool:
     return required.issubset(present)
 
 
-def assign_SAAMR_roles(prim: "Primitive") -> None:
+def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
     """Assign canonical export roles for a strict depth-3 SAAMR hierarchy.
 
     Walks the tree by depth (0/1/2/3) and assigns UNIVERSE, SEGMENT,
