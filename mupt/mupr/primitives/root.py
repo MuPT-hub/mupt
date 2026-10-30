@@ -5,13 +5,13 @@ distinguished, coarsest-resolution Primitive in a complete hierarchy
 Most commonly used to represent an entire chemical system or universe
 """
 
-from typing import Any, ClassVar, Hashable, Iterable, Optional, Self
+from typing import ClassVar, Iterable, Optional, Self
 
 from copy import deepcopy
 
 from numpy import eye as identity_matrix
 
-from .primitive import PrimitiveLabel, SupportsChildren, SupportsParents
+from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.arraytypes import Array3x3
 from ...geometry.shapes.shapes import BoundedTransformableShape
@@ -39,7 +39,7 @@ class RootPrimitive(SupportsChildren):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        metadata: Optional[dict[Hashable, Any]] = None,
+        metadata: Optional[Metadata] = None,
     ) -> None:
         self._init(shape=shape, label=label, mass=mass, metadata=metadata)
         self.connections = ConnectorManagerMutable()

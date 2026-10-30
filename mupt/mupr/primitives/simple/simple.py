@@ -3,11 +3,11 @@ Base concrete SimplePrimitive - any other Primitive subtypes
 which behave as a simple part of a system must inherit from here
 """
 
-from typing import Any, ClassVar, Hashable, Iterable, Optional, Self
+from typing import ClassVar, Iterable, Optional, Self
 
 from copy import deepcopy
 
-from ..primitive import PrimitiveLabel, SupportsParents
+from ..primitive import PrimitiveLabel, Metadata, SupportsParents
 from ...connection.types import ConnectorLabel, ConnectorAddress
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager, ConnectorManagerMutable
@@ -34,7 +34,7 @@ class SimplePrimitive(SupportsParents):
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
-        metadata: Optional[dict[Hashable, Any]] = None,
+        metadata: Optional[Metadata] = None,
     ) -> None:
         self._init(shape=shape, label=label, metadata=metadata)
 
