@@ -1,6 +1,8 @@
 """
-Properties of Primitives used to assess compatibility with a particular task
-E.g. checking atomicity, linearity, adherence to a "standard" hierarchy, etc.
+Logical predicates on Primitives, which evaluate whether a given
+Primitive has a specified property as either 'True' or 'False'
+
+Most commonly used for search, filtering, and selecting a working level of resolution
 """
 
 from .primitives_legacy import PrimitiveLegacy
