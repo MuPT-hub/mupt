@@ -34,9 +34,10 @@ class SimplePrimitive(SupportsParents):
         connections: Optional[ConnectorManager | Iterable[Connector]] = None,
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
+        mass: Optional[float] = None,
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
 
         # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
         if isinstance(connections, Iterable):
