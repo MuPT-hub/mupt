@@ -313,6 +313,28 @@ class Primitive(
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
 
+    ## N.B.: deliberately private; only Simples should have explicit access
+    def _add_connector(
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """Add a new Connector to those managed locally"""
+        # TB: label is irrelevant w/ addresses; keeping
+        # only in case handles prove useful to add later
+        self.connections.add_connector(connector, label=label)
+        # N.B.: connector.holder deliberately not set here
+
+        return connector.address
+
+    def _remove_connector(
+        self,
+        connector_address: Connector | ConnectorAddress,
+    ) -> Connector:
+        """Remove an existing Connector from those managed locally"""
+        # N.B.: connector neighbor deliberately untouched here
+        return self.connections.remove_connector(connector_address)
+
     # Depiction
     def __str__(self) -> str:
         """
