@@ -87,7 +87,7 @@ class MissingSubprimitiveError(KeyError):
     pass
 
 
-class Primitive(NodeMixin, RigidlyTransformable):
+class PrimitiveLegacy(NodeMixin, RigidlyTransformable):
     """
     Represents a fundamental (but not necessarily irreducible)
     building block of a polymer system in the abstract
@@ -116,7 +116,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         IFF the Primitive represents an atom
     connectors : list[Connector]
         A collection of sites representing bonds to other Primitives
-    children : Optional[list[Primitive]], default []
+    children : Optional[list[PrimitiveLegacy]], default []
         Other Primitives which are taken to be "contained within" this Primitive
 
     label : Optional[Hashable]
@@ -134,7 +134,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         shape: Optional[BoundedTransformableShape] = None,
         element: Optional[ElementLike] = None,
         connectors: Optional[Iterable[Connector]] = None,
-        children: Optional[Iterable["Primitive"]] = None,
+        children: Optional[Iterable["PrimitiveLegacy"]] = None,
         label: Optional[PrimitiveLabel] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
         role: PrimitiveRole = PrimitiveRole.UNASSIGNED,
@@ -152,7 +152,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         # child Primitives
         self._topology = Graph()
-        self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
+        self._children_by_handle: UniqueRegistry[PrimitiveHandle, PrimitiveLegacy] = (
             UniqueRegistry()
         )
         if children is not None:
@@ -699,7 +699,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Child Primitives
     # DEV: override __children_or_empty with values of self._children_by_handle?
     @property
-    def children_by_handle(self) -> UniqueRegistry[PrimitiveHandle, "Primitive"]:
+    def children_by_handle(self) -> UniqueRegistry[PrimitiveHandle, "PrimitiveLegacy"]:
         """
         Mapping from unique handles (i.e. (label, index) pairs) to child Primitives
 
@@ -732,7 +732,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """Verify that referenced child Primitive is actually bound to this Primitive"""
         return primitive_handle in self.children_by_handle
 
-    def fetch_child(self, primitive_handle: PrimitiveHandle) -> "Primitive":
+    def fetch_child(self, primitive_handle: PrimitiveHandle) -> "PrimitiveLegacy":
         """Fetch a Primitive with a given handle from bound child Primitives"""
         try:
             return self.children_by_handle[primitive_handle]
@@ -745,7 +745,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     fetch_subprimitive = fetch_child
 
     # Attachment (fulfilling NodeMixin contract)
-    def _pre_attach(self, parent: "Primitive") -> None:
+    def _pre_attach(self, parent: "PrimitiveLegacy") -> None:
         """Preconditions prior to attempting attachment of this Primitive to a parent"""
         # DEV: insert any preconditions beyond checking parent is
         # self or one of self's children (already done by NodeMixin)
@@ -753,7 +753,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def attach_child(
         self,
-        subprimitive: "Primitive",
+        subprimitive: "PrimitiveLegacy",
         label: Optional[PrimitiveLabel] = None,
         neighbor_connections: Optional[
             dict[ConnectorHandle, tuple[PrimitiveHandle, ConnectorHandle]]
@@ -798,7 +798,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return subprim_handle
 
-    def _post_attach(self, parent: "Primitive") -> None:
+    def _post_attach(self, parent: "PrimitiveLegacy") -> None:
         """Post-actions to take once attachment is verified and parent is bound"""
         LOGGER.debug(
             f"Primitive '{parent._repr_brief()}' assigned as "
@@ -809,9 +809,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         *children: Iterable[
             Union[
-                "Primitive",
+                "PrimitiveLegacy",
                 tuple[
-                    "Primitive",
+                    "PrimitiveLegacy",
                     Optional[PrimitiveLabel],
                     Optional[
                         dict[ConnectorHandle, tuple[PrimitiveHandle, ConnectorHandle]]
@@ -831,7 +831,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         handles = []
         for child in children:
-            if isinstance(child, Primitive):
+            if isinstance(child, PrimitiveLegacy):
                 handle = self.attach_child(child)
             else:
                 handle = self.attach_child(*child)
@@ -839,7 +839,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return handles
 
     # Detachment (fulfilling NodeMixin contract)
-    def _pre_detach(self, parent: "Primitive") -> None:
+    def _pre_detach(self, parent: "PrimitiveLegacy") -> None:
         """Preconditions prior to detachment of this Primitive from a parent"""
         # DEV: insert any preconditions from detachment
         ...
@@ -847,7 +847,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def detach_child(
         self,
         target_handle: PrimitiveHandle,
-    ) -> "Primitive":
+    ) -> "PrimitiveLegacy":
         """
         Remove a child Primitive from this one,
         update topology and Connectors,
@@ -893,7 +893,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return target_child
 
-    def _post_detach(self, parent: "Primitive") -> None:
+    def _post_detach(self, parent: "PrimitiveLegacy") -> None:
         """Post-actions to take once attachment is verified and parent is bound"""
         LOGGER.debug(
             f"Primitive '{parent._repr_brief()}' disowned "
@@ -967,12 +967,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Search
     def search_hierarchy_by(
         self,
-        condition: Callable[["Primitive"], bool],
-        halt_when: Optional[Callable[["Primitive"], bool]] = None,
+        condition: Callable[["PrimitiveLegacy"], bool],
+        halt_when: Optional[Callable[["PrimitiveLegacy"], bool]] = None,
         to_depth: Optional[int] = None,
         min_count: Optional[int] = None,
         max_count: Optional[int] = None,
-    ) -> tuple["Primitive"]:
+    ) -> tuple["PrimitiveLegacy"]:
         """
         Return all Primitives below this one in the hierarchy (not just children,
         but anything below them as well!) which match the provided condition.
@@ -1009,7 +1009,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 f"Set underlying topology does not correspond to handles on "
                 f"child Primitives; {len(node_labels - child_handles)} element(s) "
                 f" present w/o associated children, and "
-                f"{len(child_handles - node_labels)} child Primitive(s) "
+                f"{len(child_handles - node_labels)} child PrimitiveLegacy(s) "
                 "are unrepresented in the topology"
             )
 
@@ -1343,7 +1343,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         target_handle: PrimitiveHandle,
         connector_selector: ConnectorSelector = make_second_resemble_first,
-    ) -> "Primitive":
+    ) -> "PrimitiveLegacy":
         """Return a copy of this Primitive with the specified child expanded"""
         clone_primitive = self.copy()
         clone_primitive.expand(
@@ -1363,7 +1363,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     # DEV: eventually wrap with optional_in_place, once I've
     # sorted how to provide custom copy method in general?
-    def flattened(self) -> "Primitive":
+    def flattened(self) -> "PrimitiveLegacy":
         """Return a copy of this Primitive which has been flattened"""
         clone_primitive = self.copy()
         clone_primitive.flatten()
@@ -1395,7 +1395,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self._shape = new_shape_clone
 
     # applying rigid transformations (fulfilling RigidlyTransformable contracts)
-    def _copy_untransformed(self) -> "Primitive":
+    def _copy_untransformed(self) -> "PrimitiveLegacy":
         """
         Return a new Primitive with the same information
         and children as this one, but which has no parent
@@ -1429,7 +1429,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         # transfer children
         clone_primitive._children_by_handle = self.children_by_handle.copy(
-            value_copy_method=Primitive._copy_untransformed
+            value_copy_method=PrimitiveLegacy._copy_untransformed
         )
         for subprimitive in clone_primitive.children_by_handle.values():
             # needs to be rebound, since bypassing attach_child() to preserve handles
@@ -1465,20 +1465,20 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # DEVNOTE: in order to use equivalent-but-not-identical Primitives
         # as nodes in networkx Graph, __eq__ CANNOT evaluate similarity by hashes
         """Check whether two primitives are equivalent, but not necessarily identical"""
-        if not isinstance(other, Primitive):
+        if not isinstance(other, PrimitiveLegacy):
             raise TypeError(f"Cannot compare Primitive to {type(other)}")
 
         # NOTE: ignore labels, simply check equivalency up to canonical forms
         return self.canonical_form() == other.canonical_form()
 
-    def coincident_with(self, other: "Primitive") -> bool:
+    def coincident_with(self, other: "PrimitiveLegacy") -> bool:
         """
         Check whether two Primitives are coincident (i.e. all spatial parts
         are either equally unassigned or occupy the same space)
         """
         raise NotImplementedError
 
-    def equivalent_to(self, other: "Primitive") -> bool:
+    def equivalent_to(self, other: "PrimitiveLegacy") -> bool:
         """
         Check whether two Primitives are equivalent (i.e. have interchangeable
         parts which are not necessarily in the same place in space)

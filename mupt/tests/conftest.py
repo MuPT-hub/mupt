@@ -11,7 +11,7 @@ import numpy as np
 import networkx as nx
 from periodictable import elements
 
-from ..mupr.primitives.primitives_legacy import Primitive
+from ..mupr.primitives.primitives_legacy import PrimitiveLegacy
 from ..geometry.coordinates.reference import origin
 from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.transforms.rigid import rigid_vector_coalignment
@@ -77,7 +77,7 @@ def sequence_repeat_units(
 def build_SAAMR_lexicon(
     rep_unit_smiles: dict[str, str],
     axis: int = 0,
-) -> dict[str, Primitive]:
+) -> dict[str, PrimitiveLegacy]:
     """
     Build a lexicon of repeat unit Primitives from SMILES strings.
 
@@ -94,10 +94,10 @@ def build_SAAMR_lexicon(
 
     Returns
     -------
-    dict[str, Primitive]
+    dict[str, PrimitiveLegacy]
         Lexicon mapping unit names to oriented Primitive objects.
     """
-    lexicon: dict[str, Primitive] = {}
+    lexicon: dict[str, PrimitiveLegacy] = {}
 
     with suppress_rdkit_logs():
         for unit_name, smiles in rep_unit_smiles.items():
@@ -152,7 +152,7 @@ def build_SAAMR_polymer_system(
     exclusion_radius: float = 20.0,
     axis: int = 0,
     random_seed: Optional[int] = None,
-) -> Primitive:
+) -> PrimitiveLegacy:
     """
     Build a (random co)polymer system with specified composition.
 
@@ -229,13 +229,13 @@ def build_SAAMR_polymer_system(
             raise ValueError(f"Missing repeat unit '{required}' in rep_unit_smiles")
 
     # Build universe
-    univprim = Primitive(label="universe")
+    univprim = PrimitiveLegacy(label="universe")
     chain_lengths = np.random.randint(chain_len_min, chain_len_max + 1, size=n_chains)
 
     def _build_chains() -> Generator[tuple[int, Any], Any, None]:
         for chain_idx, chain_len in enumerate(chain_lengths):
             # Build chain hierarchy
-            molprim = Primitive(label=f"{chain_len}-mer_chain")
+            molprim = PrimitiveLegacy(label=f"{chain_len}-mer_chain")
 
             for unit_name in sequence_repeat_units(
                 chain_len,
@@ -326,7 +326,7 @@ def PES_resname_map() -> dict[str, str]:
 @pytest.fixture
 def single_polyethylene_2mer(
     polyethylene_smiles: dict[str, str],
-) -> Primitive:
+) -> PrimitiveLegacy:
     """
     Fixture providing a Primitive containing a single molecule of
     polyethylene composed of 2 repeat units of ethane.
@@ -353,7 +353,7 @@ def single_polyethylene_2mer(
 @pytest.fixture
 def single_polyethylene_3mer(
     polyethylene_smiles: dict[str, str],
-) -> Primitive:
+) -> PrimitiveLegacy:
     """
     Fixture providing a Primitive containing a single molecule of
     polyethylene composed of 3 repeat units of ethane.
@@ -380,7 +380,7 @@ def single_polyethylene_3mer(
 @pytest.fixture
 def multi_polyethylene_system(
     polyethylene_smiles: dict[str, str],
-) -> Primitive:
+) -> PrimitiveLegacy:
     """
     Fixture providing a multi-chain polyethylene system with varying chain lengths.
     Useful for testing system-level operations.
@@ -401,7 +401,7 @@ def multi_polyethylene_system(
 
 
 @pytest.fixture
-def PES_copolymer(polyethersulfone_smiles: dict[str, str]) -> Primitive:
+def PES_copolymer(polyethersulfone_smiles: dict[str, str]) -> PrimitiveLegacy:
     """
     Fixture providing a default BPA/BPS copolymer system Primitive.
     Primitive is intended to be SAAMR-compliant.
@@ -426,7 +426,7 @@ def helium_resname_map() -> dict[str, str]:
 
 
 @pytest.fixture
-def single_helium_atom_saamr() -> Primitive:
+def single_helium_atom_saamr() -> PrimitiveLegacy:
     """
     Fixture providing the simplest possible SAAMR-compliant
     system, namely a single Helium atom.
@@ -440,20 +440,20 @@ def single_helium_atom_saamr() -> Primitive:
     - 1 atom (He) at position [0, 0, 0]
     """
     # Create the atom-level primitive (Helium)
-    atom_prim = Primitive(label="He")
+    atom_prim = PrimitiveLegacy(label="He")
     atom_prim.element = elements.He  # Set element to make it an atom
     atom_prim.shape = Sphere(0.49)  # 0.49 Angstrom radius at origin
 
     # Create the repeat unit and attach the atom
-    repeat_unit_prim = Primitive(label="He_unit")
+    repeat_unit_prim = PrimitiveLegacy(label="He_unit")
     repeat_unit_prim.attach_child(atom_prim)
 
     # Create the molecule and attach the repeat unit
-    molecule_prim = Primitive(label="He_molecule")
+    molecule_prim = PrimitiveLegacy(label="He_molecule")
     molecule_prim.attach_child(repeat_unit_prim)
 
     # Create the universe and attach the molecule
-    universe_prim = Primitive(label="universe")
+    universe_prim = PrimitiveLegacy(label="universe")
     universe_prim.attach_child(molecule_prim)
 
     assign_SAAMR_roles(universe_prim)
@@ -462,7 +462,7 @@ def single_helium_atom_saamr() -> Primitive:
 
 
 @pytest.fixture
-def depth4_helium_system() -> Primitive:
+def depth4_helium_system() -> PrimitiveLegacy:
     """
     Non-SAAMR depth-4 hierarchy with manually assigned roles.
 
@@ -488,42 +488,48 @@ def depth4_helium_system() -> Primitive:
     - 0 bonds
     """
     # Atoms
-    atom1 = Primitive(label="He", element=elements.He, role=PrimitiveRole.PARTICLE)
+    atom1 = PrimitiveLegacy(
+        label="He", element=elements.He, role=PrimitiveRole.PARTICLE
+    )
     atom1.shape = Sphere(0.49)
-    atom2 = Primitive(label="He", element=elements.He, role=PrimitiveRole.PARTICLE)
+    atom2 = PrimitiveLegacy(
+        label="He", element=elements.He, role=PrimitiveRole.PARTICLE
+    )
     atom2.shape = Sphere(0.49)
-    atom3 = Primitive(label="He", element=elements.He, role=PrimitiveRole.PARTICLE)
+    atom3 = PrimitiveLegacy(
+        label="He", element=elements.He, role=PrimitiveRole.PARTICLE
+    )
     atom3.shape = Sphere(0.49)
 
     # Residues
-    res1 = Primitive(label="He_unit", role=PrimitiveRole.RESIDUE)
+    res1 = PrimitiveLegacy(label="He_unit", role=PrimitiveRole.RESIDUE)
     res1.attach_child(atom1)
     res1.attach_child(atom2)
 
-    res2 = Primitive(label="He_unit", role=PrimitiveRole.RESIDUE)
+    res2 = PrimitiveLegacy(label="He_unit", role=PrimitiveRole.RESIDUE)
     res2.attach_child(atom3)
 
     # Chains (segments in MDAnalysis terms)
-    chain1 = Primitive(label="chain1", role=PrimitiveRole.SEGMENT)
+    chain1 = PrimitiveLegacy(label="chain1", role=PrimitiveRole.SEGMENT)
     chain1.attach_child(res1)
 
-    chain2 = Primitive(label="chain2", role=PrimitiveRole.SEGMENT)
+    chain2 = PrimitiveLegacy(label="chain2", role=PrimitiveRole.SEGMENT)
     chain2.attach_child(res2)
 
     # Domain — intermediate grouping with no export role
-    domain = Primitive(label="domain")
+    domain = PrimitiveLegacy(label="domain")
     domain.attach_child(chain1)
     domain.attach_child(chain2)
 
     # Universe
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(domain)
 
     return universe
 
 
 @pytest.fixture
-def depth4_bonded_system() -> Primitive:
+def depth4_bonded_system() -> PrimitiveLegacy:
     """
     Non-SAAMR depth-4 hierarchy with bonds and manually assigned roles.
 
@@ -561,7 +567,7 @@ def depth4_bonded_system() -> Primitive:
         )
 
     # Build chain with inter-residue bond
-    chain = Primitive(label="chain")
+    chain = PrimitiveLegacy(label="chain")
     chain.attach_child(head_prim)
     chain.attach_child(tail_prim)
     chain.set_topology(
@@ -570,10 +576,10 @@ def depth4_bonded_system() -> Primitive:
     )
 
     # Wrap in domain (no role) then universe — creates depth-4
-    domain = Primitive(label="domain")
+    domain = PrimitiveLegacy(label="domain")
     domain.attach_child(chain)
 
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(domain)
 
     # Assign export roles manually
