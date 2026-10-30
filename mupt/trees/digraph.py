@@ -19,7 +19,10 @@ from .subselect import NodeLike
 H = TypeVar("H", bound=Hashable)
 
 
-def anytree_to_networkx(
+# TB: supressing linter complexity (C901) warning for now,
+# but in the future this should be refactored to be more modular
+# and contain less branched business logic in one place
+def anytree_to_networkx(  # noqa: C901
     node: NodeLike,
     node_exporter: Optional[DictExporter] = None,
     max_depth: Optional[int] = None,
@@ -74,18 +77,46 @@ def anytree_to_networkx(
     if node_exporter.maxlevel != 1:
         raise ValueError("Externally-supplied DictExporter must have maxlevel=1")
 
+    # determine which nodes survive and who their nearest ancestors are
     node_iter = PreOrderIter(node, maxlevel=max_depth)
-    digraph = DiGraph()
-    for subnode in node_iter:
-        node_converted: H = node_converter(subnode)
-        digraph.add_node(
-            node_converted,
-            **node_exporter.export(subnode),
-        )
+
+    predecessors: dict[NodeLike, NodeLike] = {}
+    survivors: dict[NodeLike, H] = dict()
+    for subnode in node_iter:  # iter excludes certain nodes
+        survivors[subnode] = node_converter(subnode)
         if (parent := subnode.parent) is not None:
-            parent_converted: H = node_converter(parent)
-            if parent_converted in digraph:
-                digraph.add_edge(parent_converted, node_converted)
+            predecessors[subnode] = parent
+
+    ancestors_surviving: dict[NodeLike, NodeLike] = dict()
+    for survivor_with_parent in set(predecessors):
+        # not using dict.items() to avoid modifying in-place if no ancestor can be found
+        last_seen_ancestor: NodeLike = predecessors[survivor_with_parent]
+        if last_seen_ancestor in survivors:
+            continue
+
+        if last_seen_ancestor in ancestors_surviving:
+            predecessors[survivor_with_parent] = ancestors_surviving[last_seen_ancestor]
+        else:
+            # TB: a potential optimization would be to use ancestors_surviving to skip
+            # over parts of the path for which we know the nearest surviving ancestor.
+            # Omitting for now, since the tree depths we expect to encounter likely
+            # never will be so large that the benefits offset the extra complexity
+            for grand_ancestor in last_seen_ancestor.ancestors:
+                if grand_ancestor in survivors:
+                    predecessors[survivor_with_parent] = grand_ancestor
+            else:
+                # no surviving relatives found
+                del predecessors[survivor_with_parent]
+
+    # assemble graph, with necessary conversions
+    digraph = DiGraph()
+    for survivor, survivor_converted in survivors.items():
+        # N.B.: must add ALL nodes before creating edges, to ensure no conversion
+        # or attribute transfer is skipped due to a particular traversal order
+        digraph.add_node(survivor_converted, **node_exporter.export(survivor))
+
+    for survivor, predecessor in predecessors.items():
+        digraph.add_edge(survivors[predecessor], survivors[survivor])
 
     return digraph
 
