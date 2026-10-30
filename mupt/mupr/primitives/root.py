@@ -52,7 +52,6 @@ class RootPrimitive(SupportsChildren):
             box_vectors = identity_matrix(3, dtype=float)
         self.box_vectors = box_vectors
 
-    # Copying
     def _copy_instance(self) -> Self:
         """
         Make a copy of this RootPrimitive WITHOUT any

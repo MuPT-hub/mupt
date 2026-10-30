@@ -49,7 +49,6 @@ class SimplePrimitive(SupportsParents):
         for connector in connections.connectors:
             connector.holder = self
 
-    # Copying
     def _copy_instance(self) -> Self:
         """
         Make a copy of this SimplePrimitive WITHOUT any
