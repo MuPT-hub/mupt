@@ -1,6 +1,7 @@
 """Decorators for modifying classes"""
 
 from typing import Any, Callable, Iterable, Optional, TypeVar, Union
+from typing import Protocol, cast, overload
 from functools import wraps
 
 C = TypeVar("C")
@@ -145,15 +146,35 @@ def register_abstract_class_attrs(
     return class_decorator
 
 
-def frozen_precondition_factory(
+class PreconditionDecorator(Protocol):
+    """Type of the generated decorator: bare (`@dec`) or configured (`@dec(msg=...)`)"""
+
+    __name__: str
+
+    @overload
+    def __call__[**P, R](self, func: Callable[P, R], /) -> Callable[P, R]: ...
+    @overload
+    def __call__[**P, R](
+        self, /, *, msg: str | None = None
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
+
+
+def precondition_factory(
     flag_attr: str,
     default_msg: str,
-) -> tuple[
-    property, Callable[[Any, str], None], Decorator | Callable[[str], Decorator]
-]:
+    *,
+    raise_when: bool = True,
+) -> tuple[property, Callable[[Any], None], PreconditionDecorator]:
     """
-    Generates a (property, precondition-checker, decorator) triple
-    based on some instance attribute which indicates whether other fields are mutable.
+    Generates a (property, precondition-method, precondition-decorator) triple based on
+    some boolean instance attribute which indicates whether other fields are mutable.
+
+    These three callables are ready-made method, which can
+    be bound to custom names inside a function to act as:
+    * A property which tracks the value of the attribute
+    * A private method which raises AttributeError if the attribute equals <raise_when>
+    * A decorator which can be applied to other methods in the class body
+        to run the precondition before attempting to run the method body
 
     Boilerplate for mutability check methods based on a "private" attribute.
     """
@@ -171,14 +192,15 @@ def frozen_precondition_factory(
     frozen.__doc__ = f"Whether editing {flag_attr_public} is allowed"
 
     def _precondition(self, msg: str = default_msg) -> None:
-        if frozen(self):
+        if frozen(self) is raise_when:
             raise AttributeError(msg)
 
     _precondition.__name__ = f"_precondition_{flag_attr_public}"
-    _precondition.__doc__ = f"Raises AttributeError if {flag_attr} is True."
+    _precondition.__doc__ = f"Raises AttributeError if {flag_attr} is {raise_when}"
 
-    @staticmethod
-    def guard(func=None, *, msg: str | None = None):
+    def precondition_decorator[**P, R](
+        func: Callable[P, R] | None = None, /, *, msg: str | None = None
+    ) -> Callable[P, R] | Callable[[Callable[P, R]], Callable[P, R]]:
         """
         Configurable decorator which wraps other methods to call
         the precondition herein before running the method body.
@@ -192,17 +214,23 @@ def frozen_precondition_factory(
             def do_thing(self): ...
         """
 
-        def decorator(f):
+        def decorator(f: Callable[P, R], /) -> Callable[P, R]:
             @wraps(f)
-            def wrapper(self, *args, **kwargs):
-                _precondition(self, msg=msg) if msg is not None else _precondition(self)
-                return f(self, *args, **kwargs)
+            def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+                _precondition(args[0], default_msg if msg is None else msg)
+                return f(*args, **kwargs)
 
             return wrapper
 
         return decorator(func) if callable(func) else decorator
 
-    guard.__name__ = f"precondition_{flag_attr_public}"
-    guard.__doc__ = f"Decorator that guards a method behind a {flag_attr} mutable check"
+    precondition_decorator.__name__ = f"precondition_{flag_attr_public}"
+    precondition_decorator.__doc__ = (
+        f"Decorator that guards a method behind a {flag_attr} mutable check"
+    )
 
-    return property(frozen), _precondition, guard
+    return (
+        property(frozen),
+        _precondition,
+        cast(PreconditionDecorator, precondition_decorator),
+    )
