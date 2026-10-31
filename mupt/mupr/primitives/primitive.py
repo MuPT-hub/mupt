@@ -36,6 +36,7 @@ from ..connection.alignment import ConnectorAntialignmentBallistic
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
+from ...mutils.decorators.classmod import precondition_factory
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
 from ...trees.digraph import anytree_to_networkx
@@ -188,6 +189,16 @@ class Primitive(
         )
 
     ## Configuring mutability of hierarchy
+    (
+        frozen_hierarchy,
+        _precondition_mutable_hierarchy,
+        precondition_mutable_hierarchy,
+    ) = precondition_factory(
+        "_frozen_hierarchy",
+        "Hierarchy of this Primitive is read-only accessible; "
+        "no new incoming or outgoing relationships allowed.",
+    )
+
     ### Freeze
     def _freeze_hierarchy_local(self) -> None:
         """Prevent modification of parents/children of this Primitive ONLY"""
