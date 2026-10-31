@@ -8,6 +8,7 @@ from typing import (
     ClassVar,
     Collection,
     Hashable,
+    Iterable,
     Optional,
     Self,
     Union,
@@ -15,6 +16,9 @@ from typing import (
 
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
+type Metadata = dict[Hashable, Any]
+
+from weakref import WeakValueDictionary
 
 from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
@@ -25,7 +29,7 @@ from networkx.classes import DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
-from ..connection.types import ConnectorAddress
+from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
 from ..connection.management import ConnectorManager, connector_address_flexible
 from ..connection.alignment import ConnectorAntialignmentBallistic
@@ -94,7 +98,7 @@ class Primitive(
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
     _mass: Optional[float]
-    metadata: dict[Hashable, Any]
+    metadata: Metadata
 
     _frozen_connections: bool
     _frozen_hierarchy: bool
@@ -109,7 +113,7 @@ class Primitive(
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        metadata: Optional[dict] = None,
+        metadata: Optional[Metadata] = None,
     ) -> None:
         """
         Boilerplate initialization of hidden attrs, with defaults
@@ -189,6 +193,8 @@ class Primitive(
             clone_no_hierarchy_subprim = subprim._copy_instance()
             orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
 
+            ## TB TODO: SupportsChildren is more accurate annotation, but
+            ## inverts inheritance hierarhyc; find way to get best of both
             # new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
             new_parent: Optional[Primitive] = orig_prim_to_new_prim.get(
                 subprim.parent, None
@@ -308,6 +314,28 @@ class Primitive(
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
 
+    ## N.B.: deliberately private; only Simples should have explicit access
+    def _add_connector(
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """Add a new Connector to those managed locally"""
+        # TB: label is irrelevant w/ addresses; keeping
+        # only in case handles prove useful to add later
+        self.connections.add_connector(connector, label=label)
+        # N.B.: connector.holder deliberately not set here
+
+        return connector.address
+
+    def _remove_connector(
+        self,
+        connector_address: Connector | ConnectorAddress,
+    ) -> Connector:
+        """Remove an existing Connector from those managed locally"""
+        # N.B.: connector neighbor deliberately untouched here
+        return self.connections.remove_connector(connector_address)
+
     # Depiction
     def __str__(self) -> str:
         """
@@ -338,3 +366,119 @@ class Primitive(
             style=tree_render_style(style),
             maxlevel=to_depth,
         ).by_attr(render_attr)
+
+
+class SupportsChildren(Primitive):
+    """
+    Type of Primitive which is allowed to have
+    other Primitives "beneath" it in a hierarchy.
+
+    I.e. interpreting a representation hierarchy as a rooted tree,
+    these Primitives are nodes which allow OUTGOING directed edges
+    """
+
+    children_by_address: WeakValueDictionary[PrimitiveAddress, "SupportsParents"]
+
+    def _init_children(
+        self,
+        children: Optional[Iterable["SupportsParents"]] = None,
+    ) -> None:
+        """
+        Perform one-time initialization of children-related attributes and, if
+        provided, bind children to self from collection of parent-capable Primitives
+        """
+        self.children_by_address = WeakValueDictionary()
+        if children is None:
+            children = tuple()
+
+        for subprimitive in children:
+            self.attach_child(subprimitive, label=subprimitive.label)
+
+    def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
+        """
+        Lookup a child Primitive by its address and
+        return the Primitive instance, if present
+        """
+        return self.children_by_address[prim_addr]  # raise KeyError if not present
+
+    fetch_primitive = child
+
+    # Hierarchy management
+    # TB: consider making these wrappers & moving core logic to _pre_attach/_post_attach
+
+    ## Attachment
+    def attach_child(
+        self,
+        child: "SupportsParents",
+        label: Optional[PrimitiveLabel] = None,
+    ) -> PrimitiveAddress:
+        """
+        Register a new child Primitive as existing below
+        this one in the resolution hierarchy
+        """
+        child.parent = self
+        child.label = label
+        self.children_by_address[child.address] = child
+
+        return child.address
+
+    ## Detachment
+    def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
+        """
+        Unregister an existing child Primitive, making it no
+        be longer below this one in the resolution hierarchy
+        """
+        child = self.children_by_address.pop(prim_addr)
+        child.parent = None
+
+        return child
+
+
+class SupportsParents(Primitive):
+    """
+    Type of Primitive which is allowed to have
+    other Primitives "above" it in a hierarchy
+
+    I.e. interpreting a representation hierarchy as a rooted tree,
+    these Primitives are nodes which allow INCOMING directed edges
+    """
+
+    # Topology
+    def inject_connector_into_hierarchy(
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """
+        Introduce a new Connector into circulation throughout the hierarchy above
+        All ancestors of this Primitive will also manage this Connector instance
+
+        Returns the address of the injected Connector
+        """
+        for anc in self.ancestors:
+            anc._add_connector(connector, label=label)
+        return connector.address
+
+    def withdraw_connector_from_hierarchy(
+        self,
+        connector_address: ConnectorAddress | Connector,
+        preserve_neighbor: bool = False,
+    ) -> Connector:
+        """
+        Remove a Connector from circulation in levels of the hierarchy above
+        Connector will still be managed within THIS Primitive,
+
+        Neighbor of Connector will be severed by default to prevent corruption of
+        hierarchy; can manually override if desired by passing "preserve_neighbor=True"
+
+        Returns the withdrawn Connector
+        """
+        connector_address = connector_address_flexible(connector_address)
+        for ancestor in self.ancestors:
+            # TB: these all point to the same Connector instance, so assigning to
+            # var is technically redundant for all but the last iter of the loop
+            connector = ancestor._remove_connector(connector_address)
+
+        if not preserve_neighbor:
+            del connector.neighbor
+        return connector
