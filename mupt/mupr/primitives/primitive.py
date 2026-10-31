@@ -36,6 +36,7 @@ from ..connection.alignment import ConnectorAntialignmentBallistic
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
+from ...mutils.decorators.classmod import precondition_factory
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
 from ...trees.digraph import anytree_to_networkx
@@ -158,7 +159,90 @@ class Primitive(
 
     # DEV: deliberately omitting setter; subtypes will impl particular procedures for it
 
-    # Wrapped properties
+    # Hierarchy
+    ## Traversal
+    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
+        """Generate a directed Graph representing the hierarchy below this Primitive"""
+        return anytree_to_networkx(self, *args, **kwargs)
+
+    def search_hierarchy_by(
+        self,
+        predicate: NodePredicate["Primitive"],
+        halt_when: Optional[NodePredicate["Primitive"]] = None,
+        to_depth: Optional[int] = None,
+        min_count: Optional[int] = None,
+        max_count: Optional[int] = None,
+    ) -> tuple["Primitive"]:
+        """
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+
+        Matching descendant Primitives are returned in traversal preorder from the root
+        """
+        return findall(
+            self,
+            filter_=predicate,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
+
+    ## Configuring mutability of hierarchy
+    (
+        frozen_hierarchy,
+        _precondition_mutable_hierarchy,
+        precondition_mutable_hierarchy,
+    ) = precondition_factory(
+        "_frozen_hierarchy",
+        "Hierarchy of this Primitive is read-only accessible; "
+        "no new incoming or outgoing relationships allowed.",
+    )
+
+    ### Freeze
+    def _freeze_hierarchy_local(self) -> None:
+        """Prevent modification of parents/children of this Primitive ONLY"""
+        self._frozen_hierarchy = True
+
+    def _freeze_hierarchy_subsequent(self) -> None:
+        """
+        Prevent modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_hierarchy_local()
+
+    def freeze_hierarchy(self) -> None:
+        """
+        Prevent modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._freeze_hierarchy_subsequent()
+
+    ### Unfreeze
+    def _unfreeze_hierarchy_local(self) -> None:
+        """Enable modification of parents and children of this Primitive ONLY"""
+        self._frozen_hierarchy = False
+
+    def _unfreeze_hierarchy_subsequent(self) -> None:
+        """
+        Enable modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_hierarchy_local()
+
+    def unfreeze_hierarchy(self) -> None:
+        """
+        Enable modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._unfreeze_hierarchy_subsequent()
+
+    # Connectivity
+    ## Reading
     @property
     def connectors(self) -> Collection[Connector]:
         """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
@@ -170,7 +254,34 @@ class Primitive(
         """Number of free Connections this Primitive has access to"""
         return self.connections.functionality
 
-    # Copying
+    def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
+        """Fetch a connector managed by this Priomitive, if it exists"""
+        return self.connections.connector(connector_address_flexible(conn))
+
+    ## Modifying
+    def _add_connector(
+        ## N.B.: deliberately private; only Simples should have explicit access
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """Add a new Connector to those managed locally"""
+        # TB: label is irrelevant w/ addresses; keeping
+        # only in case handles prove useful to add later
+        self.connections.add_connector(connector, label=label)
+        # N.B.: connector.holder deliberately not set here
+
+        return connector.address
+
+    def _remove_connector(
+        self,
+        connector_address: Connector | ConnectorAddress,
+    ) -> Connector:
+        """Remove an existing Connector from those managed locally"""
+        # N.B.: connector neighbor deliberately untouched here
+        return self.connections.remove_connector(connector_address)
+
+    # Copying - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
         """
         Make copy of the current Primitive, WITHOUT any
@@ -203,7 +314,6 @@ class Primitive(
 
         return own_copy, orig_prim_to_new_prim
 
-    ## implement Copyable contract on RigidlyTransformable
     def _copy_untransformed(self) -> Self:
         """
         Create a copy which has a complete hierarchy and connectivity below it
@@ -280,61 +390,6 @@ class Primitive(
             # N.B.: not transforming sub-primitives' Connectors since they are, in
             # aggregrate THE SAME Connectors managed here (don't double-transform)
             subprimitive._rigidly_transform_shape(transformation)
-
-    # Hierarchy
-    def search_hierarchy_by(
-        self,
-        predicate: NodePredicate["Primitive"],
-        halt_when: Optional[NodePredicate["Primitive"]] = None,
-        to_depth: Optional[int] = None,
-        min_count: Optional[int] = None,
-        max_count: Optional[int] = None,
-    ) -> tuple["Primitive"]:
-        """
-        Return all Primitives below this one in the hierarchy (not just children,
-        but anything below them as well!) which match the provided condition.
-
-        Matching descendant Primitives are returned in traversal preorder from the root
-        """
-        return findall(
-            self,
-            filter_=predicate,
-            stop=halt_when,
-            maxlevel=to_depth,
-            mincount=min_count,
-            maxcount=max_count,
-        )
-
-    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
-        """Generate a directed Graph representing the hierarchy below this Primitive"""
-        return anytree_to_networkx(self, *args, **kwargs)
-
-    # Topology
-    def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
-        """Fetch a connector managed by this Priomitive, if it exists"""
-        return self.connections.connector(connector_address_flexible(conn))
-
-    ## N.B.: deliberately private; only Simples should have explicit access
-    def _add_connector(
-        self,
-        connector: Connector,
-        label: Optional[ConnectorLabelLike] = None,
-    ) -> ConnectorAddress:
-        """Add a new Connector to those managed locally"""
-        # TB: label is irrelevant w/ addresses; keeping
-        # only in case handles prove useful to add later
-        self.connections.add_connector(connector, label=label)
-        # N.B.: connector.holder deliberately not set here
-
-        return connector.address
-
-    def _remove_connector(
-        self,
-        connector_address: Connector | ConnectorAddress,
-    ) -> Connector:
-        """Remove an existing Connector from those managed locally"""
-        # N.B.: connector neighbor deliberately untouched here
-        return self.connections.remove_connector(connector_address)
 
     # Depiction
     def __str__(self) -> str:
