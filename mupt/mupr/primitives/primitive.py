@@ -187,6 +187,49 @@ class Primitive(
             maxcount=max_count,
         )
 
+    ## Configuring mutability of hierarchy
+    ### Freeze
+    def _freeze_hierarchy_local(self) -> None:
+        """Prevent modification of parents/children of this Primitive ONLY"""
+        self._frozen_hierarchy = True
+
+    def _freeze_hierarchy_subsequent(self) -> None:
+        """
+        Prevent modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_hierarchy_local()
+
+    def freeze_hierarchy(self) -> None:
+        """
+        Prevent modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._freeze_hierarchy_subsequent()
+
+    ### Unfreeze
+    def _unfreeze_hierarchy_local(self) -> None:
+        """Enable modification of parents and children of this Primitive ONLY"""
+        self._frozen_hierarchy = False
+
+    def _unfreeze_hierarchy_subsequent(self) -> None:
+        """
+        Enable modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_hierarchy_local()
+
+    def unfreeze_hierarchy(self) -> None:
+        """
+        Enable modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._unfreeze_hierarchy_subsequent()
+
     # Connectivity
     ## Reading
     @property
