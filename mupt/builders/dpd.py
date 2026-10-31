@@ -271,7 +271,7 @@ class DPDRandomWalk(PlacementGenerator):
                 for conn_handle, conn in bead_prim.connectors.items():
                     traver_dir: TraversalDirection = next(
                         att
-                        for att in conn.anchor.attachables
+                        for att in conn.anchor.markers
                         if isinstance(att, TraversalDirection)
                     )
                     traver_dir_idx: dict[TraversalDirection, int] = {

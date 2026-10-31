@@ -9,7 +9,8 @@ from . import randomly_placed_connector
 from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
 from mupt.geometry.coordinates.directions import random_tangent
-from mupt.mupr.connection import Connector, AttachmentPoint
+from mupt.mupr.connection.connectors import Connector, AttachmentPoint
+from mupt.mupr.connection.exceptions import ConnectorLockedError
 
 
 # Counterpart tests
@@ -45,8 +46,8 @@ def test_counterpart(connector: Connector):
     counterpart = connector.counterpart()
 
     assert (
-        counterpart.linker.attachables == connector.anchor.attachables
-        and counterpart.anchor.attachables == connector.linker.attachables
+        counterpart.linker.markers == connector.anchor.markers
+        and counterpart.anchor.markers == connector.linker.markers
         and counterpart.bondtype == connector.bondtype
     )
     # TODO: compare positional info?
@@ -78,7 +79,7 @@ def test_counterpart_non_identical() -> None:
     "conn",
     [
         # test with the empty connector the verify that counterpart
-        # bondability fails when attachment points are empty
+        # bondability fails when AttachmentPoint ends are empty
         Connector(),
         Connector(
             anchor=AttachmentPoint({"a", "b", TraversalDirection.RETRO}),
@@ -94,10 +95,10 @@ def test_counterpart_non_identical() -> None:
 def test_connector_counterpart_bondable(conn: Connector) -> None:
     """
     Test that the co-Connector produced by Connector.counterpart()
-    is bondable to the original when attachment points are nonempty
+    is bondable to the original when AttachmentPoint objects are nonempty
     """
     # False only when nonempty
-    conn_empty = (not conn.anchor.attachables) or (not conn.linker.attachables)
+    conn_empty = (not conn.anchor.markers) or (not conn.linker.markers)
     counterpart_bondable = Connector.bondable_with(conn, conn.counterpart())
 
     # XOR, since conditions are mutually-exclusive
@@ -218,7 +219,7 @@ C4 = Connector(
             Connector(),
             Connector(),
             False,
-        ),  # should fail, empty two attachment point sets must be disjoint
+        ),  # should fail, two empty AttachmentPoint marker sets must be disjoint
         (C1, C2, False),  # should fail, anchorables of C1 not in linkables of C1
         (C1, C3, False),  # should fail, bond types differ
         (C1, C4, True),  # should NOT fail, compatible connectors
@@ -229,3 +230,92 @@ def test_connector_bondability(
 ) -> None:
     """Test bondability checks between two Connectors"""
     assert Connector.bondable_with(conn1, conn2) == expected_bondable
+
+
+# Neighbor tests
+def test_connector_lock() -> None:
+    """Test that locking a Connector actually locks it"""
+    connector = Connector()
+    connector.lock()
+
+    assert connector.is_locked
+
+
+def test_connector_unlock() -> None:
+    """Test that unlocking a Connector actually unlocks it"""
+    connector = Connector()
+    connector.unlock()
+
+    assert not connector.is_locked
+
+
+def test_connector_toggle_lock() -> None:
+    """Test that toggling a Connectors lock actually inverts it lock status"""
+    connector = Connector()
+    lock_status_init = connector.is_locked
+    connector.toggle_lock()
+
+    assert connector.is_locked is not lock_status_init
+
+
+def test_connector_lock_blocks_write() -> None:
+    """Test that a locked connector cannot be written to"""
+    # DEV: deliberately not fixture, though reused; want to quarantine attr modification
+    conn0 = Connector(
+        anchor=AttachmentPoint({1, 2}),
+        linker=AttachmentPoint({3, 4}),
+    )
+    conn0.lock()
+
+    conn1 = conn0.counterpart()
+
+    with pytest.raises(ConnectorLockedError):
+        conn0.neighbor = conn1
+
+
+def test_neighbor_assignment():
+    """Test that (unlocked) Connectors can be mutually assigned neighbors each other"""
+    conn0 = Connector(
+        anchor=AttachmentPoint({1, 2}),
+        linker=AttachmentPoint({3, 4}),
+    )
+    conn0.unlock()  # double-check both are unlocked
+
+    conn1 = conn0.counterpart()
+    conn1.unlock()  # double-check both are unlocked
+
+    conn0.neighbor = conn1
+
+    assert (conn0.neighbor == conn1) and (conn1.neighbor == conn0)
+
+
+def test_connector_neighbor_persistence() -> None:
+    """
+    Test that the former neighbor of a Connector 'forgets'
+    the aforementioned Connector when its neighbor is rebound
+    """
+    conn_a = Connector()
+    conn_b = Connector()
+    conn_c = Connector()
+
+    conn_a.neighbor = conn_b
+    conn_a.neighbor = conn_c
+
+    assert conn_b.neighbor is not conn_a
+    assert conn_b.neighbor is None
+
+
+def test_connector_lock_blocks_neighbor_delete() -> None:
+    """Test that a locked connector cannot have an existing neighbor removed"""
+    conn0 = Connector(
+        anchor=AttachmentPoint({1, 2}),
+        linker=AttachmentPoint({3, 4}),
+    )
+    conn0.unlock()
+
+    conn1 = conn0.counterpart()
+    conn0.neighbor = conn1
+    conn1.lock()
+
+    with pytest.raises(ConnectorLockedError):
+        del conn0.neighbor
