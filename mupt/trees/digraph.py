@@ -104,6 +104,8 @@ def anytree_to_networkx(  # noqa: C901
             for grand_ancestor in last_seen_ancestor.ancestors:
                 if grand_ancestor in survivors:
                     predecessors[survivor_with_parent] = grand_ancestor
+                    ancestors_surviving[last_seen_ancestor] = grand_ancestor
+                    break
             else:
                 # no surviving relatives found
                 del predecessors[survivor_with_parent]
