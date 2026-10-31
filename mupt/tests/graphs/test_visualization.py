@@ -1,9 +1,11 @@
 """Unit tests for graph visualization helpers and drawing functionality"""
 
 import pytest
+import logging
 
 from networkx.classes import DiGraph, MultiGraph
 from networkx.generators import star_graph
+from matplotlib.pyplot import subplots
 
 from mupt.graphs.visualization import (
     default_graph_axes,
@@ -106,3 +108,37 @@ def test_draw_networkx_with_arcs(epitomic_multigraph: MultiGraph) -> None:
 def test_draw_networkx_tree(example_tree: DiGraph) -> None:
     """Smoke test for graph drawing with differentiated multigraph arcs"""
     _ = draw_networkx_tree(example_tree)
+
+
+def test_draw_networkx_with_arcs_on_axis(epitomic_multigraph: MultiGraph) -> None:
+    """
+    Smoke test for graph drawing with differentiated multigraph arcs
+    onto a pre-existing Axes. Ensures graph is actually drawn to that axis
+    """
+    _fig, ax = subplots()
+    assert not ax.has_data()
+
+    # subvert plt.gca() mechanism, which gives false positive test pass
+    _fig_decoy, ax_decoy = subplots()
+
+    # Don't re-coolect ax; want to see if the ORIGINAL Axes object is drawn on
+    _ = draw_networkx_with_arcs(epitomic_multigraph, ax=ax)
+    logging.warning(ax.has_data())
+    assert ax.has_data()
+
+
+def test_draw_networkx_tree_on_axis(example_tree: DiGraph) -> None:
+    """
+    Smoke test for graph drawing with differentiated multigraph arcs
+    onto a pre-existing Axes. Ensures graph is actually drawn to that axis
+    """
+    _fig, ax = subplots()
+    assert not ax.has_data()
+
+    # subvert plt.gca() mechanism, which gives false positive test pass
+    _fig_decoy, ax_decoy = subplots()
+
+    # Don't re-coolect ax; want to see if the ORIGINAL Axes object is drawn on
+    _ = draw_networkx_tree(example_tree, ax=ax)
+    logging.error(ax.has_data())
+    assert ax.has_data()
