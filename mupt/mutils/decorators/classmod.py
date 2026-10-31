@@ -190,7 +190,7 @@ def precondition_factory(
             )
         return is_frozen
 
-    frozen.__doc__ = f"Whether editing {flag_attr_public} is allowed"
+    frozen.__doc__ = f"Value of the {flag_attr_public} flag attr; indicates mutability"
 
     def _precondition(self, msg: str = default_msg) -> None:
         if frozen(self) is raise_when:
