@@ -1688,7 +1688,8 @@ def visualize_hierarchy(
             for handle, subprim in prim.children_by_handle.items()
             if subprim in hierarchy_tree
         }
-        label_map[prim] = prim.label if (root_label is None) else root_label
+        if prim in hierarchy_tree:
+            label_map[prim] = prim.label if (root_label is None) else root_label
 
         kwargs["with_labels"] = True
         kwargs["labels"] = label_map
