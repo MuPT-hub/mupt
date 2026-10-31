@@ -88,7 +88,7 @@ def test_factory_metadata() -> None:
     """
     prop, pre, dec = precondition_factory("___flag", "msg")
     assert isinstance(prop, property)
-    assert prop.__doc__ == "Whether editing flag is allowed"
+    assert prop.__doc__ == "Value of the flag attribute"
     assert pre.__name__ == "_precondition_flag"
     assert dec.__name__ == "precondition_flag"
 
