@@ -1691,7 +1691,7 @@ def visualize_hierarchy(
         if prim in hierarchy_tree:
             label_map[prim] = prim.label if (root_label is None) else root_label
 
-        kwargs["with_labels"] = True
-        kwargs["labels"] = label_map
+        kwargs.setdefault("with_labels", True)
+        kwargs.setdefault("labels", label_map)
 
     return draw_networkx_tree(hierarchy_tree, **kwargs)
