@@ -153,6 +153,7 @@ class PreconditionDecorator(Protocol):
 
     @overload
     def __call__[**P, R](self, func: Callable[P, R], /) -> Callable[P, R]: ...
+
     @overload
     def __call__[**P, R](
         self, /, *, msg: str | None = None
@@ -202,8 +203,8 @@ def precondition_factory(
         func: Callable[P, R] | None = None, /, *, msg: str | None = None
     ) -> Callable[P, R] | Callable[[Callable[P, R]], Callable[P, R]]:
         """
-        Configurable decorator which wraps other methods to call
-        the precondition herein before running the method body.
+        Configurable decorator which calls the precondition
+        herein before running the body of the decorated method.
 
         Can be used bare or with a custom message, i.e.:
 
