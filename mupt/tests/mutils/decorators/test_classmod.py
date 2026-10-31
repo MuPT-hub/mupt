@@ -50,7 +50,7 @@ class Sub(Base):
 
 
 class Multi:
-    """Example class with multiple precondtiions to test independence"""
+    """Example class with multiple preconditions to test independence"""
 
     _a: bool = False
     _b: bool = False
