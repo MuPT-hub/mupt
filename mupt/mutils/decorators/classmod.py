@@ -170,8 +170,8 @@ def precondition_factory(
     Generates a (property, precondition-method, precondition-decorator) triple based on
     some boolean instance attribute which indicates whether other fields are mutable.
 
-    These three callables are ready-made method, which can
-    be bound to custom names inside a function to act as:
+    These three callables are ready-made methods, which can
+    be bound to custom names inside a class body to act as:
     * A property which tracks the value of the attribute
     * A private method which raises AttributeError if the attribute equals <raise_when>
     * A decorator which can be applied to other methods in the class body
