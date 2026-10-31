@@ -1,8 +1,12 @@
 """Decorators for modifying classes"""
 
-from typing import Callable, Iterable, Optional, TypeVar, Union
+from typing import Any, Callable, Iterable, Optional, TypeVar, Union
+from functools import wraps
 
 C = TypeVar("C")
+type Decorator[**Params, ReturnType] = Callable[
+    [Callable[Params, ReturnType]], Callable[Params, ReturnType]
+]
 
 
 def generate_repr(
@@ -139,3 +143,66 @@ def register_abstract_class_attrs(
     # no need for application check here, since the parameterized
     # decorator doesn't take a class to be modified
     return class_decorator
+
+
+def frozen_precondition_factory(
+    flag_attr: str,
+    default_msg: str,
+) -> tuple[
+    property, Callable[[Any, str], None], Decorator | Callable[[str], Decorator]
+]:
+    """
+    Generates a (property, precondition-checker, decorator) triple
+    based on some instance attribute which indicates whether other fields are mutable.
+
+    Boilerplate for mutability check methods based on a "private" attribute.
+    """
+    flag_attr_public: str = flag_attr.lstrip("_")
+
+    def frozen(self) -> bool:
+        is_frozen: bool = getattr(self, flag_attr)
+        if not isinstance(is_frozen, bool):
+            raise TypeError(
+                f"{type(self).__name__}.{flag_attr} must return a bool, "
+                f"got {type(is_frozen).__name__} instead"
+            )
+        return is_frozen
+
+    frozen.__doc__ = f"Whether editing {flag_attr_public} is allowed"
+
+    def _precondition(self, msg: str = default_msg) -> None:
+        if frozen(self):
+            raise AttributeError(msg)
+
+    _precondition.__name__ = f"_precondition_{flag_attr_public}"
+    _precondition.__doc__ = f"Raises AttributeError if {flag_attr} is True."
+
+    @staticmethod
+    def guard(func=None, *, msg: str | None = None):
+        """
+        Configurable decorator which wraps other methods to call
+        the precondition herein before running the method body.
+
+        Can be used bare or with a custom message, i.e.:
+
+            @precondition_<flag_attr>
+            def do_thing(self): ...
+
+            @precondition_<flag_attr>(msg="Custom error")
+            def do_thing(self): ...
+        """
+
+        def decorator(f):
+            @wraps(f)
+            def wrapper(self, *args, **kwargs):
+                _precondition(self, msg=msg) if msg is not None else _precondition(self)
+                return f(self, *args, **kwargs)
+
+            return wrapper
+
+        return decorator(func) if callable(func) else decorator
+
+    guard.__name__ = f"precondition_{flag_attr_public}"
+    guard.__doc__ = f"Decorator that guards a method behind a {flag_attr} mutable check"
+
+    return property(frozen), _precondition, guard
