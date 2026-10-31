@@ -593,6 +593,34 @@ class SupportsParents(Primitive):
     these Primitives are nodes which allow INCOMING directed edges
     """
 
+    # Hierarchy
+    # TB: you might be thinking it would be more natural to have checks on parent
+    # Primitives in SupportParent instead; the reason for having them here instead is
+    # setting children always calls `child.parent = new_parent_value` under the hood
+    @Primitive.precondition_mutable_hierarchy
+    def _pre_attach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
+        super()._pre_attach(parent)
+        parent._precondition_mutable_hierarchy()
+
+    def _post_attach(self, parent: SupportsChildren) -> None:
+        """Once parent is set, inject own Connectors into hierarchy"""
+        super()._post_attach(parent)
+        for connector in self.connectors:
+            self.inject_connector_into_hierarchy(connector)
+
+    @Primitive.precondition_mutable_hierarchy
+    def _pre_detach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
+        super()._pre_detach(parent)
+        parent._precondition_mutable_hierarchy()
+
+    def _post_detach(self, parent: SupportsChildren) -> None:
+        """Remove all local connectors from the hierarchy above self"""
+        super()._post_detach(parent)
+        for connector in self.connectors:
+            self.withdraw_connector_from_hierarchy(connector)
+
     # Topology
     def inject_connector_into_hierarchy(
         self,
