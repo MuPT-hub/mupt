@@ -514,9 +514,25 @@ class SupportsChildren(Primitive):
     fetch_primitive = child
 
     # Hierarchy management
-    # TB: consider making these wrappers & moving core logic to _pre_attach/_post_attach
+    # TB: consider removing attach_detach child wrappers
+    # and moving core logic to _pre_attach/_post_attach
 
     ## Attachment
+    @Primitive.precondition_mutable_hierarchy
+    def _pre_attach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Preconditions prior to attempting to attach of this Primitive to a parent"""
+        super()._pre_attach_children(children)
+        # self._precondition_mutable_connectors()  # positions and neighbors may shift
+
+        for child in children:
+            child._precondition_mutable_hierarchy()
+
+    def _post_attach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Post-actions to take once children are attached and parent is bound"""
+        super()._post_attach_children(children)
+        # TODO: remap connection info
+        ...
+
     def attach_child(
         self,
         child: "SupportsParents",
@@ -534,6 +550,17 @@ class SupportsChildren(Primitive):
         return child.address
 
     ## Detachment
+    @Primitive.precondition_mutable_hierarchy(
+        msg="Hierarchy modification is forbidden this Primitive; cannot detach"
+    )
+    def _pre_detach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Preconditions prior to attempting detachment of this Primitive from parent"""
+        super()._pre_detach_children(children)
+
+    def _post_detach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Post-actions to take once children are detached and parent is unbound"""
+        super()._post_detach_children(children)
+
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
         """
         Unregister an existing child Primitive, making it no
