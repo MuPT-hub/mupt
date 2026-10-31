@@ -5,7 +5,7 @@ import pytest
 from typing import Any
 import re
 
-from mupt.mutils.decorators.classmod import frozen_precondition_factory
+from mupt.mutils.decorators.classmod import precondition_factory
 
 
 # Example classes
@@ -15,7 +15,7 @@ SUB_MSG: str = "Sub custom"
 
 
 class Base:
-    """Example class with preconditions created using frozen_precondition_factory"""
+    """Example class with preconditions created using precondition_factory"""
 
     _frozen_hierarchy: bool
 
@@ -26,7 +26,7 @@ class Base:
         frozen_hierarchy,
         _precondition_mutable_hierarchy,
         precondition_mutable_hierarchy,
-    ) = frozen_precondition_factory("_frozen_hierarchy", DEFAULT_MSG, raise_when=True)
+    ) = precondition_factory("_frozen_hierarchy", DEFAULT_MSG, raise_when=True)
 
     @precondition_mutable_hierarchy
     def guarded_bare(self) -> str:  # noqa: D102
@@ -54,10 +54,10 @@ class Multi:
 
     _a: bool = False
     _b: bool = False
-    frozen_a, _precondition_a, precondition_a = frozen_precondition_factory(
+    frozen_a, _precondition_a, precondition_a = precondition_factory(
         "_a", "A frozen.", raise_when=True
     )
-    frozen_b, _precondition_b, precondition_b = frozen_precondition_factory(
+    frozen_b, _precondition_b, precondition_b = precondition_factory(
         "_b", "B frozen.", raise_when=True
     )
 
@@ -86,7 +86,7 @@ def test_factory_metadata() -> None:
     Test that dynamically-created method names and docstring
     have the target attribute interpolated into the correctly
     """
-    prop, pre, dec = frozen_precondition_factory("___flag", "msg")
+    prop, pre, dec = precondition_factory("___flag", "msg")
     assert isinstance(prop, property)
     assert prop.__doc__ == "Whether editing flag is allowed"
     assert pre.__name__ == "_precondition_flag"
@@ -167,8 +167,8 @@ class TestPrecondition:
             def __init__(self, thing: bool) -> None:
                 self._thing = thing
 
-            thing_set, _precondition_thing, precondition_thing = (
-                frozen_precondition_factory("_thing", "msg", raise_when=raise_when)
+            thing_set, _precondition_thing, precondition_thing = precondition_factory(
+                "_thing", "msg", raise_when=raise_when
             )
 
             @precondition_thing
