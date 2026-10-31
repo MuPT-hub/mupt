@@ -44,6 +44,31 @@ from ...trees.subselect import NodePredicate
 from ...trees.render import tree_render_style, ConcreteStyle
 
 
+# Custom Exceptions
+class ImproperHierarchyError(AttributeError):
+    """
+    Raised when attempting to use a sybtype of Primtiive in a
+    place where it can't be used in a hierarchical representation
+    """
+
+    pass
+
+
+class ArborescenceError(ImproperHierarchyError):
+    """Raised when trying to use a Root as the child of another Primitive"""
+
+    pass
+
+
+class IrreducibilityError(ImproperHierarchyError):
+    """
+    Raised when attempting to perform a
+    composite Primitive operation on a simple one
+    """
+
+    pass
+
+
 class Primitive(
     Addressed,  # N.B.: each subtype will have its own class-wide registry
     Labelled,
@@ -160,6 +185,36 @@ class Primitive(
     # DEV: deliberately omitting setter; subtypes will impl particular procedures for it
 
     # Hierarchy
+    ## Invariants
+    # TB: in any hierarchy, key invariants that must be enforced at all times are:
+    # * Roots can never be the children of any other Primitive
+    # * Simples can never be the parent of any other Primitive
+
+    # N.B.: enforcing Simple-childfree and Root-parentfree is easy
+    # to do directly within their respective class definitions;
+    # the converses, parent-not-Simple and child-not-Root need to be enforced indirectly
+    # here because of how anytree's pre/post-conditions are handled on assignment
+    def _pre_attach(self, parent: "Primitive") -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Simple Primitives cannot be made the parents of other Primitives"
+            )
+
+    def _pre_detach(self, parent: "Primitive") -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Found hierarchy in undefined state, with "
+                "Simple Primitive as parent of another Primitive"
+            )
+
+    def _pre_attach_children(self, children: Iterable["Primitive"]) -> None:
+        # TODO: prevent roots from being assigned as children here
+        ...
+
+    def _pre_detach_children(self, children: Iterable["Primitive"]) -> None:
+        # TODO: prevent roots from being unassigned as children here
+        ...
+
     ## Traversal
     def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
         """Generate a directed Graph representing the hierarchy below this Primitive"""
