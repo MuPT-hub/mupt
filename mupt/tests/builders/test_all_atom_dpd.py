@@ -15,7 +15,7 @@ from scipy.spatial.transform import RigidTransform
 from mupt.chemistry.core import BondType
 from mupt.geometry.shapes import PointCloud
 from mupt.mupr.connection import AttachmentPoint, Connector
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
 from mupt.roles import PrimitiveRole
 
 
@@ -37,14 +37,14 @@ def _chain_connector(anchor_position, linker_position, label: str) -> Connector:
     )
 
 
-def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
-    atom = Primitive(
+def _one_atom_residue(label: str) -> tuple[PrimitiveLegacy, PrimitiveLegacy]:
+    atom = PrimitiveLegacy(
         label=f"{label}_C",
         shape=PointCloud(np.array([0.0, 0.0, 0.0])),
         element=elements.C,
         role=PrimitiveRole.PARTICLE,
     )
-    residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
+    residue = PrimitiveLegacy(label=label, role=PrimitiveRole.RESIDUE)
     residue.attach_child(atom)
     return residue, atom
 
@@ -52,7 +52,7 @@ def _one_atom_residue(label: str) -> tuple[Primitive, Primitive]:
 def _one_atom_residue_with_connector(
     label: str, connector_label: str, anchor_position, linker_position
 ):
-    atom = Primitive(
+    atom = PrimitiveLegacy(
         label=f"{label}_C",
         shape=PointCloud(np.array([0.0, 0.0, 0.0])),
         element=elements.C,
@@ -61,7 +61,7 @@ def _one_atom_residue_with_connector(
     connector_handle = atom.register_connector(
         _chain_connector(anchor_position, linker_position, connector_label)
     )
-    residue = Primitive(label=label, role=PrimitiveRole.RESIDUE)
+    residue = PrimitiveLegacy(label=label, role=PrimitiveRole.RESIDUE)
     residue.attach_child(atom)
     return residue, atom, connector_handle
 
@@ -69,7 +69,7 @@ def _one_atom_residue_with_connector(
 def _multi_residue_chain_record(n_residues: int = 3):
     from mupt.builders.all_atom_dpd import _SegmentRecord
 
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
     residues = []
     atoms = []
     residue_handles = []
@@ -111,21 +111,21 @@ def _multi_residue_chain_record(n_residues: int = 3):
     )
 
 
-def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
+def _tiny_saamr_hierarchy() -> tuple[PrimitiveLegacy, list[PrimitiveLegacy]]:
     """Return universe -> segment -> residue -> H-C-H with two bonds."""
-    h1 = Primitive(
+    h1 = PrimitiveLegacy(
         label="H1",
         shape=PointCloud(np.array([0.0, 0.0, 0.0])),
         element=elements.H,
         role=PrimitiveRole.PARTICLE,
     )
-    c = Primitive(
+    c = PrimitiveLegacy(
         label="C",
         shape=PointCloud(np.array([1.0, 0.0, 0.0])),
         element=elements.C,
         role=PrimitiveRole.PARTICLE,
     )
-    h2 = Primitive(
+    h2 = PrimitiveLegacy(
         label="H2",
         shape=PointCloud(np.array([2.0, 0.0, 0.0])),
         element=elements.H,
@@ -137,22 +137,22 @@ def _tiny_saamr_hierarchy() -> tuple[Primitive, list[Primitive]]:
     c_right_conn = c.register_connector(_bond_connector("C", "H", "right"))
     h2_conn = h2.register_connector(_bond_connector("H", "C", "h"))
 
-    residue = Primitive(label="res", role=PrimitiveRole.RESIDUE)
+    residue = PrimitiveLegacy(label="res", role=PrimitiveRole.RESIDUE)
     h1_handle = residue.attach_child(h1)
     c_handle = residue.attach_child(c)
     h2_handle = residue.attach_child(h2)
     residue.connect_children(h1_handle, h1_conn, c_handle, c_left_conn)
     residue.connect_children(h2_handle, h2_conn, c_handle, c_right_conn)
 
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
     segment.attach_child(residue)
 
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     universe.attach_child(segment)
     return universe, [h1, c, h2]
 
 
-def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
+def _tiny_pet_hierarchy() -> tuple[PrimitiveLegacy, dict[str, str]]:
     import networkx as nx
 
     from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
@@ -178,8 +178,8 @@ def _tiny_pet_hierarchy() -> tuple[Primitive, dict[str, str]]:
                 atom.role = PrimitiveRole.PARTICLE
             lexicon[name] = residue
 
-    root = Primitive(label="pet_tiny", role=PrimitiveRole.UNIVERSE)
-    segment = Primitive(label="pet_chain_0000", role=PrimitiveRole.SEGMENT)
+    root = PrimitiveLegacy(label="pet_tiny", role=PrimitiveRole.UNIVERSE)
+    segment = PrimitiveLegacy(label="pet_chain_0000", role=PrimitiveRole.SEGMENT)
     handles = []
     for residue_name in ("head", "tail"):
         residue = lexicon[residue_name].copy()
@@ -653,9 +653,9 @@ def test_build_rejects_malformed_hierarchy_before_optional_imports(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
-    root = Primitive(label="empty", role=PrimitiveRole.UNIVERSE)
+    root = PrimitiveLegacy(label="empty", role=PrimitiveRole.UNIVERSE)
     root.attach_child(
-        Primitive(
+        PrimitiveLegacy(
             label="orphan_particle", element=elements.C, role=PrimitiveRole.PARTICLE
         )
     )
@@ -768,13 +768,13 @@ def test_initial_positions_adapts_nested_residue_layout_to_placement_generator()
         "res2", "left", [-0.5, 0.0, 0.0], [-0.5, -1.0, 0.0]
     )
 
-    group = Primitive(label="group")
+    group = PrimitiveLegacy(label="group")
     res1_handle = group.attach_child(res1)
     res2_handle = group.attach_child(res2)
     group.connect_children(res1_handle, res1_right, res2_handle, res2_left)
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
     segment.attach_child(group)
-    root = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    root = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     root.attach_child(segment)
 
     fake_generator = FakePlacementGenerator()
@@ -815,13 +815,13 @@ def test_initial_positions_preserves_role_order_for_mixed_transparent_layout():
     res1, atom1 = _one_atom_residue("res1")
     res2, atom2 = _one_atom_residue("res2")
     res3, atom3 = _one_atom_residue("res3")
-    group = Primitive(label="group")
+    group = PrimitiveLegacy(label="group")
     group.attach_child(res1)
     group.attach_child(res2)
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
     segment.attach_child(group)
     segment.attach_child(res3)
-    root = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    root = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     root.attach_child(segment)
 
     builder = AllAtomDPDBuilder(placement_generator=LabelPlacementGenerator())

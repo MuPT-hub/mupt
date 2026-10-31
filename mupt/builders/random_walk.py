@@ -29,7 +29,7 @@ from ..geometry.coordinates.directions import random_unit_vector
 from ..geometry.coordinates.reference import origin
 from ..geometry.transforms.rigid import rigid_vector_coalignment
 
-from ..mupr.primitives import Primitive, PrimitiveHandle
+from ..mupr.primitives.primitives_legacy import PrimitiveLegacy, PrimitiveHandle
 from ..mupr.connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentBallistic,
@@ -197,7 +197,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             )
 
     # implementing builder contracts
-    def check_preconditions(self, primitive: Primitive) -> None:
+    def check_preconditions(self, primitive: PrimitiveLegacy) -> None:
         """Enforce that no branches chains exist anywhere"""
         if is_branched(primitive.topology):
             raise ValueError(
@@ -211,7 +211,7 @@ class AngleConstrainedRandomWalk(PlacementGenerator):
             )
 
     def _generate_placements(
-        self, primitive: Primitive
+        self, primitive: PrimitiveLegacy
     ) -> Generator[tuple[PrimitiveHandle, RigidTransform], None, None]:
         """
         Reorient bodies to be coincident (along a predefined axis) with

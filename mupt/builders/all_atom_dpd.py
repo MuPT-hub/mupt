@@ -52,7 +52,7 @@ from ..interfaces._shared.topology import (
     connector_reference_sort_key,
     resolve_to_atom_cached,
 )
-from ..mupr.primitives import Primitive
+from ..mupr.primitives.primitives_legacy import PrimitiveLegacy
 from ..roles import PrimitiveRole
 
 LOGGER = logging.getLogger(__name__)
@@ -174,7 +174,7 @@ class AllAtomDPDSettings:
 class AllAtomDPDResult:
     """Summary of an all-atom DPD build."""
 
-    atoms: list[Primitive]
+    atoms: list[PrimitiveLegacy]
     bonds: list[tuple[int, int]]
     angles: list[tuple[int, int, int]]
     dihedrals: list[tuple[int, int, int, int]]
@@ -209,9 +209,9 @@ class AllAtomDPDBoxFillPlan:
 class _SegmentRecord:
     """Topology and atom-index mapping for one SEGMENT-role Primitive."""
 
-    segment: Primitive
-    residues: list[Primitive]
-    atoms: list[Primitive]
+    segment: PrimitiveLegacy
+    residues: list[PrimitiveLegacy]
+    atoms: list[PrimitiveLegacy]
     residue_atom_indices: list[list[int]]
     local_to_global: dict[int, int]
     bonds: list[tuple[int, int]]
@@ -250,7 +250,7 @@ class AllAtomDPDParameterProvider(ABC):
     @abstractmethod
     def parameterize(
         self,
-        root: Primitive,
+        root: PrimitiveLegacy,
         records: list[_SegmentRecord],
         settings: AllAtomDPDSettings,
     ) -> _ParameterTables:
@@ -289,7 +289,7 @@ class OpenFFAllAtomDPDParameterProvider(AllAtomDPDParameterProvider):
 
     def parameterize(
         self,
-        root: Primitive,
+        root: PrimitiveLegacy,
         records: list[_SegmentRecord],
         settings: AllAtomDPDSettings,
     ) -> _ParameterTables:
@@ -665,7 +665,7 @@ class AllAtomDPDBuilder:
             rng=rng,
         )
 
-    def build(self, root: Primitive) -> AllAtomDPDResult:
+    def build(self, root: PrimitiveLegacy) -> AllAtomDPDResult:
         """Mutate atom leaf coordinates in-place using an all-atom DPD run."""
         records = self._segment_records(root)
         atoms = [atom for record in records for atom in record.atoms]
@@ -746,10 +746,10 @@ class AllAtomDPDBuilder:
         root.metadata["all_atom_dpd_summary"] = self._serializable_summary(result)
         return result
 
-    def _segment_records(self, root: Primitive) -> list[_SegmentRecord]:
+    def _segment_records(self, root: PrimitiveLegacy) -> list[_SegmentRecord]:
         """Return atom and bond records in role-aware traversal order."""
         index = build_saamr_role_topology_index(root)
-        endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
+        endpoint_cache: dict[tuple[int, object, object], PrimitiveLegacy] = {}
         records = []
         next_global = 0
         for segment in index.segments:
@@ -795,7 +795,7 @@ class AllAtomDPDBuilder:
         return records
 
     @staticmethod
-    def _atom_mass_amu(atom: Primitive) -> float:
+    def _atom_mass_amu(atom: PrimitiveLegacy) -> float:
         """Return an atom mass in amu from its periodictable element."""
         mass = getattr(atom.element, "mass", None)
         if mass is None:
@@ -922,7 +922,7 @@ class AllAtomDPDBuilder:
         self,
         frame_cls: type,
         records: list[_SegmentRecord],
-        atoms: list[Primitive],
+        atoms: list[PrimitiveLegacy],
         bonds: list[tuple[int, int]],
         angles: list[tuple[int, int, int]],
         dihedrals: list[tuple[int, int, int, int]],
@@ -1123,7 +1123,7 @@ class AllAtomDPDBuilder:
 
     def _placement_segment(
         self, record: _SegmentRecord
-    ) -> tuple[Primitive, list[object]]:
+    ) -> tuple[PrimitiveLegacy, list[object]]:
         """Return a direct-residue segment adapted for ``PlacementGenerator``.
 
         PlacementGenerator intentionally knows nothing about SAAMR roles: it
@@ -1185,7 +1185,7 @@ class AllAtomDPDBuilder:
         return placement_segment, residue_handles
 
     @staticmethod
-    def _copy_untransformed_preserving_roles(node: Primitive) -> Primitive:
+    def _copy_untransformed_preserving_roles(node: PrimitiveLegacy) -> PrimitiveLegacy:
         """Copy a placement scaffold without dropping SAAMR roles.
 
         ``Primitive._copy_untransformed()`` intentionally focuses on geometry,
@@ -1196,7 +1196,7 @@ class AllAtomDPDBuilder:
         """
         clone = node._copy_untransformed()
 
-        def copy_roles(source: Primitive, target: Primitive) -> None:
+        def copy_roles(source: PrimitiveLegacy, target: PrimitiveLegacy) -> None:
             target.role = source.role
             for source_child, target_child in zip(source.children, target.children):
                 copy_roles(source_child, target_child)
@@ -1205,7 +1205,9 @@ class AllAtomDPDBuilder:
         return clone
 
     @staticmethod
-    def _role_descendants(node: Primitive, role: PrimitiveRole) -> list[Primitive]:
+    def _role_descendants(
+        node: PrimitiveLegacy, role: PrimitiveRole
+    ) -> list[PrimitiveLegacy]:
         """Return descendants with ``role`` in deterministic child traversal order."""
         matches = []
         for child in node.children:
@@ -1215,7 +1217,7 @@ class AllAtomDPDBuilder:
         return matches
 
     @staticmethod
-    def _particle_leaves(node: Primitive) -> list[Primitive]:
+    def _particle_leaves(node: PrimitiveLegacy) -> list[PrimitiveLegacy]:
         """Return PARTICLE leaves below ``node`` in deterministic child order."""
         if node.is_leaf:
             return [node]
@@ -1743,13 +1745,13 @@ class AllAtomDPDBuilder:
 
     @staticmethod
     def _write_positions(
-        root: Primitive, atoms: list[Primitive], positions: np.ndarray
+        root: PrimitiveLegacy, atoms: list[PrimitiveLegacy], positions: np.ndarray
     ) -> None:
         """Write atom PointCloud positions and recompute composite PointClouds."""
         for atom, position in zip(atoms, positions):
             atom.shape = PointCloud(positions=np.asarray(position, dtype=float))
 
-        def visit(node: Primitive) -> np.ndarray:
+        def visit(node: PrimitiveLegacy) -> np.ndarray:
             if node.is_leaf:
                 return node.shape.positions
             child_positions = [visit(child) for child in node.children]

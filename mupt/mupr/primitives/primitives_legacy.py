@@ -1,4 +1,7 @@
-"""Fundamental data structures for multiscale molecular representation"""
+"""
+Legacy implementation of one-size-fits-all Primitive
+Preserving during process of changeover to more modular and capable implementation
+"""
 
 import logging
 
@@ -28,39 +31,36 @@ from anytree.render import RenderTree
 from networkx.classes import Graph, DiGraph
 
 from scipy.spatial.transform import RigidTransform
-from matplotlib.axes import Axes
 
-from .connection.connectors import (
+from ..connection.connectors import (
     Connector,
     ConnectorSelector,
     canonical_form_connectors,
     make_second_resemble_first,
 )
-from .connection.types import (
+from ..connection.types import (
     ConnectorLabel,
     ConnectorHandle,
 )
-from .connection.exceptions import (
+from ..connection.exceptions import (
     IncompatibleConnectorError,
     MissingConnectorError,
     UnboundConnectorError,
 )
-from .embedding import (
+from ..embedding import (
     infer_connections_from_topology,
     ConnectorReference,
     flexible_connector_reference,
 )
 
-from ..mutils.containers import UniqueRegistry
-from ..trees.digraph import anytree_to_networkx
-from ..trees.render import ConcreteStyle, tree_render_style
-from ..graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
-from ..geometry.arraytypes import Vector3
-from ..geometry.shapes import BoundedTransformableShape
-from ..geometry.transforms.rigid import RigidlyTransformable
-from ..geometry.coordinates.reference import ORIGIN2
-from ..chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
-from ..roles import PrimitiveRole
+from ...mutils.containers import UniqueRegistry
+from ...trees.digraph import anytree_to_networkx
+from ...trees.render import ConcreteStyle, tree_render_style
+from ...graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
+from ...geometry.shapes import BoundedTransformableShape
+from ...geometry.transforms.rigid import RigidlyTransformable
+from ...chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
+from ...roles import PrimitiveRole
 
 
 class AtomicityError(AttributeError):
@@ -87,7 +87,7 @@ class MissingSubprimitiveError(KeyError):
     pass
 
 
-class Primitive(NodeMixin, RigidlyTransformable):
+class PrimitiveLegacy(NodeMixin, RigidlyTransformable):
     """
     Represents a fundamental (but not necessarily irreducible)
     building block of a polymer system in the abstract
@@ -116,7 +116,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         IFF the Primitive represents an atom
     connectors : list[Connector]
         A collection of sites representing bonds to other Primitives
-    children : Optional[list[Primitive]], default []
+    children : Optional[list[PrimitiveLegacy]], default []
         Other Primitives which are taken to be "contained within" this Primitive
 
     label : Optional[Hashable]
@@ -134,7 +134,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         shape: Optional[BoundedTransformableShape] = None,
         element: Optional[ElementLike] = None,
         connectors: Optional[Iterable[Connector]] = None,
-        children: Optional[Iterable["Primitive"]] = None,
+        children: Optional[Iterable["PrimitiveLegacy"]] = None,
         label: Optional[PrimitiveLabel] = None,
         metadata: Optional[dict[Hashable, Any]] = None,
         role: PrimitiveRole = PrimitiveRole.UNASSIGNED,
@@ -152,7 +152,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         # child Primitives
         self._topology = Graph()
-        self._children_by_handle: UniqueRegistry[PrimitiveHandle, Primitive] = (
+        self._children_by_handle: UniqueRegistry[PrimitiveHandle, PrimitiveLegacy] = (
             UniqueRegistry()
         )
         if children is not None:
@@ -699,7 +699,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Child Primitives
     # DEV: override __children_or_empty with values of self._children_by_handle?
     @property
-    def children_by_handle(self) -> UniqueRegistry[PrimitiveHandle, "Primitive"]:
+    def children_by_handle(self) -> UniqueRegistry[PrimitiveHandle, "PrimitiveLegacy"]:
         """
         Mapping from unique handles (i.e. (label, index) pairs) to child Primitives
 
@@ -732,7 +732,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """Verify that referenced child Primitive is actually bound to this Primitive"""
         return primitive_handle in self.children_by_handle
 
-    def fetch_child(self, primitive_handle: PrimitiveHandle) -> "Primitive":
+    def fetch_child(self, primitive_handle: PrimitiveHandle) -> "PrimitiveLegacy":
         """Fetch a Primitive with a given handle from bound child Primitives"""
         try:
             return self.children_by_handle[primitive_handle]
@@ -745,7 +745,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     fetch_subprimitive = fetch_child
 
     # Attachment (fulfilling NodeMixin contract)
-    def _pre_attach(self, parent: "Primitive") -> None:
+    def _pre_attach(self, parent: "PrimitiveLegacy") -> None:
         """Preconditions prior to attempting attachment of this Primitive to a parent"""
         # DEV: insert any preconditions beyond checking parent is
         # self or one of self's children (already done by NodeMixin)
@@ -753,7 +753,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     def attach_child(
         self,
-        subprimitive: "Primitive",
+        subprimitive: "PrimitiveLegacy",
         label: Optional[PrimitiveLabel] = None,
         neighbor_connections: Optional[
             dict[ConnectorHandle, tuple[PrimitiveHandle, ConnectorHandle]]
@@ -798,7 +798,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return subprim_handle
 
-    def _post_attach(self, parent: "Primitive") -> None:
+    def _post_attach(self, parent: "PrimitiveLegacy") -> None:
         """Post-actions to take once attachment is verified and parent is bound"""
         LOGGER.debug(
             f"Primitive '{parent._repr_brief()}' assigned as "
@@ -809,9 +809,9 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         *children: Iterable[
             Union[
-                "Primitive",
+                "PrimitiveLegacy",
                 tuple[
-                    "Primitive",
+                    "PrimitiveLegacy",
                     Optional[PrimitiveLabel],
                     Optional[
                         dict[ConnectorHandle, tuple[PrimitiveHandle, ConnectorHandle]]
@@ -831,7 +831,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         """
         handles = []
         for child in children:
-            if isinstance(child, Primitive):
+            if isinstance(child, PrimitiveLegacy):
                 handle = self.attach_child(child)
             else:
                 handle = self.attach_child(*child)
@@ -839,7 +839,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         return handles
 
     # Detachment (fulfilling NodeMixin contract)
-    def _pre_detach(self, parent: "Primitive") -> None:
+    def _pre_detach(self, parent: "PrimitiveLegacy") -> None:
         """Preconditions prior to detachment of this Primitive from a parent"""
         # DEV: insert any preconditions from detachment
         ...
@@ -847,7 +847,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
     def detach_child(
         self,
         target_handle: PrimitiveHandle,
-    ) -> "Primitive":
+    ) -> "PrimitiveLegacy":
         """
         Remove a child Primitive from this one,
         update topology and Connectors,
@@ -893,7 +893,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         return target_child
 
-    def _post_detach(self, parent: "Primitive") -> None:
+    def _post_detach(self, parent: "PrimitiveLegacy") -> None:
         """Post-actions to take once attachment is verified and parent is bound"""
         LOGGER.debug(
             f"Primitive '{parent._repr_brief()}' disowned "
@@ -967,12 +967,12 @@ class Primitive(NodeMixin, RigidlyTransformable):
     # Search
     def search_hierarchy_by(
         self,
-        condition: Callable[["Primitive"], bool],
-        halt_when: Optional[Callable[["Primitive"], bool]] = None,
+        condition: Callable[["PrimitiveLegacy"], bool],
+        halt_when: Optional[Callable[["PrimitiveLegacy"], bool]] = None,
         to_depth: Optional[int] = None,
         min_count: Optional[int] = None,
         max_count: Optional[int] = None,
-    ) -> tuple["Primitive"]:
+    ) -> tuple["PrimitiveLegacy"]:
         """
         Return all Primitives below this one in the hierarchy (not just children,
         but anything below them as well!) which match the provided condition.
@@ -1009,7 +1009,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
                 f"Set underlying topology does not correspond to handles on "
                 f"child Primitives; {len(node_labels - child_handles)} element(s) "
                 f" present w/o associated children, and "
-                f"{len(child_handles - node_labels)} child Primitive(s) "
+                f"{len(child_handles - node_labels)} child PrimitiveLegacy(s) "
                 "are unrepresented in the topology"
             )
 
@@ -1343,7 +1343,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self,
         target_handle: PrimitiveHandle,
         connector_selector: ConnectorSelector = make_second_resemble_first,
-    ) -> "Primitive":
+    ) -> "PrimitiveLegacy":
         """Return a copy of this Primitive with the specified child expanded"""
         clone_primitive = self.copy()
         clone_primitive.expand(
@@ -1363,7 +1363,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
     # DEV: eventually wrap with optional_in_place, once I've
     # sorted how to provide custom copy method in general?
-    def flattened(self) -> "Primitive":
+    def flattened(self) -> "PrimitiveLegacy":
         """Return a copy of this Primitive which has been flattened"""
         clone_primitive = self.copy()
         clone_primitive.flatten()
@@ -1395,7 +1395,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
         self._shape = new_shape_clone
 
     # applying rigid transformations (fulfilling RigidlyTransformable contracts)
-    def _copy_untransformed(self) -> "Primitive":
+    def _copy_untransformed(self) -> "PrimitiveLegacy":
         """
         Return a new Primitive with the same information
         and children as this one, but which has no parent
@@ -1429,7 +1429,7 @@ class Primitive(NodeMixin, RigidlyTransformable):
 
         # transfer children
         clone_primitive._children_by_handle = self.children_by_handle.copy(
-            value_copy_method=Primitive._copy_untransformed
+            value_copy_method=PrimitiveLegacy._copy_untransformed
         )
         for subprimitive in clone_primitive.children_by_handle.values():
             # needs to be rebound, since bypassing attach_child() to preserve handles
@@ -1465,20 +1465,20 @@ class Primitive(NodeMixin, RigidlyTransformable):
         # DEVNOTE: in order to use equivalent-but-not-identical Primitives
         # as nodes in networkx Graph, __eq__ CANNOT evaluate similarity by hashes
         """Check whether two primitives are equivalent, but not necessarily identical"""
-        if not isinstance(other, Primitive):
+        if not isinstance(other, PrimitiveLegacy):
             raise TypeError(f"Cannot compare Primitive to {type(other)}")
 
         # NOTE: ignore labels, simply check equivalency up to canonical forms
         return self.canonical_form() == other.canonical_form()
 
-    def coincident_with(self, other: "Primitive") -> bool:
+    def coincident_with(self, other: "PrimitiveLegacy") -> bool:
         """
         Check whether two Primitives are coincident (i.e. all spatial parts
         are either equally unassigned or occupy the same space)
         """
         raise NotImplementedError
 
-    def equivalent_to(self, other: "Primitive") -> bool:
+    def equivalent_to(self, other: "PrimitiveLegacy") -> bool:
         """
         Check whether two Primitives are equivalent (i.e. have interchangeable
         parts which are not necessarily in the same place in space)
@@ -1609,82 +1609,3 @@ class Primitive(NodeMixin, RigidlyTransformable):
         See mupt.trees.digraph.anytree_to_networkx for arg/kwarg options
         """
         return anytree_to_networkx(self, *args, **kwargs)
-
-
-# Primitive visualization functions
-## TB: for context, detached these methods to allow cleaner break from viz dependencies
-## eventually will move to mupr.primitives.visualize.py or the like
-def visualize_topology(
-    prim: Primitive,
-    ax: Optional["Axes"] = None,
-    base_arc_radius: float = 0.1,
-    use_shapes_for_pos: bool = True,
-    default_pos: Vector3 = ORIGIN2,
-    # TODO: add support for coloring rules
-    **draw_kwargs,
-) -> "Axes":
-    """
-    Draw the connectivity of a Primitive's children to the passed Axes
-
-    See mupt.graphs.visualization.draw_networkx_with_arcs() for kwargs options
-    """
-    from mupt.graphs.visualization import draw_networkx_with_arcs
-
-    graph = prim.topology
-    if use_shapes_for_pos:
-        pos_from_shapes: dict[Primitive, Vector3] = {}
-        for child_handle in graph.nodes:
-            child = prim.fetch_child(child_handle)
-            if child.shape is None:
-                center = default_pos.copy()
-            else:
-                ## DEV: 3D positions are rendered just fine by networkx,
-                # but screw up draw_networkx_labels. Internally for render,
-                # networkx just cuts off the z-coordinate, so we'll do the same here
-                center = child.shape.centroid[:-1]
-
-            pos_from_shapes[child_handle] = center
-        draw_kwargs["pos"] = pos_from_shapes
-
-    return draw_networkx_with_arcs(
-        graph,
-        ax=ax,
-        base_arc_radius=base_arc_radius,
-        **draw_kwargs,
-    )
-
-
-def visualize_hierarchy(
-    prim: Primitive,
-    hierarchy_tree: Optional[DiGraph] = None,
-    use_handles_for_labels: bool = True,
-    root_label: Optional[PrimitiveLabel] = None,
-    **kwargs,
-) -> "Axes":
-    """
-    Draw a networkx DiGraph representation of the partial order
-    of a Primitive and all Primitives below it in the hierarchy
-
-    Can accept a pre-calculated hierarchy tree or, if None is provided,
-    will extract one from the current Primitive
-
-    See mupt.graphs.visualization.draw_networkx_tree() for kwargs options
-    """
-    from mupt.graphs.visualization import draw_networkx_tree
-
-    if hierarchy_tree is None:
-        hierarchy_tree = prim.hierarchy_tree()
-
-    if use_handles_for_labels:
-        label_map: dict[Primitive, Union[PrimitiveHandle, PrimitiveLabel]] = {
-            subprim: handle
-            for prim in hierarchy_tree
-            for handle, subprim in prim.children_by_handle.items()
-        }
-        label_map[prim] = prim.label if (root_label is None) else root_label
-
-        kwargs["with_labels"] = True
-        kwargs["labels"] = label_map
-        print(label_map)
-
-    return draw_networkx_tree(hierarchy_tree, **kwargs)

@@ -23,7 +23,7 @@ from ...geometry.shapes import PointCloud
 from ...chemistry.smiles import DEFAULT_SMILES_WRITE_PARAMS, SmilesWriteParams
 from ...chemistry.conversion import rdkit_atom_to_element
 
-from ...mupr.primitives import Primitive, PrimitiveHandle
+from ...mupr.primitives.primitives_legacy import PrimitiveLegacy, PrimitiveHandle
 
 
 def primitive_from_rdkit_atom(
@@ -32,10 +32,10 @@ def primitive_from_rdkit_atom(
     conformer_idx: Optional[int] = None,
     attach_connectors: bool = False,
     **kwargs,
-) -> Primitive:
+) -> PrimitiveLegacy:
     """Initialize an atomic Primitive from an RDKit Atom"""
     atom: Atom = parent_mol.GetAtomWithIdx(atom_idx)
-    atom_primitive = Primitive(
+    atom_primitive = PrimitiveLegacy(
         element=rdkit_atom_to_element(atom),
         label=atom_idx,
         metadata=atom.GetPropsAsDict(
@@ -80,7 +80,7 @@ def primitive_from_rdkit_chain(
     external_linker_label: str = "*",
     smiles_writer_params: SmilesWriteParams = DEFAULT_SMILES_WRITE_PARAMS,
     **kwargs,
-) -> Primitive:
+) -> PrimitiveLegacy:
     """
     Initialize a Primitive hierarchy from an RDKit Mol representing a single molecule
 
@@ -103,7 +103,7 @@ def primitive_from_rdkit_chain(
         label = name_for_rdkit_mol(
             rdmol_chain, smiles_writer_params=smiles_writer_params
         )
-    rdmol_primitive = Primitive(
+    rdmol_primitive = PrimitiveLegacy(
         label=label,
         metadata=rdmol_chain.GetPropsAsDict(
             includePrivate=True,
@@ -235,7 +235,7 @@ def primitive_from_rdkit(
     sanitize_frags: bool = True,
     denest: bool = True,
     **kwargs,
-) -> Primitive:
+) -> PrimitiveLegacy:
     """
     Initialize a Primitive hierarchy from an
     RDKit Mol representing one or more molecules
@@ -263,7 +263,7 @@ def primitive_from_rdkit(
     else:
         # DEV: deliberately excluding metadata here to
         # avoid squashing that of individual chains
-        universe_primitive = Primitive(label=label)
+        universe_primitive = PrimitiveLegacy(label=label)
         for chain in chains:
             universe_primitive.attach_child(
                 primitive_from_rdkit_chain(

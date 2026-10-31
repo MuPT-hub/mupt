@@ -23,7 +23,7 @@ import MDAnalysis as mda
 from MDAnalysis.core.topologyattrs import Bonds
 
 from .strategies import MDAExportStrategy, AllAtomExportStrategy, MDATopologyData
-from ...mupr.primitives import Primitive
+from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
 
 
 def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
@@ -104,7 +104,7 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
 
 
 def primitive_to_mdanalysis(
-    univprim: Primitive,
+    univprim: PrimitiveLegacy,
     resname_map: dict[str, str],
     strategy: Optional[MDAExportStrategy] = None,
 ) -> mda.Universe:

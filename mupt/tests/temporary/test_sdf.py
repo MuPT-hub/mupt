@@ -13,7 +13,7 @@ from rdkit.Chem.rdmolfiles import SDMolSupplier, SDWriter
 
 import mupt.interfaces.rdkit.exporters as rdkit_exporters
 import mupt.temporary.sdf as temporary_sdf
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
 from mupt.roles import PrimitiveRole
 from mupt.temporary.sdf import (
     MUPT_SDF_ATOM_PROPS,
@@ -226,7 +226,7 @@ def test_write_primitive_to_sdf_preserves_existing_file_after_stream_failure(
 
     with pytest.raises(RuntimeError, match="export failed"):
         write_primitive_to_sdf(
-            Primitive(label="temporary", role=PrimitiveRole.UNIVERSE),
+            PrimitiveLegacy(label="temporary", role=PrimitiveRole.UNIVERSE),
             tmp_path / "partial.sdf",
             resname_map={},
         )
@@ -524,7 +524,7 @@ def test_streamed_segment_attached_to_universe_reexports_mupt_props(
     )
     first_mol = _load_sdf(first_path)[0]
     streamed_segment = next(iter_primitives_from_mupt_sdf(first_path))
-    universe = Primitive(label="temporary", role=PrimitiveRole.UNIVERSE)
+    universe = PrimitiveLegacy(label="temporary", role=PrimitiveRole.UNIVERSE)
 
     universe.attach_child(streamed_segment)
     second_records = write_primitive_to_sdf(

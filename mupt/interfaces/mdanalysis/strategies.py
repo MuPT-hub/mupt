@@ -6,7 +6,7 @@ from typing import Optional
 
 import numpy as np
 
-from ...mupr.primitives import Primitive
+from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
 from .._shared.topology import (
     _bond_order_from_conn_ref,
     _pdb_resname,
@@ -40,7 +40,7 @@ class MDAExportStrategy(ABC):
 
     @abstractmethod
     def collect_topology(
-        self, root: Primitive, resname_map: dict[str, str]
+        self, root: PrimitiveLegacy, resname_map: dict[str, str]
     ) -> MDATopologyData:
         """Collect topology attributes from a Primitive hierarchy."""
 
@@ -78,7 +78,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
         return "All-atom"
 
     def collect_topology(
-        self, root: Primitive, resname_map: dict[str, str]
+        self, root: PrimitiveLegacy, resname_map: dict[str, str]
     ) -> MDATopologyData:
         """Walk the hierarchy once and gather MDAnalysis topology arrays/lists."""
         index = build_saamr_role_topology_index(root)
@@ -125,7 +125,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
                 data.atom_resindex[atom_global_idx] = residue_record.residue_global_idx
                 data.atom_segindex[atom_global_idx] = residue_record.segment_idx
 
-        endpoint_cache: dict[tuple[int, object, object], Primitive] = {}
+        endpoint_cache: dict[tuple[int, object, object], PrimitiveLegacy] = {}
         for node in index.bond_nodes:
             for conn_ref_pair in node.internal_connections:
                 ref_list = sorted(
@@ -170,7 +170,7 @@ class CoarseGrainedExportStrategy(MDAExportStrategy):
         raise NotImplementedError("Coarse-grained export is not yet implemented")
 
     def collect_topology(
-        self, root: Primitive, resname_map: dict[str, str]
+        self, root: PrimitiveLegacy, resname_map: dict[str, str]
     ) -> MDATopologyData:
         """Collect topology for coarse-grained export."""
         raise NotImplementedError("Coarse-grained export is not yet implemented")
