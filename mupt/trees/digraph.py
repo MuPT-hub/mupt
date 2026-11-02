@@ -46,7 +46,6 @@ def anytree_to_networkx(  # noqa: C901
         this ensures other nodes don't get duplicated as Graph node attributes
     max_depth: Optional[int] = None,
         An optional number of iterations from the root to search before halting
-
         If None, no such search depth limit is enforced
     node_converter: Union[Callable[[NodeMixin], H], Mapping[NodeMixin, H]]
             default lambda x: x
@@ -77,48 +76,35 @@ def anytree_to_networkx(  # noqa: C901
     if node_exporter.maxlevel != 1:
         raise ValueError("Externally-supplied DictExporter must have maxlevel=1")
 
-    # determine which nodes survive and who their nearest ancestors are
-    node_iter = PreOrderIter(node, maxlevel=max_depth)
+    # determine which nodes are included in the returned tree
+    node_iter = PreOrderIter(node, maxlevel=max_depth)  # iter excludes certain nodes
+    survivors: dict[NodeLike, H] = {
+        subnode: node_converter(subnode) for subnode in node_iter
+    }
 
+    # link surviving nodes to their nearest surviving ancestor (if one exists)
     predecessors: dict[NodeLike, NodeLike] = {}
-    survivors: dict[NodeLike, H] = dict()
-    for subnode in node_iter:  # iter excludes certain nodes
-        survivors[subnode] = node_converter(subnode)
-        if (parent := subnode.parent) is not None:
-            predecessors[subnode] = parent
+    for subnode in survivors:
+        ancestor = subnode.parent
+        while (ancestor is not None) and (ancestor not in survivors):
+            ancestor = ancestor.parent
 
-    ancestors_surviving: dict[NodeLike, NodeLike] = dict()
-    for survivor_with_parent in set(predecessors):
-        # not using dict.items() to avoid modifying in-place if no ancestor can be found
-        last_seen_ancestor: NodeLike = predecessors[survivor_with_parent]
-        if last_seen_ancestor in survivors:
-            continue
-
-        if last_seen_ancestor in ancestors_surviving:
-            predecessors[survivor_with_parent] = ancestors_surviving[last_seen_ancestor]
-        else:
-            # TB: a potential optimization would be to use ancestors_surviving to skip
-            # over parts of the path for which we know the nearest surviving ancestor.
-            # Omitting for now, since the tree depths we expect to encounter likely
-            # never will be so large that the benefits offset the extra complexity
-            for grand_ancestor in last_seen_ancestor.ancestors:
-                if grand_ancestor in survivors:
-                    predecessors[survivor_with_parent] = grand_ancestor
-                    ancestors_surviving[last_seen_ancestor] = grand_ancestor
-                    break
-            else:
-                # no surviving relatives found
-                del predecessors[survivor_with_parent]
+        if ancestor is not None:
+            predecessors[subnode] = ancestor
+        # from https://github.com/MuPT-hub/mupt/pull/135#discussion_r4428443935:
+        # Could optimize to cache nearest ancestor to avoid re-traversal on siblings,
+        # and to skip sections of walk up tree known from prior traveral not to exist
+        # Skipping to avoid optimizing prematurely; revisit if performance is an issue
 
     # assemble graph, with necessary conversions
     digraph = DiGraph()
-    for survivor, survivor_converted in survivors.items():
+    for subnode, subnode_converted in survivors.items():
         # N.B.: must add ALL nodes before creating edges, to ensure no conversion
         # or attribute transfer is skipped due to a particular traversal order
-        digraph.add_node(survivor_converted, **node_exporter.export(survivor))
+        digraph.add_node(subnode_converted, **node_exporter.export(subnode))
 
-    for survivor, predecessor in predecessors.items():
-        digraph.add_edge(survivors[predecessor], survivors[survivor])
+    for subnode, predecessor in predecessors.items():
+        digraph.add_edge(survivors[predecessor], survivors[subnode])
 
     return digraph
 
