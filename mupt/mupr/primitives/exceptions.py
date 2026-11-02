@@ -23,3 +23,18 @@ class IrreducibilityError(ImproperHierarchyError):
     """
 
     ...
+
+
+class AtomicityError(IrreducibilityError):
+    """
+    Raised when attempting to perform a composite Primitive
+    operation on a simple one (or vice-versa)
+    """
+
+    ...
+
+
+class MissingSubprimitiveError(KeyError):
+    """Raised when a child Primitive expected for a call is not present"""
+
+    ...
