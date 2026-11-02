@@ -732,6 +732,15 @@ class SupportsChildren(Primitive):
         for subprimitive in children:
             self.attach_child(subprimitive, label=subprimitive.label)
 
+    @property
+    def mass(self) -> Optional[float]:
+        """The assigned molecular mass of this Primitive"""
+        if self._mass is None:
+            # DEV: will raise TypeError if ANY subprim has unset mass (intentional)
+            self._mass = sum(child.mass for child in self.children)
+
+        return self._mass
+
     def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
         """
         Lookup a child Primitive by its address and
