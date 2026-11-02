@@ -76,6 +76,19 @@ class IrreducibilityError(ImproperHierarchyError):
     pass
 
 
+# Primitive selection
+def indiscriminate_selector(prim: "Primitive") -> bool:
+    """
+    Selector which always greenlights the passed Primitive no matter what
+    Useful for avoiding lamba overhead
+    """
+    # TB: move this to .properties? (be careful to avoid circular references)
+    return True
+
+
+DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
+
+
 class Primitive(
     Addressed,  # N.B.: each subtype will have its own class-wide registry
     Labelled,
