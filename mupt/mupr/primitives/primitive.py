@@ -243,7 +243,7 @@ class Primitive(
             maxcount=max_count,
         )
 
-    ## Configuring mutability of hierarchy
+    ## Hierarchy mutability
     (
         frozen_hierarchy,
         _precondition_mutable_hierarchy,
@@ -251,7 +251,7 @@ class Primitive(
     ) = precondition_factory(
         "_frozen_hierarchy",
         "Hierarchy of this Primitive is read-only accessible; "
-        "no new incoming or outgoing relationships allowed.",
+        "no new or modified parent/child relationships allowed.",
     )
 
     ### Freeze
@@ -336,7 +336,7 @@ class Primitive(
         # N.B.: connector neighbor deliberately untouched here
         return self.connections.remove_connector(connector_address)
 
-    ## Configuring mutability of connections
+    ## Connector mutability
     (
         frozen_connections,
         _precondition_mutable_connectors,
@@ -344,7 +344,7 @@ class Primitive(
     ) = precondition_factory(
         "_frozen_connections",
         "Connectors of this Primitive is read-only accessible; "
-        "no new incoming or outgoing neighbor relationships allowed.",
+        "no new or modified neighbor relationships allowed.",
     )
     ### Freezing
     ### Unfreezing
