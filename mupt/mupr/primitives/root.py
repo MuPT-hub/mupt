@@ -11,13 +11,8 @@ from copy import deepcopy
 
 from numpy import eye as identity_matrix
 
-from .primitive import (
-    PrimitiveLabel,
-    Metadata,
-    ArborescenceError,
-    SupportsChildren,
-    SupportsParents,
-)
+from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
+from .exceptions import ArborescenceError
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.arraytypes import Array3x3
 from ...geometry.shapes.shapes import BoundedTransformableShape

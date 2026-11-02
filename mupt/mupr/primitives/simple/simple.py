@@ -7,13 +7,8 @@ from typing import ClassVar, Iterable, Optional, Self, Union
 
 from copy import deepcopy
 
-from ..primitive import (
-    PrimitiveLabel,
-    Metadata,
-    IrreducibilityError,
-    SupportsParents,
-    SupportsChildren,
-)
+from ..primitive import PrimitiveLabel, Metadata, SupportsParents, SupportsChildren
+from ..exceptions import IrreducibilityError
 from ...connection.types import ConnectorAddress, ConnectorLabel
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager, ConnectorManagerMutable
