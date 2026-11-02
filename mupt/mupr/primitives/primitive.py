@@ -336,7 +336,20 @@ class Primitive(
         # N.B.: connector neighbor deliberately untouched here
         return self.connections.remove_connector(connector_address)
 
-    # Copying - implements Copyable contract on RigidlyTransformable
+    ## Configuring mutability of connections
+    (
+        frozen_connections,
+        _precondition_mutable_connectors,
+        precondition_mutable_connectors,
+    ) = precondition_factory(
+        "_frozen_connections",
+        "Connectors of this Primitive is read-only accessible; "
+        "no new incoming or outgoing neighbor relationships allowed.",
+    )
+    ### Freezing
+    ### Unfreezing
+
+    # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
         """
         Make copy of the current Primitive, WITHOUT any
