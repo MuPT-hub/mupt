@@ -7,6 +7,7 @@ from typing import (
     Any,
     ClassVar,
     Collection,
+    Generator,
     Hashable,
     Iterable,
     Optional,
@@ -24,6 +25,7 @@ from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
 from anytree.search import findall
 from anytree.render import RenderTree
+from anytree.util import commonancestors
 
 from networkx.classes import DiGraph
 
@@ -318,29 +320,6 @@ class Primitive(
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
 
-    ## Modifying
-    def _add_connector(
-        ## N.B.: deliberately private; only Simples should have explicit access
-        self,
-        connector: Connector,
-        label: Optional[ConnectorLabelLike] = None,
-    ) -> ConnectorAddress:
-        """Add a new Connector to those managed locally"""
-        # TB: label is irrelevant w/ addresses; keeping
-        # only in case handles prove useful to add later
-        self.connections.add_connector(connector, label=label)
-        # N.B.: connector.holder deliberately not set here
-
-        return connector.address
-
-    def _remove_connector(
-        self,
-        connector_address: Connector | ConnectorAddress,
-    ) -> Connector:
-        """Remove an existing Connector from those managed locally"""
-        # N.B.: connector neighbor deliberately untouched here
-        return self.connections.remove_connector(connector_address)
-
     ## Connector mutability
     (
         frozen_connections,
@@ -402,6 +381,70 @@ class Primitive(
         # make sense to only have parts of hierarchy be mutable
         self.root._unfreeze_connections_subsequent()
 
+    ## Modifying connectors
+    def _add_connector(
+        ## N.B.: deliberately private; only Simples should have explicit access
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """Add a new Connector to those managed locally"""
+        self.connections.add_connector(connector, label=label)
+        # N.B.: connector.holder deliberately not set here
+
+        return connector.address
+
+    def _remove_connector(
+        self,
+        connector_address: Connector | ConnectorAddress,
+    ) -> Connector:
+        """Remove an existing Connector from those managed locally"""
+        # N.B.: connector neighbor deliberately untouched here
+        return self.connections.remove_connector(connector_address)
+
+    ## Neighborship
+    def potential_neighbors_with_connectors(
+        self,
+    ) -> Generator[tuple[Connector, Connector, tuple["Primitive", ...]], None, None]:
+        """
+        Generate all potential neighbors, along with the
+        Connectors linking them to *this* Primitive
+
+        Yields
+        ------
+        our_conn, their_conn, nb_path : tuple[Connector, Connector, tuple[Primitive]]
+            The pair of Connectors linking this Primitive to a branch of neighbor,
+            and the branch of all (non-internal) neighbors at the other end, arranged
+            by order in the hierarchy (i.e. least-deep first)
+        """
+        for our_connector in self.connections.connectors_bound:
+            # any superprimitives which share connectors with the holder are
+            # also considered neighbors; this is what enables multiscaling
+            their_connector: Connector = our_connector.neighbor
+            neighbor_leaf: Primitive = their_connector.holder
+            # TB TODO: finesse typehints to suppress (perceived) unset NoneType values
+
+            # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
+            if self in neighbor_leaf.path:
+                continue
+
+            common_ancestors: tuple[Primitive, ...] = commonancestors(
+                self,
+                neighbor_leaf,
+            )
+            neighbor_branch: tuple[Primitive, ...] = tuple(
+                potential_neighbor
+                for potential_neighbor in neighbor_leaf.path
+                if potential_neighbor not in common_ancestors
+            )
+
+            yield our_connector, their_connector, neighbor_branch
+
+    def potential_neighbors(self) -> Generator[tuple["Primitive", ...], None, None]:
+        """Generate the non-internal neigbhor branches connected to this Primitive"""
+        for _, _, neighbor_branch in self.potential_neighbors_with_connectors():
+            yield neighbor_branch
+
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
         """
@@ -419,19 +462,18 @@ class Primitive(
         """
         # TB: convert parts to address-based reference, if possible?
         orig_prim_to_new_prim: dict[Primitive, Primitive] = dict()
-        own_copy: Self = orig_prim_to_new_prim[self]
 
         for subprim in LevelOrderIter(self):
             clone_no_hierarchy_subprim = subprim._copy_instance()
             orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
-
             ## TB TODO: SupportsChildren is more accurate annotation, but
-            ## inverts inheritance hierarhyc; find way to get best of both
+            ## inverts inheritance hierarchy; find way to get best of both
             # new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
             new_parent: Optional[Primitive] = orig_prim_to_new_prim.get(
                 subprim.parent, None
             )
             clone_no_hierarchy_subprim.parent = new_parent
+        own_copy: Self = orig_prim_to_new_prim[self]
 
         return own_copy, orig_prim_to_new_prim
 
