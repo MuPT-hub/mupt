@@ -31,7 +31,12 @@ from scipy.spatial.transform import RigidTransform
 
 from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
-from ..connection.management import ConnectorManager, connector_address_flexible
+from ..connection.management import (
+    connector_address_flexible,
+    ConnectorManager,
+    ConnectorManagerFrozen,
+    ConnectorManagerMutable,
+)
 from ..connection.alignment import ConnectorAntialignmentBallistic
 
 from ...mutils.referencing import Addressed
@@ -346,8 +351,56 @@ class Primitive(
         "Connectors of this Primitive is read-only accessible; "
         "no new or modified neighbor relationships allowed.",
     )
+
     ### Freezing
+    def _freeze_connections_local(self) -> None:
+        """Prevent modification of Connectors on this Primitive ONLY"""
+        self.connections = ConnectorManagerFrozen(*self.connections.connectors)
+        self._frozen_connections = True
+
+    def _freeze_connections_subsequent(self) -> None:
+        """
+        Prevent modification of Connectors managed by this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_connections_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_connections_local()
+
+    def freeze_connections(self) -> None:
+        """
+        Prevent modification of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        # TB: from root, since it doesn't make sense to just freeze parts of hierarchy;
+        # if one bit is frozen, it causes all others touching it to also freeze
+        # Note that "root" is not necessarily a RootPrimitive,
+        # but rather the topmost Primitive ancestor in the current hierarchy
+        self.root._freeze_connections_subsequent()
+
     ### Unfreezing
+    def _unfreeze_connections_local(self) -> None:
+        """Allow modification of Connectors on this Primitive ONLY"""
+        self.connections = ConnectorManagerMutable(*self.connections.connectors)
+        self._frozen_connections = False
+
+    def _unfreeze_connections_subsequent(self) -> None:
+        """
+        Allow modification of Connectors managed by this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_connections_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_connections_local()
+
+    def unfreeze_connections(self) -> None:
+        """
+        Allow modification of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        # TB: Similarly, unfreeze from root down, since it doesn't
+        # make sense to only have parts of hierarchy be mutable
+        self.root._unfreeze_connections_subsequent()
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
