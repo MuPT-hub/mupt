@@ -277,3 +277,25 @@ def deduce_connections_from_topology(  # noqa: C901
         )
 
     return connection_map
+
+
+def assign_connections_from_topology(
+    topology: Graph,
+    # TB: if Graph supported Generic subscripting, this annotation would be Graph[T]
+    mapped_connectors: Mapping[T, Collection[Connector]],
+    n_iter_max_rule: Optional[GraphIterRule] = None,
+    source_node: Optional[T] = None,
+) -> None:
+    """
+    Deduce connections from graph and mapped collections
+    of Connectors and assign neighborship based on it
+    """
+    connections = deduce_connections_from_topology(
+        topology,
+        mapped_connectors=mapped_connectors,
+        n_iter_max_rule=n_iter_max_rule,
+        source_node=source_node,
+    )
+
+    for (node_former, node_latter), (conn_former, conn_latter) in connections.items():
+        conn_former.neighbor = conn_latter
