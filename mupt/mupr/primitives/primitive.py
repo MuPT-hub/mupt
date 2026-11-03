@@ -12,9 +12,11 @@ from typing import (
     Iterable,
     Optional,
     Self,
+    TypeVar,
     Union,
 )
 
+H = TypeVar("H", bound=Hashable)
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type Metadata = dict[Hashable, Any]
@@ -28,7 +30,7 @@ from anytree.search import findall
 from anytree.render import RenderTree
 from anytree.util import commonancestors
 
-from networkx.classes import Graph, DiGraph
+from networkx.classes import Graph, DiGraph, MultiGraph
 
 from scipy.spatial.transform import RigidTransform
 
@@ -44,6 +46,7 @@ from ..connection.management import (
 )
 from ..connection.alignment import (
     ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentRigid,
     ConnectorAntialignmentBallistic,
 )
 from ..connection.linking import deduce_connections_from_topology, GraphIterRule
@@ -54,6 +57,7 @@ from ...mutils.decorators.classmod import precondition_factory
 
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
+from ...chemistry.core import BOND_ORDER_ATTR
 
 from ...trees.digraph import anytree_to_networkx
 from ...trees.subselect import NodePredicate, primoprogenitors
@@ -538,6 +542,48 @@ class Primitive(
         else:
             return False
 
+    def _deduce_connectors_for_bond(
+        self,
+        other: "Primitive",
+        our_connector: Optional[ConnectorAddress | Connector] = None,
+        their_connector: Optional[ConnectorAddress | Connector] = None,
+        n_iter_max_rule: Optional[GraphIterRule] = None,
+    ) -> tuple[Connector, Connector]:
+        """
+        Helper method for verifying pair of to-be-bonded Connectors
+        both exist on their respective Primitive holder
+
+        If either Connector is not explicitly provided, will attempt
+        to deduce which Connector should be used based on bondability
+        """
+        # verify both Connectors actually exist on their respective Primitive
+        if our_connector is not None:
+            _our_connector: Connector = self.fetch_connector(our_connector)
+
+        if their_connector is not None:
+            _their_connector: Connector = other.fetch_connector(their_connector)
+
+        # check if connector deducation needs to be done
+        if (our_connector is None) or (their_connector is None):
+            prim_edge: tuple[Primitive, Primitive] = (self, other)
+            mapped_connectors: dict[PrimitiveAddress, set[Connector]] = {
+                self: set(self.connections.connectors_free)
+                if (our_connector is None)
+                else {_our_connector},
+                other: set(other.connections.connectors_free)
+                if (their_connector is None)
+                else {_their_connector},
+            }
+            # will raise Exception if
+            conn_map = deduce_connections_from_topology(
+                topology=Graph([prim_edge]),
+                mapped_connectors=mapped_connectors,
+                n_iter_max_rule=n_iter_max_rule,
+            )
+            _our_connector, _their_connector = conn_map[prim_edge]
+
+        return _our_connector, _their_connector
+
     def connect_neighbor(
         self,
         other: "Primitive",
@@ -545,66 +591,89 @@ class Primitive(
         their_connector: Optional[ConnectorAddress | Connector] = None,
         alignment_strategy: Optional[ConnectorAntialignmentStrategy] = None,
         align_to_us: bool = True,
-        n_iter_max_rule: Optional[GraphIterRule] = None,
     ) -> None:
         """
         Forge a new connection to another Primitive
 
         If explicit Connectors are provided for either or both
-        Primitives,will use those as halves of the connection;
+        Primitives, will use those as halves of the connection;
         Otherwise, will attempt to deduce a unique choice using the linking algorithm
+
+        If an alignment strategy is passed, will use:
+        self as the fixed body if align_to_us is True,
+        or other as the fixed body if align_to_us is False
         """
-        # verify both Connectors actually exist on their respective Primitive
-        # to be used as keys identifying edge in graph
-        prim_edge: tuple[Primitive, Primitive] = (self, other)
-        mapped_connectors: dict[PrimitiveAddress, set[Connector]] = dict()
-        if our_connector is None:
-            mapped_connectors[self] = {self.fetch_connector(our_connector)}
-        else:
-            mapped_connectors[self] = set(self.connections.connectors_free)
+        if not align_to_us:
+            other.connect_neighbor(
+                self,
+                our_connector=their_connector,
+                their_connector=our_connector,
+            )
 
-        if our_connector is None:
-            mapped_connectors[other] = {self.fetch_connector(their_connector)}
-        else:
-            mapped_connectors[other] = set(other.connections.connectors_free)
-
-        # TB: deducing, rather than assigning, to get access
-        # to chosen Connectors for geometric alignment
-        conn_map = deduce_connections_from_topology(
-            topology=Graph([prim_edge]),
-            mapped_connectors=mapped_connectors,
-            n_iter_max_rule=n_iter_max_rule,
+        our_connector, their_connector = self._deduce_connectors_for_bond(
+            other,
+            our_connector=our_connector,
+            their_connector=their_connector,
         )
-        our_connector_chosen, their_connector_chosen = conn_map[prim_edge]
 
-        if align_to_us:
-            # former <=> the thing being aligned to
-            prim_former = self
-            conn_former = our_connector_chosen
-
-            # latter <=> the thing being moved to get aligned
-            prim_latter = other
-            conn_latter = their_connector_chosen
-        else:
-            prim_former = other
-            conn_former = their_connector_chosen
-
-            prim_latter = self
-            conn_latter = our_connector_chosen
-
-        # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
         if alignment_strategy is not None:
-            transform_latter, transform_former = alignment_strategy.antialign_mutually(
-                align_connector=conn_latter,
-                to_connector=conn_former,
+            # DEV: this trasnform return orde "looks" incorrect, but SHOULD be reversed
+            their_transform, our_transform = alignment_strategy.antialign_mutually(
+                align_connector=their_connector,
+                to_connector=our_connector,
                 roll_back_transform=True,  # avoid double-transforming
                 dihedral_angle_rad=None,  # may configure in future
             )  # type: ignore - roll_back_transform returns 2-tuple, not Nones
 
-            prim_former.rigidly_transform(transform_former)
-            prim_latter.rigidly_transform(transform_latter)
+            self.rigidly_transform(our_transform)
+            other.rigidly_transform(their_transform)
 
-        our_connector_chosen.neighbor = their_connector_chosen
+        our_connector.neighbor = their_connector
+
+    ## Cross-sections
+    def cross_section(self, predicate: NodePredicate["Primitive"]) -> Graph:
+        """
+        Generate a graph of a "slice" of a subset
+        of sub-Primitives specified by a predicate
+        """
+        multigraph_conversion_made: bool = False
+
+        cross_section = Graph()
+        cross_section.add_nodes_from(primoprogenitors(self, predicate=predicate))
+        visited: dict[Primitive, bool] = dict()
+
+        # DEV: need to make and iterate over static view of nodes to
+        # avoid "dictionary changed size during iteration" RuntimeError
+        for prim_node in tuple(cross_section.nodes):
+            seen_neighbors: set[Primitive] = set()
+            for (
+                our_connector,
+                their_connector,
+                neighbor,
+            ) in prim_node.neighbors_with_connectors(predicate):
+                if visited.get(neighbor, False):
+                    continue
+
+                # upconvert to multigraph the first time a duplicate edge is encoutered
+                if (not multigraph_conversion_made) and (neighbor in seen_neighbors):
+                    cross_section = MultiGraph(cross_section)
+                    multigraph_conversion_made = True
+
+                # should already match if Connectors were allowed to be neighbors,
+                # but it never hurts to double-check
+                assert our_connector.bond_order == their_connector.bond_order
+
+                cross_section.add_edge(
+                    prim_node,
+                    neighbor,
+                    **{BOND_ORDER_ATTR: our_connector.bond_order},
+                )
+                seen_neighbors.add(neighbor)
+
+            # avoids double-counting single edges
+            visited[prim_node] = True
+
+        return cross_section
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
@@ -879,6 +948,82 @@ class SupportsChildren(Primitive):
         child.parent = None
 
         return child
+
+    # Connectivity
+    def set_connectivity_from_topology(
+        self,
+        topology: Graph,  # Graph[Primitive]
+        predicate: NodePredicate["Primitive"],
+        n_iter_max_rule: Optional[GraphIterRule] = None,
+        source_node: Optional["Primitive"] = None,
+        antialign: bool = False,
+    ) -> None:
+        """
+        Form connections from a labelled graph, respecting selectivity of Connectors
+
+        Parameters
+        ----------
+        topology: Graph
+            The graph to use to assign neighbor connectivity
+            Nodes in this graph must be literal Primitive instances
+        predicate: NodePredicate["Primitive"]
+            The condition by which to select sub-Primitives
+        n_iter_max_rule: Optional[Callable[[int], int]] = None
+            A rule for assigning the max number of iterations the linker routine
+            should run before giving up, as a function of the passed graph
+        source_node, Optional[Primitive], default None
+            The node from which to start traversing the topology during linking
+        antialign : bool, default False
+            Whether to also attempt to perform antialignment transformations
+            on every new connected pair of Connectors
+
+            Needs to be True if nodes Primitives have coordinate, and False if not
+        """
+        connections = deduce_connections_from_topology(
+            topology,
+            mapped_connectors={
+                subprim: subprim.connections.connectors_free
+                for subprim in primoprogenitors(self, predicate=predicate)
+            },
+            n_iter_max_rule=n_iter_max_rule,
+            source_node=source_node,
+        )
+
+        # initialize outside loop to avoid creating numerous redundant alignment
+        # strategy instances (one per Primitive in the topology, in fact)
+        antialign_rigid = ConnectorAntialignmentRigid()
+        antialign_ballistic = ConnectorAntialignmentBallistic()
+
+        is_isolated: dict[Primitive, bool] = {node: True for node in topology}
+        for (prim_former, prim_latter), (
+            conn_former,
+            conn_latter,
+        ) in connections.items():
+            alignment_strategy: Optional[ConnectorAntialignmentStrategy]
+            align_to_us: bool
+
+            if not antialign:
+                alignment_strategy = None
+                align_to_us = True
+            elif is_isolated[prim_former]:
+                alignment_strategy = antialign_rigid
+                align_to_us = False
+            elif is_isolated[prim_latter]:
+                alignment_strategy = antialign_rigid
+                align_to_us = True
+            else:
+                alignment_strategy = antialign_ballistic
+                align_to_us = True
+
+            prim_former.connect_neighbor(
+                prim_latter,
+                our_connector=conn_former,
+                their_connector=conn_latter,
+                alignment_strategy=alignment_strategy,
+                align_to_us=align_to_us,
+            )
+            is_isolated[prim_former] = False
+            is_isolated[prim_latter] = False
 
 
 class SupportsParents(Primitive):
