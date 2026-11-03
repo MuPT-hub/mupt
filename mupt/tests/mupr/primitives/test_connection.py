@@ -58,3 +58,30 @@ def test_frozen_connectors_propagates() -> None:
     root.freeze_connections()
     with pytest.raises(AttributeError):
         simple._add_connector(Connector())
+
+
+# Connector modification
+def test_simple_remove_connector_nonexistent() -> None:
+    """
+    Test that attempting to remove a Connector which was
+    never there to begin with is caught and raises Exception
+    """
+    simple = SimplePrimitive()
+    connector = Connector()
+
+    with pytest.raises(KeyError):
+        simple.remove_connector(connector)
+
+
+# Neighbor relations
+def test_potential_neighbors():
+    """
+    Test that all non-internal neighbors of a
+    Primitive are correctly identified in a hierarchy
+    """
+    ...
+
+
+def test_neighbors():
+    """Test resolution-specific (i.e. predicate-based) neighbor selection"""
+    ...
