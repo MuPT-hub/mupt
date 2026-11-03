@@ -165,7 +165,7 @@ def precondition_factory(
     default_msg: str,
     *,
     raise_when: bool = True,
-) -> tuple[property, Callable[[Any], None], PreconditionDecorator]:
+) -> tuple[property, Callable[..., None], PreconditionDecorator]:
     """
     Generates a (property, precondition-method, precondition-decorator) triple based on
     some boolean instance attribute which indicates whether other fields are mutable.
