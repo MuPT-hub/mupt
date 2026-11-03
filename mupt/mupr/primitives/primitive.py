@@ -6,15 +6,18 @@ within MuPT's multiscale molecular representation
 from typing import (
     Any,
     ClassVar,
+    Callable,
     Collection,
     Generator,
     Hashable,
     Iterable,
     Optional,
     Self,
+    TypeVar,
     Union,
 )
 
+H = TypeVar("H", bound=Hashable)
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type Metadata = dict[Hashable, Any]
@@ -46,7 +49,11 @@ from ..connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentBallistic,
 )
-from ..connection.linking import deduce_connections_from_topology, GraphIterRule
+from ..connection.linking import (
+    assign_connections_from_topology,
+    deduce_connections_from_topology,
+    GraphIterRule,
+)
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
@@ -907,6 +914,43 @@ class SupportsChildren(Primitive):
         child.parent = None
 
         return child
+
+    # Connectivity
+    def set_connectivity_from_topology(
+        self,
+        topology: Graph,  # Graph[H]
+        predicate: NodePredicate["Primitive"],
+        prim_node_labeller: Callable[[Primitive], H] = lambda prim: prim,
+        n_iter_max_rule: Optional[GraphIterRule] = None,
+        source_node: Optional[H] = None,
+    ) -> None:
+        """
+        Form connections from a labelled graph, respecting selectivity of Connectors
+
+        Parameters
+        ----------
+        topology: Graph
+            The graph to use to assign neighbor connectviity
+        predicate: NodePredicate["Primitive"]
+            The condition by which to select sub-Primitives
+        prim_node_labeller : Callable[[Primitive], Hashable] /
+                default lambda prim : prim,
+            A function which maps the selected sub-Primitives to hashable labels
+            The labels mapped to should match nodes of the passed graph
+            By default, just returns the Primitive instance itself
+        n_iter_max_rule: Optional[Callable[[int], int]] = None
+            A rule for assigning the max number of iterations the linker routine
+            should run before giving up, as a function of the passed graph
+        """
+        assign_connections_from_topology(
+            topology,
+            mapped_connectors={
+                prim_node_labeller(subprim): subprim.connections.connectors_free
+                for subprim in primoprogenitors(self, predicate=predicate)
+            },
+            n_iter_max_rule=n_iter_max_rule,
+            source_node=source_node,
+        )
 
 
 class SupportsParents(Primitive):
