@@ -53,6 +53,7 @@ def _compile_bond_order_reference() -> dict[BondType, float]:
 
 
 BOND_ORDER: dict[BondType, float] = _compile_bond_order_reference()
+BOND_ORDER_ATTR: str = "bond_order"  # used to sync lookup throughout library
 
 
 def valence_allowed(atomic_num: int, charge: int, valence: int) -> bool:
