@@ -7,7 +7,7 @@ from typing import ClassVar, Iterable, Optional, Self
 
 from copy import deepcopy
 
-from ..primitive import PrimitiveLabel, SupportsParents
+from ..primitive import PrimitiveLabel, SupportsParents, Metadata
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager, ConnectorManagerMutable
 from ....geometry.shapes.shapes import BoundedTransformableShape
