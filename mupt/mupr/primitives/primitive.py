@@ -31,6 +31,7 @@ from anytree.render import RenderTree
 from anytree.util import commonancestors
 
 from networkx.classes import Graph, DiGraph, MultiGraph
+from networkx import get_node_attributes, relabel_nodes
 
 from scipy.spatial.transform import RigidTransform
 
@@ -892,6 +893,37 @@ class SupportsChildren(Primitive):
             },
             n_iter_max_rule=n_iter_max_rule,
             source_node=source_node,
+        )
+
+    def populate_from_topology_and_lexicon(
+        self,
+        topology: Graph,
+        lexicon: dict[PrimitiveLabel, "SupportsParents"],
+        label_attr: str = "label",
+        source_node_label: Optional[PrimitiveLabel] = None,
+    ) -> None:
+        """
+        Populate the internal structure of this child-supporting Primitive
+        by assigning its children and connectivity from a labelled graph
+        and a 'lexicon' mapping from labels to Primitive templates
+        """
+        label_to_prim_map: dict[PrimitiveLabel, SupportsParents] = {
+            node: lexicon[label_value].copy()
+            for node, label_value in get_node_attributes(
+                topology,
+                label_attr,
+            ).items()
+        }
+
+        prim_topology = relabel_nodes(topology, label_to_prim_map, copy=True)
+        for subprim in prim_topology.nodes:
+            self.attach_child(subprim)
+
+        self.set_connectivity_from_topology(
+            prim_topology,
+            predicate=lambda prim: prim in prim_topology,
+            prim_node_labeller=lambda x: x,
+            source_node=label_to_prim_map.get(source_node_label, None),
         )
 
 
