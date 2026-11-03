@@ -44,10 +44,12 @@ from ..connection.alignment import ConnectorAntialignmentBallistic
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
 from ...mutils.decorators.classmod import precondition_factory
+
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
+
 from ...trees.digraph import anytree_to_networkx
-from ...trees.subselect import NodePredicate
+from ...trees.subselect import NodePredicate, primoprogenitors
 from ...trees.render import tree_render_style, ConcreteStyle
 
 
@@ -457,6 +459,58 @@ class Primitive(
         """Generate the non-internal neigbhor branches connected to this Primitive"""
         for _, _, neighbor_branch in self.potential_neighbors_with_connectors():
             yield neighbor_branch
+
+    def neighbors_with_connectors(
+        self,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
+    ) -> Generator[tuple[Connector, Connector, "Primitive"], None, None]:
+        """
+        Generates the two Connectors which constitute a connection
+        to a neighboring Primitive, as well as that Primitive itself
+        Yields as (our_connector, their_connector, them) tuples
+
+        Can sub-select among resolutions of neighbor
+        branches using a predicate, if provided
+        """
+        for (
+            our_connector,
+            their_connector,
+            neighbor_branch,
+        ) in self.potential_neighbors_with_connectors():
+            # TB: will raise ValueError on empty branch
+            # should never happen if holders are set correctly, but am
+            # leaving note here to speed up debugging in case it ever does
+            branch_root, *successors_list = neighbor_branch
+            successors_iter = iter(successors_list)
+
+            def successors(prim: "Primitive") -> list["Primitive"]:
+                """
+                Replacement for prim.children when stepping thru this branch
+
+                Wrapper avoids StopIteration on shallow branches
+                """
+                next_prim: Optional["Primitive"] = next(successors_iter, None)
+                if next_prim is None:
+                    return []
+                return [next_prim]
+
+            for chosen_neighbor in primoprogenitors(
+                branch_root, predicate=predicate, successors=successors
+            ):
+                yield our_connector, their_connector, chosen_neighbor
+
+    def neighbors(
+        self,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
+    ) -> Generator["Primitive", None, None]:
+        """
+        Primitives whose share a Connection with this one
+
+        Can sub-select among resolutions of neighbor
+        branches using a predicate, if provided
+        """
+        for _, _, neighbor in self.neighbors_with_connectors(predicate=predicate):
+            yield neighbor
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
