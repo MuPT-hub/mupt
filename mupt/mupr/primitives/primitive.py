@@ -901,19 +901,19 @@ class SupportsChildren(Primitive):
         lexicon: dict[PrimitiveLabel, "SupportsParents"],
         label_attr: str = "label",
         source_node_label: Optional[PrimitiveLabel] = None,
+        set_label_from_lexicon: bool = False,
     ) -> None:
         """
         Populate the internal structure of this child-supporting Primitive
         by assigning its children and connectivity from a labelled graph
         and a 'lexicon' mapping from labels to Primitive templates
         """
-        label_to_prim_map: dict[PrimitiveLabel, SupportsParents] = {
-            node: lexicon[label_value].copy()
-            for node, label_value in get_node_attributes(
-                topology,
-                label_attr,
-            ).items()
-        }
+        label_to_prim_map: dict[PrimitiveLabel, SupportsParents] = dict()
+        for node, label_value in get_node_attributes(topology, label_attr).items():
+            node_prim = lexicon[label_value].copy()  # make per-node copy of prototypes
+            if set_label_from_lexicon:
+                node_prim.label = label_value
+            label_to_prim_map[node] = node_prim
 
         prim_topology = relabel_nodes(topology, label_to_prim_map, copy=True)
         for subprim in prim_topology.nodes:
