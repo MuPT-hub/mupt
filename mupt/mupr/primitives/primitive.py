@@ -750,11 +750,13 @@ class SupportsChildren(Primitive):
     # and moving core logic to _pre_attach/_post_attach
 
     ## Attachment
-    @Primitive.precondition_mutable_hierarchy
+    @Primitive.precondition_mutable_hierarchy(
+        msg="Hierarchy modification is forbidden this Primitive; cannot attach"
+    )
+    @Primitive.precondition_mutable_connectors  # positions and neighbors may shift
     def _pre_attach_children(self, children: Iterable["SupportsParents"]) -> None:
         """Preconditions prior to attempting to attach of this Primitive to a parent"""
         super()._pre_attach_children(children)
-        # self._precondition_mutable_connectors()  # positions and neighbors may shift
 
         for child in children:
             child._precondition_mutable_hierarchy()
@@ -785,6 +787,7 @@ class SupportsChildren(Primitive):
     @Primitive.precondition_mutable_hierarchy(
         msg="Hierarchy modification is forbidden this Primitive; cannot detach"
     )
+    @Primitive.precondition_mutable_connectors  # positions and neighbors may shift
     def _pre_detach_children(self, children: Iterable["SupportsParents"]) -> None:
         """Preconditions prior to attempting detachment of this Primitive from parent"""
         super()._pre_detach_children(children)
