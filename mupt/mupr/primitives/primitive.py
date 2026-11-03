@@ -27,7 +27,7 @@ from anytree.search import findall
 from anytree.render import RenderTree
 from anytree.util import commonancestors
 
-from networkx.classes import Graph, DiGraph
+from networkx.classes import Graph, DiGraph, MultiGraph
 
 from scipy.spatial.transform import RigidTransform
 
@@ -52,6 +52,7 @@ from ...mutils.decorators.classmod import precondition_factory
 
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
+from ...chemistry.core import BOND_ORDER_ATTR
 
 from ...trees.digraph import anytree_to_networkx
 from ...trees.subselect import NodePredicate, primoprogenitors
@@ -555,6 +556,51 @@ class Primitive(
                 to_connector=our_connector_chosen,
             )  # Suppress on already-aligned chosen Connectors
             other.rigidly_transform(alignment_transform)
+
+    ## Cross-sections
+    def cross_section(self, predicate: NodePredicate["Primitive"]) -> Graph:
+        """
+        Generate a graph of a "slice" of a subset
+        of sub-Primitives specified by a predicate
+        """
+        multigraph_conversion_made: bool = False
+
+        cross_section = Graph()
+        cross_section.add_nodes_from(primoprogenitors(self, predicate=predicate))
+        visited: dict[Primitive, bool] = dict()
+
+        # DEV: need to make and iterate over static view of nodes to
+        # avoid "dictionary changed size during iteration" RuntimeError
+        for prim_node in tuple(cross_section.nodes):
+            seen_neighbors: set[Primitive] = set()
+            for (
+                our_connector,
+                their_connector,
+                neighbor,
+            ) in prim_node.neighbors_with_connectors(predicate):
+                if visited.get(neighbor, False):
+                    continue
+
+                # upconvert to multigraph the first time a duplicate edge is encoutered
+                if (not multigraph_conversion_made) and (neighbor in seen_neighbors):
+                    cross_section = MultiGraph(cross_section)
+                    multigraph_conversion_made = True
+
+                # should already match if Connectors were allowed to be neighbors,
+                # but it never hurts to double-check
+                assert our_connector.bond_order == their_connector.bond_order
+
+                cross_section.add_edge(
+                    prim_node,
+                    neighbor,
+                    **{BOND_ORDER_ATTR: our_connector.bond_order},
+                )
+                seen_neighbors.add(neighbor)
+
+            # avoids double-counting single edges
+            visited[prim_node] = True
+
+        return cross_section
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
