@@ -2,6 +2,8 @@
 
 import pytest
 
+from itertools import product as cartesian
+
 from mupt.chemistry.core import ELEMENTS, BondType
 from mupt.mutils.iteration import sliding_window
 
@@ -46,7 +48,7 @@ def dummy_hierarchy_atop_prim(prim: Primitive, num_intermed: int = 3) -> RootPri
 
 
 # Tests proper
-# Data security
+## Data security
 @pytest.mark.parametrize(
     "prim",
     [
@@ -95,7 +97,89 @@ def test_frozen_connectors_propagates() -> None:
         simple._add_connector(Connector())
 
 
-# Connector modification
+# Neighbor relations
+def test_potential_neighbors():
+    """
+    Test that all non-internal neighbors of a
+    Primitive are correctly identified in a hierarchy
+    """
+    ...
+
+
+def test_neighbors():
+    """Test resolution-specific (i.e. predicate-based) neighbor selection"""
+    ...
+
+
+def test_positive_is_neighbors_with_symmetric():
+    """
+    Test neighborship check is indeed invariant under swapping Primitive arguments
+    in the case that the two Primitives involved ARE neighbors (both positive)
+    """
+    prim_0 = SimplePrimitive()
+    conn = basic_connector()
+    prim_0.add_connector(conn)
+
+    prim_1 = SimplePrimitive()
+    conn_counter = conn.counterpart()
+    prim_1.add_connector(conn_counter)
+
+    prim_0.connect_neighbor(
+        prim_1,
+        # TB: no need to specify connectors; linker only has one choice
+        our_connector=conn,
+        their_connector=conn_counter,
+    )
+
+    assert prim_0.is_neighbors_with(prim_1) and prim_1.is_neighbors_with(prim_0)
+
+
+def test_negative_is_neighbors_with_symmetric():
+    """
+    Test neighborship check is indeed invariant under swapping Primitive arguments
+    in the case that the two Primitives involved ARE NOT neighbors (both negative)
+    """
+    prim_0 = CompositePrimitive()
+    prim_1 = SimplePrimitive()
+
+    assert not (prim_0.is_neighbors_with(prim_1) or prim_1.is_neighbors_with(prim_0))
+
+
+def test_neighborship_propagates_thru_hierarchy():
+    """
+    Test that neighborship status automatically multiscales
+
+    I.e. given two distinct branches of the hierrachy tree,
+    any pair of Primitives, one from either branch" being assigned neighbors
+    automatically makes EVERY pair from those branches neighors as well
+    """
+    root_0 = RootPrimitive()
+    comp_0 = CompositePrimitive()
+    simp_0 = SimplePrimitive()
+    comp_0.parent = root_0
+    simp_0.parent = comp_0
+    conn_0 = basic_connector()
+    simp_0.add_connector(conn_0)  # should also be registered up thru hierarchy
+
+    root_1 = RootPrimitive()
+    comp_1 = CompositePrimitive()
+    simp_1 = SimplePrimitive()
+    comp_1.parent = root_1
+    simp_1.parent = comp_1
+    conn_1 = conn_0.counterpart()
+    simp_1.add_connector(conn_1)  # should also be registered up thru hierarchy
+
+    # connect between hierarchy levels for the hat trick :P
+    comp_0.connect_neighbor(simp_1, our_connector=conn_0, their_connector=conn_1)
+
+    # by design, if any pair of Primitives from the two parallel branches are
+    # neighbors, then so is EVERY possible pair of Primitives between those branches
+    for prim_0, prim_1 in cartesian(simp_0.path, simp_1.path):
+        # opting against call w/ prim_0 as 'self' to emphasize symmetry of args
+        assert Primitive.is_neighbors_with(prim_0, prim_1)
+
+
+## Connector modification
 def test_simple_remove_connector_nonexistent() -> None:
     """
     Test that attempting to remove a Connector which was
@@ -201,17 +285,3 @@ def test_connect_neighbor() -> None:
 
     # 2) check that ALL Primitives on parallel branch are potential neighbors
     assert set(*simple_new.potential_neighbors()) == set([comp, simple])
-
-
-# Neighbor relations
-def test_potential_neighbors():
-    """
-    Test that all non-internal neighbors of a
-    Primitive are correctly identified in a hierarchy
-    """
-    ...
-
-
-def test_neighbors():
-    """Test resolution-specific (i.e. predicate-based) neighbor selection"""
-    ...
