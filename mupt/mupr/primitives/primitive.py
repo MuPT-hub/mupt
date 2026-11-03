@@ -12,11 +12,9 @@ from typing import (
     Iterable,
     Optional,
     Self,
-    TypeVar,
     Union,
 )
 
-H = TypeVar("H", bound=Hashable)
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type Metadata = dict[Hashable, Any]
@@ -49,7 +47,11 @@ from ..connection.alignment import (
     ConnectorAntialignmentRigid,
     ConnectorAntialignmentBallistic,
 )
-from ..connection.linking import deduce_connections_from_topology, GraphIterRule
+from ..connection.linking import (
+    assign_connections_from_topology,
+    deduce_connections_from_topology,
+    GraphIterRule,
+)
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
