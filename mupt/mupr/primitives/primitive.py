@@ -39,7 +39,10 @@ from ..connection.management import (
     ConnectorManagerFrozen,
     ConnectorManagerMutable,
 )
-from ..connection.alignment import ConnectorAntialignmentBallistic
+from ..connection.alignment import (
+    ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentBallistic,
+)
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
@@ -523,6 +526,36 @@ class Primitive(
                 return True
         else:
             return False
+
+    def connect_neighbor(
+        self,
+        other: "Primitive",
+        our_connector: Union[ConnectorAddress, Connector],
+        their_connector: Union[ConnectorAddress, Connector],
+        alignment_strategy: Optional[ConnectorAntialignmentStrategy] = None,
+    ) -> None:
+        """
+        Forge a new connection to another Primitive
+
+        If explicit Connectors are provided for either or both
+        Primitives,will use those as halves of the connection;
+        Otherwise, will attempt to deduce a unique choice using the linking algorithm
+        """
+        our_connector_chosen: Connector = self.fetch_connector(our_connector)
+        their_connector_chosen: Connector = other.fetch_connector(their_connector)
+        our_connector_chosen.neighbor = their_connector_chosen
+
+        # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
+        if alignment_strategy is not None:
+            alignment_strategy.antialign(
+                align_connector=their_connector_chosen,
+                to_connector=our_connector_chosen,
+            )
+            alignment_transform = alignment_strategy.antialignment_transformation(
+                align_connector=their_connector_chosen,
+                to_connector=our_connector_chosen,
+            )  # Suppress on already-aligned chosen Connectors
+            other.rigidly_transform(alignment_transform)
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
