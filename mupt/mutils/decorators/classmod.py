@@ -1,6 +1,6 @@
 """Decorators for modifying classes"""
 
-from typing import Any, Callable, Iterable, Optional, TypeVar, Union
+from typing import Callable, Iterable, Optional, TypeVar, Union
 from typing import Protocol, cast, overload
 from functools import wraps
 
