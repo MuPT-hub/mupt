@@ -28,7 +28,7 @@ from anytree.search import findall
 from anytree.render import RenderTree
 from anytree.util import commonancestors
 
-from networkx.classes import DiGraph
+from networkx.classes import Graph, DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
@@ -46,6 +46,7 @@ from ..connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentBallistic,
 )
+from ..connection.linking import deduce_connections_from_topology, GraphIterRule
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
@@ -540,10 +541,11 @@ class Primitive(
     def connect_neighbor(
         self,
         other: "Primitive",
-        our_connector: Union[ConnectorAddress, Connector],
-        their_connector: Union[ConnectorAddress, Connector],
+        our_connector: Optional[ConnectorAddress | Connector] = None,
+        their_connector: Optional[ConnectorAddress | Connector] = None,
         alignment_strategy: Optional[ConnectorAntialignmentStrategy] = None,
         align_to_us: bool = True,
+        n_iter_max_rule: Optional[GraphIterRule] = None,
     ) -> None:
         """
         Forge a new connection to another Primitive
@@ -553,8 +555,27 @@ class Primitive(
         Otherwise, will attempt to deduce a unique choice using the linking algorithm
         """
         # verify both Connectors actually exist on their respective Primitive
-        our_connector_chosen: Connector = self.fetch_connector(our_connector)
-        their_connector_chosen: Connector = other.fetch_connector(their_connector)
+        # to be used as keys identifying edge in graph
+        prim_edge: tuple[Primitive, Primitive] = (self, other)
+        mapped_connectors: dict[PrimitiveAddress, set[Connector]] = dict()
+        if our_connector is None:
+            mapped_connectors[self] = {self.fetch_connector(our_connector)}
+        else:
+            mapped_connectors[self] = set(self.connections.connectors_free)
+
+        if our_connector is None:
+            mapped_connectors[other] = {self.fetch_connector(their_connector)}
+        else:
+            mapped_connectors[other] = set(other.connections.connectors_free)
+
+        # TB: deducing, rather than assigning, to get access
+        # to chosen Connectors for geometric alignment
+        conn_map = deduce_connections_from_topology(
+            topology=Graph([prim_edge]),
+            mapped_connectors=mapped_connectors,
+            n_iter_max_rule=n_iter_max_rule,
+        )
+        our_connector_chosen, their_connector_chosen = conn_map[prim_edge]
 
         if align_to_us:
             # former <=> the thing being aligned to
