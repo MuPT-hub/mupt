@@ -14,34 +14,6 @@ from mupt.mupr.primitives.simple import SimplePrimitive
 from mupt.mupr.primitives.visualize import visualize_hierarchy
 
 
-def test_hierarchy_tree_includes_constructor_children() -> None:
-    """Keep constructor-supplied children in the exported hierarchy"""
-    # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946041
-    child = CompositePrimitive(label="child")
-    root = RootPrimitive(label="root", children=[child])
-
-    graph = root.hierarchy_tree()
-
-    assert graph.number_of_nodes() == 2
-    assert graph.number_of_edges() == 1
-    assert graph.has_edge(root, child)
-
-
-def test_hierarchy_tree_preserves_equivalent_siblings() -> None:
-    """Keep separate hierarchy nodes for equivalent sibling Primitives"""
-    # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4328033416
-    root = RootPrimitive(label="root")
-    left = SimplePrimitive(label="left")
-    right = SimplePrimitive(label="right")
-    root.attach_child(left)
-    root.attach_child(right)
-
-    graph = root.hierarchy_tree()
-
-    assert graph.number_of_nodes() == 3
-    assert graph.number_of_edges() == 2
-
-
 # @pytest.fixture
 # def hierarchy_axes() -> Generator[Axes, None, None]:
 #     """Provide drawing axes and clean up the figure even when drawing fails"""

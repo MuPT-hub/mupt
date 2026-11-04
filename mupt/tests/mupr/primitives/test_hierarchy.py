@@ -173,3 +173,31 @@ def test_hierarchy_assembly():
 
     for simple, ancestors_expected in ancestry_expected.items():
         assert simple.ancestors == ancestors_expected
+
+
+# hierarchy_tree tests: origniated from this discussion:
+# https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946041
+def test_hierarchy_tree_includes_constructor_children() -> None:
+    """Keep constructor-supplied children in the exported hierarchy"""
+    child = CompositePrimitive(label="child")
+    root = RootPrimitive(label="root", children=[child])
+
+    graph = root.hierarchy_tree()
+
+    assert graph.number_of_nodes() == 2
+    assert graph.number_of_edges() == 1
+    assert graph.has_edge(root, child)
+
+
+def test_hierarchy_tree_preserves_equivalent_siblings() -> None:
+    """Keep separate hierarchy nodes for equivalent sibling Primitives"""
+    root = RootPrimitive(label="root")
+    left = SimplePrimitive(label="left")
+    right = SimplePrimitive(label="right")
+    root.attach_child(left)
+    root.attach_child(right)
+
+    graph = root.hierarchy_tree()
+
+    assert graph.number_of_nodes() == 3
+    assert graph.number_of_edges() == 2
