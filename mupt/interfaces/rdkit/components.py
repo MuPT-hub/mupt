@@ -5,6 +5,7 @@ Utilities for extracting information from and recasting RDKit objects
 
 from typing import (
     Callable,
+    Container,
     Generator,
     Hashable,
     Iterable,
@@ -28,6 +29,7 @@ from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
 
 # Custom
 from ...chemistry.rdkit.linkers import anchor_and_linker_idxs
+from ...chemistry.conversion import rdkit_atom_to_element
 from ...chemistry.rdkit.selection import (
     AtomCondition,
     BondCondition,
@@ -38,11 +40,36 @@ from ...chemistry.rdkit.selection import (
     bond_condition_by_atom_condition_factory,
 )
 from ...geometry.arraytypes import Vector3
-from ...mupr.connection import (
-    Connector,
-    ConnectorLabel,
-    AttachmentPoint,
-)
+from ...mupr.connection.types import ConnectorLabel
+from ...mupr.connection.connectors import Connector, AttachmentPoint
+
+type AtomLabeller = Callable[[Atom], Hashable]
+type AttachablesFactory = Callable[
+    [Atom], Container[Hashable]
+]  # Container is covariant
+
+
+def DEFAULT_ATOM_LABELLER(atom: Atom) -> str:
+    """
+    Default implementation of creating a commonly-understood
+    hashable label from an RDKit Atom instance
+    """
+    # return str(atom.GetIdx())
+    return f"{rdkit_atom_to_element(atom)!s}-{atom.GetIdx()}"
+
+
+def DEFAULT_CONNECTOR_LABELLER(connector: Connector) -> ConnectorLabel:
+    """Default implementation for auto-assgining labels to Connector instances"""
+    return connector.DEFAULT_LABEL
+
+
+def DEFAULT_ATTACHABLES_FACTORY(atom: Atom) -> set[int]:
+    """
+    Default implementation for generating attachable
+    type label sets from Atom instances
+    """
+    # return {atom.GetIdx()}
+    return {map_num} if (map_num := atom.GetAtomMapNum()) else set()
 
 
 # Representation component initializers
