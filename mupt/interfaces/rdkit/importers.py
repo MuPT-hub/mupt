@@ -29,7 +29,8 @@ from ...chemistry.rdkit.labelling import name_for_rdkit_mol
 from ...chemistry.rdkit.linkers import is_linker
 from ...chemistry.conversion import rdkit_atom_to_element
 
-from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
+from ...mupr.primitives.primitive import SupportsChildren
+from ...mupr.primitives.root import RootPrimitive
 from ...mupr.primitives.composite import CompositePrimitive
 from ...mupr.primitives.simple.atomic import AtomicPrimitive
 from ...mupr.connection.connectors import Connector
@@ -162,8 +163,8 @@ def primitive_from_rdkit_component(
             if (mapnum := atom.GetAtomMapNum()) in {1, 2}:
                 # TB: change to looks from isotope eventually, opening up more values?
                 chain_direction = TraversalDirection(mapnum)
-                connector.anchor.attachables.add(chain_direction)
-                connector.linker.attachables.add(
+                connector.anchor.markers.add(chain_direction)
+                connector.linker.markers.add(
                     TraversalDirection.complement(chain_direction)
                 )
 
@@ -221,7 +222,7 @@ def primitive_from_rdkit(
     sanitize_frags: bool = True,
     denest: bool = True,
     **kwargs,
-) -> PrimitiveLegacy:
+) -> SupportsChildren:
     """
     Initialize a Primitive hierarchy from an
     RDKit Mol representing one or more molecules
@@ -236,7 +237,6 @@ def primitive_from_rdkit(
         fragsMolAtomMapping=None,
     )
 
-    # if only 1 chain is present, fall back to single-chain importer
     if (len(chains) == 1) and denest:
         return primitive_from_rdkit_component(
             chains[0],
@@ -245,19 +245,17 @@ def primitive_from_rdkit(
             smiles_writer_params=smiles_writer_params,
             **kwargs,
         )
-    # otherwise, bind Primitives for each chain to "universal" root Primitive
-    else:
-        # DEV: deliberately excluding metadata here to
-        # avoid squashing that of individual chains
-        universe_primitive = PrimitiveLegacy(label=label)
-        for chain in chains:
-            universe_primitive.attach_child(
-                primitive_from_rdkit_component(
-                    chain,
-                    conformer_idx=conformer_idx,
-                    label=None,  # impose default label for each individual chain
-                    smiles_writer_params=smiles_writer_params,
-                    **kwargs,
-                )
+
+    # DEV: deliberately excluding metadata here to not crowd out per-mol metadata
+    universe_primitive = RootPrimitive(label=label)
+    for chain in chains:
+        universe_primitive.attach_child(
+            primitive_from_rdkit_component(
+                chain,
+                conformer_idx=conformer_idx,
+                label=None,  # impose default label for each individual chain
+                smiles_writer_params=smiles_writer_params,
+                **kwargs,
             )
-        return universe_primitive
+        )
+    return universe_primitive
