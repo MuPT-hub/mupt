@@ -400,6 +400,7 @@ class Primitive(
         self.root._unfreeze_connections_subsequent()
 
     ## Modifying connectors
+    @precondition_mutable_connectors
     def _add_connector(
         ## N.B.: deliberately private; only Simples should have explicit access
         self,
@@ -412,6 +413,7 @@ class Primitive(
 
         return connector.address
 
+    @precondition_mutable_connectors
     def _remove_connector(
         self,
         connector_address: Connector | ConnectorAddress,
@@ -755,6 +757,7 @@ class SupportsChildren(Primitive):
         # TODO: remap connection info
         ...
 
+    @Primitive.precondition_mutable_hierarchy
     def attach_child(
         self,
         child: "SupportsParents",
@@ -784,6 +787,7 @@ class SupportsChildren(Primitive):
         """Post-actions to take once children are detached and parent is unbound"""
         super()._post_detach_children(children)
 
+    @Primitive.precondition_mutable_hierarchy
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
         """
         Unregister an existing child Primitive, making it no
