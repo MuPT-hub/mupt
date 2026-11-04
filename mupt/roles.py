@@ -102,7 +102,7 @@ def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
     has_strict_SAAMR_depth : The structural precondition for this function.
     """
     # imported at runtime to avoid circular reference with Primitive
-    from .mupr.primitives.properties import has_strict_SAAMR_depth
+    from .mupr.primitives.predicates import has_strict_SAAMR_depth
 
     if not has_strict_SAAMR_depth(prim):
         raise ValueError(
