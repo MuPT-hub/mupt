@@ -77,6 +77,7 @@ class AllAtomExportStrategy(MDAExportStrategy):
         """Human-readable strategy name."""
         return "All-atom"
 
+    # TODO: reimplement to use newstyle Primitive cross-section
     def collect_topology(
         self, root: PrimitiveLegacy, resname_map: dict[str, str]
     ) -> MDATopologyData:
