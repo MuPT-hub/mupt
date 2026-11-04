@@ -52,6 +52,7 @@ def visualize_topology(
 def visualize_hierarchy(
     prim: PrimitiveLegacy,
     hierarchy_tree: Optional[DiGraph] = None,
+    ax: Optional["Axes"] = None,
     use_handles_for_labels: bool = True,
     root_label: Optional[PrimitiveLabel] = None,
     **kwargs,
@@ -80,4 +81,4 @@ def visualize_hierarchy(
         kwargs["labels"] = label_map
         print(label_map)
 
-    return draw_networkx_tree(hierarchy_tree, **kwargs)
+    return draw_networkx_tree(hierarchy_tree, ax=ax, **kwargs)
