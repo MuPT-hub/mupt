@@ -23,7 +23,7 @@ import MDAnalysis as mda
 from MDAnalysis.core.topologyattrs import Bonds
 
 from .strategies import MDAExportStrategy, AllAtomExportStrategy, MDATopologyData
-from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
+from ...mupr.primitives.primitive import Primitive
 
 
 def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
@@ -48,7 +48,7 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
     atom_resindex = np.asarray(data.atom_resindex, dtype=int)
     residue_segindex = np.asarray(data.residue_segindex, dtype=int)
 
-    num_atoms = len(data.atom_elements)
+    num_atoms = len(data.atom_names)
     num_residues = len(data.residue_names)
     num_segments = data.num_segments
 
@@ -68,8 +68,11 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
 
     # Topology attributes
     universe.add_TopologyAttr("name", data.atom_names)
-    universe.add_TopologyAttr("type", data.atom_elements)
-    universe.add_TopologyAttr("element", data.atom_elements)
+    universe.add_TopologyAttr("type", data.atom_types or data.atom_elements)
+    if data.atom_elements:  # absent for coarse-grained beads
+        universe.add_TopologyAttr("element", data.atom_elements)
+    if data.atom_masses:
+        universe.add_TopologyAttr("masses", np.asarray(data.atom_masses, dtype=float))
     universe.add_TopologyAttr("resname", data.residue_names)
     universe.add_TopologyAttr("resid", data.residue_ids)
 
@@ -87,7 +90,7 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
             universe.add_TopologyAttr(bond_attr)
             LOGGER.info(
                 f"Added {len(data.bonds)} bonds with "
-                "{len(data.bond_orders)} bond orders"
+                f"{len(data.bond_orders)} bond orders"
             )
 
             order_counts = Counter(data.bond_orders)
@@ -104,7 +107,7 @@ def _build_mda_universe(data: MDATopologyData) -> mda.Universe:
 
 
 def primitive_to_mdanalysis(
-    univprim: PrimitiveLegacy,
+    univprim: Primitive,
     resname_map: dict[str, str],
     strategy: Optional[MDAExportStrategy] = None,
 ) -> mda.Universe:
@@ -139,9 +142,10 @@ def primitive_to_mdanalysis(
     Raises
     ------
     ValueError
-        If the Primitive hierarchy lacks required role assignments.
-        Use :func:`~mupt.mupr.roles.assign_SAAMR_roles` for standard
-        hierarchies or assign roles manually.
+        If no Primitive has role ``"segment"``, a segment has no ``"residue"``
+        Primitive, segments or residues are nested in one another, a residue
+        has nothing to export, some atoms are outside every segment/residue,
+        or a residue name is not 3 characters long.
 
     Notes
     -----
@@ -151,10 +155,15 @@ def primitive_to_mdanalysis(
     - Atom names are set to element symbols (atom-type agnostic approach)
     - Coordinates are extracted from atom centroids, defaulting to the
       strategy's ``default_atom_position`` (``[0,0,0]`` unless overridden)
-    - The four SAAMR roles (UNIVERSE, SEGMENT, RESIDUE, PARTICLE) are the
-      only roles recognized for MDAnalysis export, but the tree may contain
-      intermediate nodes at any depth between these roles. Such nodes carry
-      ``PrimitiveRole.UNASSIGNED`` and are traversed transparently.
+    - Segments and residues are the Primitives with role ``"segment"`` and
+      ``"residue"`` (a ``PrimitiveRole`` member or its string value); they may
+      sit at any depth, with untagged grouping Primitives in between.
+    - Atoms are written segment by segment and residue by residue, so every
+      residue and segment is contiguous, as PDB, GRO and PSF files require.
+    - Residue names come from ``residue.metadata["residue_name"]`` if set,
+      otherwise from ``resname_map[residue.label]``, otherwise the label.
+    - For 1-bead-per-residue output, use
+      :class:`~mupt.interfaces.mdanalysis.strategies.CoarseGrainedExportStrategy`.
 
     Examples
     --------
