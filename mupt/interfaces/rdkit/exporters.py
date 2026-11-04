@@ -1,5 +1,6 @@
 """Writers which convert the MuPT molecular representation out to RDKit Mols"""
 
+# TB TODO: update to work with cross sections
 from typing import Iterator, Optional
 import warnings
 
