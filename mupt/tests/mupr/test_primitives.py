@@ -6,7 +6,8 @@ import pytest
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 
-from mupt.mupr.primitives import Primitive, visualize_hierarchy
+from mupt.mupr.primitives.primitive import Primitive
+from mupt.mupr.primitives.visualize import visualize_hierarchy
 
 
 def test_hierarchy_tree_includes_constructor_children() -> None:
