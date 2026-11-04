@@ -115,6 +115,19 @@ def chemical_graph_from_rdkit(
     )
 
 
+def atom_radius_from_rdkit(atom: Atom) -> Optional[float]:
+    """Recover a float-valued atomic radius from an RDKit atom's properties"""
+    # TB: append to this as needed
+    ATOMIC_RADIUS_KEYS: tuple[str, ...] = ("radius", "rad", "r_LJ")
+    for radius_key in ATOMIC_RADIUS_KEYS:
+        try:
+            return atom.GetDoubleProp(radius_key)
+        except KeyError:
+            continue
+    else:
+        return None  # TB: strictly redundant, but added for readability
+
+
 def atom_positions_from_rdkit(
     rdmol: Mol,
     conformer_idx: Optional[int] = None,
