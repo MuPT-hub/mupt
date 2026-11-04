@@ -429,7 +429,8 @@ class SupportsChildren(Primitive):
         this one in the resolution hierarchy
         """
         child.parent = self
-        child.label = label
+        if label is not None:
+            child.label = label
         self.children_by_address[child.address] = child
 
         return child.address
