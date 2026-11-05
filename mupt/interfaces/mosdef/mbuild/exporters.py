@@ -106,7 +106,7 @@ def primitive_to_mbuild(
     particle_of: dict[PrimitiveAddress, Compound] = {}
     compound_root = _primitive_to_mbuild_compound(
         prim,
-        name=name,
+        name=(str(prim.label) if (name is None) else name),
         coords_to_nm=coords_to_nm,
     )
     particle_of[prim.address] = compound_root
@@ -120,7 +120,7 @@ def primitive_to_mbuild(
         ):
             intercompound = _primitive_to_mbuild_compound(
                 interprim,
-                name=interprim.label,
+                name=str(interprim.label),
                 coords_to_nm=coords_to_nm,
             )
             particle_of[interprim.address] = intercompound
@@ -131,7 +131,7 @@ def primitive_to_mbuild(
     for subprim in cross_section:
         subcompound = _primitive_to_mbuild_compound(
             subprim,
-            name=subprim.label,
+            name=str(subprim.label),
             coords_to_nm=coords_to_nm,
             as_particle=True,
         )
