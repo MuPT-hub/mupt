@@ -103,11 +103,12 @@ def primitive_to_mbuild(
             "please supply a predicate to sub-select a cross-section to export"
         )
 
-    particle_of: dict[PrimitiveAddress, Compound] = {}
+    particle_of: dict[PrimitiveAddress, Compound] = dict()
     compound_root = _primitive_to_mbuild_compound(
         prim,
         name=(str(prim.label) if (name is None) else name),
         coords_to_nm=coords_to_nm,
+        as_particle=False,
     )
     particle_of[prim.address] = compound_root
 
@@ -122,6 +123,7 @@ def primitive_to_mbuild(
                 interprim,
                 name=str(interprim.label),
                 coords_to_nm=coords_to_nm,
+                as_particle=False,
             )
             particle_of[interprim.address] = intercompound
 
