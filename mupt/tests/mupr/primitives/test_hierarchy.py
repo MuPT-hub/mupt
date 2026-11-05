@@ -138,10 +138,36 @@ def test_frozen_hierarchy_propagates(prim: Primitive, hierarchy_depth: int) -> N
         (SimplePrimitive(), CompositePrimitive()),
     ],
 )
-def test_improper_hierarchy_disallowed(parent: Primitive, child: Primitive) -> None:
-    """Test that illegal parent-child relationships among Primitives are disallowed"""
+def test_improper_hierarchy_parent_disallowed(
+    parent: Primitive,
+    child: Primitive,
+) -> None:
+    """
+    Test that assigning illegal parent-child relationships
+    between Primitives through the 'parent' field is disallowed
+    """
     with pytest.raises((ArborescenceError, ImproperHierarchyError)):
         child.parent = parent
+
+
+@pytest.mark.parametrize(
+    "parent,child",
+    [
+        (SimplePrimitive(), RootPrimitive()),
+        (CompositePrimitive(), RootPrimitive()),
+        (SimplePrimitive(), CompositePrimitive()),
+    ],
+)
+def test_improper_hierarchy_children_disallowed(
+    parent: Primitive,
+    child: Primitive,
+) -> None:
+    """
+    Test that assigning illegal parent-child relationships
+    between Primitives through the 'children' field is disallowed
+    """
+    with pytest.raises((ArborescenceError, ImproperHierarchyError)):
+        parent.children = [child]
 
 
 # Hierarchy assembly
