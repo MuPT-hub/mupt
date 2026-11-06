@@ -9,7 +9,12 @@ from ..primitive import PrimitiveLabel, Metadata
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager
 from ....geometry.shapes.shapes import BoundedTransformableShape
-from ....chemistry.core import ElementLike, isatom, valence_allowed
+from ....chemistry.core import (
+    ELEMENTS as ELEMENTS,
+    ElementLike,
+    isatom,
+    valence_allowed,
+)
 
 
 class AtomicPrimitive(SimplePrimitive):
