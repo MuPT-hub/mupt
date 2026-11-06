@@ -36,11 +36,37 @@ from ..connection.alignment import ConnectorAntialignmentBallistic
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
+from ...mutils.decorators.classmod import precondition_factory
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
 from ...trees.digraph import anytree_to_networkx
 from ...trees.subselect import NodePredicate
 from ...trees.render import tree_render_style, ConcreteStyle
+
+
+# Custom Exceptions
+class ImproperHierarchyError(AttributeError):
+    """
+    Raised when attempting to use a sybtype of Primtiive in a
+    place where it can't be used in a hierarchical representation
+    """
+
+    pass
+
+
+class ArborescenceError(ImproperHierarchyError):
+    """Raised when trying to use a Root as the child of another Primitive"""
+
+    pass
+
+
+class IrreducibilityError(ImproperHierarchyError):
+    """
+    Raised when attempting to perform a
+    composite Primitive operation on a simple one
+    """
+
+    pass
 
 
 class Primitive(
@@ -158,7 +184,120 @@ class Primitive(
 
     # DEV: deliberately omitting setter; subtypes will impl particular procedures for it
 
-    # Wrapped properties
+    # Hierarchy
+    ## Invariants
+    # TB: in any hierarchy, key invariants that must be enforced at all times are:
+    # * Roots can never be the children of any other Primitive
+    # * Simples can never be the parent of any other Primitive
+
+    # N.B.: enforcing Simple-childfree and Root-parentfree is easy
+    # to do directly within their respective class definitions;
+    # the converses, parent-not-Simple and child-not-Root need to be enforced indirectly
+    # here because of how anytree's pre/post-conditions are handled on assignment
+    def _pre_attach(self, parent: "Primitive") -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Simple Primitives cannot be made the parents of other Primitives"
+            )
+
+    def _pre_detach(self, parent: "Primitive") -> None:
+        if parent.is_simple:
+            raise IrreducibilityError(
+                "Found hierarchy in undefined state, with "
+                "Simple Primitive as parent of another Primitive"
+            )
+
+    def _pre_attach_children(self, children: Iterable["Primitive"]) -> None:
+        # TODO: prevent roots from being assigned as children here
+        ...
+
+    def _pre_detach_children(self, children: Iterable["Primitive"]) -> None:
+        # TODO: prevent roots from being unassigned as children here
+        ...
+
+    ## Traversal
+    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
+        """Generate a directed Graph representing the hierarchy below this Primitive"""
+        return anytree_to_networkx(self, *args, **kwargs)
+
+    def search_hierarchy_by(
+        self,
+        predicate: NodePredicate["Primitive"],
+        halt_when: Optional[NodePredicate["Primitive"]] = None,
+        to_depth: Optional[int] = None,
+        min_count: Optional[int] = None,
+        max_count: Optional[int] = None,
+    ) -> tuple["Primitive"]:
+        """
+        Return all Primitives below this one in the hierarchy (not just children,
+        but anything below them as well!) which match the provided condition.
+
+        Matching descendant Primitives are returned in traversal preorder from the root
+        """
+        return findall(
+            self,
+            filter_=predicate,
+            stop=halt_when,
+            maxlevel=to_depth,
+            mincount=min_count,
+            maxcount=max_count,
+        )
+
+    ## Configuring mutability of hierarchy
+    (
+        frozen_hierarchy,
+        _precondition_mutable_hierarchy,
+        precondition_mutable_hierarchy,
+    ) = precondition_factory(
+        "_frozen_hierarchy",
+        "Hierarchy of this Primitive is read-only accessible; "
+        "no new incoming or outgoing relationships allowed.",
+    )
+
+    ### Freeze
+    def _freeze_hierarchy_local(self) -> None:
+        """Prevent modification of parents/children of this Primitive ONLY"""
+        self._frozen_hierarchy = True
+
+    def _freeze_hierarchy_subsequent(self) -> None:
+        """
+        Prevent modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_hierarchy_local()
+
+    def freeze_hierarchy(self) -> None:
+        """
+        Prevent modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._freeze_hierarchy_subsequent()
+
+    ### Unfreeze
+    def _unfreeze_hierarchy_local(self) -> None:
+        """Enable modification of parents and children of this Primitive ONLY"""
+        self._frozen_hierarchy = False
+
+    def _unfreeze_hierarchy_subsequent(self) -> None:
+        """
+        Enable modification of parents/children of this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_hierarchy_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_hierarchy_local()
+
+    def unfreeze_hierarchy(self) -> None:
+        """
+        Enable modification of parents/children of all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        self.root._unfreeze_hierarchy_subsequent()
+
+    # Connectivity
+    ## Reading
     @property
     def connectors(self) -> Collection[Connector]:
         """Convenience wrapper for accessing ALL connectors managed by this Primitive"""
@@ -170,7 +309,34 @@ class Primitive(
         """Number of free Connections this Primitive has access to"""
         return self.connections.functionality
 
-    # Copying
+    def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
+        """Fetch a connector managed by this Priomitive, if it exists"""
+        return self.connections.connector(connector_address_flexible(conn))
+
+    ## Modifying
+    def _add_connector(
+        ## N.B.: deliberately private; only Simples should have explicit access
+        self,
+        connector: Connector,
+        label: Optional[ConnectorLabelLike] = None,
+    ) -> ConnectorAddress:
+        """Add a new Connector to those managed locally"""
+        # TB: label is irrelevant w/ addresses; keeping
+        # only in case handles prove useful to add later
+        self.connections.add_connector(connector, label=label)
+        # N.B.: connector.holder deliberately not set here
+
+        return connector.address
+
+    def _remove_connector(
+        self,
+        connector_address: Connector | ConnectorAddress,
+    ) -> Connector:
+        """Remove an existing Connector from those managed locally"""
+        # N.B.: connector neighbor deliberately untouched here
+        return self.connections.remove_connector(connector_address)
+
+    # Copying - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
         """
         Make copy of the current Primitive, WITHOUT any
@@ -203,7 +369,6 @@ class Primitive(
 
         return own_copy, orig_prim_to_new_prim
 
-    ## implement Copyable contract on RigidlyTransformable
     def _copy_untransformed(self) -> Self:
         """
         Create a copy which has a complete hierarchy and connectivity below it
@@ -293,61 +458,6 @@ class Primitive(
             # aggregrate THE SAME Connectors managed here (don't double-transform)
             subprimitive._rigidly_transform_shape(transformation)
 
-    # Hierarchy
-    def search_hierarchy_by(
-        self,
-        predicate: NodePredicate["Primitive"],
-        halt_when: Optional[NodePredicate["Primitive"]] = None,
-        to_depth: Optional[int] = None,
-        min_count: Optional[int] = None,
-        max_count: Optional[int] = None,
-    ) -> tuple["Primitive"]:
-        """
-        Return all Primitives below this one in the hierarchy (not just children,
-        but anything below them as well!) which match the provided condition.
-
-        Matching descendant Primitives are returned in traversal preorder from the root
-        """
-        return findall(
-            self,
-            filter_=predicate,
-            stop=halt_when,
-            maxlevel=to_depth,
-            mincount=min_count,
-            maxcount=max_count,
-        )
-
-    def hierarchy_tree(self, *args, **kwargs) -> DiGraph:
-        """Generate a directed Graph representing the hierarchy below this Primitive"""
-        return anytree_to_networkx(self, *args, **kwargs)
-
-    # Topology
-    def fetch_connector(self, conn: ConnectorAddress | Connector) -> Connector:
-        """Fetch a connector managed by this Priomitive, if it exists"""
-        return self.connections.connector(connector_address_flexible(conn))
-
-    ## N.B.: deliberately private; only Simples should have explicit access
-    def _add_connector(
-        self,
-        connector: Connector,
-        label: Optional[ConnectorLabelLike] = None,
-    ) -> ConnectorAddress:
-        """Add a new Connector to those managed locally"""
-        # TB: label is irrelevant w/ addresses; keeping
-        # only in case handles prove useful to add later
-        self.connections.add_connector(connector, label=label)
-        # N.B.: connector.holder deliberately not set here
-
-        return connector.address
-
-    def _remove_connector(
-        self,
-        connector_address: Connector | ConnectorAddress,
-    ) -> Connector:
-        """Remove an existing Connector from those managed locally"""
-        # N.B.: connector neighbor deliberately untouched here
-        return self.connections.remove_connector(connector_address)
-
     # Depiction
     def __str__(self) -> str:
         """
@@ -416,9 +526,25 @@ class SupportsChildren(Primitive):
     fetch_primitive = child
 
     # Hierarchy management
-    # TB: consider making these wrappers & moving core logic to _pre_attach/_post_attach
+    # TB: consider removing attach_detach child wrappers
+    # and moving core logic to _pre_attach/_post_attach
 
     ## Attachment
+    @Primitive.precondition_mutable_hierarchy
+    def _pre_attach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Preconditions prior to attempting to attach of this Primitive to a parent"""
+        super()._pre_attach_children(children)
+        # self._precondition_mutable_connectors()  # positions and neighbors may shift
+
+        for child in children:
+            child._precondition_mutable_hierarchy()
+
+    def _post_attach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Post-actions to take once children are attached and parent is bound"""
+        super()._post_attach_children(children)
+        # TODO: remap connection info
+        ...
+
     def attach_child(
         self,
         child: "SupportsParents",
@@ -436,6 +562,17 @@ class SupportsChildren(Primitive):
         return child.address
 
     ## Detachment
+    @Primitive.precondition_mutable_hierarchy(
+        msg="Hierarchy modification is forbidden this Primitive; cannot detach"
+    )
+    def _pre_detach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Preconditions prior to attempting detachment of this Primitive from parent"""
+        super()._pre_detach_children(children)
+
+    def _post_detach_children(self, children: Iterable["SupportsParents"]) -> None:
+        """Post-actions to take once children are detached and parent is unbound"""
+        super()._post_detach_children(children)
+
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
         """
         Unregister an existing child Primitive, making it no
@@ -455,6 +592,34 @@ class SupportsParents(Primitive):
     I.e. interpreting a representation hierarchy as a rooted tree,
     these Primitives are nodes which allow INCOMING directed edges
     """
+
+    # Hierarchy
+    # TB: you might be thinking it would be more natural to have checks on parent
+    # Primitives in SupportParent instead; the reason for having them here instead is
+    # setting children always calls `child.parent = new_parent_value` under the hood
+    @Primitive.precondition_mutable_hierarchy
+    def _pre_attach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
+        super()._pre_attach(parent)
+        parent._precondition_mutable_hierarchy()
+
+    def _post_attach(self, parent: SupportsChildren) -> None:
+        """Once parent is set, inject own Connectors into hierarchy"""
+        super()._post_attach(parent)
+        for connector in self.connectors:
+            self.inject_connector_into_hierarchy(connector)
+
+    @Primitive.precondition_mutable_hierarchy
+    def _pre_detach(self, parent: SupportsChildren) -> None:
+        """Ensure both parent and child are fully mutable"""
+        super()._pre_detach(parent)
+        parent._precondition_mutable_hierarchy()
+
+    def _post_detach(self, parent: SupportsChildren) -> None:
+        """Remove all local connectors from the hierarchy above self"""
+        super()._post_detach(parent)
+        for connector in self.connectors:
+            self.withdraw_connector_from_hierarchy(connector)
 
     # Topology
     def inject_connector_into_hierarchy(

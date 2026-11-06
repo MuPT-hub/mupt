@@ -11,7 +11,13 @@ from copy import deepcopy
 
 from numpy import eye as identity_matrix
 
-from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
+from .primitive import (
+    PrimitiveLabel,
+    Metadata,
+    ArborescenceError,
+    SupportsChildren,
+    SupportsParents,
+)
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.arraytypes import Array3x3
 from ...geometry.shapes.shapes import BoundedTransformableShape
@@ -52,7 +58,6 @@ class RootPrimitive(SupportsChildren):
             box_vectors = identity_matrix(3, dtype=float)
         self.box_vectors = box_vectors
 
-    # Copying
     def _copy_instance(self) -> Self:
         """
         Make a copy of this RootPrimitive WITHOUT any
@@ -66,3 +71,16 @@ class RootPrimitive(SupportsChildren):
             label=deepcopy(self.label),
         )
         return clone
+
+    # Hierarchy
+    def _pre_attach(self, parent: SupportsChildren) -> None:
+        super()._pre_attach(parent)
+        raise ArborescenceError(
+            "Cannot make Root of hierarchy the child of another Primitive"
+        )
+
+    def _pre_detach(self, parent: SupportsChildren) -> None:
+        super()._pre_detach(parent)
+        raise ArborescenceError(
+            "Invalid state: Root is somehow the child of another Primitive"
+        )
