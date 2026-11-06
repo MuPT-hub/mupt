@@ -46,9 +46,15 @@ class PrimitiveRole(Enum):
     RESIDUE = "residue"
     PARTICLE = "particle"
 
+    # TB: may consider an alias system like in trees.render for UX; low priority
     @classmethod
     def from_str(cls, role_str: str) -> "PrimitiveRole":
         """Get an PrimitiveRole enum instance from a case-insensitive string input"""
+        if not isinstance(role_str, str):
+            raise TypeError(
+                f"Cannot initialize {cls.__name__} from an "
+                f"instance of {type(role_str).__name__} instance"
+            )
         # return cls[role_str.upper()]  # lookup by key
         return cls(role_str.lower())  # lookup by value
 
