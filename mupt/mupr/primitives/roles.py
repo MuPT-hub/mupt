@@ -12,6 +12,7 @@ from anytree import PreOrderIter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .primitive import Primitive
     from .primitives_legacy import PrimitiveLegacy
 
 
@@ -52,7 +53,9 @@ class PrimitiveRole(Enum):
         return cls(role_str.lower())  # lookup by value
 
 
-def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
+# TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
+# functionality dependeing on PrimitiveLegacy has been refactored
+def has_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> bool:
     """Check whether a Primitive hierarchy has all four SAAMR roles assigned.
 
     This checks for role *presence* in the tree, not structural depth.
@@ -84,7 +87,9 @@ def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
     return required.issubset(present)
 
 
-def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
+# TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
+# functionality dependeing on PrimitiveLegacy has been refactored
+def assign_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> None:
     """Assign PDB-like export roles for a strict depth-3 SAAMR hierarchy.
 
     Walks the tree by depth (0/1/2/3) and assigns UNIVERSE, SEGMENT,
