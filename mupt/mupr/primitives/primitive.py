@@ -7,6 +7,7 @@ from typing import (
     Any,
     ClassVar,
     Collection,
+    Generator,
     Hashable,
     Iterable,
     Optional,
@@ -24,6 +25,7 @@ from anytree.node import NodeMixin
 from anytree.iterators import LevelOrderIter
 from anytree.search import findall
 from anytree.render import RenderTree
+from anytree.util import commonancestors
 
 from networkx.classes import DiGraph
 
@@ -31,16 +33,26 @@ from scipy.spatial.transform import RigidTransform
 
 from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
-from ..connection.management import ConnectorManager, connector_address_flexible
-from ..connection.alignment import ConnectorAntialignmentBallistic
+from ..connection.management import (
+    connector_address_flexible,
+    ConnectorManager,
+    ConnectorManagerFrozen,
+    ConnectorManagerMutable,
+)
+from ..connection.alignment import (
+    ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentBallistic,
+)
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
 from ...mutils.decorators.classmod import precondition_factory
+
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
+
 from ...trees.digraph import anytree_to_networkx
-from ...trees.subselect import NodePredicate
+from ...trees.subselect import NodePredicate, primoprogenitors
 from ...trees.render import tree_render_style, ConcreteStyle
 
 
@@ -67,6 +79,19 @@ class IrreducibilityError(ImproperHierarchyError):
     """
 
     pass
+
+
+# Primitive selection
+def indiscriminate_selector(prim: "Primitive") -> bool:
+    """
+    Selector which always greenlights the passed Primitive no matter what
+    Useful for avoiding lamba overhead
+    """
+    # TB: move this to .properties? (be careful to avoid circular references)
+    return True
+
+
+DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
 
 
 class Primitive(
@@ -243,7 +268,7 @@ class Primitive(
             maxcount=max_count,
         )
 
-    ## Configuring mutability of hierarchy
+    ## Hierarchy mutability
     (
         frozen_hierarchy,
         _precondition_mutable_hierarchy,
@@ -251,7 +276,7 @@ class Primitive(
     ) = precondition_factory(
         "_frozen_hierarchy",
         "Hierarchy of this Primitive is read-only accessible; "
-        "no new incoming or outgoing relationships allowed.",
+        "no new or modified parent/child relationships allowed.",
     )
 
     ### Freeze
@@ -313,7 +338,69 @@ class Primitive(
         """Fetch a connector managed by this Priomitive, if it exists"""
         return self.connections.connector(connector_address_flexible(conn))
 
-    ## Modifying
+    ## Connector mutability
+    (
+        frozen_connections,
+        _precondition_mutable_connectors,
+        precondition_mutable_connectors,
+    ) = precondition_factory(
+        "_frozen_connections",
+        "Connectors of this Primitive is read-only accessible; "
+        "no new or modified neighbor relationships allowed.",
+    )
+
+    ### Freezing
+    def _freeze_connections_local(self) -> None:
+        """Prevent modification of Connectors on this Primitive ONLY"""
+        self.connections = ConnectorManagerFrozen(*self.connections.connectors)
+        self._frozen_connections = True
+
+    def _freeze_connections_subsequent(self) -> None:
+        """
+        Prevent modification of Connectors managed by this
+        Primitive and any below it in the hierarchy
+        """
+        self._freeze_connections_local()
+        for subprimitive in self.descendants:
+            subprimitive._freeze_connections_local()
+
+    def freeze_connections(self) -> None:
+        """
+        Prevent modification of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        # TB: from root, since it doesn't make sense to just freeze parts of hierarchy;
+        # if one bit is frozen, it causes all others touching it to also freeze
+        # Note that "root" is not necessarily a RootPrimitive,
+        # but rather the topmost Primitive ancestor in the current hierarchy
+        self.root._freeze_connections_subsequent()
+
+    ### Unfreezing
+    def _unfreeze_connections_local(self) -> None:
+        """Allow modification of Connectors on this Primitive ONLY"""
+        self.connections = ConnectorManagerMutable(*self.connections.connectors)
+        self._frozen_connections = False
+
+    def _unfreeze_connections_subsequent(self) -> None:
+        """
+        Allow modification of Connectors managed by this
+        Primitive and any below it in the hierarchy
+        """
+        self._unfreeze_connections_local()
+        for subprimitive in self.descendants:
+            subprimitive._unfreeze_connections_local()
+
+    def unfreeze_connections(self) -> None:
+        """
+        Allow modification of any Connectors on all Primitives in
+        the hierarchy of this Primitive, even below AND above it
+        """
+        # TB: Similarly, unfreeze from root down, since it doesn't
+        # make sense to only have parts of hierarchy be mutable
+        self.root._unfreeze_connections_subsequent()
+
+    ## Modifying connectors
+    @precondition_mutable_connectors
     def _add_connector(
         ## N.B.: deliberately private; only Simples should have explicit access
         self,
@@ -321,13 +408,12 @@ class Primitive(
         label: Optional[ConnectorLabelLike] = None,
     ) -> ConnectorAddress:
         """Add a new Connector to those managed locally"""
-        # TB: label is irrelevant w/ addresses; keeping
-        # only in case handles prove useful to add later
         self.connections.add_connector(connector, label=label)
         # N.B.: connector.holder deliberately not set here
 
         return connector.address
 
+    @precondition_mutable_connectors
     def _remove_connector(
         self,
         connector_address: Connector | ConnectorAddress,
@@ -336,7 +422,144 @@ class Primitive(
         # N.B.: connector neighbor deliberately untouched here
         return self.connections.remove_connector(connector_address)
 
-    # Copying - implements Copyable contract on RigidlyTransformable
+    ## Neighborship
+    def potential_neighbors_with_connectors(
+        self,
+    ) -> Generator[tuple[Connector, Connector, tuple["Primitive", ...]], None, None]:
+        """
+        Generate all potential neighbors, along with the
+        Connectors linking them to *this* Primitive
+
+        Yields
+        ------
+        our_conn, their_conn, nb_path : tuple[Connector, Connector, tuple[Primitive]]
+            The pair of Connectors linking this Primitive to a branch of neighbor,
+            and the branch of all (non-internal) neighbors at the other end, arranged
+            by order in the hierarchy (i.e. least-deep first)
+        """
+        for our_connector in self.connections.connectors_bound:
+            # any superprimitives which share connectors with the holder are
+            # also considered neighbors; this is what enables multiscaling
+            their_connector: Connector = our_connector.neighbor
+            neighbor_leaf: Primitive = their_connector.holder
+            # TB TODO: finesse typehints to suppress (perceived) unset NoneType values
+
+            # avoid "internal" neighbors (of whom *this* Primitive is also a parent)
+            if self in neighbor_leaf.path:
+                continue
+
+            common_ancestors: tuple[Primitive, ...] = commonancestors(
+                self,
+                neighbor_leaf,
+            )
+            neighbor_branch: tuple[Primitive, ...] = tuple(
+                potential_neighbor
+                for potential_neighbor in neighbor_leaf.path
+                if potential_neighbor not in common_ancestors
+            )
+
+            yield our_connector, their_connector, neighbor_branch
+
+    def potential_neighbors(self) -> Generator[tuple["Primitive", ...], None, None]:
+        """Generate the non-internal neigbhor branches connected to this Primitive"""
+        for _, _, neighbor_branch in self.potential_neighbors_with_connectors():
+            yield neighbor_branch
+
+    def neighbors_with_connectors(
+        self,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
+    ) -> Generator[tuple[Connector, Connector, "Primitive"], None, None]:
+        """
+        Generates the two Connectors which constitute a connection
+        to a neighboring Primitive, as well as that Primitive itself
+        Yields as (our_connector, their_connector, them) tuples
+
+        Can sub-select among resolutions of neighbor
+        branches using a predicate, if provided
+        """
+        for (
+            our_connector,
+            their_connector,
+            neighbor_branch,
+        ) in self.potential_neighbors_with_connectors():
+            # TB: will raise ValueError on empty branch
+            # should never happen if holders are set correctly, but am
+            # leaving note here to speed up debugging in case it ever does
+            branch_root, *successors_list = neighbor_branch
+            successors_iter = iter(successors_list)
+
+            def successors(prim: "Primitive") -> list["Primitive"]:
+                """
+                Replacement for prim.children when stepping thru this branch
+
+                Wrapper avoids StopIteration on shallow branches
+                """
+                next_prim: Optional["Primitive"] = next(successors_iter, None)
+                if next_prim is None:
+                    return []
+                return [next_prim]
+
+            for chosen_neighbor in primoprogenitors(
+                branch_root, predicate=predicate, successors=successors
+            ):
+                yield our_connector, their_connector, chosen_neighbor
+
+    def neighbors(
+        self,
+        predicate: NodePredicate["Primitive"] = DEFAULT_PREDICATE,
+    ) -> Generator["Primitive", None, None]:
+        """
+        Primitives whose share a Connection with this one
+
+        Can sub-select among resolutions of neighbor
+        branches using a predicate, if provided
+        """
+        for _, _, neighbor in self.neighbors_with_connectors(predicate=predicate):
+            yield neighbor
+
+    def is_neighbors_with(self, other: "Primitive") -> bool:
+        """
+        Whether this Primitive is a neighbor of the other Primitive
+
+        This relation is symmetric, i.e. a.is_neighbor_of(b) <=> b.is_neighbor_of(a)
+        """
+        for neighbor_branch in self.potential_neighbors():
+            if other in neighbor_branch:
+                return True
+        else:
+            return False
+
+    def connect_neighbor(
+        self,
+        other: "Primitive",
+        our_connector: Union[ConnectorAddress, Connector],
+        their_connector: Union[ConnectorAddress, Connector],
+        alignment_strategy: Optional[ConnectorAntialignmentStrategy] = None,
+    ) -> None:
+        """
+        Forge a new connection to another Primitive
+
+        If explicit Connectors are provided for either or both
+        Primitives,will use those as halves of the connection;
+        Otherwise, will attempt to deduce a unique choice using the linking algorithm
+        """
+        our_connector_chosen: Connector = self.fetch_connector(our_connector)
+        their_connector_chosen: Connector = other.fetch_connector(their_connector)
+        our_connector_chosen.neighbor = their_connector_chosen
+
+        # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
+        if alignment_strategy is not None:
+            alignment_strategy.antialign(
+                align_connector=their_connector_chosen,
+                to_connector=our_connector_chosen,
+            )
+            alignment_transform = alignment_strategy.antialignment_transformation(
+                align_connector=their_connector_chosen,
+                to_connector=our_connector_chosen,
+            )  # Suppress on already-aligned chosen Connectors
+            other.rigidly_transform(alignment_transform)
+
+    # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
         """
         Make copy of the current Primitive, WITHOUT any
@@ -353,19 +576,18 @@ class Primitive(
         """
         # TB: convert parts to address-based reference, if possible?
         orig_prim_to_new_prim: dict[Primitive, Primitive] = dict()
-        own_copy: Self = orig_prim_to_new_prim[self]
 
         for subprim in LevelOrderIter(self):
             clone_no_hierarchy_subprim = subprim._copy_instance()
             orig_prim_to_new_prim[subprim] = clone_no_hierarchy_subprim
-
             ## TB TODO: SupportsChildren is more accurate annotation, but
-            ## inverts inheritance hierarhyc; find way to get best of both
+            ## inverts inheritance hierarchy; find way to get best of both
             # new_parent: Optional[SupportsChildren] = orig_prim_to_new_prim.get(
             new_parent: Optional[Primitive] = orig_prim_to_new_prim.get(
                 subprim.parent, None
             )
             clone_no_hierarchy_subprim.parent = new_parent
+        own_copy: Self = orig_prim_to_new_prim[self]
 
         return own_copy, orig_prim_to_new_prim
 
@@ -530,11 +752,13 @@ class SupportsChildren(Primitive):
     # and moving core logic to _pre_attach/_post_attach
 
     ## Attachment
-    @Primitive.precondition_mutable_hierarchy
+    @Primitive.precondition_mutable_hierarchy(
+        msg="Hierarchy modification is forbidden this Primitive; cannot attach"
+    )
+    @Primitive.precondition_mutable_connectors  # positions and neighbors may shift
     def _pre_attach_children(self, children: Iterable["SupportsParents"]) -> None:
         """Preconditions prior to attempting to attach of this Primitive to a parent"""
         super()._pre_attach_children(children)
-        # self._precondition_mutable_connectors()  # positions and neighbors may shift
 
         for child in children:
             child._precondition_mutable_hierarchy()
@@ -545,6 +769,7 @@ class SupportsChildren(Primitive):
         # TODO: remap connection info
         ...
 
+    @Primitive.precondition_mutable_hierarchy
     def attach_child(
         self,
         child: "SupportsParents",
@@ -565,6 +790,7 @@ class SupportsChildren(Primitive):
     @Primitive.precondition_mutable_hierarchy(
         msg="Hierarchy modification is forbidden this Primitive; cannot detach"
     )
+    @Primitive.precondition_mutable_connectors  # positions and neighbors may shift
     def _pre_detach_children(self, children: Iterable["SupportsParents"]) -> None:
         """Preconditions prior to attempting detachment of this Primitive from parent"""
         super()._pre_detach_children(children)
@@ -573,6 +799,7 @@ class SupportsChildren(Primitive):
         """Post-actions to take once children are detached and parent is unbound"""
         super()._post_detach_children(children)
 
+    @Primitive.precondition_mutable_hierarchy
     def detach_child(self, prim_addr: PrimitiveAddress) -> Primitive:
         """
         Unregister an existing child Primitive, making it no
