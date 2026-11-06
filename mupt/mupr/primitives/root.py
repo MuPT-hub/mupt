@@ -11,13 +11,8 @@ from copy import deepcopy
 
 from numpy import eye as identity_matrix
 
-from .primitive import (
-    PrimitiveLabel,
-    Metadata,
-    ArborescenceError,
-    SupportsChildren,
-    SupportsParents,
-)
+from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
+from .exceptions import ArborescenceError
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.arraytypes import Array3x3
 from ...geometry.shapes.shapes import BoundedTransformableShape
@@ -45,9 +40,10 @@ class RootPrimitive(SupportsChildren):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
         self.connections = ConnectorManagerMutable()
         # N.B.: can't call _init_children before _frozen_hierarchy is set
         self._init_children(children)

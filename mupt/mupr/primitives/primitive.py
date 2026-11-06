@@ -31,6 +31,8 @@ from networkx.classes import DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
+from .exceptions import IrreducibilityError
+from .roles import PrimitiveRole
 from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
 from ..connection.management import (
@@ -54,31 +56,6 @@ from ...geometry.transforms.rigid import RigidlyTransformable
 from ...trees.digraph import anytree_to_networkx
 from ...trees.subselect import NodePredicate, primoprogenitors
 from ...trees.render import tree_render_style, ConcreteStyle
-
-
-# Custom Exceptions
-class ImproperHierarchyError(AttributeError):
-    """
-    Raised when attempting to use a sybtype of Primtiive in a
-    place where it can't be used in a hierarchical representation
-    """
-
-    pass
-
-
-class ArborescenceError(ImproperHierarchyError):
-    """Raised when trying to use a Root as the child of another Primitive"""
-
-    pass
-
-
-class IrreducibilityError(ImproperHierarchyError):
-    """
-    Raised when attempting to perform a
-    composite Primitive operation on a simple one
-    """
-
-    pass
 
 
 # Primitive selection
@@ -149,6 +126,7 @@ class Primitive(
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
     _mass: Optional[float]
+    _role: str
     metadata: Metadata
 
     _frozen_connections: bool
@@ -164,6 +142,7 @@ class Primitive(
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
         """
@@ -178,6 +157,7 @@ class Primitive(
         self._shape = shape
         self._label = label
         self._mass = mass
+        self._role = role
         self.metadata = metadata or dict()
 
     @property
@@ -201,6 +181,21 @@ class Primitive(
         if new_label is None:
             new_label = self.DEFAULT_LABEL
         self._label = new_label
+
+    @property
+    def role(self) -> str:
+        """A distinguishing label for use in export format identifiers"""
+        return self._role
+
+    @role.setter
+    def role(self, new_role: str) -> None:
+        """Reassign this Primitive's role"""
+        self._role = new_role
+
+    @property
+    def role_sanctioned(self) -> PrimitiveRole:
+        """Match role tag to one of the role types recognized within the MuPT source"""
+        return PrimitiveRole.from_str(self._role)
 
     @property  # TB: eventually, incorporate info about units
     def mass(self) -> Optional[float]:
@@ -737,6 +732,15 @@ class SupportsChildren(Primitive):
 
         for subprimitive in children:
             self.attach_child(subprimitive, label=subprimitive.label)
+
+    @property
+    def mass(self) -> Optional[float]:
+        """The assigned molecular mass of this Primitive"""
+        if self._mass is None:
+            # DEV: will raise TypeError if ANY subprim has unset mass (intentional)
+            self._mass = sum(child.mass for child in self.children)
+
+        return self._mass
 
     def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
         """

@@ -7,13 +7,8 @@ from typing import ClassVar, Iterable, Optional, Self, Union
 
 from copy import deepcopy
 
-from ..primitive import (
-    PrimitiveLabel,
-    Metadata,
-    IrreducibilityError,
-    SupportsParents,
-    SupportsChildren,
-)
+from ..primitive import PrimitiveLabel, Metadata, SupportsParents, SupportsChildren
+from ..exceptions import IrreducibilityError
 from ...connection.types import ConnectorAddress, ConnectorLabel
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager, ConnectorManagerMutable
@@ -41,9 +36,10 @@ class SimplePrimitive(SupportsParents):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
 
         # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
         if isinstance(connections, Iterable):
