@@ -125,6 +125,7 @@ class Primitive(
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
     _mass: Optional[float]
+    _role: str
     metadata: Metadata
 
     _frozen_connections: bool
@@ -140,6 +141,7 @@ class Primitive(
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
         """
@@ -154,6 +156,7 @@ class Primitive(
         self._shape = shape
         self._label = label
         self._mass = mass
+        self._role = role
         self.metadata = metadata or dict()
 
     @property
