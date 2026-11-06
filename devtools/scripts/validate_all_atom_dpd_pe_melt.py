@@ -23,7 +23,7 @@ from mupt.geometry.transforms.rigid import rigid_vector_coalignment
 from mupt.chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
-from mupt.roles import assign_SAAMR_roles
+from mupt.mupr.primitives.roles import assign_SAAMR_roles
 
 
 LOGGER = logging.getLogger(__name__)

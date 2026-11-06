@@ -19,7 +19,7 @@ from ..geometry.shapes import Sphere
 from ..chemistry.rdkit.rdloggers import suppress_rdkit_logs
 from ..interfaces.smiles import primitive_from_smiles
 from ..builders.random_walk import AngleConstrainedRandomWalk
-from ..roles import assign_SAAMR_roles, PrimitiveRole
+from ..mupr.primitives.roles import assign_SAAMR_roles, PrimitiveRole
 
 
 # DEV:JRL The following functions are useful helpers to streamline the building

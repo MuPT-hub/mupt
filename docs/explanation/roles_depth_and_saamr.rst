@@ -149,7 +149,7 @@ level for you:
     from mupt.chemistry import ELEMENTS
     from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
     from mupt.mupr.primitives.predicates import has_strict_SAAMR_depth
-    from mupt.roles import assign_SAAMR_roles, has_SAAMR_roles
+    from mupt.mupr.primitives.roles import assign_SAAMR_roles, has_SAAMR_roles
 
     universe = PrimitiveLegacy(label="universe")
     chain = PrimitiveLegacy(label="chain")
@@ -175,7 +175,7 @@ the domain node is simply left ``UNASSIGNED``:
 .. code-block:: python
 
     from mupt.interfaces.mdanalysis import primitive_to_mdanalysis
-    from mupt.roles import PrimitiveRole
+    from mupt.mupr.primitives.roles import PrimitiveRole
 
     universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
     domain = PrimitiveLegacy(label="domain")  # UNASSIGNED: transparent

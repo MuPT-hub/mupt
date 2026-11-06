@@ -12,7 +12,7 @@ from anytree import PreOrderIter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .mupr.primitives.primitives_legacy import PrimitiveLegacy
+    from .primitives_legacy import PrimitiveLegacy
 
 
 class PrimitiveRole(Enum):
@@ -32,7 +32,7 @@ class PrimitiveRole(Enum):
 
     Examples
     --------
-    >>> from mupt.roles import PrimitiveRole
+    >>> from mupt.mupr.primitives.roles import PrimitiveRole
     >>> PrimitiveRole.UNASSIGNED
     <PrimitiveRole.UNASSIGNED: 'unassigned'>
     >>> PrimitiveRole.UNIVERSE is not PrimitiveRole.UNASSIGNED
@@ -108,7 +108,7 @@ def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
     has_strict_SAAMR_depth : The structural precondition for this function.
     """
     # imported at runtime to avoid circular reference with Primitive
-    from .mupr.primitives.predicates import has_strict_SAAMR_depth
+    from .predicates import has_strict_SAAMR_depth
 
     if not has_strict_SAAMR_depth(prim):
         raise ValueError(
