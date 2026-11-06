@@ -32,6 +32,7 @@ from networkx.classes import DiGraph
 from scipy.spatial.transform import RigidTransform
 
 from .exceptions import IrreducibilityError
+from .roles import PrimitiveRole
 from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
 from ..connection.management import (
@@ -180,6 +181,21 @@ class Primitive(
         if new_label is None:
             new_label = self.DEFAULT_LABEL
         self._label = new_label
+
+    @property
+    def role(self) -> str:
+        """A distinguishing label for use in export format identifiers"""
+        return self._role
+
+    @role.setter
+    def role(self, new_role: str) -> None:
+        """Reassign this Primitive's role"""
+        self._role = new_role
+
+    @property
+    def role_sanctioned(self) -> PrimitiveRole:
+        """Match role tag to one of the role types recognized within the MuPT source"""
+        return PrimitiveRole.from_str(self._role)
 
     @property  # TB: eventually, incorporate info about units
     def mass(self) -> Optional[float]:
