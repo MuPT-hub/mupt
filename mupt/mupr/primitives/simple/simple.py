@@ -36,9 +36,10 @@ class SimplePrimitive(SupportsParents):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
 
         # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
         if isinstance(connections, Iterable):
