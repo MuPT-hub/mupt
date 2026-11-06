@@ -45,6 +45,12 @@ class PrimitiveRole(Enum):
     RESIDUE = "residue"
     PARTICLE = "particle"
 
+    @classmethod
+    def from_str(cls, role_str: str) -> "PrimitiveRole":
+        """Get an PrimitiveRole enum instance from a case-insensitive string input"""
+        # return cls[role_str.upper()]  # lookup by key
+        return cls(role_str.lower())  # lookup by value
+
 
 def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
     """Check whether a Primitive hierarchy has all four SAAMR roles assigned.
@@ -79,7 +85,7 @@ def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
 
 
 def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
-    """Assign canonical export roles for a strict depth-3 SAAMR hierarchy.
+    """Assign PDB-like export roles for a strict depth-3 SAAMR hierarchy.
 
     Walks the tree by depth (0/1/2/3) and assigns UNIVERSE, SEGMENT,
     RESIDUE, and PARTICLE roles respectively.  Requires that the tree
