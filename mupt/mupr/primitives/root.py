@@ -40,9 +40,10 @@ class RootPrimitive(SupportsChildren):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
         self.connections = ConnectorManagerMutable()
         # N.B.: can't call _init_children before _frozen_hierarchy is set
         self._init_children(children)
