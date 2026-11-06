@@ -246,6 +246,18 @@ class Primitive(
         """The external shape of this Primitive"""
         return self._shape
 
+    @shape.setter
+    def shape(self, new_shape: Optional[BoundedTransformableShape]) -> None:
+        """Assign a new shape to this Primitive"""
+        if (new_shape is not None) and not isinstance(
+            new_shape, BoundedTransformableShape
+        ):
+            raise TypeError(
+                "Primitive.shape must be BoundedTransformableShape "
+                f"or None, not {type(new_shape).__name__}"
+            )
+        self._shape = new_shape
+
     def _rigidly_transform_shape(self, transformation: RigidTransform) -> None:
         """Apply rigid transformation to just the shape of this Primitive"""
         if isinstance(self.shape, RigidlyTransformable):  # TB: just check if not None?
