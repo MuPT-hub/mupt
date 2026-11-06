@@ -16,7 +16,7 @@ from mupt.chemistry.core import BondType
 from mupt.geometry.shapes import PointCloud
 from mupt.mupr.connection import AttachmentPoint, Connector
 from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
-from mupt.roles import PrimitiveRole
+from mupt.mupr.primitives.roles import PrimitiveRole
 
 
 def _bond_connector(anchor: str, linker: str, label: str) -> Connector:
