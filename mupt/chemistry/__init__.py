@@ -10,6 +10,7 @@ from .core import (
     RDKitPeriodicTable as RDKitPeriodicTable,
     valence_allowed as valence_allowed,
 )
+from .colors import COLORS_BY_ELEMENT as COLORS_BY_ELEMENT
 from .rdkit.linkers import (
     is_linker as is_linker,
     not_linker as not_linker,
