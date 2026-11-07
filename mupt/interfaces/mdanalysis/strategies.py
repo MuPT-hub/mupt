@@ -11,7 +11,7 @@ from networkx import Graph
 from ...chemistry.core import BOND_ORDER_ATTR
 from ...mupr.primitives.primitive import Primitive
 from ...mupr.primitives.predicates import is_atom
-from ...roles import PrimitiveRole
+from ...mupr.primitives.roles import PrimitiveRole
 from ...trees.subselect import NodePredicate, primoprogenitors
 
 
@@ -60,25 +60,23 @@ def _pdb_resname(
     return name.upper()
 
 
-def role_of(prim: Primitive) -> Optional[str]:
-    """The role of a Primitive as a lowercase string, or None if it has none.
+def role_of(prim: Primitive) -> Optional[PrimitiveRole]:
+    """The MuPT-recognized role of a Primitive, or None if it has none.
 
-    Accepts either a ``PrimitiveRole`` member or its string value
-    (``"segment"``, ``"residue"``, ...).
+    Custom (unrecognized) role names are treated as no role.
     """
-    # TODO: read the role field directly once roles are restored on the new
-    # Primitive classes (#151, #162); until then this reads an ad-hoc attribute
-    role = getattr(prim, "role", None)
-    if isinstance(role, PrimitiveRole):
-        role = role.value
-    return role.lower() if isinstance(role, str) else None
+    try:
+        return prim.role_sanctioned
+    except (TypeError, ValueError, KeyError):
+        # role set to a PrimitiveRole member rather than its string value
+        return prim.role if isinstance(prim.role, PrimitiveRole) else None
 
 
 def has_role(role: PrimitiveRole) -> NodePredicate[Primitive]:
     """Predicate for whether a Primitive carries the given role."""
 
     def predicate(prim: Primitive) -> bool:
-        return role_of(prim) == role.value
+        return role_of(prim) == role
 
     return predicate
 
@@ -97,7 +95,7 @@ def _reject_nested(prims: list[Primitive], role: PrimitiveRole) -> None:
     """Raise if any of these Primitives has a descendant with the same role."""
     for prim in prims:
         for descendant in prim.descendants:
-            if role_of(descendant) == role.value:
+            if role_of(descendant) == role:
                 raise ValueError(
                     f"'{role.value}'-role Primitive '{prim.label}' contains another "
                     f"'{role.value}'-role Primitive '{descendant.label}'."
