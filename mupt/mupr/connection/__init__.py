@@ -2,6 +2,7 @@
 
 from .types import (
     AttachmentLabel as AttachmentLabel,
+    ConnectorAddress as ConnectorAddress,
     ConnectorLabel as ConnectorLabel,
     ConnectorLabeller as ConnectorLabeller,
     ConnectorLabelLike as ConnectorLabelLike,
@@ -12,11 +13,10 @@ from .exceptions import (
     IncompatibleConnectorError as IncompatibleConnectorError,
     MissingConnectorError as MissingConnectorError,
     UnboundConnectorError as UnboundConnectorError,
+    ConnectorLockedError as ConnectorLockedError,
 )
 from .connectors import (
     AttachmentPoint as AttachmentPoint,
     Connector as Connector,
     ConnectorSelector as ConnectorSelector,
-    make_second_resemble_first as make_second_resemble_first,
-    canonical_form_connectors as canonical_form_connectors,
 )
