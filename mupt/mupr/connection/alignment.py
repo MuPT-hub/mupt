@@ -260,6 +260,14 @@ class ConnectorAntialignmentStrategy(ABC):
 
             Useful for transforming attached bodies & avoiding a local double-transform
         """
+        # N.B.: note that the specifics of the transforms we support here
+        # are what enable running rollbacks sequentially without fear
+        # In general this is not true, and should be examined if adding new alignments
+        # * For rigid antalignment, the second transformation must be the identity
+        #   hence the transform obtained from swapping the Connectors would just
+        #   be the inverse transform of the first here
+        # * For ballistic antialignment, by construction nothing attached to the
+        # anchor moves; only a rotation about the anchor point is performed
         align_connector_transform: Optional[RigidTransform] = self.antialign_one_sided(
             align_connector,
             to_connector=to_connector,
