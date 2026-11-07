@@ -95,15 +95,40 @@ class ConnectorAntialignmentStrategy(ABC):
         dihedral_angle_rad: Optional[float] = None,
     ) -> None:
         """
-        Apply the requisite antialignment transformation and other modifications
-        to align_connector so that it is antialigned with to_connector in-place
-        WITHOUT modifying to_connector itself
+        Apply one-half of a complete, mutual Connector antialignment by manipulating
+        align_connector to antialign at to_connector WITHOUT modifying to_connector.
+        As such, to_connector is not guaranteed to be antialigned after this process.
 
-        If match_bond_length = True, will also stretch/compress bond
-        length on align_connector to match length of to_connector
+        One-sided antialignment proceeds in a 3-step fashion:
+        1. Apply a rigid transformation to bring align_connector into antialignment
+        2. Match bond lengths between the two Connectors
+        3. Assign a stipulated dihedral angle
 
-        N.B.: antialign() only constitues HALF of a complete Connector antialignment
-        Call mutually_antialign() to ensure BOTH Connectors are aligned properly
+        All 3 of these steps are optional and can be disabled to accomodate various
+        downstream coordinate alignment workflows; care is required when deciding
+        when and how a callershould do so
+
+        Parameters
+        ----------
+        align_connector: Connector
+            The Connector being manipulated by this antialignment transform
+        to_connector: Connector
+            The Connector which align_connector is being antialigned to
+            This Connector will NOT be adulterated in any way during this
+            process,regardless of which (if any) of the 3 steps are performed
+        match_bond_length: bool, default False
+            Flag which determines whether to match the bond
+            length of align_connector with that of to_connector
+
+            Bond length is defined here as the anchor-to-linker vector norm
+        dihedral_angle_rad: Optional[float], default None
+            An optional dihedral angle in radians which, if supplied, sets the
+            dihedral angle between the pair of Connectors
+
+            Dihedral angle is defined as the angle betwwen Connector normal
+            vectors IFF the two bond vectors are antialigned
+
+            If not supplied, performs no dihedral rotation
         """
         transformation: RigidTransform = self.antialignment_transformation(
             align_connector,
@@ -136,7 +161,7 @@ class ConnectorAntialignmentStrategy(ABC):
         Return a copy of align_connector which is antialigned with to_connector
         WITHOUT modifying either align_connector or to_connector
 
-        Non-in-place version of self.antialign()
+        Non in-place version of self.antialign()
         """
         align_connector_new = align_connector.copy()
         self.antialign(
