@@ -9,7 +9,6 @@ from . import randomly_placed_connector
 from mupt.geometry.measure import compare_optional_positions, normalized
 from mupt.geometry.coordinates.directions import random_unit_vector
 from mupt.mupr.connection.alignment import (
-    are_antialigned,
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentRigid,
     ConnectorAntialignmentBallistic,
@@ -54,7 +53,7 @@ def test_are_antialigned(
     conn_counter = conn.counterpart()
     conn_counter.anchor.position += perturbation * random_unit_vector(rng=rng)
 
-    assert are_antialigned(conn, conn_counter, within=tolerance) == expected_antialigned
+    assert conn.is_antialigned(conn_counter, within=tolerance) == expected_antialigned
 
 
 @pytest.mark.parametrize(
@@ -128,4 +127,4 @@ class TestAntialignment:
 
         alignment.antialign_mutually(conn_b, to_connector=conn_a)
 
-        assert are_antialigned(conn_a, conn_b)
+        assert conn_a.is_antialigned(conn_b)

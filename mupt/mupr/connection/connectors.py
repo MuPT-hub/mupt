@@ -29,8 +29,6 @@ import numpy as np
 from scipy.spatial.transform import RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
-from .alignment import are_antialigned
-
 from ..canonicalize import lex_order_multiset_str
 from ...chemistry.core import BondType
 from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
@@ -371,13 +369,41 @@ class Connector(RigidlyTransformable):
                     f"collection of Connectors, not with object of type {type(other)}"
                 )
 
+    # DEV: you may have the impulse to move this into connection.alignment;
+    # understand that this would introduce an otherwise-unnecessary circular dependency
     def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
         """
-        Whether this Connector is anti-aligned with another Connector, i.e. whether
-        the anchor of this Connector is within some cutoff distance of the linker
-        of the other Connector, and vice-versa (with the same tolerance for both)
+        Whether the Connector "other" is anti-aligned with Connector "self",
+        i.e. whether the anchor of self is within some cutoff distance of the
+        linker of other, and vice-versa (with the same tolerance for both)
+
+        This check is commutative, i.e. Ca.is_antialigned(Cb) == Cb.is_antialigned(Cb)
+
+        Parameters
+        ----------
+        self: Connector
+            The Connector being checked for antialignment
+        other: Connector
+            The other Connector being checked for antialignment
+        within: float, default 1E-6
+            Absolute tolerance for distance between both Connectors' positions
+            Can be thought of as the radius of bounding spheres around the
+            positions on each attachment point, resembling a dumbell
+
+        Returns
+        -------
+        are_antialigned: bool
+            Whether the pair of Connectors are antialigned within the chosen tolerance
         """
-        return are_antialigned(self, other, within=within)
+        return compare_optional_positions(
+            self.anchor.position,
+            other.linker.position,
+            radius=within,
+        ) and compare_optional_positions(
+            self.linker.position,
+            other.anchor.position,
+            radius=within,
+        )
 
     def coincides_with(self, other: "Connector") -> bool:
         """Whether this Connector overlaps spatially with another Connector"""

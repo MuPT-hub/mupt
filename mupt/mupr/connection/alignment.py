@@ -7,56 +7,14 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from abc import ABC, abstractmethod
 
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation, RigidTransform
 
+from .connectors import Connector
 from ...geometry.transforms.rigid.rotations import alignment_rotation
-from ...geometry.measure import compare_optional_positions
-
-if TYPE_CHECKING:
-    from .connectors import Connector
-
-
-def are_antialigned(
-    align_connector: "Connector",
-    to_connector: "Connector",
-    within: float = 1e-6,
-) -> bool:
-    """
-    Whether align_connector is anti-aligned with to_connector, i.e. whether
-    the anchor of align_connector is within some cutoff distance of the linker
-    of the to_connector, and vice-versa (with the same tolerance for both)
-
-    This check is commutative, i.e. are_antialigned(Ca, Cb) = are_antialigned(Cb, Ca)
-
-    Parameters
-    ----------
-    align_connector: Connector
-        The Connector to transform during antialignment
-    to_connector: Connector
-        The Connector being antialigned to
-        This Connector is NOT transformed and remains static
-    within: float, default 1E-6
-        Absolute tolerance for distance between both Connectors's positions
-        Can be thought of as the radius of bounding spheres around attachment points
-
-    Returns
-    -------
-    are_antialigned: bool
-        Whether the pair of Connectors are antialigned within the chosen tolerance
-    """
-    return compare_optional_positions(
-        align_connector.anchor.position,
-        to_connector.linker.position,
-        radius=within,
-    ) and compare_optional_positions(
-        align_connector.linker.position,
-        to_connector.anchor.position,
-        radius=within,
-    )
 
 
 class ConnectorAntialignmentStrategy(ABC):
@@ -68,8 +26,8 @@ class ConnectorAntialignmentStrategy(ABC):
 
     def dihedral_assignment_transform(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
         dihedral_angle_rad: float = 0.0,
         alignment_tolerance: float = 1e-6,
     ) -> RigidTransform:
@@ -118,8 +76,8 @@ class ConnectorAntialignmentStrategy(ABC):
 
     def assign_dihedral(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
         dihedral_angle_rad: float = 0.0,
         alignment_tolerance: float = 1e-6,
     ) -> None:
@@ -143,8 +101,8 @@ class ConnectorAntialignmentStrategy(ABC):
     @abstractmethod
     def antialignment_transformation(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
     ) -> RigidTransform:
         """
         A rigid transformation applied to align_connector to line it up
@@ -155,8 +113,8 @@ class ConnectorAntialignmentStrategy(ABC):
     @abstractmethod
     def _match_bond_length(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
     ) -> None:
         """
         Ensure both connectors have the same bond length
@@ -167,8 +125,8 @@ class ConnectorAntialignmentStrategy(ABC):
 
     def antialign_one_sided(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
         roll_back_transform: bool = False,
         match_bond_length: bool = False,
     ) -> Optional[RigidTransform]:
@@ -234,10 +192,10 @@ class ConnectorAntialignmentStrategy(ABC):
 
     def antialigned_one_sided(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
         match_bond_length: bool = False,
-    ) -> "Connector":
+    ) -> Connector:
         """
         Return a copy of align_connector which is antialigned with to_connector
         WITHOUT modifying either align_connector or to_connector
@@ -255,8 +213,8 @@ class ConnectorAntialignmentStrategy(ABC):
 
     def antialign_mutually(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
         dihedral_angle_rad: Optional[float] = None,
     ) -> None:
         """
@@ -316,8 +274,8 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
 
     def antialignment_transformation(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
     ) -> RigidTransform:
         """
         Compute a rigid transformation which antialigns a pair of
@@ -355,8 +313,8 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
 
     def _match_bond_length(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
     ) -> None:
         """Set bond length of align_connector to that of to_connector"""
         align_connector.set_bond_length(to_connector.bond_length)
@@ -373,8 +331,8 @@ class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
 
     def antialignment_transformation(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
     ) -> RigidTransform:
         """
         Compute a rigid transformation which aligns a pair of Connectors by turning
@@ -394,8 +352,8 @@ class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
 
     def _match_bond_length(
         self,
-        align_connector: "Connector",
-        to_connector: "Connector",
+        align_connector: Connector,
+        to_connector: Connector,
     ) -> None:
         """
         Set align_connector's bond length to be the distance
