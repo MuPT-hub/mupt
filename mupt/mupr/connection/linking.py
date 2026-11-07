@@ -24,6 +24,10 @@ from networkx.utils import arbitrary_element
 from networkx.algorithms import equivalence_classes, edge_bfs
 
 from .connectors import Connector
+from .alignment import (
+    ConnectorAntialignmentBallistic,
+    ConnectorAntialignmentRigid,
+)
 
 
 class BijectionError(ValueError):
@@ -285,6 +289,7 @@ def assign_connections_from_topology(
     mapped_connectors: Mapping[T, Collection[Connector]],
     n_iter_max_rule: Optional[GraphIterRule] = None,
     source_node: Optional[T] = None,
+    antialign: bool = False,
 ) -> None:
     """
     Deduce connections from graph and mapped collections
@@ -297,5 +302,28 @@ def assign_connections_from_topology(
         source_node=source_node,
     )
 
+    antialign_rigid = ConnectorAntialignmentRigid()
+    antialign_ballistic = ConnectorAntialignmentBallistic()
+
+    is_isolated: dict[T, bool] = {node: True for node in topology}
     for (node_former, node_latter), (conn_former, conn_latter) in connections.items():
+        if antialign:
+            if is_isolated[node_latter]:
+                antialign_rigid.mutually_antialign(
+                    conn_latter,
+                    to_connector=conn_former,
+                )
+            elif is_isolated[node_former]:
+                antialign_rigid.mutually_antialign(
+                    conn_former,
+                    to_connector=conn_latter,
+                )
+            else:
+                antialign_ballistic.mutually_antialign(
+                    conn_latter,
+                    to_connector=conn_former,
+                )
+
         conn_former.neighbor = conn_latter
+        is_isolated[node_former] = False
+        is_isolated[node_latter] = False
