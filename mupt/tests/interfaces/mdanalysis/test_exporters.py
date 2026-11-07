@@ -27,7 +27,7 @@ from mupt.mupr.primitives import (
     SimplePrimitive,
 )
 from mupt.mupr.primitives.predicates import is_atom
-from mupt.roles import PrimitiveRole
+from mupt.mupr.primitives.roles import PrimitiveRole
 
 
 # ============================================================================
@@ -62,7 +62,7 @@ def tag_roles(root: RootPrimitive) -> RootPrimitive:
     """Tag Root -> chain -> repeat unit: chains as segments, units as residues.
 
     Roles are set after building because ``copy()``, which
-    ``populate_from_topology_and_lexicon`` uses, does not carry them over yet.
+    ``populate_from_topology_and_lexicon`` uses, does not carry them over (yet).
     """
     for chain in root.children:
         chain.role = "segment"
@@ -585,3 +585,27 @@ def test_cg_from_bead_only_hierarchy():
         "TAL",
     ]
     assert np.allclose(universe.atoms.positions, 0.0)  # beads have no positions
+
+
+def test_roles_from_constructor(polyethylene_lexicon, polyethylene_resname_map):
+    """Roles passed to the Primitive constructors are picked up."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    for unit in chain.children:
+        unit.role = "residue"
+    molecule = CompositePrimitive(label="mol", role="segment", children=[chain])
+    chain.role = "unassigned"
+    universe = primitive_to_mdanalysis(
+        RootPrimitive(role="universe", children=[molecule]), polyethylene_resname_map
+    )
+    assert universe.segments.n_segments == 1
+    assert universe.residues.n_residues == 3
+
+
+def test_custom_roles_are_ignored(polyethylene_lexicon, polyethylene_resname_map):
+    """A role outside PrimitiveRole (e.g. a Kuhn segment) is treated as no role."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    root = tag_roles(RootPrimitive(children=[chain]))
+    group = next(iter(chain.children))
+    group.role = "kuhn_segment"
+    with pytest.raises(ValueError, match="not inside both"):
+        primitive_to_mdanalysis(root, {"ethane": "EAN", "tail": "TYL"})
