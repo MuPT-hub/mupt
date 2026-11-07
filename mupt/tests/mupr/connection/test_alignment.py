@@ -84,7 +84,9 @@ class TestAntialignment:
         conn_a = randomly_placed_connector(0, 1)
         conn_b = randomly_placed_connector(1, 0)
 
-        alignment.antialign(conn_b, to_connector=conn_a, match_bond_length=False)
+        alignment.antialign_one_sided(
+            conn_b, to_connector=conn_a, match_bond_length=False
+        )
 
         similarity: float = np.dot(
             conn_b.unit_bond_vector,
@@ -105,7 +107,9 @@ class TestAntialignment:
         conn_a = randomly_placed_connector(0, 1)
         conn_b = randomly_placed_connector(1, 0)
 
-        alignment.antialign(conn_b, to_connector=conn_a, match_bond_length=True)
+        alignment.antialign_one_sided(
+            conn_b, to_connector=conn_a, match_bond_length=True
+        )
 
         assert compare_optional_positions(
             conn_b.linker.position,
@@ -122,6 +126,6 @@ class TestAntialignment:
         conn_a = randomly_placed_connector(0, 1)
         conn_b = randomly_placed_connector(1, 0)
 
-        alignment.mutually_antialign(conn_b, to_connector=conn_a)
+        alignment.antialign_mutually(conn_b, to_connector=conn_a)
 
         assert are_antialigned(conn_a, conn_b)

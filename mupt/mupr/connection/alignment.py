@@ -87,7 +87,7 @@ class ConnectorAntialignmentStrategy(ABC):
         """
         ...
 
-    def antialign(
+    def antialign_one_sided(
         self,
         align_connector: "Connector",
         to_connector: "Connector",
@@ -150,7 +150,7 @@ class ConnectorAntialignmentStrategy(ABC):
                 dihedral_angle_rad=dihedral_angle_rad,
             )
 
-    def antialigned(
+    def antialigned_one_sided(
         self,
         align_connector: "Connector",
         to_connector: "Connector",
@@ -161,10 +161,10 @@ class ConnectorAntialignmentStrategy(ABC):
         Return a copy of align_connector which is antialigned with to_connector
         WITHOUT modifying either align_connector or to_connector
 
-        Non in-place version of self.antialign()
+        Non in-place version of self.antialign_one_sided()
         """
         align_connector_new = align_connector.copy()
-        self.antialign(
+        self.antialign_one_sided(
             align_connector_new,
             to_connector=to_connector,
             match_bond_length=match_bond_length,
@@ -172,7 +172,7 @@ class ConnectorAntialignmentStrategy(ABC):
         )
         return align_connector_new
 
-    def mutually_antialign(
+    def antialign_mutually(
         self,
         align_connector: "Connector",
         to_connector: "Connector",
@@ -185,13 +185,13 @@ class ConnectorAntialignmentStrategy(ABC):
         If a dihedral angle is provided, will also rotate
         align_connector along the mutual bond axis to that angle
         """
-        self.antialign(
+        self.antialign_one_sided(
             align_connector,
             to_connector=to_connector,
             match_bond_length=True,
             dihedral_angle_rad=None,  # dihedrals done at end
         )
-        self.antialign(
+        self.antialign_one_sided(
             to_connector,
             to_connector=align_connector,
             match_bond_length=True,
@@ -209,6 +209,8 @@ class ConnectorAntialignmentStrategy(ABC):
                 to_connector,
                 dihedral_angle_rad=dihedral_angle_rad,
             )
+
+    # TODO: also add antialigned_mutually? TB - unclear if/when this is necessary
 
 
 class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
