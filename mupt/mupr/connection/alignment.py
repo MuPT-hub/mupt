@@ -3,13 +3,17 @@ Strategies for checking and enacting spatial anti-alignment of pairs of
 Connectors which comprise a connection. Models bonding in 3D space
 """
 
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
 from typing import Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation, RigidTransform
-from ...geometry.transforms.rigid.rotations import alignment_rotation
 
+from ...geometry.transforms.rigid.rotations import alignment_rotation
 from ...geometry.measure import compare_optional_positions
 
 if TYPE_CHECKING:
@@ -61,6 +65,80 @@ class ConnectorAntialignmentStrategy(ABC):
     I.e. Transforming one connector so that its linker is coincident to
     the other's anchor and vice versa WITHOUT modifying the to_connector
     """
+
+    def dihedral_assignment_transform(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+        dihedral_angle_rad: float = 0.0,
+        alignment_tolerance: float = 1e-6,
+    ) -> RigidTransform:
+        """
+        Transformation which, when applied to this Connector, rotates it
+        so that the dihedral planes between the Connectors subtends the
+        desired dihedral angle in radians (by default, 0.0 rad)
+
+        It is required (and enforced) for the pair of Connectors
+        to be antialigned for this operation to be valid
+        """
+        if not (
+            align_connector.has_dihedral_orientation
+            and to_connector.has_dihedral_orientation
+        ):
+            raise ValueError(
+                "Cannot compute dihedral alignment between Connectors "
+                "without explicitly-defined dihedral plane orientations"
+            )
+
+        # DEV: could technically weaken to check when bond vectors are antiparallel
+        # (i.e. -1 dot product when normed) and difference between anchors is parallel
+        # and antiparallel with bond vectors respectively, but didn't for simplicity
+        if not align_connector.is_antialigned(to_connector, within=alignment_tolerance):
+            raise ValueError(
+                "Cannot set dihedral angle with non-antialigned Connectors"
+            )
+
+        # recall, tangent vectors are invariant under translation
+        tangent_alignment = alignment_rotation(
+            align_connector.tangent_vector,
+            to_connector.tangent_vector,
+        )
+        # BUG: extra degree of freedom here; need to ensure tangents also line up
+        dihedral_rotation = Rotation.from_rotvec(
+            dihedral_angle_rad * to_connector.unit_bond_vector
+        )
+        # align tangents before setting dihedral to avoid inter-tangent angle calc
+        dihedral_alignment = dihedral_rotation * tangent_alignment
+
+        return (
+            RigidTransform.from_translation(align_connector.anchor.position)
+            * RigidTransform.from_rotation(dihedral_alignment)
+            * RigidTransform.from_translation(-align_connector.anchor.position)
+        )
+
+    def assign_dihedral(
+        self,
+        align_connector: "Connector",
+        to_connector: "Connector",
+        dihedral_angle_rad: float = 0.0,
+        alignment_tolerance: float = 1e-6,
+    ) -> None:
+        """
+        Set the dihedral angle between this Connector and
+        another Connector by rigidly transforming this Connector
+        """
+        LOGGER.info(
+            f"Setting dihedral angle between Connectors {align_connector.label} "
+            f"and {to_connector.label} to {dihedral_angle_rad} radians"
+        )
+        align_connector.rigidly_transform(
+            transformation=self.dihedral_assignment_transform(
+                align_connector=align_connector,
+                to_connector=to_connector,
+                dihedral_angle_rad=dihedral_angle_rad,
+                alignment_tolerance=alignment_tolerance,
+            )
+        )
 
     @abstractmethod
     def antialignment_transformation(
@@ -177,8 +255,8 @@ class ConnectorAntialignmentStrategy(ABC):
 
     def antialign_mutually(
         self,
-        align_connector: Connector,
-        to_connector: Connector,
+        align_connector: "Connector",
+        to_connector: "Connector",
         dihedral_angle_rad: Optional[float] = None,
     ) -> None:
         """
@@ -218,7 +296,8 @@ class ConnectorAntialignmentStrategy(ABC):
         # NOTE: sentinel (rather than default 0.0) weakens
         # preconditions on tangents when no dihedral is specified
         if dihedral_angle_rad is not None:
-            align_connector.assign_dihedral(
+            self.assign_dihedral(
+                align_connector,
                 to_connector,
                 dihedral_angle_rad=dihedral_angle_rad,
             )

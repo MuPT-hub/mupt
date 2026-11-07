@@ -26,7 +26,7 @@ from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
-from scipy.spatial.transform import Rotation, RigidTransform
+from scipy.spatial.transform import RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
 from .alignment import are_antialigned
@@ -37,7 +37,6 @@ from ...geometry.arraytypes import Vector3, Array3x3, as_n_vector
 from ...geometry.measure import compare_optional_positions, normalized
 from ...geometry.coordinates.basis import is_orthonormal
 from ...geometry.transforms.linear import rejector
-from ...geometry.transforms.rigid.rotations import alignment_rotation
 from ...geometry.transforms.rigid.application import RigidlyTransformable
 
 
@@ -331,94 +330,6 @@ class Connector(RigidlyTransformable):
         self.linker.rigidly_transform(transformation)
         if self.has_tangent_position:
             self._tangent_position = transformation.apply(self._tangent_position)
-
-    # Dihedral angle
-    def dihedral_assignment_transform(
-        self,
-        other: "Connector",
-        dihedral_angle_rad: float = 0.0,
-        alignment_tolerance: float = 1e-6,
-    ) -> RigidTransform:
-        """
-        Transformation which, when applied to this Connector, rotates it
-        so that the dihedral planes between the Connectors subtends the
-        desired dihedral angle in radians (by default, 0.0 rad)
-
-        It is required (and enforced) for the pair of Connectors
-        to be antialigned for this operation to be valid
-        """
-        if not (self.has_dihedral_orientation and other.has_dihedral_orientation):
-            raise ValueError(
-                "Cannot compute dihedral alignment between Connectors "
-                "without explicitly-defined dihedral plane orientations"
-            )
-
-        # DEV: could technically weaken to check when bond vectors are antiparallel
-        # (i.e. -1 dot product when normed) and difference between anchors is parallel
-        # and antiparallel with bond vectors respectively, but didn't for simplicity
-        if not self.is_antialigned(other, within=alignment_tolerance):
-            raise ValueError(
-                "Cannot set dihedral angle with non-antialigned Connectors"
-            )
-
-        # recall, tangent vectors are invariant under translation
-        tangent_alignment = alignment_rotation(
-            self.tangent_vector,
-            other.tangent_vector,
-        )
-        dihedral_rotation = Rotation.from_rotvec(
-            dihedral_angle_rad * other.unit_bond_vector
-        )
-        # align tangents before setting dihedral to avoid inter-tangent angle calc
-        dihedral_alignment = dihedral_rotation * tangent_alignment
-
-        return (
-            RigidTransform.from_translation(self.anchor.position)
-            * RigidTransform.from_rotation(dihedral_alignment)
-            * RigidTransform.from_translation(-self.anchor.position)
-        )
-
-    # TB: also consider moving impls over to .alignment
-    def assign_dihedral(
-        self,
-        other: "Connector",
-        dihedral_angle_rad: float = 0.0,
-        alignment_tolerance: float = 1e-6,
-    ) -> None:
-        """
-        Set the dihedral angle between this Connector and
-        another Connector by rigidly transforming this Connector
-        """
-        LOGGER.info(
-            "Setting dihedral angle between Connectors "
-            f"{self.label} and {other.label} to {dihedral_angle_rad} rad"
-        )
-        self.rigidly_transform(
-            transformation=self.dihedral_assignment_transform(
-                other,
-                dihedral_angle_rad=dihedral_angle_rad,
-                alignment_tolerance=alignment_tolerance,
-            )
-        )
-
-    def with_assigned_dihedral(
-        self,
-        other: "Connector",
-        dihedral_angle_rad: float = 0.0,
-        alignment_tolerance: float = 1e-6,
-    ) -> "Connector":
-        """
-        Return a copy of this Connector with the
-        dihedral angle set relative to another Connector
-        """
-        new_connector = self.copy()
-        new_connector.assign_dihedral(
-            other,
-            dihedral_angle_rad=dihedral_angle_rad,
-            alignment_tolerance=alignment_tolerance,
-        )
-
-        return new_connector
 
     # Comparison methods
     def bondable_with(self, other: "Connector") -> bool:
