@@ -135,14 +135,13 @@ class ConnectorAntialignmentStrategy(ABC):
         align_connector to antialign at to_connector WITHOUT modifying to_connector.
         As such, to_connector is not guaranteed to be antialigned after this process.
 
-        One-sided antialignment proceeds in a 3-step fashion:
+        One-sided antialignment proceeds in a 2-step fashion:
         1. Apply a rigid transformation to bring align_connector into antialignment
         2. Match bond lengths between the two Connectors
-        3. Assign a stipulated dihedral angle
 
-        All 3 of these steps are optional and can be disabled to accomodate various
+        Any of these 2 steps are optional and can be disabled to accomodate various
         downstream coordinate alignment workflows; care is required when deciding
-        when and how a callershould do so
+        when and how a caller should do so
 
         Parameters
         ----------
@@ -168,6 +167,14 @@ class ConnectorAntialignmentStrategy(ABC):
             length of align_connector with that of to_connector
 
             Bond length is defined here as the anchor-to-linker vector norm
+
+        Returns
+        -------
+        antialignment_transformation: Optional[RigidTransform]
+            If roll_back_transform=True, returns that rigid transformation that
+            WOULD HAVE BEEN applied in the first step; otherwise return None
+
+            Useful for transforming attached bodies & avoiding a local double-transform
         """
         antialign_transformation: RigidTransform = self.antialignment_transformation(
             align_connector,
@@ -186,8 +193,6 @@ class ConnectorAntialignmentStrategy(ABC):
             # the quickest to get working on the timeline for beta release;
             # revisit this and make more efficient
             align_connector.rigidly_transform(antialign_transformation.inv())
-
-        if roll_back_transform:
             return antialign_transformation
 
     def antialigned_one_sided(
@@ -215,8 +220,9 @@ class ConnectorAntialignmentStrategy(ABC):
         self,
         align_connector: Connector,
         to_connector: Connector,
+        roll_back_transform: bool = False,
         dihedral_angle_rad: Optional[float] = None,
-    ) -> None:
+    ) -> Optional[tuple[RigidTransform, RigidTransform]]:
         """
         Apply anti-alignment implemented here first to
         Designed to accomodate assymetric alignment schemes
@@ -231,6 +237,12 @@ class ConnectorAntialignmentStrategy(ABC):
         to_connector: Connector
             Connector which is initially alaigned to, and which is then antialigned
             one-sidedly to the first Connector after the first is antialigned
+        roll_back_transform: bool=False
+            Whether to revert the rigid transformations that would be applied to
+            either Connector and return those transformation, in Connecto order
+            See ConnectorAntialignmentStrategy.antialign_one_sided() for more details
+
+            If True, will suppress dihedral angle assignment, EVEN if an angle is given
         dihedral_angle_rad: Optional[float], default None
             An optional dihedral angle in radians which, if supplied, sets the
             dihedral angle between the pair of Connectors
@@ -239,17 +251,35 @@ class ConnectorAntialignmentStrategy(ABC):
             vectors IFF the two bond vectors are antialigned
 
             If not supplied, performs no dihedral rotation
+
+        Returns
+        -------
+        antialignment_transformations: Optional[tuple[RigidTransform, RigidTransform]]
+            If roll_back_transform=True, returns that rigid transformations that
+            WOULD HAVE BEEN applied to align_connector and to_connector, in that order
+
+            Useful for transforming attached bodies & avoiding a local double-transform
         """
-        self.antialign_one_sided(
+        align_connector_transform: Optional[RigidTransform] = self.antialign_one_sided(
             align_connector,
             to_connector=to_connector,
             match_bond_length=True,
+            roll_back_transform=roll_back_transform,
         )
-        self.antialign_one_sided(
+        to_connector_transform: Optional[RigidTransform] = self.antialign_one_sided(
             to_connector,
             to_connector=align_connector,
             match_bond_length=True,
+            roll_back_transform=roll_back_transform,
         )
+
+        if roll_back_transform:
+            if dihedral_angle_rad is not None:
+                LOGGER.warning(
+                    "Overriding dihedral angle assignment, since the "
+                    "prerequisite rigid transformations were rolled back"
+                )
+            return (align_connector_transform, to_connector_transform)  # type: ignore
 
         # NOTE: sentinel (rather than default 0.0) weakens
         # preconditions on tangents when no dihedral is specified
