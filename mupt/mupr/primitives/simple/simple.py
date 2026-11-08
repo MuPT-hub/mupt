@@ -5,7 +5,13 @@ which behave as a simple part of a system must inherit from here
 
 from typing import ClassVar, Iterable, Optional, Self, Union
 
-from ..primitive import PrimitiveLabel, Metadata, SupportsParents, SupportsChildren
+from ..primitive import (
+    DEFAULT_ROLE,
+    PrimitiveLabel,
+    Metadata,
+    SupportsParents,
+    SupportsChildren,
+)
 from ..exceptions import IrreducibilityError
 from ...connection.types import ConnectorAddress, ConnectorLabel
 from ...connection.connectors import Connector
@@ -34,7 +40,7 @@ class SimplePrimitive(SupportsParents):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        role: str = "unassigned",
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
