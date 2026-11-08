@@ -3,6 +3,8 @@
 import pytest
 from numpy.testing import assert_allclose
 
+from typing import Optional
+
 from networkx.algorithms import equivalence_classes
 
 from . import randomly_placed_connector
@@ -11,6 +13,10 @@ from mupt.builders.heading import TraversalDirection
 from mupt.geometry.coordinates.directions import random_tangent
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint
 from mupt.mupr.connection.exceptions import ConnectorLockedError
+from mupt.mupr.connection.management import (
+    ConnectorManager,
+    ConnectorManagerFrozen,
+)
 
 
 # Counterpart tests
@@ -337,3 +343,82 @@ def test_connector_lock_blocks_neighbor_delete() -> None:
 
     with pytest.raises(ConnectorLockedError):
         del conn0.neighbor
+
+
+# Holders
+## Helpers
+class MockHolder:
+    """Dummy holder for testing"""
+
+    connections: ConnectorManager
+
+    def __init__(self, label: str, connector_manager: ConnectorManager) -> None:
+        self.label = label
+        self.connector_manager = connector_manager
+
+
+def mock_holder() -> MockHolder:
+    """Holder example"""
+    return MockHolder(label="fixture", connector_manager=ConnectorManagerFrozen())
+
+
+def conn_without_holder() -> Connector:
+    """Connector with NO holder assigned"""
+    return Connector()
+
+
+def conn_without_holder_locked() -> Connector:
+    """Connector with NO holder assigned, and modification locked"""
+    conn = conn_without_holder()
+    conn.lock()
+
+    return conn
+
+
+def conn_with_holder() -> Connector:
+    """Connector with holder assigned"""
+    conn = conn_without_holder()
+    conn.holder = mock_holder()
+
+    return conn
+
+
+def conn_with_holder_locked() -> Connector:
+    """Connector with holder assigned, and modification locked"""
+    conn = conn_with_holder()
+    conn.lock()
+
+    return conn
+
+
+## Tests
+@pytest.mark.parametrize("new_holder", [None, mock_holder()])
+def test_holder_set_unlocked(new_holder: Optional[MockHolder]) -> None:
+    """Test holder assignment"""
+    conn = conn_without_holder()
+    conn.holder = new_holder
+    assert conn._holder == new_holder
+
+
+@pytest.mark.parametrize(
+    "conn", [conn_with_holder_locked(), conn_without_holder_locked()]
+)
+def test_holder_set_locked(conn: Connector) -> None:
+    """Test that locked Connectors block one from editing their holder"""
+    holder = MockHolder(label="local", connector_manager=ConnectorManagerFrozen())
+    with pytest.raises(ConnectorLockedError, match="holder.*locked Connector"):
+        conn.holder = holder
+
+
+@pytest.mark.parametrize(
+    "conn,has_holder_expected",
+    [
+        (conn_without_holder(), False),
+        (conn_without_holder_locked(), False),
+        (conn_with_holder(), True),
+        (conn_with_holder_locked(), True),
+    ],
+)
+def test_has_holder(conn: Connector, has_holder_expected: bool) -> None:
+    """Test holder check works"""
+    assert conn.has_holder is has_holder_expected
