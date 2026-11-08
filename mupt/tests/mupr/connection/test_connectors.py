@@ -14,14 +14,7 @@ from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
 from mupt.geometry.coordinates.directions import random_tangent
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint
-from mupt.mupr.connection.exceptions import (
-    ConnectorLockedError,
-    IncompatibleConnectorError,
-)
-from mupt.mupr.connection.management import (
-    ConnectorManager,
-    ConnectorManagerFrozen,
-)
+from mupt.mupr.connection.exceptions import ConnectorLockedError
 
 
 # Counterpart tests
