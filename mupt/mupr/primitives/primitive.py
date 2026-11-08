@@ -545,7 +545,6 @@ class Primitive(
         """
         our_connector_chosen: Connector = self.fetch_connector(our_connector)
         their_connector_chosen: Connector = other.fetch_connector(their_connector)
-        our_connector_chosen.neighbor = their_connector_chosen
 
         # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
         if alignment_strategy is not None:
@@ -558,6 +557,8 @@ class Primitive(
 
             other.rigidly_transform(transform_former)
             self.rigidly_transform(transform_latter)
+
+        our_connector_chosen.neighbor = their_connector_chosen
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
