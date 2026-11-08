@@ -9,7 +9,13 @@ from typing import ClassVar, Iterable, Optional, Self
 
 from numpy import eye as identity_matrix
 
-from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
+from .primitive import (
+    DEFAULT_ROLE,
+    PrimitiveLabel,
+    Metadata,
+    SupportsChildren,
+    SupportsParents,
+)
 from .exceptions import ArborescenceError
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.arraytypes import Array3x3
@@ -38,7 +44,7 @@ class RootPrimitive(SupportsChildren):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        role: str = "unassigned",
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
