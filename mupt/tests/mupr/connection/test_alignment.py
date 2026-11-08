@@ -8,6 +8,7 @@ from numpy.testing import assert_allclose
 from . import randomly_placed_connector
 from mupt.geometry.measure import compare_optional_positions, normalized
 from mupt.geometry.coordinates.directions import random_unit_vector
+from mupt.mupr.connection import AttachmentPoint, Connector
 from mupt.mupr.connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentRigid,
@@ -128,3 +129,36 @@ class TestAntialignment:
         alignment.antialign_mutually(conn_b, to_connector=conn_a)
 
         assert conn_a.is_antialigned(conn_b)
+
+    def test_mutual_antialignment_with_rollback(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """Replaying the returned transforms reproduces direct mutual alignment."""
+        conn_a = Connector(
+            AttachmentPoint(position=[0.0, 0.0, 0.0]),
+            AttachmentPoint(position=[0.0, 0.0, 1.0]),
+        )
+        conn_b = Connector(
+            AttachmentPoint(position=[3.0, 0.0, 0.0]),
+            AttachmentPoint(position=[3.0, 2.0, 0.0]),
+        )
+        direct_a, direct_b = conn_a.copy(), conn_b.copy()
+        alignment.antialign_mutually(direct_a, direct_b)
+        assert direct_a.is_antialigned(direct_b)
+
+        transforms = alignment.antialign_mutually(
+            conn_a, conn_b, roll_back_transform=True
+        )
+        assert transforms is not None
+        assert_allclose(conn_a.anchor.position, [0.0, 0.0, 0.0], atol=1e-8)
+        assert_allclose(conn_b.anchor.position, [3.0, 0.0, 0.0], atol=1e-8)
+        assert_allclose(conn_a.unit_bond_vector, [0.0, 0.0, 1.0], atol=1e-8)
+        assert_allclose(conn_b.unit_bond_vector, [0.0, 1.0, 0.0], atol=1e-8)
+
+        for conn, direct, transform in zip(
+            (conn_a, conn_b), (direct_a, direct_b), transforms, strict=True
+        ):
+            assert_allclose(conn.bond_length, direct.bond_length)
+            conn.rigidly_transform(transform)
+            assert_allclose(conn.anchor.position, direct.anchor.position, atol=1e-8)
+            assert_allclose(conn.linker.position, direct.linker.position, atol=1e-8)
