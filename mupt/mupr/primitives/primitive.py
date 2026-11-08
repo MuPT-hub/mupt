@@ -571,8 +571,10 @@ class Primitive(
         """
         return {
             "shape": None if (self.shape is None) else self.shape.copy(),
-            "metadata": {key: value for key, value in self.metadata.items()},
             "label": deepcopy(self.label),
+            # N.B.: mass deliberately not copied; subtypes each handle in their own way
+            "role": deepcopy(self.role),
+            "metadata": {key: value for key, value in self.metadata.items()},
         }
 
     def _copy_hierarchy(self) -> tuple[Self, dict["Primitive", "Primitive"]]:
