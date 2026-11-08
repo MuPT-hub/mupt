@@ -27,9 +27,6 @@ from itertools import product as cartesian
 import numpy as np
 from scipy.spatial.transform import Rotation, RigidTransform
 
-if TYPE_CHECKING:
-    from .management import HoldsConnectors
-
 from .types import AttachmentLabel, ConnectorLabel
 from .exceptions import ConnectorLockedError, IncompatibleConnectorError
 from ..canonicalize import lex_order_multiset_str
