@@ -70,6 +70,7 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
 
 
 DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
+DEFAULT_ROLE: str = "unassigned"
 
 
 class Primitive(
@@ -143,7 +144,7 @@ class Primitive(
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        role: str = "unassigned",
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         """
@@ -155,10 +156,10 @@ class Primitive(
         self._frozen_hierarchy = False
 
         # instance attrs
-        self._shape = shape
+        self.shape = shape  # use setter to perform extra validation
         self._label = label
         self._mass = mass
-        self._role = role
+        self.role = role  # use setter to perform extra validation
         self.metadata = metadata or dict()
 
     @property
@@ -189,8 +190,14 @@ class Primitive(
         return self._role
 
     @role.setter
-    def role(self, new_role: str) -> None:
+    def role(self, new_role: str | PrimitiveRole) -> None:
         """Reassign this Primitive's role"""
+        if isinstance(new_role, PrimitiveRole):
+            new_role = new_role.name
+
+        if not isinstance(new_role, str):
+            raise TypeError(f"Invalid role type {type(new_role).__name__}; must be str")
+
         self._role = new_role
 
     @property

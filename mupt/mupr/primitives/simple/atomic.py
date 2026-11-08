@@ -3,7 +3,7 @@
 from typing import ClassVar, Iterable, Optional, Self
 
 from .simple import SimplePrimitive
-from ..primitive import PrimitiveLabel, Metadata
+from ..primitive import DEFAULT_ROLE, PrimitiveLabel, Metadata
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager
 from ....geometry.shapes.shapes import BoundedTransformableShape
@@ -31,7 +31,7 @@ class AtomicPrimitive(SimplePrimitive):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         # N.B.: 'mass' deliberately omitted; taken form Element
-        role: str = "unassigned",
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         if not isatom(element):
@@ -43,6 +43,7 @@ class AtomicPrimitive(SimplePrimitive):
             shape=shape,
             label=label,
             mass=element.mass,
+            role=role,
             metadata=metadata,
         )
 

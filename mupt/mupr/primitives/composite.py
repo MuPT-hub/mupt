@@ -7,7 +7,13 @@ Used as the "connective tissue" between the root and simples of a hierarachy
 
 from typing import ClassVar, Iterable, Optional, Self
 
-from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
+from .primitive import (
+    DEFAULT_ROLE,
+    PrimitiveLabel,
+    Metadata,
+    SupportsChildren,
+    SupportsParents,
+)
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.shapes.shapes import BoundedTransformableShape
 
@@ -30,7 +36,7 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
-        role: str = "unassigned",
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
