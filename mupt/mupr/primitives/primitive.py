@@ -535,6 +535,7 @@ class Primitive(
         our_connector: Union[ConnectorAddress, Connector],
         their_connector: Union[ConnectorAddress, Connector],
         alignment_strategy: Optional[ConnectorAntialignmentStrategy] = None,
+        align_to_us: bool = True,
     ) -> None:
         """
         Forge a new connection to another Primitive
@@ -543,20 +544,36 @@ class Primitive(
         Primitives,will use those as halves of the connection;
         Otherwise, will attempt to deduce a unique choice using the linking algorithm
         """
+        # verify both Connectors actually exist on their respective Primitive
         our_connector_chosen: Connector = self.fetch_connector(our_connector)
         their_connector_chosen: Connector = other.fetch_connector(their_connector)
 
+        if align_to_us:
+            # former <=> the thing being aligned to
+            prim_former = self
+            conn_former = our_connector_chosen
+
+            # latter <=> the thing being moved to get aligned
+            prim_latter = other
+            conn_latter = their_connector_chosen
+        else:
+            prim_former = other
+            conn_former = their_connector_chosen
+
+            prim_latter = self
+            conn_latter = our_connector_chosen
+
         # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
         if alignment_strategy is not None:
-            transform_former, transform_latter = alignment_strategy.antialign_mutually(
-                align_connector=their_connector_chosen,
-                to_connector=our_connector_chosen,
+            transform_latter, transform_former = alignment_strategy.antialign_mutually(
+                align_connector=conn_latter,
+                to_connector=conn_former,
                 roll_back_transform=True,  # avoid double-transforming
                 dihedral_angle_rad=None,  # may configure in future
             )  # type: ignore - roll_back_transform returns 2-tuple, not Nones
 
-            other.rigidly_transform(transform_former)
-            self.rigidly_transform(transform_latter)
+            prim_former.rigidly_transform(transform_former)
+            prim_latter.rigidly_transform(transform_latter)
 
         our_connector_chosen.neighbor = their_connector_chosen
 
