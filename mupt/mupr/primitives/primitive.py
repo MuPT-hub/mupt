@@ -549,15 +549,15 @@ class Primitive(
 
         # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
         if alignment_strategy is not None:
-            alignment_strategy.antialign(
+            transform_former, transform_latter = alignment_strategy.antialign_mutually(
                 align_connector=their_connector_chosen,
                 to_connector=our_connector_chosen,
-            )
-            alignment_transform = alignment_strategy.antialignment_transformation(
-                align_connector=their_connector_chosen,
-                to_connector=our_connector_chosen,
-            )  # Suppress on already-aligned chosen Connectors
-            other.rigidly_transform(alignment_transform)
+                roll_back_transform=True,  # avoid double-transforming
+                dihedral_angle_rad=None,  # may configure in future
+            )  # type: ignore - roll_back_transform returns 2-tuple, not Nones
+
+            other.rigidly_transform(transform_former)
+            self.rigidly_transform(transform_latter)
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
@@ -663,10 +663,10 @@ class Primitive(
         for connector in self.connections.connectors:
             connector.rigidly_transform(transformation)
             if connector.has_neighbor:
-                antialign_strategy.antialign(
+                antialign_strategy.antialign_mutually(
                     align_connector=connector,
                     to_connector=connector.neighbor,  # keep neighbor fixed
-                    match_bond_length=True,
+                    roll_back_transform=False,
                     dihedral_angle_rad=None,  # may configure in future
                 )
 
