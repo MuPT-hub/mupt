@@ -1619,4 +1619,3 @@ class PrimitiveLegacy(NodeMixin, RigidlyTransformable):
             # DEV: lock out node_converter option here; downstream consumers like
             # visualize_hierarchy _require_ graph node to be literal Primitive instances
         )
-        
