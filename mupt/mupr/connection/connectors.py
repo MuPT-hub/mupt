@@ -372,7 +372,7 @@ class Connector(Addressed, RigidlyTransformable):
             and (not set.isdisjoint(self.linker.markers, other.anchor.markers))
             and (self.bondtype == other.bondtype)
         )
-        
+
     # DEV: you may have the impulse to move this into connection.alignment;
     # understand that this would introduce an otherwise-unnecessary circular dependency
     def is_antialigned(self, other: "Connector", within: float = 1e-6) -> bool:
