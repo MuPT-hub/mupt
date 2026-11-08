@@ -116,6 +116,24 @@ def test_counterpart_orthogonal_basis() -> None:
     assert_allclose(conn.normal_vector / conn_counter.normal_vector, 1.0)
 
 
+def test_individualize() -> None:
+    """Test that Connector.individualize gives the expected set of derived Connectors"""
+    conn_master = Connector(AttachmentPoint({0, 1, 2}), AttachmentPoint({3, 4}))
+    conns_expected: dict[tuple[int, int], Connector] = {
+        (0, 3): Connector(AttachmentPoint({0}), AttachmentPoint({3})),
+        (1, 3): Connector(AttachmentPoint({1}), AttachmentPoint({3})),
+        (2, 3): Connector(AttachmentPoint({2}), AttachmentPoint({3})),
+        (0, 4): Connector(AttachmentPoint({0}), AttachmentPoint({4})),
+        (1, 4): Connector(AttachmentPoint({1}), AttachmentPoint({4})),
+        (2, 4): Connector(AttachmentPoint({2}), AttachmentPoint({4})),
+    }
+
+    indivs = conn_master.individualize()
+    assert indivs.keys() == conns_expected.keys()
+    for key, conn_expected in conns_expected.items():
+        assert Connector.fungible_with(indivs[key], conn_expected)
+
+
 # Comparison tests
 ## only use counterparts in subsequent tests if prior counterpart tests have passed
 ## DEV: creating here since expected result must contain same literal Connector instance
