@@ -116,3 +116,20 @@ def test_primitive_copy_connectors(hierarchy_example: RootPrimitive) -> None:
             Connector.fungible_with(conn_copy, conn_orig)
             and (conn_copy is not conn_orig)  # equivalent but not identical
         )
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "unassigned",
+        "segment",
+        "SEGMENT",
+        "non-sanctioned-valid-str",
+    ],
+)
+def test_role_kept_on_copy(role: str) -> None:
+    """Test that copied Primtiives preserve the role of their prototype"""
+    prim = CompositePrimitive(label="foo", role=role)
+    copy = prim.copy()
+
+    assert copy.role == prim.role
