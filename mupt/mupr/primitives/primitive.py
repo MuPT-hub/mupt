@@ -19,6 +19,7 @@ type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type Metadata = dict[Hashable, Any]
 
+from copy import deepcopy
 from weakref import WeakValueDictionary
 
 from anytree.node import NodeMixin
@@ -561,6 +562,18 @@ class Primitive(
         hierarchical or Connection information included
         """
         raise NotImplementedError  # TB TODO: should be abstractmethod, eventually
+
+    def _copy_attrs_boilerplate(self) -> dict[str, Any]:
+        """
+        Create a dictionary containing copied versions of attributes
+        that all Primitive subtypes are expected to contain and accept
+        in their respective  __init__ methods
+        """
+        return {
+            "shape": None if (self.shape is None) else self.shape.copy(),
+            "metadata": {key: value for key, value in self.metadata.items()},
+            "label": deepcopy(self.label),
+        }
 
     def _copy_hierarchy(self) -> tuple[Self, dict["Primitive", "Primitive"]]:
         """
