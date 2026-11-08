@@ -226,14 +226,14 @@ class ConnectorManagerMutable(ConnectorManager):
     # since Connectors might change neighbors during bond linking
     @property
     def connectors_free(self) -> tuple[Connector, ...]:
-        """Managed Connectors which have no assigned neighbor"""
+        """Managed Connectors which DO NOT have an assigned neighbor"""
         return tuple(
             connector for connector in self.connectors if not connector.has_neighbor
         )
 
     @property
     def connectors_bound(self) -> tuple[Connector, ...]:
-        """Managed Connectors which have no assigned neighbor"""
+        """Managed Connectors which DO have an assigned neighbor"""
         return tuple(
             connector for connector in self.connectors if connector.has_neighbor
         )
