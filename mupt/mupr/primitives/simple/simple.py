@@ -5,8 +5,6 @@ which behave as a simple part of a system must inherit from here
 
 from typing import ClassVar, Iterable, Optional, Self, Union
 
-from copy import deepcopy
-
 from ..primitive import PrimitiveLabel, Metadata, SupportsParents, SupportsChildren
 from ..exceptions import IrreducibilityError
 from ...connection.types import ConnectorAddress, ConnectorLabel
@@ -57,10 +55,8 @@ class SimplePrimitive(SupportsParents):
         hierarchical or Connection information included
         """
         clone = self.__class__(
-            connections=[],  # will be plumbed up in _copy_untransformed()
-            shape=None if (self.shape is None) else self.shape.copy(),
-            metadata={key: value for key, value in self.metadata.items()},
-            label=deepcopy(self.label),
+            connections=[],  # gets plumbed up in _copy_untransformed()
+            **self._copy_attrs_boilerplate(),
         )
         return clone
 

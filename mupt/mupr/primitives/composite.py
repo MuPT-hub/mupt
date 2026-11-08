@@ -7,8 +7,6 @@ Used as the "connective tissue" between the root and simples of a hierarachy
 
 from typing import ClassVar, Iterable, Optional, Self
 
-from copy import deepcopy
-
 from .primitive import PrimitiveLabel, Metadata, SupportsChildren, SupportsParents
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.shapes.shapes import BoundedTransformableShape
@@ -46,9 +44,7 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         hierarchical or Connection information included
         """
         clone = self.__class__(
-            children=[],
-            shape=None if (self.shape is None) else self.shape.copy(),
-            metadata={key: value for key, value in self.metadata.items()},
-            label=deepcopy(self.label),
+            children=[],  # gets plumbed up in _copy_hierarchy()
+            **self._copy_attrs_boilerplate(),
         )
         return clone
