@@ -193,7 +193,7 @@ class Primitive(
     def role(self, new_role: str | PrimitiveRole) -> None:
         """Reassign this Primitive's role"""
         if isinstance(new_role, PrimitiveRole):
-            new_role = new_role.name
+            new_role = new_role.value  # lowercase
 
         if not isinstance(new_role, str):
             raise TypeError(f"Invalid role type {type(new_role).__name__}; must be str")
