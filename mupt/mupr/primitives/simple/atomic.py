@@ -31,6 +31,7 @@ class AtomicPrimitive(SimplePrimitive):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         # N.B.: 'mass' deliberately omitted; taken form Element
+        role: str = "unassigned",
         metadata: Optional[Metadata] = None,
     ) -> None:
         if not isatom(element):
