@@ -337,6 +337,7 @@ class Connector(Addressed, RigidlyTransformable):
         )
 
     # Holder: higher-level object which "holds" this Connector (e.g. for reverse-lookup)
+    @property
     def has_holder(self) -> bool:
         """Check if holder has been assigned"""
         return self._holder is not None
