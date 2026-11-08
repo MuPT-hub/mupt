@@ -7,7 +7,7 @@ import pytest
 from itertools import product as cartesian
 
 from mupt.mupr.primitives.roles import PrimitiveRole
-from mupt.mupr.primitives.primitive import Primitive
+from mupt.mupr.primitives.primitive import Primitive, DEFAULT_ROLE
 from mupt.mupr.primitives.root import RootPrimitive
 from mupt.mupr.primitives.composite import CompositePrimitive
 from mupt.mupr.primitives.simple.simple import SimplePrimitive
@@ -28,6 +28,16 @@ def str_to_role_pairs() -> dict[str, PrimitiveRole]:
         "particle": PrimitiveRole.PARTICLE,
         "PARTICLE": PrimitiveRole.PARTICLE,
     }
+
+
+def primitive_instances() -> tuple[Primitive, ...]:
+    """Example role-less Primitive instances"""
+    return (
+        RootPrimitive(),
+        CompositePrimitive(),
+        SimplePrimitive(),
+        AtomicPrimitive(ELEMENTS[6]),
+    )
 
 
 @pytest.mark.parametrize(
@@ -70,16 +80,30 @@ def test_role_from_str(str_input: str, role_expected: PrimitiveRole) -> None:
 
 
 @pytest.mark.parametrize(
+    "prim,role_obj",
+    [
+        (prim, role)
+        for prim, role in cartesian(
+            primitive_instances(), [role for role in PrimitiveRole]
+        )
+    ],
+)
+def test_role_instances_normalized(prim: Primitive, role_obj: PrimitiveRole) -> None:
+    """
+    Test that Primitive.role also accepts PrimitiveRole
+    instances and converts them into string form internally
+    """
+    # underscoring is deliberate; use setter to assign but check private value otherwise
+    prim.role = role_obj
+    assert prim._role == role_obj.value
+
+
+@pytest.mark.parametrize(
     "prim,role_str,role_expected",
     [
         (prim, role_str, role_expected)
         for prim, (role_str, role_expected) in cartesian(
-            [
-                RootPrimitive(),
-                CompositePrimitive(),
-                SimplePrimitive(),
-                AtomicPrimitive(ELEMENTS[6]),
-            ],
+            primitive_instances(),
             str_to_role_pairs().items(),
         )
     ],
