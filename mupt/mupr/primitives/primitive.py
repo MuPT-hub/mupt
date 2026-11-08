@@ -202,7 +202,12 @@ class Primitive(
 
     @property
     def role_sanctioned(self) -> PrimitiveRole:
-        """Match role tag to one of the role types recognized within the MuPT source"""
+        """
+        Match role tag to one of the role types recognized within the MuPT source
+
+        Will raise ValueError if an invalid role str is assigned, or raise
+        TypeError if the underlying Primitive._role attr has been corrupted to non-str
+        """
         return PrimitiveRole.from_str(self._role)
 
     @property  # TB: eventually, incorporate info about units
