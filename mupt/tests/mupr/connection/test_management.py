@@ -98,6 +98,16 @@ def test_frozen_rejects_mutation(method):
         getattr(ConnectorManagerFrozen(), method)(Connector())
 
 
+def test_frozen_manager_counts_repeated_connector_once() -> None:
+    """A repeated address must contribute only once to each count."""
+    connector = Connector(bondtype=BondType.SINGLE)
+    manager = ConnectorManagerFrozen(connector, connector)
+
+    assert (manager.functionality, manager.valence) == (1, 1)
+    assert manager.connectors == (connector,)
+    assert manager.connector(connector.address) is connector
+
+
 # ConnectorManagerMutable specifics
 @pytest.mark.parametrize(
     "key", [lambda c: c, lambda c: c.address], ids=["instance", "address"]
