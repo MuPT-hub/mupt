@@ -1,0 +1,202 @@
+"""Unit tests for Connector bond antialignment protocols"""
+
+import pytest
+
+import numpy as np
+from numpy.testing import assert_allclose
+from scipy.spatial.transform import Rotation
+
+from . import randomly_placed_connector
+from mupt.geometry.measure import compare_optional_positions, normalized
+from mupt.geometry.coordinates.directions import random_unit_vector
+from mupt.mupr.connection import AttachmentPoint, Connector
+from mupt.mupr.connection.alignment import (
+    ConnectorAntialignmentStrategy,
+    ConnectorAntialignmentRigid,
+    ConnectorAntialignmentBallistic,
+)
+
+
+@pytest.fixture(scope="module")
+def rng() -> np.random.Generator:
+    """Seeded random number shared among tests here"""
+    return np.random.default_rng(seed=5772)
+
+
+## Tests proper
+@pytest.mark.parametrize(
+    "perturbation,tolerance,expected_antialigned",
+    [
+        (0.0, 1e-6, True),
+        (0.0, 1e-12, True),
+        (1e-6, 1e-12, False),
+        (1e-6, 1e-5, True),
+        (1e-12, 1e-6, True),
+        (1e-1, 1e0, True),
+        (1e-2, 1e2, True),
+        (1e2, 1e-2, False),
+        # DEV: comparison exactly ON the surface of an
+        # epsilon ball is dicey; result is essentially random
+        (1e-6 - 1e-8, 1e-6 + 1e-8, True),
+        (1e-6 + 1e-8, 1e-6 - 1e-8, False),
+    ],
+)
+def test_are_antialigned(
+    perturbation: float,
+    tolerance: float,
+    expected_antialigned: bool,
+    rng: np.random.Generator,
+) -> None:
+    """
+    Test that antialignment check correctly identifies or
+    rejects antialigned Connectors to within tolerance
+    """
+    conn = randomly_placed_connector(0, 1)
+    conn_counter = conn.counterpart()
+    conn_counter.anchor.position += perturbation * random_unit_vector(rng=rng)
+
+    assert conn.is_antialigned(conn_counter, within=tolerance) == expected_antialigned
+
+
+@pytest.mark.parametrize(
+    "alignment",
+    [
+        ConnectorAntialignmentRigid(),
+        ConnectorAntialignmentBallistic(),
+    ],
+)
+class TestAntialignment:
+    """
+    Tests for the calculation and application methods each
+    ConnectorAntialignmentStrategy is expected to implement
+    """
+
+    def test_one_sided_alignment_no_bond_match(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """
+        Test that one-sided antialignment WITHOUT bond length matching
+        causes the bond_vector of align_connector to point from its anchor
+        to the anchor of to_connector (but not necessarily the other way around)
+
+        More precisely, check the align_connectors bond vector lies on
+        the span of the vector difference between the two anchor sites
+        """
+        conn_a = randomly_placed_connector(0, 1)
+        conn_b = randomly_placed_connector(1, 0)
+
+        alignment.antialign_one_sided(
+            conn_b, to_connector=conn_a, match_bond_length=False
+        )
+
+        similarity: float = np.dot(
+            conn_b.unit_bond_vector,
+            # order of subtraction guarantees same direction, precludes -1.0
+            normalized(conn_a.anchor.position - conn_b.anchor.position),
+        )
+
+        assert_allclose(similarity, 1.0)
+
+    def test_one_sided_antialignment_bond_match(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """
+        Test that one-sided antialignment WITH bond matching causes the bond
+        vector of align_connector to face the anchor of to_connector AND the
+        linker of align_connector to be coincident with the anchor of to_connector
+        """
+        conn_a = randomly_placed_connector(0, 1)
+        conn_b = randomly_placed_connector(1, 0)
+
+        alignment.antialign_one_sided(
+            conn_b, to_connector=conn_a, match_bond_length=True
+        )
+
+        assert compare_optional_positions(
+            conn_b.linker.position,
+            conn_a.anchor.position,
+        )
+
+    def test_mutual_antialignment(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """
+        Test that mutual antialignment does indeed result in
+        both Connectors being antialigned to one another
+        """
+        conn_a = randomly_placed_connector(0, 1)
+        conn_b = randomly_placed_connector(1, 0)
+
+        alignment.antialign_mutually(conn_b, to_connector=conn_a)
+
+        assert conn_a.is_antialigned(conn_b)
+
+    def test_mutual_antialignment_with_rollback(
+        self, alignment: ConnectorAntialignmentStrategy
+    ) -> None:
+        """Replaying the returned transforms reproduces direct mutual alignment."""
+        conn_a = Connector(
+            AttachmentPoint(position=[0.0, 0.0, 0.0]),
+            AttachmentPoint(position=[0.0, 0.0, 1.0]),
+        )
+        conn_b = Connector(
+            AttachmentPoint(position=[3.0, 0.0, 0.0]),
+            AttachmentPoint(position=[3.0, 2.0, 0.0]),
+        )
+        direct_a, direct_b = conn_a.copy(), conn_b.copy()
+        alignment.antialign_mutually(direct_a, direct_b)
+        assert direct_a.is_antialigned(direct_b)
+
+        transforms = alignment.antialign_mutually(
+            conn_a, conn_b, roll_back_transform=True
+        )
+        assert transforms is not None
+        assert_allclose(conn_a.anchor.position, [0.0, 0.0, 0.0], atol=1e-8)
+        assert_allclose(conn_b.anchor.position, [3.0, 0.0, 0.0], atol=1e-8)
+        assert_allclose(conn_a.unit_bond_vector, [0.0, 0.0, 1.0], atol=1e-8)
+        assert_allclose(conn_b.unit_bond_vector, [0.0, 1.0, 0.0], atol=1e-8)
+
+        for conn, direct, transform in zip(
+            (conn_a, conn_b), (direct_a, direct_b), transforms, strict=True
+        ):
+            assert_allclose(conn.bond_length, direct.bond_length)
+            conn.rigidly_transform(transform)
+            assert_allclose(conn.anchor.position, direct.anchor.position, atol=1e-8)
+            assert_allclose(conn.linker.position, direct.linker.position, atol=1e-8)
+
+    @pytest.mark.parametrize(
+        "target_tangent, angle_rad",
+        [
+            pytest.param([0.0, 0.0, 1.0], 0.0, id="perpendicular-tangents"),
+            pytest.param(None, 0.0, id="counterpart-tangent"),
+            pytest.param([0.0, 1.0, 0.0], -np.pi / 3, id="signed-angle"),
+        ],
+    )
+    def test_assign_dihedral(
+        self,
+        alignment: ConnectorAntialignmentStrategy,
+        target_tangent: list[float] | None,
+        angle_rad: float,
+    ) -> None:
+        """Set the signed dihedral angle while keeping both endpoints fixed."""
+        anchor_position = [1.0, 2.0, 3.0]
+        linker_position = [2.0, 2.0, 3.0]
+        conn_a = Connector(
+            AttachmentPoint(position=anchor_position),
+            AttachmentPoint(position=linker_position),
+        )
+        conn_a.tangent_vector = np.array([0.0, 1.0, 0.0])
+        conn_b = conn_a.counterpart()
+        if target_tangent is not None:
+            conn_b.tangent_vector = np.array(target_tangent)
+
+        expected_normal = Rotation.from_rotvec(
+            angle_rad * conn_b.unit_bond_vector
+        ).apply(conn_b.unit_normal_vector)
+
+        alignment.assign_dihedral(conn_a, conn_b, dihedral_angle_rad=angle_rad)
+
+        assert conn_a.is_antialigned(conn_b)
+        assert_allclose(conn_a.anchor.position, anchor_position, atol=1e-8)
+        assert_allclose(conn_a.linker.position, linker_position, atol=1e-8)
+        assert_allclose(conn_a.unit_normal_vector, expected_normal, atol=1e-8)
