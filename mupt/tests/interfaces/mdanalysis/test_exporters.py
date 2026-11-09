@@ -409,7 +409,7 @@ def test_atoms_outside_any_residue_raise(polyethylene_lexicon):
     """Every atom must sit inside a residue-role Primitive."""
     chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
     root = tag_roles(RootPrimitive(children=[chain]))
-    next(iter(chain.children)).role = None  # untag the head unit
+    next(iter(chain.children)).role = "unassigned"  # untag the head unit
     with pytest.raises(ValueError, match="not inside both"):
         primitive_to_mdanalysis(root, {"ethane": "EAN", "tail": "TYL"})
 
