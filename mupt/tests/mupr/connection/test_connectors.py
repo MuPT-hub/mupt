@@ -12,7 +12,10 @@ from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
 from mupt.geometry.coordinates.directions import random_tangent
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint
-from mupt.mupr.connection.exceptions import ConnectorLockedError
+from mupt.mupr.connection.exceptions import (
+    ConnectorLockedError,
+    IncompatibleConnectorError,
+)
 from mupt.mupr.connection.management import (
     ConnectorManager,
     ConnectorManagerFrozen,
@@ -311,6 +314,24 @@ def test_neighbor_assignment():
     conn0.neighbor = conn1
 
     assert (conn0.neighbor == conn1) and (conn1.neighbor == conn0)
+
+
+def test_neighbor_assignment_rejects_conflicting_bond_orders() -> None:
+    """Antialigned connectors with different bond orders must remain unbound."""
+    single = Connector(
+        anchor=AttachmentPoint({"C"}, position=[0.0, 0.0, 0.0]),
+        linker=AttachmentPoint({"N"}, position=[1.0, 0.0, 0.0]),
+        bondtype=BondType.SINGLE,
+    )
+    double = single.counterpart()
+    double.bondtype = BondType.DOUBLE
+    assert single.is_antialigned(double)
+
+    with pytest.raises(IncompatibleConnectorError):
+        single.neighbor = double
+
+    assert single.neighbor is None
+    assert double.neighbor is None
 
 
 def test_connector_neighbor_persistence() -> None:
