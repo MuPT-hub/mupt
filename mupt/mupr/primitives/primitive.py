@@ -6,15 +6,18 @@ within MuPT's multiscale molecular representation
 from typing import (
     Any,
     ClassVar,
+    Callable,
     Collection,
     Generator,
     Hashable,
     Iterable,
     Optional,
     Self,
+    TypeVar,
     Union,
 )
 
+H = TypeVar("H", bound=Hashable)
 type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type Metadata = dict[Hashable, Any]
@@ -28,7 +31,8 @@ from anytree.search import findall
 from anytree.render import RenderTree
 from anytree.util import commonancestors
 
-from networkx.classes import DiGraph
+from networkx.classes import Graph, DiGraph, MultiGraph
+from networkx import get_node_attributes, relabel_nodes
 
 from scipy.spatial.transform import RigidTransform
 
@@ -46,6 +50,11 @@ from ..connection.alignment import (
     ConnectorAntialignmentStrategy,
     ConnectorAntialignmentBallistic,
 )
+from ..connection.linking import (
+    assign_connections_from_topology,
+    deduce_connections_from_topology,
+    GraphIterRule,
+)
 
 from ...mutils.referencing import Addressed
 from ...mutils.containers import Labelled
@@ -53,6 +62,7 @@ from ...mutils.decorators.classmod import precondition_factory
 
 from ...geometry.shapes import Shaped, BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
+from ...chemistry.core import BOND_ORDER_ATTR
 
 from ...trees.digraph import anytree_to_networkx
 from ...trees.subselect import NodePredicate, primoprogenitors
@@ -540,9 +550,10 @@ class Primitive(
     def connect_neighbor(
         self,
         other: "Primitive",
-        our_connector: Union[ConnectorAddress, Connector],
-        their_connector: Union[ConnectorAddress, Connector],
+        our_connector: Optional[ConnectorAddress | Connector] = None,
+        their_connector: Optional[ConnectorAddress | Connector] = None,
         alignment_strategy: Optional[ConnectorAntialignmentStrategy] = None,
+        n_iter_max_rule: Optional[GraphIterRule] = None,
     ) -> None:
         """
         Forge a new connection to another Primitive
@@ -551,8 +562,27 @@ class Primitive(
         Primitives,will use those as halves of the connection;
         Otherwise, will attempt to deduce a unique choice using the linking algorithm
         """
-        our_connector_chosen: Connector = self.fetch_connector(our_connector)
-        their_connector_chosen: Connector = other.fetch_connector(their_connector)
+        # to be used as keys identifying edge in graph
+        prim_edge: tuple[Primitive, Primitive] = (self, other)
+        mapped_connectors: dict[PrimitiveAddress, set[Connector]] = dict()
+        if our_connector is None:
+            mapped_connectors[self] = {self.fetch_connector(our_connector)}
+        else:
+            mapped_connectors[self] = set(self.connections.connectors_free)
+
+        if our_connector is None:
+            mapped_connectors[other] = {self.fetch_connector(their_connector)}
+        else:
+            mapped_connectors[other] = set(other.connections.connectors_free)
+
+        # TB: deducing, rather than assigning, to get access
+        # to chosen Connectors for geometric alignment
+        conn_map = deduce_connections_from_topology(
+            topology=Graph([prim_edge]),
+            mapped_connectors=mapped_connectors,
+            n_iter_max_rule=n_iter_max_rule,
+        )
+        our_connector_chosen, their_connector_chosen = conn_map[prim_edge]
         our_connector_chosen.neighbor = their_connector_chosen
 
         # TODO: also align all neighbors of neighbor? (that connected to self elsewhere)
@@ -566,6 +596,51 @@ class Primitive(
                 to_connector=our_connector_chosen,
             )  # Suppress on already-aligned chosen Connectors
             other.rigidly_transform(alignment_transform)
+
+    ## Cross-sections
+    def cross_section(self, predicate: NodePredicate["Primitive"]) -> Graph:
+        """
+        Generate a graph of a "slice" of a subset
+        of sub-Primitives specified by a predicate
+        """
+        multigraph_conversion_made: bool = False
+
+        cross_section = Graph()
+        cross_section.add_nodes_from(primoprogenitors(self, predicate=predicate))
+        visited: dict[Primitive, bool] = dict()
+
+        # DEV: need to make and iterate over static view of nodes to
+        # avoid "dictionary changed size during iteration" RuntimeError
+        for prim_node in tuple(cross_section.nodes):
+            seen_neighbors: set[Primitive] = set()
+            for (
+                our_connector,
+                their_connector,
+                neighbor,
+            ) in prim_node.neighbors_with_connectors(predicate):
+                if visited.get(neighbor, False):
+                    continue
+
+                # upconvert to multigraph the first time a duplicate edge is encoutered
+                if (not multigraph_conversion_made) and (neighbor in seen_neighbors):
+                    cross_section = MultiGraph(cross_section)
+                    multigraph_conversion_made = True
+
+                # should already match if Connectors were allowed to be neighbors,
+                # but it never hurts to double-check
+                assert our_connector.bond_order == their_connector.bond_order
+
+                cross_section.add_edge(
+                    prim_node,
+                    neighbor,
+                    **{BOND_ORDER_ATTR: our_connector.bond_order},
+                )
+                seen_neighbors.add(neighbor)
+
+            # avoids double-counting single edges
+            visited[prim_node] = True
+
+        return cross_section
 
     # Copying Primitives - implements Copyable contract on RigidlyTransformable
     def _copy_instance(self) -> Self:
@@ -840,6 +915,74 @@ class SupportsChildren(Primitive):
         child.parent = None
 
         return child
+
+    # Connectivity
+    def set_connectivity_from_topology(
+        self,
+        topology: Graph,  # Graph[H]
+        predicate: NodePredicate["Primitive"],
+        prim_node_labeller: Callable[[Primitive], H] = lambda prim: prim,
+        n_iter_max_rule: Optional[GraphIterRule] = None,
+        source_node: Optional[H] = None,
+    ) -> None:
+        """
+        Form connections from a labelled graph, respecting selectivity of Connectors
+
+        Parameters
+        ----------
+        topology: Graph
+            The graph to use to assign neighbor connectviity
+        predicate: NodePredicate["Primitive"]
+            The condition by which to select sub-Primitives
+        prim_node_labeller : Callable[[Primitive], Hashable] /
+                default lambda prim : prim,
+            A function which maps the selected sub-Primitives to hashable labels
+            The labels mapped to should match nodes of the passed graph
+            By default, just returns the Primitive instance itself
+        n_iter_max_rule: Optional[Callable[[int], int]] = None
+            A rule for assigning the max number of iterations the linker routine
+            should run before giving up, as a function of the passed graph
+        """
+        assign_connections_from_topology(
+            topology,
+            mapped_connectors={
+                prim_node_labeller(subprim): subprim.connections.connectors_free
+                for subprim in primoprogenitors(self, predicate=predicate)
+            },
+            n_iter_max_rule=n_iter_max_rule,
+            source_node=source_node,
+        )
+
+    def populate_from_topology_and_lexicon(
+        self,
+        topology: Graph,
+        lexicon: dict[PrimitiveLabel, "SupportsParents"],
+        label_attr: str = "label",
+        source_node_label: Optional[PrimitiveLabel] = None,
+        set_label_from_lexicon: bool = False,
+    ) -> None:
+        """
+        Populate the internal structure of this child-supporting Primitive
+        by assigning its children and connectivity from a labelled graph
+        and a 'lexicon' mapping from labels to Primitive templates
+        """
+        label_to_prim_map: dict[PrimitiveLabel, SupportsParents] = dict()
+        for node, label_value in get_node_attributes(topology, label_attr).items():
+            node_prim = lexicon[label_value].copy()  # make per-node copy of prototypes
+            if set_label_from_lexicon:
+                node_prim.label = label_value
+            label_to_prim_map[node] = node_prim
+
+        prim_topology = relabel_nodes(topology, label_to_prim_map, copy=True)
+        for subprim in prim_topology.nodes:
+            self.attach_child(subprim)
+
+        self.set_connectivity_from_topology(
+            prim_topology,
+            predicate=lambda prim: prim in prim_topology,
+            prim_node_labeller=lambda x: x,
+            source_node=label_to_prim_map.get(source_node_label, None),
+        )
 
 
 class SupportsParents(Primitive):
