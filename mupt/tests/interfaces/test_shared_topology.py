@@ -8,19 +8,21 @@ from mupt.interfaces._shared.topology import (
     _pdb_resname,
     build_saamr_role_topology_index,
 )
-from mupt.mupr.primitives import Primitive
+from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
 from mupt.roles import PrimitiveRole
 
 
-def _particle(label: str) -> Primitive:
-    return Primitive(label=label, element=ELEMENTS[1], role=PrimitiveRole.PARTICLE)
+def _particle(label: str) -> PrimitiveLegacy:
+    return PrimitiveLegacy(
+        label=label, element=ELEMENTS[1], role=PrimitiveRole.PARTICLE
+    )
 
 
 def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    group = Primitive(label="group")
-    segment = Primitive(label="segment", role=PrimitiveRole.SEGMENT)
-    residue = Primitive(label="residue", role=PrimitiveRole.RESIDUE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    group = PrimitiveLegacy(label="group")
+    segment = PrimitiveLegacy(label="segment", role=PrimitiveRole.SEGMENT)
+    residue = PrimitiveLegacy(label="residue", role=PrimitiveRole.RESIDUE)
     atom = _particle("H")
 
     universe.attach_child(group)
@@ -37,18 +39,18 @@ def test_build_saamr_role_topology_index_allows_unassigned_grouping_nodes():
 
 
 def test_build_saamr_role_topology_index_rejects_empty_segment():
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    universe.attach_child(Primitive(label="empty", role=PrimitiveRole.SEGMENT))
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    universe.attach_child(PrimitiveLegacy(label="empty", role=PrimitiveRole.SEGMENT))
 
     with pytest.raises(ValueError, match="contains no RESIDUE"):
         build_saamr_role_topology_index(universe)
 
 
 def test_build_saamr_role_topology_index_rejects_nested_residue():
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    segment = Primitive(label="segment", role=PrimitiveRole.SEGMENT)
-    residue = Primitive(label="residue", role=PrimitiveRole.RESIDUE)
-    nested = Primitive(label="nested", role=PrimitiveRole.RESIDUE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    segment = PrimitiveLegacy(label="segment", role=PrimitiveRole.SEGMENT)
+    residue = PrimitiveLegacy(label="residue", role=PrimitiveRole.RESIDUE)
+    nested = PrimitiveLegacy(label="nested", role=PrimitiveRole.RESIDUE)
     atom = _particle("H")
 
     universe.attach_child(segment)
