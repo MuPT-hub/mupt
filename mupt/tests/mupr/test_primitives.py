@@ -8,35 +8,38 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 
 from mupt.mupr.primitives.primitive import Primitive
+from mupt.mupr.primitives.root import RootPrimitive
+from mupt.mupr.primitives.composite import CompositePrimitive
+from mupt.mupr.primitives.simple import SimplePrimitive
 from mupt.mupr.primitives.visualize import visualize_hierarchy
 
 
-# def test_hierarchy_tree_includes_constructor_children() -> None:
-#     """Keep constructor-supplied children in the exported hierarchy"""
-#     # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946041
-#     child = Primitive(label="child")
-#     root = Primitive(label="root", children=[child])
+def test_hierarchy_tree_includes_constructor_children() -> None:
+    """Keep constructor-supplied children in the exported hierarchy"""
+    # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946041
+    child = CompositePrimitive(label="child")
+    root = RootPrimitive(label="root", children=[child])
 
-#     graph = root.hierarchy_tree()
+    graph = root.hierarchy_tree()
 
-#     assert graph.number_of_nodes() == 2
-#     assert graph.number_of_edges() == 1
-#     assert graph.has_edge(root, child)
+    assert graph.number_of_nodes() == 2
+    assert graph.number_of_edges() == 1
+    assert graph.has_edge(root, child)
 
 
-# def test_hierarchy_tree_preserves_equivalent_siblings() -> None:
-#     """Keep separate hierarchy nodes for equivalent sibling Primitives"""
-#     # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4328033416
-#     root = Primitive(label="root")
-#     left = Primitive(label="left")
-#     right = Primitive(label="right")
-#     root.attach_child(left)
-#     root.attach_child(right)
+def test_hierarchy_tree_preserves_equivalent_siblings() -> None:
+    """Keep separate hierarchy nodes for equivalent sibling Primitives"""
+    # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4328033416
+    root = RootPrimitive(label="root")
+    left = SimplePrimitive(label="left")
+    right = SimplePrimitive(label="right")
+    root.attach_child(left)
+    root.attach_child(right)
 
-#     graph = root.hierarchy_tree()
+    graph = root.hierarchy_tree()
 
-#     assert graph.number_of_nodes() == 3
-#     assert graph.number_of_edges() == 2
+    assert graph.number_of_nodes() == 3
+    assert graph.number_of_edges() == 2
 
 
 # @pytest.fixture
@@ -52,7 +55,7 @@ from mupt.mupr.primitives.visualize import visualize_hierarchy
 # def test_visualize_hierarchy_with_converted_nodes(hierarchy_axes: Axes) -> None:
 #     """Draw converted node IDs with the default labeling options"""
 #     # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4344040109
-#     root = Primitive(label="root")
+#     root = RootPrimitive(label="root")
 #     graph = root.hierarchy_tree()
 
 #     ax = visualize_hierarchy(
@@ -81,8 +84,8 @@ from mupt.mupr.primitives.visualize import visualize_hierarchy
 # ) -> None:
 #     """Draw partial hierarchies without labels for excluded nodes"""
 #     # https://github.com/MuPT-hub/mupt/pull/135#discussion_r4393946104
-#     root = Primitive(label="root")
-#     child = Primitive(label="child")
+#     root = RootPrimitive(label="root")
+#     child = CompositePrimitive(label="child")
 #     root.attach_child(child)
 
 #     if selection == "depth_limit":
