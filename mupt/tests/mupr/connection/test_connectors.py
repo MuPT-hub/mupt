@@ -329,6 +329,24 @@ def test_connector_neighbor_persistence() -> None:
     assert conn_b.neighbor is None
 
 
+def test_rebinding_to_occupied_neighbor_detaches_previous_partner() -> None:
+    """Rebinding must clear the target's previous partner's reference."""
+    previous = Connector(
+        anchor=AttachmentPoint({"C"}, position=[0.0, 0.0, 0.0]),
+        linker=AttachmentPoint({"N"}, position=[1.0, 0.0, 0.0]),
+        bondtype=BondType.SINGLE,
+    )
+    target = previous.counterpart()
+    replacement = previous.copy()
+    previous.neighbor = target
+
+    replacement.neighbor = target
+
+    assert previous.neighbor is None
+    assert target.neighbor is replacement
+    assert replacement.neighbor is target
+
+
 def test_connector_lock_blocks_neighbor_delete() -> None:
     """Test that a locked connector cannot have an existing neighbor removed"""
     conn0 = Connector(

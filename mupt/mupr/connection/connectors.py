@@ -505,8 +505,11 @@ class Connector(Addressed, RigidlyTransformable):
                 "Candidate for neighbor Connector is not anti-aligned within tolerance"
             )
 
-        # ensure no trace of this Connectors remains recorded on the previous neighbor
+        # Check the target's previous partner before detaching either pair.
+        if (previous_neighbor := other.neighbor) is not None:
+            previous_neighbor._precondition_mutable_neighbor()
         del self.neighbor
+        del other.neighbor
         self._neighbor = other
         other._neighbor = self
 
