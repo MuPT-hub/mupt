@@ -7,17 +7,16 @@ Most commonly used to represent an entire chemical system or universe
 
 from typing import ClassVar, Iterable, Optional, Self
 
-from copy import deepcopy
-
 from numpy import eye as identity_matrix
 
 from .primitive import (
+    DEFAULT_ROLE,
     PrimitiveLabel,
     Metadata,
-    ArborescenceError,
     SupportsChildren,
     SupportsParents,
 )
+from .exceptions import ArborescenceError
 from ..connection.management import ConnectorManagerMutable
 from ...geometry.arraytypes import Array3x3
 from ...geometry.shapes.shapes import BoundedTransformableShape
@@ -45,9 +44,10 @@ class RootPrimitive(SupportsChildren):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
         self.connections = ConnectorManagerMutable()
         # N.B.: can't call _init_children before _frozen_hierarchy is set
         self._init_children(children)
@@ -65,10 +65,8 @@ class RootPrimitive(SupportsChildren):
         """
         clone = self.__class__(
             box_vectors=self.box_vectors.copy(),
-            children=[],
-            shape=None if (self.shape is None) else self.shape.copy(),
-            metadata={key: value for key, value in self.metadata.items()},
-            label=deepcopy(self.label),
+            children=[],  # gets plumbed up in _copy_hierarchy()
+            **self._copy_attrs_boilerplate(),
         )
         return clone
 

@@ -19,6 +19,7 @@ type PrimitiveLabel = Hashable
 type PrimitiveAddress = Hashable
 type Metadata = dict[Hashable, Any]
 
+from copy import deepcopy
 from weakref import WeakValueDictionary
 
 from anytree.node import NodeMixin
@@ -31,6 +32,8 @@ from networkx.classes import DiGraph
 
 from scipy.spatial.transform import RigidTransform
 
+from .exceptions import IrreducibilityError
+from .roles import PrimitiveRole
 from ..connection.types import ConnectorAddress, ConnectorLabelLike
 from ..connection.connectors import Connector
 from ..connection.management import (
@@ -56,31 +59,6 @@ from ...trees.subselect import NodePredicate, primoprogenitors
 from ...trees.render import tree_render_style, ConcreteStyle
 
 
-# Custom Exceptions
-class ImproperHierarchyError(AttributeError):
-    """
-    Raised when attempting to use a sybtype of Primtiive in a
-    place where it can't be used in a hierarchical representation
-    """
-
-    pass
-
-
-class ArborescenceError(ImproperHierarchyError):
-    """Raised when trying to use a Root as the child of another Primitive"""
-
-    pass
-
-
-class IrreducibilityError(ImproperHierarchyError):
-    """
-    Raised when attempting to perform a
-    composite Primitive operation on a simple one
-    """
-
-    pass
-
-
 # Primitive selection
 def indiscriminate_selector(prim: "Primitive") -> bool:
     """
@@ -92,6 +70,7 @@ def indiscriminate_selector(prim: "Primitive") -> bool:
 
 
 DEFAULT_PREDICATE: NodePredicate["Primitive"] = indiscriminate_selector
+DEFAULT_ROLE: str = "unassigned"
 
 
 class Primitive(
@@ -149,6 +128,7 @@ class Primitive(
     _shape: Optional[BoundedTransformableShape]  # TODO: add protected access
     _label: PrimitiveLabel
     _mass: Optional[float]
+    _role: str
     metadata: Metadata
 
     _frozen_connections: bool
@@ -164,6 +144,7 @@ class Primitive(
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         """
@@ -175,9 +156,10 @@ class Primitive(
         self._frozen_hierarchy = False
 
         # instance attrs
-        self._shape = shape
+        self.shape = shape  # use setter to perform extra validation
         self._label = label
         self._mass = mass
+        self.role = role  # use setter to perform extra validation
         self.metadata = metadata or dict()
 
     @property
@@ -201,6 +183,32 @@ class Primitive(
         if new_label is None:
             new_label = self.DEFAULT_LABEL
         self._label = new_label
+
+    @property
+    def role(self) -> str:
+        """A distinguishing label for use in export format identifiers"""
+        return self._role
+
+    @role.setter
+    def role(self, new_role: str | PrimitiveRole) -> None:
+        """Reassign this Primitive's role"""
+        if isinstance(new_role, PrimitiveRole):
+            new_role = new_role.value  # lowercase
+
+        if not isinstance(new_role, str):
+            raise TypeError(f"Invalid role type {type(new_role).__name__}; must be str")
+
+        self._role = new_role
+
+    @property
+    def role_sanctioned(self) -> PrimitiveRole:
+        """
+        Match role tag to one of the role types recognized within the MuPT source
+
+        Will raise ValueError if an invalid role str is assigned, or raise
+        TypeError if the underlying Primitive._role attr has been corrupted to non-str
+        """
+        return PrimitiveRole.from_str(self._role)
 
     @property  # TB: eventually, incorporate info about units
     def mass(self) -> Optional[float]:
@@ -585,6 +593,20 @@ class Primitive(
         """
         raise NotImplementedError  # TB TODO: should be abstractmethod, eventually
 
+    def _copy_attrs_boilerplate(self) -> dict[str, Any]:
+        """
+        Create a dictionary containing copied versions of attributes
+        that all Primitive subtypes are expected to contain and accept
+        in their respective  __init__ methods
+        """
+        return {
+            "shape": None if (self.shape is None) else self.shape.copy(),
+            "label": deepcopy(self.label),
+            # N.B.: mass deliberately not copied; subtypes each handle in their own way
+            "role": deepcopy(self.role),
+            "metadata": {key: value for key, value in self.metadata.items()},
+        }
+
     def _copy_hierarchy(self) -> tuple[Self, dict["Primitive", "Primitive"]]:
         """
         Copy the current Primitive and the hierarchy of all its Primitive ancestors
@@ -755,6 +777,15 @@ class SupportsChildren(Primitive):
 
         for subprimitive in children:
             self.attach_child(subprimitive, label=subprimitive.label)
+
+    @property
+    def mass(self) -> Optional[float]:
+        """The assigned molecular mass of this Primitive"""
+        if self._mass is None:
+            # DEV: will raise TypeError if ANY subprim has unset mass (intentional)
+            self._mass = sum(child.mass for child in self.children)
+
+        return self._mass
 
     def child(self, prim_addr: PrimitiveAddress) -> "SupportsParents":
         """

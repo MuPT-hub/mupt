@@ -12,7 +12,8 @@ from anytree import PreOrderIter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .mupr.primitives.primitives_legacy import PrimitiveLegacy
+    from .primitive import Primitive
+    from .primitives_legacy import PrimitiveLegacy
 
 
 class PrimitiveRole(Enum):
@@ -32,7 +33,7 @@ class PrimitiveRole(Enum):
 
     Examples
     --------
-    >>> from mupt.roles import PrimitiveRole
+    >>> from mupt.mupr.primitives.roles import PrimitiveRole
     >>> PrimitiveRole.UNASSIGNED
     <PrimitiveRole.UNASSIGNED: 'unassigned'>
     >>> PrimitiveRole.UNIVERSE is not PrimitiveRole.UNASSIGNED
@@ -45,8 +46,22 @@ class PrimitiveRole(Enum):
     RESIDUE = "residue"
     PARTICLE = "particle"
 
+    # TB: may consider an alias system like in trees.render for UX; low priority
+    @classmethod
+    def from_str(cls, role_str: str) -> "PrimitiveRole":
+        """Get an PrimitiveRole enum instance from a case-insensitive string input"""
+        if not isinstance(role_str, str):
+            raise TypeError(
+                f"Cannot initialize {cls.__name__} from an "
+                f"instance of {type(role_str).__name__} instance"
+            )
+        # return cls[role_str.upper()]  # lookup by key
+        return cls(role_str.lower())  # lookup by value
 
-def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
+
+# TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
+# functionality dependeing on PrimitiveLegacy has been refactored
+def has_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> bool:
     """Check whether a Primitive hierarchy has all four SAAMR roles assigned.
 
     This checks for role *presence* in the tree, not structural depth.
@@ -78,8 +93,10 @@ def has_SAAMR_roles(prim: "PrimitiveLegacy") -> bool:
     return required.issubset(present)
 
 
-def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
-    """Assign canonical export roles for a strict depth-3 SAAMR hierarchy.
+# TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
+# functionality dependeing on PrimitiveLegacy has been refactored
+def assign_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> None:
+    """Assign PDB-like export roles for a strict depth-3 SAAMR hierarchy.
 
     Walks the tree by depth (0/1/2/3) and assigns UNIVERSE, SEGMENT,
     RESIDUE, and PARTICLE roles respectively.  Requires that the tree
@@ -102,7 +119,7 @@ def assign_SAAMR_roles(prim: "PrimitiveLegacy") -> None:
     has_strict_SAAMR_depth : The structural precondition for this function.
     """
     # imported at runtime to avoid circular reference with Primitive
-    from .mupr.primitives.predicates import has_strict_SAAMR_depth
+    from .predicates import has_strict_SAAMR_depth
 
     if not has_strict_SAAMR_depth(prim):
         raise ValueError(
