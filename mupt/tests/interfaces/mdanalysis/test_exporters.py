@@ -12,8 +12,8 @@ import pytest
 from anytree import PreOrderIter
 
 from mupt.chemistry import ELEMENTS
-from mupt.mupr.primitives import Primitive
-from mupt.mupr.properties import has_strict_SAAMR_depth
+from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
+from mupt.mupr.primitives.properties import has_strict_SAAMR_depth
 from mupt.roles import assign_SAAMR_roles, PrimitiveRole
 from mupt.interfaces.mdanalysis.exporters import primitive_to_mdanalysis
 from mupt.interfaces.mdanalysis.strategies import AllAtomExportStrategy
@@ -163,21 +163,21 @@ def test_bond_connectivity_preservation(primitive_fixture, resname_fixture, requ
 
 
 @pytest.fixture(scope="function")
-def non_SAAMR_hierarchy_shallow() -> Primitive:
+def non_SAAMR_hierarchy_shallow() -> PrimitiveLegacy:
     """Universe -> Atom directly (depth=1, should be 3). Violates SAAMR."""
-    universe = Primitive(label="universe")
-    atom = Primitive(label="He", element=ELEMENTS[2])
+    universe = PrimitiveLegacy(label="universe")
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
     universe.attach_child(atom)
     return universe
 
 
 @pytest.fixture(scope="function")
-def non_SAAMR_hierarchy_non_atom_leaf() -> Primitive:
+def non_SAAMR_hierarchy_non_atom_leaf() -> PrimitiveLegacy:
     """Leaf has no element attribute. Violates SAAMR atom requirement."""
-    universe = Primitive(label="universe")
-    molecule = Primitive(label="mol")
-    repeat_unit = Primitive(label="unit")
-    non_atom = Primitive(label="not_atom")  # No element → not an atom
+    universe = PrimitiveLegacy(label="universe")
+    molecule = PrimitiveLegacy(label="mol")
+    repeat_unit = PrimitiveLegacy(label="unit")
+    non_atom = PrimitiveLegacy(label="not_atom")  # No element → not an atom
     universe.attach_child(molecule)
     molecule.attach_child(repeat_unit)
     repeat_unit.attach_child(non_atom)
@@ -185,14 +185,14 @@ def non_SAAMR_hierarchy_non_atom_leaf() -> Primitive:
 
 
 @pytest.fixture(scope="function")
-def SAAMR_hierarchy_helium() -> Primitive:
+def SAAMR_hierarchy_helium() -> PrimitiveLegacy:
     """Minimal valid SAAMR structure for testing resname_map validation.
     Hierarchy: Universe -> Molecule -> Repeat-Unit ('unit') -> He atom.
     """
-    universe = Primitive(label="universe")
-    molecule = Primitive(label="mol")
-    repeat_unit = Primitive(label="unit")
-    atom = Primitive(label="He", element=ELEMENTS[2])
+    universe = PrimitiveLegacy(label="universe")
+    molecule = PrimitiveLegacy(label="mol")
+    repeat_unit = PrimitiveLegacy(label="unit")
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
     universe.attach_child(molecule)
     molecule.attach_child(repeat_unit)
     repeat_unit.attach_child(atom)
@@ -212,7 +212,7 @@ def test_mda_export_reject_empty_tree():
     both the ``has_strict_SAAMR_depth`` result and the exporter's
     rejection.
     """
-    root_only = Primitive(label="empty")
+    root_only = PrimitiveLegacy(label="empty")
     assert not has_strict_SAAMR_depth(root_only), (
         "Root-only Primitive should not have strict SAAMR depth"
     )
@@ -281,11 +281,11 @@ def test_invalid_resname_map_raises_value_error(
 
 def test_mda_export_uses_residue_metadata_name_for_instance_labels():
     """Residue metadata supports generated labels not present in resname_map."""
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    segment = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
-    residue = Primitive(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    segment = PrimitiveLegacy(label="chain", role=PrimitiveRole.SEGMENT)
+    residue = PrimitiveLegacy(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
     residue.metadata["residue_name"] = "PSH"
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
     residue.attach_child(atom)
     segment.attach_child(residue)
     universe.attach_child(segment)
@@ -357,10 +357,10 @@ def test_strategy_rejects_no_role_primitives():
     Primitives have no_role status, with a message pointing to
     assign_SAAMR_roles() or manual role assignment.
     """
-    universe = Primitive(label="universe")
-    molecule = Primitive(label="mol")
-    repeat_unit = Primitive(label="unit")
-    atom = Primitive(label="He", element=ELEMENTS[2])
+    universe = PrimitiveLegacy(label="universe")
+    molecule = PrimitiveLegacy(label="mol")
+    repeat_unit = PrimitiveLegacy(label="unit")
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
     universe.attach_child(molecule)
     molecule.attach_child(repeat_unit)
     repeat_unit.attach_child(atom)
@@ -375,10 +375,10 @@ def test_strategy_rejects_missing_segment_role():
     AllAtomExportStrategy.collect_topology() must raise ValueError when
     no SEGMENT-role nodes exist, even if root has UNIVERSE role.
     """
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    molecule = Primitive(label="mol")  # No role assigned
-    repeat_unit = Primitive(label="unit", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    molecule = PrimitiveLegacy(label="mol")  # No role assigned
+    repeat_unit = PrimitiveLegacy(label="unit", role=PrimitiveRole.RESIDUE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
     universe.attach_child(molecule)
     molecule.attach_child(repeat_unit)
     repeat_unit.attach_child(atom)
@@ -393,10 +393,10 @@ def test_strategy_rejects_no_role_leaves():
     AllAtomExportStrategy.collect_topology() must raise ValueError when
     leaf Primitives are without roles, even if upper levels are set.
     """
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    molecule = Primitive(label="mol", role=PrimitiveRole.SEGMENT)
-    repeat_unit = Primitive(label="unit", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2])  # No role
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    molecule = PrimitiveLegacy(label="mol", role=PrimitiveRole.SEGMENT)
+    repeat_unit = PrimitiveLegacy(label="unit", role=PrimitiveRole.RESIDUE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])  # No role
     universe.attach_child(molecule)
     molecule.attach_child(repeat_unit)
     repeat_unit.attach_child(atom)
@@ -412,11 +412,11 @@ def test_strategy_rejects_nested_segments():
     a SEGMENT contains a descendant SEGMENT, which would cause
     double-counting during collect_topology().
     """
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    outer_seg = Primitive(label="outer_seg", role=PrimitiveRole.SEGMENT)
-    inner_seg = Primitive(label="inner_seg", role=PrimitiveRole.SEGMENT)
-    residue = Primitive(label="res", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    outer_seg = PrimitiveLegacy(label="outer_seg", role=PrimitiveRole.SEGMENT)
+    inner_seg = PrimitiveLegacy(label="inner_seg", role=PrimitiveRole.SEGMENT)
+    residue = PrimitiveLegacy(label="res", role=PrimitiveRole.RESIDUE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
     universe.attach_child(outer_seg)
     outer_seg.attach_child(inner_seg)
     inner_seg.attach_child(residue)
@@ -433,11 +433,11 @@ def test_strategy_rejects_nested_residues():
     a RESIDUE contains a descendant RESIDUE, which would cause
     double-counting of atoms during collect_topology().
     """
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    segment = Primitive(label="seg", role=PrimitiveRole.SEGMENT)
-    outer_res = Primitive(label="outer_res", role=PrimitiveRole.RESIDUE)
-    inner_res = Primitive(label="inner_res", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
+    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
+    outer_res = PrimitiveLegacy(label="outer_res", role=PrimitiveRole.RESIDUE)
+    inner_res = PrimitiveLegacy(label="inner_res", role=PrimitiveRole.RESIDUE)
+    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
     universe.attach_child(segment)
     segment.attach_child(outer_res)
     outer_res.attach_child(inner_res)
