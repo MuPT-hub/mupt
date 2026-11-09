@@ -5,6 +5,7 @@ within MuPT's multiscale molecular representation
 
 from typing import (
     Any,
+    AbstractSet,
     ClassVar,
     Callable,
     Collection,
@@ -1021,6 +1022,47 @@ class SupportsParents(Primitive):
         super()._post_detach(parent)
         for connector in self.connectors:
             self.withdraw_connector_from_hierarchy(connector)
+
+    ## Resolution shift operations
+    @Primitive.precondition_mutable_hierarchy
+    def expand(self) -> None:
+        """
+        In the hierarchy, replace this Primitive in with
+        its children, preserving connections and coordinates
+        """
+        raise NotImplementedError
+
+    @Primitive.precondition_mutable_hierarchy
+    def flatten(self) -> None:
+        """
+        Make all leaves downtree direct children of this Primitive,
+        removing all intermediate Primitive from the hierarchy
+        """
+        raise NotImplementedError
+
+    @Primitive.precondition_mutable_hierarchy
+    def contract(
+        self,
+        parts: Iterable[AbstractSet[PrimitiveAddress]],
+        implicit_parts: bool = True,
+        # DEV: eventually, make enum for implicit_parts behavior
+    ) -> None:
+        """
+        Insert a new level of Primitive between this Composite and its children,
+        with each part of the provided partition forming a new child Primitive
+
+        Behavior of implicit parts (i.e. any not explicitly mentioned in "parts")
+        can be specified via the "implicit_parts" argument
+        """
+        raise NotImplementedError
+
+    @Primitive.precondition_mutable_hierarchy
+    def truncate(self) -> None:
+        """
+        Replace this Composite with an analogous Simple, disconnecting
+        all of its children from the rest of the hierarchy tree
+        """
+        raise NotImplementedError
 
     # Topology
     def inject_connector_into_hierarchy(
