@@ -39,7 +39,6 @@ class CompositePrimitive(SupportsChildren, SupportsParents):
         # N.B.: can't call _init_children before _frozen_hierarchy is set
         self._init_children(children)
 
-    # Copying
     def _copy_instance(self) -> Self:
         """
         Make a copy of this CompositePrimitive WITHOUT any
