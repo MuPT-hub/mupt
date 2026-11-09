@@ -12,7 +12,7 @@ from mupt.interfaces.rdkit import exporters as rdkit_exporters
 from mupt.interfaces.rdkit import primitive_to_rdkit_mols
 from mupt.interfaces.smiles import primitive_from_smiles
 from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
-from mupt.roles import PrimitiveRole
+from mupt.mupr.primitives.roles import PrimitiveRole
 
 # TODO: test chemical info (e.g. charge, isotope, etc.) is preserved on atoms
 

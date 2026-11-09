@@ -2,14 +2,17 @@
 
 from typing import ClassVar, Iterable, Optional, Self
 
-from copy import deepcopy
-
 from .simple import SimplePrimitive
-from ..primitive import PrimitiveLabel, Metadata
+from ..primitive import DEFAULT_ROLE, PrimitiveLabel, Metadata
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager
 from ....geometry.shapes.shapes import BoundedTransformableShape
-from ....chemistry.core import ElementLike, isatom, valence_allowed
+from ....chemistry.core import (
+    ELEMENTS as ELEMENTS,
+    ElementLike,
+    isatom,
+    valence_allowed,
+)
 
 
 class AtomicPrimitive(SimplePrimitive):
@@ -28,6 +31,7 @@ class AtomicPrimitive(SimplePrimitive):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         # N.B.: 'mass' deliberately omitted; taken form Element
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
         if not isatom(element):
@@ -39,6 +43,7 @@ class AtomicPrimitive(SimplePrimitive):
             shape=shape,
             label=label,
             mass=element.mass,
+            role=role,
             metadata=metadata,
         )
 
@@ -48,11 +53,9 @@ class AtomicPrimitive(SimplePrimitive):
         hierarchical or Connection information included
         """
         clone = self.__class__(
-            element=self.element,  # TB: double-check this is actually a singleton
-            connections=[],  # will be plumbed up in _copy_untransformed()
-            shape=None if (self.shape is None) else self.shape.copy(),
-            metadata={key: value for key, value in self.metadata.items()},
-            label=deepcopy(self.label),
+            element=self.element,  # TODO: double-check this is actually a singleton
+            connections=[],  # gets plumbed up in _copy_untransformed()
+            **self._copy_attrs_boilerplate(),
         )
         return clone
 
