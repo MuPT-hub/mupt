@@ -505,6 +505,14 @@ class Connector(Addressed, RigidlyTransformable):
                 "Candidate for neighbor Connector is not anti-aligned within tolerance"
             )
 
+        if (
+            BondType.UNSPECIFIED not in (self.bondtype, other.bondtype)
+            and self.bond_order != other.bond_order
+        ):
+            raise IncompatibleConnectorError(
+                "Neighbor Connectors must have matching bond orders when specified"
+            )
+
         # Check the target's previous partner before detaching either pair.
         if (previous_neighbor := other.neighbor) is not None:
             previous_neighbor._precondition_mutable_neighbor()
