@@ -10,7 +10,9 @@ LOGGER = logging.getLogger(__name__)
 from typing import Iterator, Optional
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+from math import atan2
 
+from numpy import cross, dot
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation, RigidTransform
 
@@ -33,12 +35,11 @@ class ConnectorAntialignmentStrategy(ABC):
         alignment_tolerance: float = 1e-6,
     ) -> RigidTransform:
         """
-        Transformation which, when applied to this Connector, rotates it
-        so that the dihedral planes between the Connectors subtends the
-        desired dihedral angle in radians (by default, 0.0 rad)
+        Return the transform that sets the signed angle between connector normals.
 
-        It is required (and enforced) for the pair of Connectors
-        to be antialigned for this operation to be valid
+        The angle is measured from the reference normal to the moving normal
+        about the direction opposite the moving connector's bond vector. The
+        connectors must already be antialigned within ``alignment_tolerance``.
         """
         if not (
             align_connector.has_dihedral_orientation
@@ -57,17 +58,17 @@ class ConnectorAntialignmentStrategy(ABC):
                 "Cannot set dihedral angle with non-antialigned Connectors"
             )
 
-        # recall, tangent vectors are invariant under translation
-        tangent_alignment = alignment_rotation(
-            align_connector.tangent_vector,
-            to_connector.tangent_vector,
+        # Use the moving bond as the rotation axis to keep both endpoints fixed.
+        axis = -align_connector.unit_bond_vector
+        reference_normal = to_connector.unit_normal_vector
+        moving_normal = align_connector.unit_normal_vector
+        current_angle = atan2(
+            dot(axis, cross(reference_normal, moving_normal)),
+            dot(reference_normal, moving_normal),
         )
-        # BUG: extra degree of freedom here; need to ensure tangents also line up
-        dihedral_rotation = Rotation.from_rotvec(
-            dihedral_angle_rad * to_connector.unit_bond_vector
+        dihedral_alignment = Rotation.from_rotvec(
+            (dihedral_angle_rad - current_angle) * axis
         )
-        # align tangents before setting dihedral to avoid inter-tangent angle calc
-        dihedral_alignment = dihedral_rotation * tangent_alignment
 
         return (
             RigidTransform.from_translation(align_connector.anchor.position)

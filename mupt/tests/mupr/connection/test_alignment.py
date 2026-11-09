@@ -4,6 +4,7 @@ import pytest
 
 import numpy as np
 from numpy.testing import assert_allclose
+from scipy.spatial.transform import Rotation
 
 from . import randomly_placed_connector
 from mupt.geometry.measure import compare_optional_positions, normalized
@@ -162,3 +163,40 @@ class TestAntialignment:
             conn.rigidly_transform(transform)
             assert_allclose(conn.anchor.position, direct.anchor.position, atol=1e-8)
             assert_allclose(conn.linker.position, direct.linker.position, atol=1e-8)
+
+    @pytest.mark.parametrize(
+        "target_tangent, angle_rad",
+        [
+            pytest.param([0.0, 0.0, 1.0], 0.0, id="perpendicular-tangents"),
+            pytest.param(None, 0.0, id="counterpart-tangent"),
+            pytest.param([0.0, 1.0, 0.0], -np.pi / 3, id="signed-angle"),
+        ],
+    )
+    def test_assign_dihedral(
+        self,
+        alignment: ConnectorAntialignmentStrategy,
+        target_tangent: list[float] | None,
+        angle_rad: float,
+    ) -> None:
+        """Set the signed dihedral angle while keeping both endpoints fixed."""
+        anchor_position = [1.0, 2.0, 3.0]
+        linker_position = [2.0, 2.0, 3.0]
+        conn_a = Connector(
+            AttachmentPoint(position=anchor_position),
+            AttachmentPoint(position=linker_position),
+        )
+        conn_a.tangent_vector = np.array([0.0, 1.0, 0.0])
+        conn_b = conn_a.counterpart()
+        if target_tangent is not None:
+            conn_b.tangent_vector = np.array(target_tangent)
+
+        expected_normal = Rotation.from_rotvec(
+            angle_rad * conn_b.unit_bond_vector
+        ).apply(conn_b.unit_normal_vector)
+
+        alignment.assign_dihedral(conn_a, conn_b, dihedral_angle_rad=angle_rad)
+
+        assert conn_a.is_antialigned(conn_b)
+        assert_allclose(conn_a.anchor.position, anchor_position, atol=1e-8)
+        assert_allclose(conn_a.linker.position, linker_position, atol=1e-8)
+        assert_allclose(conn_a.unit_normal_vector, expected_normal, atol=1e-8)
