@@ -116,14 +116,14 @@ class ConnectorManagerFrozen(ConnectorManager):
     ) -> "ConnectorManagerFrozen":
         """Pre-compute connector properties prior to ConnectorManager creation"""
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
-        obj._connectors_all = tuple(connectors)
         obj._connectors_by_addr = MappingProxyType({
             connector.address: connector for connector in connectors
         })
+        obj._connectors_all = tuple(obj._connectors_by_addr.values())
 
         connectors_free_accum: list[Connector] = []
         connectors_bound_accum: list[Connector] = []
-        for connector in connectors:
+        for connector in obj._connectors_all:
             # TB DEV: lock here is not secure as yet,
             # since one could manually unlock after init
             connector.lock()  # ensure not mutations allowed subsequently
