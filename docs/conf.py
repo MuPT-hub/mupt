@@ -42,10 +42,10 @@ examples_repo_base = (
 # mappings: these map a URL for a raw file to a local path in the
 # documentation source tree.
 external_files = {
-    examples_repo_base + 'examples_repr/mol_from_scratch_basic.ipynb': (
+    examples_repo_base + 'representation/01_hierarchy_basics.ipynb': (
         'how_to/mol_from_scratch_basic.ipynb'
     ),
-    examples_repo_base + 'examples_system/hierarchy_on_peptides.ipynb': (
+    examples_repo_base + 'legacy/hierarchy_on_peptides.ipynb': (
         'tutorials/hierarchy_on_peptides.ipynb'
     ),
 }
