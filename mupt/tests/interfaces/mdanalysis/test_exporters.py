@@ -5,735 +5,607 @@ preserves molecular identity and connectivity.
 
 # Shortcut to run tests for this file:
 # python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py -v
-# With Coverage:
-# python -m pytest mupt/tests/interfaces/mdanalysis/test_exporters.py
-# --cov=mupt.interfaces.mdanalysis --cov-report=term -v
+from collections import Counter
+
+import numpy as np
 import pytest
-from anytree import PreOrderIter
 
 from mupt.chemistry import ELEMENTS
-from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
-from mupt.mupr.primitives.predicates import has_strict_SAAMR_depth
-from mupt.mupr.primitives.roles import assign_SAAMR_roles, PrimitiveRole
-from mupt.interfaces.mdanalysis.exporters import primitive_to_mdanalysis
-from mupt.interfaces.mdanalysis.strategies import AllAtomExportStrategy
-
-
-def count_bonds_in_primitive(univprim):
-    """
-    Count intra-residue and inter-residue bonds in a SAAMR-compliant Primitive.
-
-    This helper function traverses the Primitive hierarchy and separately counts:
-    - Intra-residue bonds (stored in residue.topology)
-    - Inter-residue bonds (stored in chain.internal_connections)
-
-    Parameters
-    ----------
-    univprim : Primitive
-        SAAMR-compliant universe Primitive [Universe -> Molecule -> Repeat-Unit -> Atom]
-
-    Returns
-    -------
-    tuple[int, int]
-        (intra_residue_bonds, inter_residue_bonds)
-    """
-    intra_residue_bonds = 0
-    inter_residue_bonds = 0
-
-    # Count intra-residue bonds
-    for chain in univprim.children:
-        for residue in chain.children:
-            # Each residue's topology contains edges between atom handles
-            if hasattr(residue, "topology") and residue.topology is not None:
-                intra_residue_bonds += len(list(residue.topology.edges()))
-
-    # Count inter-residue bonds
-    for chain in univprim.children:
-        if hasattr(chain, "internal_connections") and chain.internal_connections:
-            inter_residue_bonds += len(chain.internal_connections)
-
-    return intra_residue_bonds, inter_residue_bonds
-
-
-@pytest.mark.parametrize(
-    "primitive_fixture,resname_fixture",
-    [
-        ("single_polyethylene_2mer", "polyethylene_resname_map"),
-        ("single_polyethylene_3mer", "polyethylene_resname_map"),
-        ("multi_polyethylene_system", "polyethylene_resname_map"),
-        ("PES_copolymer", "PES_resname_map"),
-        ("single_helium_atom_saamr", "helium_resname_map"),
-    ],
-    ids=["2mer", "3mer", "multi_chain", "PES", "single_helium_atom"],
+from mupt.chemistry.core import BondType
+from mupt.graphs.generators import path_graph_from_sequence
+from mupt.interfaces.mdanalysis import (
+    AllAtomExportStrategy,
+    CoarseGrainedExportStrategy,
+    primitive_to_mdanalysis,
 )
-def test_atom_count_preservation(primitive_fixture, resname_fixture, request):
-    """
-    Parametrized test verifying that primitive_to_mdanalysis preserves all atoms.
-
-    This test runs with multiple different polymer systems to ensure the conversion
-    maintains atom count regardless of system size or chemistry type.
-
-    The parametrize decorator runs this test once for each tuple in the list:
-    - primitive_fixture: Name of the fixture providing the Primitive system
-    - resname_fixture: Name of the fixture providing the residue name map
-    - request: Pytest built-in fixture for dynamic fixture loading
-
-    Usage: Add new systems by adding tuples to the parametrize list.
-    """
-    # Arrange: Dynamically get the fixtures by name
-    univprim = request.getfixturevalue(primitive_fixture)
-    resname_map = request.getfixturevalue(resname_fixture)
-
-    # Act: Convert to MDAnalysis
-    mda_exported_system = primitive_to_mdanalysis(univprim, resname_map=resname_map)
-    num_atoms_mda: int = mda_exported_system.atoms.n_atoms
-
-    # Assert: MDAnalysis atom count should match Primitive leaf count
-    assert num_atoms_mda == len(univprim.leaves), (
-        f"Expected {len(univprim.leaves)} atoms, found {num_atoms_mda}"
-    )
-
-
-@pytest.mark.parametrize(
-    "primitive_fixture,resname_fixture",
-    [
-        ("single_polyethylene_2mer", "polyethylene_resname_map"),
-        ("single_polyethylene_3mer", "polyethylene_resname_map"),
-        ("multi_polyethylene_system", "polyethylene_resname_map"),
-        ("PES_copolymer", "PES_resname_map"),
-        ("single_helium_atom_saamr", "helium_resname_map"),
-    ],
-    ids=["2mer", "3mer", "multi_chain", "PES", "single_helium_atom"],
+from mupt.interfaces.smiles import primitive_from_smiles
+from mupt.mupr.connection.connectors import AttachmentPoint, Connector
+from mupt.mupr.primitives import (
+    AtomicPrimitive,
+    CompositePrimitive,
+    RootPrimitive,
+    SimplePrimitive,
 )
-def test_bond_connectivity_preservation(primitive_fixture, resname_fixture, request):
-    """
-    Parametrized test verifying primitive_to_mdanalysis preserves bond connectivity.
-
-    This test ensures that the bonding structure (topology) is correctly transferred
-    from the MuPT Primitive hierarchy to the MDAnalysis Universe. It separately counts:
-    - Intra-residue bonds (within repeat units)
-    - Inter-residue bonds (between repeat units in a chain)
-
-    The test verifies that the sum of intra-residue and inter-residue bonds from
-    the Primitive equals the total bond count in the exported MDAnalysis Universe.
-    This ensures no bonds are lost, duplicated, or misclassified during export.
-
-    Parameters
-    ----------
-    primitive_fixture : str
-        Name of the fixture providing the Primitive system
-    resname_fixture : str
-        Name of the fixture providing the residue name map
-    request : FixtureRequest
-        Pytest built-in fixture for dynamic fixture loading
-    """
-    # Arrange: Get the fixtures
-    univprim = request.getfixturevalue(primitive_fixture)
-    resname_map = request.getfixturevalue(resname_fixture)
-
-    # Count bonds in original Primitive (separately by type)
-    intra_residue_bonds, inter_residue_bonds = count_bonds_in_primitive(univprim)
-    expected_total_bonds = intra_residue_bonds + inter_residue_bonds
-
-    # Act: Convert to MDAnalysis
-    mda_exported_system = primitive_to_mdanalysis(univprim, resname_map=resname_map)
-
-    # Get actual bond count from MDAnalysis
-    # MDAnalysis stores bonds as a TopologyAttr, accessible via universe.bonds
-    if hasattr(mda_exported_system, "bonds") and mda_exported_system.bonds is not None:
-        actual_bond_count = len(mda_exported_system.bonds)
-    else:
-        actual_bond_count = 0
-
-    # Assert: Sum of intra + inter bonds should equal MDAnalysis total
-    assert actual_bond_count == expected_total_bonds, (
-        f"Bond count mismatch: Primitive has {intra_residue_bonds} intra-residue + "
-        f"{inter_residue_bonds} inter-residue = {expected_total_bonds} total bonds, "
-        f"but MDAnalysis Universe has {actual_bond_count} bonds"
-    )
+from mupt.mupr.primitives.predicates import is_atom
+from mupt.mupr.primitives.roles import PrimitiveRole
 
 
 # ============================================================================
-# NEGATIVE TEST CASES: Verify proper error handling for invalid inputs
+# FIXTURE HELPERS
 # ============================================================================
 
-# --- Helper builders for invalid Primitives ---
-# Each returns a fresh Primitive per call to avoid mutation risks from shared
-# mutable anytree NodeMixin state across parametrized test runs.
+
+def build_lexicon(smiles: dict[str, str], **kwargs) -> dict[str, CompositePrimitive]:
+    """One repeat-unit Primitive per SMILES, labelled by its lexicon key."""
+    return {
+        name: primitive_from_smiles(smi, label=name, **kwargs)
+        for name, smi in smiles.items()
+    }
 
 
-@pytest.fixture(scope="function")
-def non_SAAMR_hierarchy_shallow() -> PrimitiveLegacy:
-    """Universe -> Atom directly (depth=1, should be 3). Violates SAAMR."""
-    universe = PrimitiveLegacy(label="universe")
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
-    universe.attach_child(atom)
-    return universe
-
-
-@pytest.fixture(scope="function")
-def non_SAAMR_hierarchy_non_atom_leaf() -> PrimitiveLegacy:
-    """Leaf has no element attribute. Violates SAAMR atom requirement."""
-    universe = PrimitiveLegacy(label="universe")
-    molecule = PrimitiveLegacy(label="mol")
-    repeat_unit = PrimitiveLegacy(label="unit")
-    non_atom = PrimitiveLegacy(label="not_atom")  # No element → not an atom
-    universe.attach_child(molecule)
-    molecule.attach_child(repeat_unit)
-    repeat_unit.attach_child(non_atom)
-    return universe
-
-
-@pytest.fixture(scope="function")
-def SAAMR_hierarchy_helium() -> PrimitiveLegacy:
-    """Minimal valid SAAMR structure for testing resname_map validation.
-    Hierarchy: Universe -> Molecule -> Repeat-Unit ('unit') -> He atom.
-    """
-    universe = PrimitiveLegacy(label="universe")
-    molecule = PrimitiveLegacy(label="mol")
-    repeat_unit = PrimitiveLegacy(label="unit")
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
-    universe.attach_child(molecule)
-    molecule.attach_child(repeat_unit)
-    repeat_unit.attach_child(atom)
-    assign_SAAMR_roles(universe)
-    return universe
-
-
-def test_mda_export_reject_empty_tree():
-    """
-    A root-only Primitive (no children) must be rejected as
-    non-SAAMR-compliant by the default export path.
-
-    Under anytree, a childless node is its own leaf, so ``prim.leaves``
-    returns ``[prim]`` (never empty).  The ``all()`` predicate in
-    ``has_strict_SAAMR_depth`` correctly rejects this because the root
-    has ``depth=0`` (not 3) and ``is_atom=False``.  This test verifies
-    both the ``has_strict_SAAMR_depth`` result and the exporter's
-    rejection.
-    """
-    root_only = PrimitiveLegacy(label="empty")
-    assert not has_strict_SAAMR_depth(root_only), (
-        "Root-only Primitive should not have strict SAAMR depth"
+def build_chain(
+    lexicon: dict[str, CompositePrimitive],
+    sequence: list[str],
+    label: str = "chain",
+) -> CompositePrimitive:
+    """Link copies of lexicon entries along a linear sequence."""
+    chain = CompositePrimitive(label=label)
+    chain.populate_from_topology_and_lexicon(
+        path_graph_from_sequence(sequence),
+        lexicon,
+        set_label_from_lexicon=True,
     )
-    with pytest.raises(ValueError, match="UNIVERSE"):
-        primitive_to_mdanalysis(root_only, resname_map={})
+    return chain
+
+
+def tag_roles(root: RootPrimitive) -> RootPrimitive:
+    """Tag Root -> chain -> repeat unit: chains as segments, units as residues.
+
+    Roles are set after building because ``copy()``, which
+    ``populate_from_topology_and_lexicon`` uses, does not carry them over (yet).
+    """
+    for chain in root.children:
+        chain.role = "segment"
+        for unit in chain.children:
+            unit.role = "residue"
+    return root
+
+
+def polyethylene_sequence(n_units: int) -> list[str]:
+    """Sequence of head, (n - 2) ethane and tail repeat units."""
+    return ["head"] + (n_units - 2) * ["ethane"] + ["tail"]
+
+
+def count_atoms(root: RootPrimitive) -> int:
+    """Number of atoms in a MuPT hierarchy."""
+    return root.cross_section(is_atom).number_of_nodes()
+
+
+def count_bonds(root: RootPrimitive) -> int:
+    """Number of distinct bonded atom pairs in a MuPT hierarchy."""
+    return len({frozenset(edge) for edge in root.cross_section(is_atom).edges()})
+
+
+def single_molecule(unit: CompositePrimitive) -> RootPrimitive:
+    """Root -> molecule (segment) -> one repeat unit (residue)."""
+    molecule = CompositePrimitive(label="mol", children=[unit])
+    return tag_roles(RootPrimitive(children=[molecule]))
+
+
+@pytest.fixture
+def polyethylene_lexicon(polyethylene_smiles):
+    """Polyethylene repeat units built from SMILES."""
+    return build_lexicon(polyethylene_smiles)
+
+
+@pytest.fixture
+def PES_lexicon(polyethersulfone_smiles):
+    """Polyethersulfone repeat units built from SMILES."""
+    return build_lexicon(polyethersulfone_smiles)
+
+
+@pytest.fixture
+def polyethylene_2mer(polyethylene_lexicon) -> RootPrimitive:
+    """One polyethylene chain of 2 repeat units."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(2))
+    return tag_roles(RootPrimitive(label="universe", children=[chain]))
+
+
+@pytest.fixture
+def polyethylene_3mer(polyethylene_lexicon) -> RootPrimitive:
+    """One polyethylene chain of 3 repeat units."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    return tag_roles(RootPrimitive(label="universe", children=[chain]))
+
+
+@pytest.fixture
+def polyethylene_multichain(polyethylene_lexicon) -> RootPrimitive:
+    """Ten chains of different lengths."""
+    chains = [
+        build_chain(polyethylene_lexicon, polyethylene_sequence(n), f"chain_{i}")
+        for i, n in enumerate([2, 3, 4, 5, 6, 2, 3, 4, 5, 6])
+    ]
+    return tag_roles(RootPrimitive(label="universe", children=chains))
+
+
+@pytest.fixture
+def PES_copolymer(PES_lexicon) -> RootPrimitive:
+    """One polyethersulfone chain of 6 repeat units."""
+    sequence = ["head"] + 2 * ["bisphenol_S", "bisphenol_A"] + ["tail"]
+    chain = build_chain(PES_lexicon, sequence)
+    return tag_roles(RootPrimitive(label="universe", children=[chain]))
+
+
+@pytest.fixture
+def helium_saamr() -> RootPrimitive:
+    """Root -> molecule -> repeat unit -> one He atom."""
+    unit = CompositePrimitive(label="He_unit")
+    unit.attach_child(AtomicPrimitive(ELEMENTS[2], label="He"))
+    molecule = CompositePrimitive(label="He_molecule")
+    molecule.attach_child(unit)
+    return tag_roles(RootPrimitive(label="universe", children=[molecule]))
+
+
+@pytest.fixture
+def helium_resname_map() -> dict[str, str]:
+    """Residue name for the helium repeat unit."""
+    return {"He_unit": "HEL"}
+
+
+# ============================================================================
+# ALL-ATOM EXPORT
+# ============================================================================
+
+SYSTEMS = [
+    ("polyethylene_2mer", "polyethylene_resname_map", 1, 2),
+    ("polyethylene_3mer", "polyethylene_resname_map", 1, 3),
+    ("polyethylene_multichain", "polyethylene_resname_map", 10, 40),
+    ("PES_copolymer", "PES_resname_map", 1, 6),
+]
+SYSTEM_IDS = ["2mer", "3mer", "multi_chain", "PES"]
 
 
 @pytest.mark.parametrize(
-    "primitive_fixture, resname_map",
-    [
-        ("non_SAAMR_hierarchy_shallow", {"He": "HEL"}),  # depth=1, should be 3
-        ("non_SAAMR_hierarchy_non_atom_leaf", {"unit": "UNT"}),  # leaf missing element
-    ],
-    ids=["shallow_depth", "non_atom_leaf"],
+    "system_fixture,resname_fixture,n_segments,n_residues", SYSTEMS, ids=SYSTEM_IDS
 )
-def test_mda_export_reject_non_SAAMR(primitive_fixture, resname_map, request):
-    """
-    Check that Primitives without role assignments raise ValueError
-    when attempting export to MDAnalysis.
-
-    The AllAtomExportStrategy requires Primitives to have canonical
-    SAAMR roles (UNIVERSE, SEGMENT, RESIDUE, PARTICLE) assigned.
-    Primitives without roles default to PrimitiveRole.UNASSIGNED and
-    are rejected during topology collection.
-    """
-    univprim = request.getfixturevalue(primitive_fixture)
-    with pytest.raises(ValueError):
-        primitive_to_mdanalysis(univprim, resname_map=resname_map)
-
-
-@pytest.mark.parametrize(
-    "primitive_fixture, resname_map",
-    [
-        (
-            "SAAMR_hierarchy_helium",
-            {"unit": "HE"},
-        ),  # 2 chars — too short for PDB 3-char requirement
-        (
-            "SAAMR_hierarchy_helium",
-            {"unit": "HELL"},
-        ),  # 4 chars — too long for PDB 3-char requirement
-        (
-            "SAAMR_hierarchy_helium",
-            {},
-        ),  # missing entry; falls back to label 'unit' (4 chars) → ValueError
-    ],
-    ids=["too_short", "too_long", "missing_entry"],
-)
-def test_invalid_resname_map_raises_value_error(
-    primitive_fixture, resname_map, request
+def test_atom_count_preservation(
+    system_fixture, resname_fixture, n_segments, n_residues, request
 ):
-    """
-    Check that invalid resname_map entries raise
-    ValueError when attempting export to MDAnalysis.
-
-    The ``_pdb_resname`` helper enforces that residue names are exactly
-    3 characters for PDB compliance. This test covers three failure modes:
-    - Mapped name too short (2 chars)
-    - Mapped name too long (4 chars)
-    - Missing map entry where the fallback label itself is not 3 chars
-    """
-    univprim = request.getfixturevalue(primitive_fixture)
-    with pytest.raises(ValueError):
-        primitive_to_mdanalysis(univprim, resname_map=resname_map)
-
-
-def test_mda_export_uses_residue_metadata_name_for_instance_labels():
-    """Residue metadata supports generated labels not present in resname_map."""
-    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
-    segment = PrimitiveLegacy(label="chain", role=PrimitiveRole.SEGMENT)
-    residue = PrimitiveLegacy(label="head_styrene_000", role=PrimitiveRole.RESIDUE)
-    residue.metadata["residue_name"] = "PSH"
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
-    residue.attach_child(atom)
-    segment.attach_child(residue)
-    universe.attach_child(segment)
-
-    mda_universe = primitive_to_mdanalysis(
-        universe, resname_map={"head_styrene": "PSH"}
-    )
-
-    assert list(mda_universe.residues.resnames) == ["PSH"]
-
-
-# ============================================================================
-# STRATEGY-BASED EXPORT TESTS
-# ============================================================================
+    """Every atom in the hierarchy becomes one MDAnalysis atom."""
+    root = request.getfixturevalue(system_fixture)
+    universe = primitive_to_mdanalysis(root, request.getfixturevalue(resname_fixture))
+    assert universe.atoms.n_atoms == count_atoms(root)
 
 
 @pytest.mark.parametrize(
-    "primitive_fixture,resname_fixture",
-    [
-        ("single_polyethylene_2mer", "polyethylene_resname_map"),
-        ("single_polyethylene_3mer", "polyethylene_resname_map"),
-        ("single_helium_atom_saamr", "helium_resname_map"),
-    ],
-    ids=["2mer_explicit", "3mer_explicit", "helium_explicit"],
+    "system_fixture,resname_fixture,n_segments,n_residues", SYSTEMS, ids=SYSTEM_IDS
 )
+def test_bond_connectivity_preservation(
+    system_fixture, resname_fixture, n_segments, n_residues, request
+):
+    """Every bonded atom pair in the hierarchy becomes one bond."""
+    root = request.getfixturevalue(system_fixture)
+    universe = primitive_to_mdanalysis(root, request.getfixturevalue(resname_fixture))
+    assert len(universe.bonds) == count_bonds(root)
+
+
+@pytest.mark.parametrize(
+    "system_fixture,resname_fixture,n_segments,n_residues", SYSTEMS, ids=SYSTEM_IDS
+)
+def test_segment_and_residue_counts(
+    system_fixture, resname_fixture, n_segments, n_residues, request
+):
+    """Segment-role chains become segments and residue-role units become residues."""
+    root = request.getfixturevalue(system_fixture)
+    universe = primitive_to_mdanalysis(root, request.getfixturevalue(resname_fixture))
+    assert universe.segments.n_segments == n_segments
+    assert universe.residues.n_residues == n_residues
+
+
+@pytest.mark.parametrize(
+    "system_fixture,resname_fixture,n_segments,n_residues", SYSTEMS, ids=SYSTEM_IDS
+)
+def test_atoms_are_contiguous_by_residue(
+    system_fixture, resname_fixture, n_segments, n_residues, request
+):
+    """Each residue's atoms are listed together."""
+    root = request.getfixturevalue(system_fixture)
+    universe = primitive_to_mdanalysis(root, request.getfixturevalue(resname_fixture))
+    assert np.all(np.diff(universe.atoms.resindices) >= 0)
+
+
+def test_acyclic_chains_have_one_fewer_bond_than_atoms(
+    polyethylene_multichain, polyethylene_resname_map
+):
+    """Linear, ring-free chains have n_atoms - 1 bonds each."""
+    universe = primitive_to_mdanalysis(
+        polyethylene_multichain, polyethylene_resname_map
+    )
+    assert len(universe.bonds) == universe.atoms.n_atoms - universe.segments.n_segments
+
+
+def test_residue_ids_restart_per_segment(
+    polyethylene_multichain, polyethylene_resname_map
+):
+    """Residue IDs count from 1 within each segment."""
+    universe = primitive_to_mdanalysis(
+        polyethylene_multichain, polyethylene_resname_map
+    )
+    for segment in universe.segments:
+        n_residues = segment.residues.n_residues
+        assert list(segment.residues.resids) == list(range(1, n_residues + 1))
+
+
+def test_resnames_from_resname_map(polyethylene_3mer, polyethylene_resname_map):
+    """Residue names are looked up from the residue labels."""
+    universe = primitive_to_mdanalysis(polyethylene_3mer, polyethylene_resname_map)
+    assert list(universe.residues.resnames) == ["HEA", "EAN", "TYL"]
+
+
+def test_inter_residue_bonds_connect_carbons(
+    polyethylene_3mer, polyethylene_resname_map
+):
+    """Bonds between repeat units join the backbone carbons."""
+    universe = primitive_to_mdanalysis(polyethylene_3mer, polyethylene_resname_map)
+    inter_residue = [
+        bond for bond in universe.bonds if bond[0].resindex != bond[1].resindex
+    ]
+    assert len(inter_residue) == 2  # head-ethane, ethane-tail
+    for bond in inter_residue:
+        assert {atom.element for atom in bond} == {"C"}
+
+
+def test_polyethylene_bond_orders_are_single(
+    polyethylene_multichain, polyethylene_resname_map
+):
+    """Bond orders are carried over (all single for PE)."""
+    universe = primitive_to_mdanalysis(
+        polyethylene_multichain, polyethylene_resname_map
+    )
+    assert {bond.order for bond in universe.bonds} == {1.0}
+
+
+def test_aromatic_bond_orders_preserved(PES_copolymer, PES_resname_map):
+    """Aromatic and double bond orders are carried over."""
+    universe = primitive_to_mdanalysis(PES_copolymer, PES_resname_map)
+    orders = Counter(bond.order for bond in universe.bonds)
+    assert orders[1.5] > 0  # benzene rings
+    assert orders[2.0] > 0  # sulfonyl S=O
+
+
+def test_element_names_and_masses(PES_copolymer, PES_resname_map):
+    """Atoms get element symbols as names and elemental masses."""
+    universe = primitive_to_mdanalysis(PES_copolymer, PES_resname_map)
+    assert set(universe.atoms.elements) == {"C", "H", "O", "S"}
+    assert list(universe.atoms.names) == list(universe.atoms.elements)
+    assert universe.atoms.total_mass() == pytest.approx(
+        sum(atom.mass for atom in PES_copolymer.cross_section(is_atom).nodes)
+    )
+
+
+def test_resname_from_metadata_overrides_resname_map(polyethylene_smiles):
+    """metadata['residue_name'] takes precedence over resname_map."""
+    lexicon = build_lexicon(polyethylene_smiles)
+    lexicon["ethane"].metadata["residue_name"] = "PEE"
+    chain = build_chain(lexicon, polyethylene_sequence(3))
+    root = tag_roles(RootPrimitive(children=[chain]))
+    universe = primitive_to_mdanalysis(
+        root, {"head": "HEA", "ethane": "EAN", "tail": "TYL"}
+    )
+    assert list(universe.residues.resnames) == ["HEA", "PEE", "TYL"]
+
+
+def test_invalid_resname_raises_value_error(polyethylene_2mer):
+    """Residue names that are not 3 characters are rejected."""
+    with pytest.raises(ValueError, match="not 3 characters"):
+        primitive_to_mdanalysis(polyethylene_2mer, {"head": "TOOLONG", "tail": "TYL"})
+
+
 def test_explicit_strategy_produces_same_result(
-    primitive_fixture, resname_fixture, request
+    polyethylene_3mer, polyethylene_resname_map
 ):
-    """
-    Verify that passing AllAtomExportStrategy explicitly produces the
-    same atom/bond counts as the default strategy path.
-    """
-    univprim = request.getfixturevalue(primitive_fixture)
-    resname_map = request.getfixturevalue(resname_fixture)
-
-    # Default path (uses AllAtomExportStrategy)
-    mda_default = primitive_to_mdanalysis(univprim, resname_map=resname_map)
-
-    # Explicit strategy path
-    strategy = AllAtomExportStrategy()
-    mda_explicit = primitive_to_mdanalysis(
-        univprim, resname_map=resname_map, strategy=strategy
+    """Passing AllAtomExportStrategy explicitly matches the default."""
+    default = primitive_to_mdanalysis(polyethylene_3mer, polyethylene_resname_map)
+    explicit = primitive_to_mdanalysis(
+        polyethylene_3mer, polyethylene_resname_map, strategy=AllAtomExportStrategy()
     )
-
-    assert mda_default.atoms.n_atoms == mda_explicit.atoms.n_atoms
-    assert mda_default.residues.n_residues == mda_explicit.residues.n_residues
-    assert mda_default.segments.n_segments == mda_explicit.segments.n_segments
-
-    # Bond comparison — handle the no-bonds case (e.g. single helium atom)
-    default_has_bonds = (
-        hasattr(mda_default, "bonds")
-        and hasattr(mda_default.atoms, "_topology")
-        and "bonds" in mda_default.atoms._topology.attrs
-    )
-    explicit_has_bonds = (
-        hasattr(mda_explicit, "bonds")
-        and hasattr(mda_explicit.atoms, "_topology")
-        and "bonds" in mda_explicit.atoms._topology.attrs
-    )
-    if default_has_bonds and explicit_has_bonds:
-        assert len(mda_default.bonds) == len(mda_explicit.bonds)
-    else:
-        assert default_has_bonds == explicit_has_bonds
+    assert default.atoms.n_atoms == explicit.atoms.n_atoms
+    assert list(default.atoms.elements) == list(explicit.atoms.elements)
+    assert default.bonds.indices.tolist() == explicit.bonds.indices.tolist()
 
 
-def test_strategy_rejects_no_role_primitives():
-    """
-    AllAtomExportStrategy.collect_topology() must raise ValueError when
-    Primitives have no_role status, with a message pointing to
-    assign_SAAMR_roles() or manual role assignment.
-    """
-    universe = PrimitiveLegacy(label="universe")
-    molecule = PrimitiveLegacy(label="mol")
-    repeat_unit = PrimitiveLegacy(label="unit")
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])
-    universe.attach_child(molecule)
-    molecule.attach_child(repeat_unit)
-    repeat_unit.attach_child(atom)
-
-    strategy = AllAtomExportStrategy()
-    with pytest.raises(ValueError, match="assign_SAAMR_roles"):
-        strategy.collect_topology(universe, resname_map={"unit": "UNT"})
-
-
-def test_strategy_rejects_missing_segment_role():
-    """
-    AllAtomExportStrategy.collect_topology() must raise ValueError when
-    no SEGMENT-role nodes exist, even if root has UNIVERSE role.
-    """
-    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
-    molecule = PrimitiveLegacy(label="mol")  # No role assigned
-    repeat_unit = PrimitiveLegacy(label="unit", role=PrimitiveRole.RESIDUE)
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
-    universe.attach_child(molecule)
-    molecule.attach_child(repeat_unit)
-    repeat_unit.attach_child(atom)
-
-    strategy = AllAtomExportStrategy()
-    with pytest.raises(ValueError, match="SEGMENT"):
-        strategy.collect_topology(universe, resname_map={"unit": "UNT"})
-
-
-def test_strategy_rejects_no_role_leaves():
-    """
-    AllAtomExportStrategy.collect_topology() must raise ValueError when
-    leaf Primitives are without roles, even if upper levels are set.
-    """
-    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
-    molecule = PrimitiveLegacy(label="mol", role=PrimitiveRole.SEGMENT)
-    repeat_unit = PrimitiveLegacy(label="unit", role=PrimitiveRole.RESIDUE)
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2])  # No role
-    universe.attach_child(molecule)
-    molecule.attach_child(repeat_unit)
-    repeat_unit.attach_child(atom)
-
-    strategy = AllAtomExportStrategy()
-    with pytest.raises(ValueError, match="PARTICLE"):
-        strategy.collect_topology(universe, resname_map={"unit": "UNT"})
-
-
-def test_strategy_rejects_nested_segments():
-    """
-    AllAtomExportStrategy.collect_topology() must reject a hierarchy where
-    a SEGMENT contains a descendant SEGMENT, which would cause
-    double-counting during collect_topology().
-    """
-    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
-    outer_seg = PrimitiveLegacy(label="outer_seg", role=PrimitiveRole.SEGMENT)
-    inner_seg = PrimitiveLegacy(label="inner_seg", role=PrimitiveRole.SEGMENT)
-    residue = PrimitiveLegacy(label="res", role=PrimitiveRole.RESIDUE)
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
-    universe.attach_child(outer_seg)
-    outer_seg.attach_child(inner_seg)
-    inner_seg.attach_child(residue)
-    residue.attach_child(atom)
-
-    strategy = AllAtomExportStrategy()
-    with pytest.raises(ValueError, match="nested SEGMENT"):
-        strategy.collect_topology(universe, resname_map={"res": "RES"})
-
-
-def test_strategy_rejects_nested_residues():
-    """
-    AllAtomExportStrategy.collect_topology() must reject a hierarchy where
-    a RESIDUE contains a descendant RESIDUE, which would cause
-    double-counting of atoms during collect_topology().
-    """
-    universe = PrimitiveLegacy(label="universe", role=PrimitiveRole.UNIVERSE)
-    segment = PrimitiveLegacy(label="seg", role=PrimitiveRole.SEGMENT)
-    outer_res = PrimitiveLegacy(label="outer_res", role=PrimitiveRole.RESIDUE)
-    inner_res = PrimitiveLegacy(label="inner_res", role=PrimitiveRole.RESIDUE)
-    atom = PrimitiveLegacy(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
-    universe.attach_child(segment)
-    segment.attach_child(outer_res)
-    outer_res.attach_child(inner_res)
-    inner_res.attach_child(atom)
-
-    strategy = AllAtomExportStrategy()
-    with pytest.raises(ValueError, match="nested RESIDUE"):
-        strategy.collect_topology(
-            universe,
-            resname_map={"outer_res": "ORS", "inner_res": "IRS"},
-        )
-
-
-@pytest.mark.parametrize(
-    "primitive_fixture,resname_fixture,expected_segments",
-    [
-        ("single_polyethylene_2mer", "polyethylene_resname_map", 1),
-        ("multi_polyethylene_system", "polyethylene_resname_map", 10),
-        ("PES_copolymer", "PES_resname_map", 5),
-        ("single_helium_atom_saamr", "helium_resname_map", 1),
-    ],
-    ids=["2mer_1seg", "multi_10seg", "PES_5seg", "helium_1seg"],
-)
-def test_segment_count_preservation(
-    primitive_fixture, resname_fixture, expected_segments, request
-):
-    """
-    Verify that the number of MDAnalysis segments matches the number
-    of SEGMENT-role children in the Primitive hierarchy.
-    """
-    univprim = request.getfixturevalue(primitive_fixture)
-    resname_map = request.getfixturevalue(resname_fixture)
-
-    mda_universe = primitive_to_mdanalysis(univprim, resname_map=resname_map)
-    assert mda_universe.segments.n_segments == expected_segments
+def test_helium(helium_saamr, helium_resname_map):
+    """A single-atom system exports with no bonds."""
+    universe = primitive_to_mdanalysis(helium_saamr, helium_resname_map)
+    assert universe.atoms.n_atoms == 1
+    assert list(universe.atoms.elements) == ["He"]
+    assert list(universe.residues.resnames) == ["HEL"]
+    assert not hasattr(universe, "bonds")  # no bonds to add
 
 
 # ============================================================================
-# DEPTH-4 (NON-SAAMR) EXPORT TESTS
+# ROLES
 # ============================================================================
 
 
-class TestDepth4Export:
+def test_roles_accept_enum_members(polyethylene_lexicon, polyethylene_resname_map):
+    """PrimitiveRole members work the same as their string values."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    chain.role = PrimitiveRole.SEGMENT
+    for unit in chain.children:
+        unit.role = PrimitiveRole.RESIDUE
+    universe = primitive_to_mdanalysis(
+        RootPrimitive(children=[chain]), polyethylene_resname_map
+    )
+    assert universe.segments.n_segments == 1
+    assert universe.residues.n_residues == 3
+
+
+def test_extra_level_above_chains(polyethylene_lexicon, polyethylene_resname_map):
+    """Root -> group -> chain -> repeat unit -> atom; the untagged group is skipped."""
+    chains = [
+        build_chain(polyethylene_lexicon, polyethylene_sequence(n)) for n in (2, 3)
+    ]
+    group = CompositePrimitive(label="group", children=chains)
+    root = RootPrimitive(children=[group])
+    for chain in chains:
+        chain.role = "segment"
+        for unit in chain.children:
+            unit.role = "residue"
+
+    universe = primitive_to_mdanalysis(root, polyethylene_resname_map)
+    assert universe.segments.n_segments == 2
+    assert universe.residues.n_residues == 5
+    assert universe.atoms.n_atoms == count_atoms(root)
+    assert len(universe.bonds) == count_bonds(root)
+
+
+def _uneven_system() -> RootPrimitive:
+    """Residue AAA has atoms at two depths: two carbons plus a nested group of two."""
+    residue_a = CompositePrimitive(label="AAA")
+    for i in range(2):
+        residue_a.attach_child(AtomicPrimitive(ELEMENTS[6], label=f"C{i}"))
+    tail = CompositePrimitive(label="tail")
+    for i in range(2):
+        tail.attach_child(AtomicPrimitive(ELEMENTS[6], label=f"T{i}"))
+    residue_a.attach_child(tail)
+
+    residue_b = CompositePrimitive(label="BBB")
+    for i in range(2):
+        residue_b.attach_child(AtomicPrimitive(ELEMENTS[6], label=f"C{i}"))
+
+    chain = CompositePrimitive(label="chain", children=[residue_a, residue_b])
+    return tag_roles(RootPrimitive(children=[chain]))
+
+
+def test_uneven_hierarchy_keeps_residues_contiguous():
     """
-    Tests for exporting a depth-4 Primitive tree (Universe→Domain→Chain→Residue→Atom)
-    where an intermediate "domain" node exists between universe and segments.
-
-    These verify that the strategy-based exporter handles arbitrary tree depth
-    when roles are manually assigned, without relying on SAAMR's fixed 3-level
-    hierarchy.
+    Atoms at different depths come out of the atom cross-section in
+    breadth-first order, which would split residue AAA around residue BBB;
+    the exporter must still keep each residue's atoms together.
     """
-
-    def test_depth4_atom_count(self, depth4_helium_system, helium_resname_map):
-        """Depth-4 export preserves all 3 He atoms."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_helium_system, resname_map=helium_resname_map, strategy=strategy
-        )
-        assert mda_u.atoms.n_atoms == 3
-
-    def test_depth4_segment_count(self, depth4_helium_system, helium_resname_map):
-        """Depth-4 export discovers 2 segments despite intermediate domain node."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_helium_system, resname_map=helium_resname_map, strategy=strategy
-        )
-        assert mda_u.segments.n_segments == 2
-
-    def test_depth4_residue_count(self, depth4_helium_system, helium_resname_map):
-        """Depth-4 export discovers 2 residues across both chains."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_helium_system, resname_map=helium_resname_map, strategy=strategy
-        )
-        assert mda_u.residues.n_residues == 2
-
-    def test_depth4_resnames(self, depth4_helium_system, helium_resname_map):
-        """Depth-4 export applies resname_map correctly to all residues."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_helium_system, resname_map=helium_resname_map, strategy=strategy
-        )
-        for res in mda_u.residues:
-            assert res.resname == "HEL", f"Expected 'HEL', got '{res.resname}'"
-
-    def test_depth4_no_bonds(self, depth4_helium_system, helium_resname_map):
-        """Depth-4 helium system has no bonds; export should reflect that."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_helium_system, resname_map=helium_resname_map, strategy=strategy
-        )
-        # MDAnalysis raises NoDataError when accessing .bonds if none exist
-        has_bonds = (
-            hasattr(mda_u, "bonds")
-            and hasattr(mda_u.atoms, "_topology")
-            and "bonds" in mda_u.atoms._topology.attrs
-        )
-        if has_bonds:
-            assert len(mda_u.bonds) == 0
-        # If no bond attribute at all, that's also correct for 0 bonds
-
-    def test_depth4_element_names(self, depth4_helium_system, helium_resname_map):
-        """All atoms in depth-4 helium system should be He."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_helium_system, resname_map=helium_resname_map, strategy=strategy
-        )
-        for atom in mda_u.atoms:
-            assert atom.element == "He", f"Expected 'He', got '{atom.element}'"
+    universe = primitive_to_mdanalysis(_uneven_system(), {})
+    assert list(universe.residues.resnames) == ["AAA", "BBB"]
+    assert [residue.atoms.n_atoms for residue in universe.residues] == [4, 2]
+    assert np.all(np.diff(universe.atoms.resindices) >= 0)
 
 
-class TestDepth4BondedExport:
-    """
-    Tests for exporting a bonded depth-4 Primitive tree.
+def test_no_segment_roles_raises(polyethylene_lexicon):
+    """A hierarchy without roles cannot be exported."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(2))
+    with pytest.raises(ValueError, match="No Primitive has role 'segment'"):
+        primitive_to_mdanalysis(RootPrimitive(children=[chain]), {})
 
-    The ``depth4_bonded_system`` fixture builds:
-        Universe (UNIVERSE)
-          └── Domain (no role)
-                └── Chain (SEGMENT)
-                      ├── Head (RESIDUE)  — 4 atoms, 3 intra-residue bonds
-                      └── Tail (RESIDUE)  — 4 atoms, 3 intra-residue bonds
-                    + 1 inter-residue bond (C–C) at chain level
 
-    These tests verify that ``_resolve_to_atom()`` correctly traverses
-    multi-level hierarchies to resolve bonds at both intra-residue
-    (residue→atom) and inter-residue (chain→residue→atom) depths.
-    """
+def test_segment_without_residue_roles_raises(polyethylene_lexicon):
+    """A segment must contain residue-role Primitives."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(2))
+    chain.role = "segment"
+    with pytest.raises(ValueError, match="no Primitive with role 'residue'"):
+        primitive_to_mdanalysis(RootPrimitive(children=[chain]), {})
 
-    def test_depth4_bonded_atom_count(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Depth-4 bonded export preserves all 8 atoms."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        assert mda_u.atoms.n_atoms == 8
 
-    def test_depth4_bonded_segment_count(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Depth-4 bonded export discovers 1 segment."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        assert mda_u.segments.n_segments == 1
+def test_atoms_outside_any_residue_raise(polyethylene_lexicon):
+    """Every atom must sit inside a residue-role Primitive."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    root = tag_roles(RootPrimitive(children=[chain]))
+    next(iter(chain.children)).role = "unassigned"  # untag the head unit
+    with pytest.raises(ValueError, match="not inside both"):
+        primitive_to_mdanalysis(root, {"ethane": "EAN", "tail": "TYL"})
 
-    def test_depth4_bonded_residue_count(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Depth-4 bonded export discovers 2 residues (head + tail)."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        assert mda_u.residues.n_residues == 2
 
-    def test_depth4_bonded_total_bond_count(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Depth-4 bonded export produces exactly 7 bonds (6 intra + 1 inter)."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        assert len(mda_u.bonds) == 7
+def test_nested_residues_raise(polyethylene_lexicon):
+    """A residue inside another residue is rejected."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(2))
+    molecule = CompositePrimitive(label="mol", children=[chain])
+    root = RootPrimitive(children=[molecule])
+    molecule.role = "segment"
+    chain.role = "residue"  # the chain and its units are both tagged as residues
+    for unit in chain.children:
+        unit.role = "residue"
+    with pytest.raises(ValueError, match="contains another 'residue'-role"):
+        primitive_to_mdanalysis(root, {})
 
-    def test_depth4_bonded_bond_orders_are_single(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """All bonds in the depth-4 polyethylene fixture are single (order 1)."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        for bond in mda_u.bonds:
-            assert bond.order == 1, (
-                f"Bond {bond.atoms[0].index}-{bond.atoms[1].index} has order "
-                f"{bond.order}, expected 1"
+
+def test_empty_root_raises():
+    """A root with no children has no segments to export."""
+    with pytest.raises(ValueError, match="No Primitive has role 'segment'"):
+        primitive_to_mdanalysis(RootPrimitive(), {})
+
+
+# ============================================================================
+# POSITIONS
+# ============================================================================
+
+
+def test_positions_are_atom_centroids():
+    """Atom positions are copied from the atoms' shapes."""
+    toluene = primitive_from_smiles("Cc1ccccc1", label="toluene", embed_positions=True)
+    universe = primitive_to_mdanalysis(single_molecule(toluene), {"toluene": "TOL"})
+
+    expected = np.array([atom.shape.centroid for atom in toluene.children])
+    assert np.allclose(universe.atoms.positions, expected, atol=1e-5)
+
+
+def test_unpositioned_atoms_use_default_position(
+    polyethylene_2mer, polyethylene_resname_map
+):
+    """Atoms without positions are placed at the default position."""
+    strategy = AllAtomExportStrategy(default_atom_position=np.array([1.0, 2.0, 3.0]))
+    universe = primitive_to_mdanalysis(
+        polyethylene_2mer, polyethylene_resname_map, strategy
+    )
+    assert np.allclose(universe.atoms.positions, [1.0, 2.0, 3.0])
+
+
+def test_invalid_default_position_raises():
+    """The default position must be a 3-vector."""
+    with pytest.raises(ValueError, match="3-dimensional"):
+        AllAtomExportStrategy(default_atom_position=np.zeros(2))
+
+
+# ============================================================================
+# COARSE-GRAINED EXPORT (1 bead per repeat unit)
+# ============================================================================
+
+
+def test_cg_from_all_atom_hierarchy(polyethylene_multichain, polyethylene_resname_map):
+    """Root -> chain -> repeat unit -> atom, exported as one bead per repeat unit."""
+    universe = primitive_to_mdanalysis(
+        polyethylene_multichain,
+        polyethylene_resname_map,
+        strategy=CoarseGrainedExportStrategy(),
+    )
+    n_units = sum(
+        len(list(chain.children)) for chain in polyethylene_multichain.children
+    )
+    assert universe.atoms.n_atoms == n_units
+    assert universe.residues.n_residues == n_units
+    assert universe.segments.n_segments == 10
+    assert len(universe.bonds) == n_units - 10  # linear chains
+    for bond in universe.bonds:  # beads only bond within their own chain
+        assert bond[0].segindex == bond[1].segindex
+    assert universe.atoms.total_mass() == pytest.approx(
+        sum(atom.mass for atom in polyethylene_multichain.cross_section(is_atom).nodes)
+    )
+
+
+def test_cg_bead_names_and_masses(polyethylene_3mer, polyethylene_resname_map):
+    """Beads are named by residue name and weigh as much as their atoms."""
+    universe = primitive_to_mdanalysis(
+        polyethylene_3mer,
+        polyethylene_resname_map,
+        strategy=CoarseGrainedExportStrategy(),
+    )
+    assert list(universe.atoms.names) == ["HEA", "EAN", "TYL"]
+    assert list(universe.atoms.types) == ["HEA", "EAN", "TYL"]
+    chain = next(iter(polyethylene_3mer.children))
+    assert np.allclose(universe.atoms.masses, [unit.mass for unit in chain.children])
+
+
+def test_cg_bead_position_is_center_of_mass():
+    """Beads sit at the mass-weighted center of their atoms."""
+    toluene = primitive_from_smiles("Cc1ccccc1", label="toluene", embed_positions=True)
+    universe = primitive_to_mdanalysis(
+        single_molecule(toluene),
+        {"toluene": "TOL"},
+        strategy=CoarseGrainedExportStrategy(),
+    )
+    atoms = list(toluene.children)
+    masses = np.array([atom.mass for atom in atoms])
+    positions = np.array([atom.shape.centroid for atom in atoms])
+    expected = (masses[:, None] * positions).sum(axis=0) / masses.sum()
+    assert np.allclose(universe.atoms.positions[0], expected, atol=1e-5)
+
+
+def _bead(label: str, ends: list[str]) -> SimplePrimitive:
+    """A CG bead with a Connector for each chain end it links to."""
+    bead = SimplePrimitive(label=label)
+    if "in" in ends:
+        bead.add_connector(
+            Connector(
+                anchor=AttachmentPoint({2}),
+                linker=AttachmentPoint({1}),
+                bondtype=BondType.SINGLE,
             )
-
-    def test_depth4_bonded_bond_count_matches_primitive(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Exported bond count matches the sum of Primitive internal connections."""
-        # Depth-agnostic bond count: sum internal_connections at every level
-        expected_total = sum(
-            len(node.internal_connections)
-            for node in PreOrderIter(depth4_bonded_system)
-            if not node.is_leaf
         )
-
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        assert len(mda_u.bonds) == expected_total, (
-            f"Expected {expected_total} bonds from Primitive hierarchy, "
-            f"got {len(mda_u.bonds)}"
-        )
-
-    def test_depth4_bonded_inter_residue_bond_spans_residues(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """
-        The inter-residue bond (C–C) must connect atoms belonging to
-        different residues, verifying that _resolve_to_atom() correctly
-        traced from the chain level through residues to leaf atoms.
-        """
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        # Find bonds that span two different residues
-        cross_residue_bonds = [
-            bond
-            for bond in mda_u.bonds
-            if bond.atoms[0].resindex != bond.atoms[1].resindex
-        ]
-        assert len(cross_residue_bonds) == 1, (
-            f"Expected exactly 1 inter-residue bond, found {len(cross_residue_bonds)}"
-        )
-
-    def test_depth4_bonded_inter_residue_bond_connects_carbons(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """
-        The inter-residue bond must connect two carbon atoms, validating
-        that _resolve_to_atom() resolved to the correct atoms (not just
-        any atoms in different residues).
-        """
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        cross_residue_bonds = [
-            bond
-            for bond in mda_u.bonds
-            if bond.atoms[0].resindex != bond.atoms[1].resindex
-        ]
-        assert len(cross_residue_bonds) == 1
-        bond = cross_residue_bonds[0]
-
-        elem1 = bond.atoms[0].element
-        assert bond.atoms[0].element == "C", (
-            f"Expected first atom of inter-residue bond to be C, got '{elem1}'"
-        )
-
-        elem2 = bond.atoms[1].element
-        assert bond.atoms[1].element == "C", (
-            f"Expected second atom of inter-residue bond to be C, got '{elem2}'"
-        )
-
-    def test_depth4_bonded_all_atoms_assigned_to_residues(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Every atom is assigned to a residue (resindex is valid)."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
-        )
-        for atom in mda_u.atoms:
-            assert 0 <= atom.resindex < mda_u.residues.n_residues, (
-                f"Atom {atom.index} has invalid resindex {atom.resindex}"
+    if "out" in ends:
+        bead.add_connector(
+            Connector(
+                anchor=AttachmentPoint({1}),
+                linker=AttachmentPoint({2}),
+                bondtype=BondType.SINGLE,
             )
-
-    def test_depth4_bonded_residue_atom_distribution(
-        self, depth4_bonded_system, polyethylene_resname_map
-    ):
-        """Each residue (head, tail) should contain exactly 4 atoms."""
-        strategy = AllAtomExportStrategy()
-        mda_u = primitive_to_mdanalysis(
-            depth4_bonded_system,
-            resname_map=polyethylene_resname_map,
-            strategy=strategy,
         )
-        for res in mda_u.residues:
-            assert len(res.atoms) == 4, (
-                f"Residue '{res.resname}' has {len(res.atoms)} atoms, expected 4"
-            )
+    return bead
+
+
+def test_cg_from_bead_only_hierarchy():
+    """Root -> chain -> repeat-unit beads, with no atoms anywhere."""
+    lexicon = {
+        "head": _bead("head", ["out"]),
+        "mid": _bead("mid", ["in", "out"]),
+        "tail": _bead("tail", ["in"]),
+    }
+    lengths = (5, 3)
+    chains = []
+    for n in lengths:
+        chain = CompositePrimitive(label="cg_chain")
+        chain.populate_from_topology_and_lexicon(
+            path_graph_from_sequence(["head"] + (n - 2) * ["mid"] + ["tail"]),
+            lexicon,
+            set_label_from_lexicon=True,
+        )
+        chains.append(chain)
+    root = tag_roles(RootPrimitive(children=chains))
+
+    universe = primitive_to_mdanalysis(
+        root,
+        {"head": "HED", "mid": "MID", "tail": "TAL"},
+        strategy=CoarseGrainedExportStrategy(),
+    )
+    assert universe.atoms.n_atoms == sum(lengths)
+    assert universe.segments.n_segments == len(lengths)
+    assert universe.bonds.indices.tolist() == [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+        [5, 6],
+        [6, 7],
+    ]
+    assert list(universe.atoms.names) == [
+        "HED",
+        "MID",
+        "MID",
+        "MID",
+        "TAL",
+        "HED",
+        "MID",
+        "TAL",
+    ]
+    assert np.allclose(universe.atoms.positions, 0.0)  # beads have no positions
+
+
+def test_roles_from_constructor(polyethylene_lexicon, polyethylene_resname_map):
+    """Roles passed to the Primitive constructors are picked up."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    for unit in chain.children:
+        unit.role = "residue"
+    molecule = CompositePrimitive(label="mol", role="segment", children=[chain])
+    chain.role = "unassigned"
+    universe = primitive_to_mdanalysis(
+        RootPrimitive(role="universe", children=[molecule]), polyethylene_resname_map
+    )
+    assert universe.segments.n_segments == 1
+    assert universe.residues.n_residues == 3
+
+
+def test_custom_roles_are_ignored(polyethylene_lexicon, polyethylene_resname_map):
+    """A role outside PrimitiveRole (e.g. a Kuhn segment) is treated as no role."""
+    chain = build_chain(polyethylene_lexicon, polyethylene_sequence(3))
+    root = tag_roles(RootPrimitive(children=[chain]))
+    group = next(iter(chain.children))
+    group.role = "kuhn_segment"
+    with pytest.raises(ValueError, match="not inside both"):
+        primitive_to_mdanalysis(root, {"ethane": "EAN", "tail": "TYL"})

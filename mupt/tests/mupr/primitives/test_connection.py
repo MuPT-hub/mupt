@@ -285,3 +285,40 @@ def test_connect_neighbor() -> None:
 
     # 2) check that ALL Primitives on parallel branch are potential neighbors
     assert set(*simple_new.potential_neighbors()) == set([comp, simple])
+
+
+def test_moving_linked_primitive_keeps_neighbor_antialigned() -> None:
+    """
+    Moving a Primitive whose Connector is already linked re-aims that Connector
+    at its (fixed) neighbor instead of raising (one-sided: the neighbor is not moved)
+    """
+    import numpy as np
+    from scipy.spatial.transform import RigidTransform
+
+    from mupt.interfaces.smiles import primitive_from_smiles
+    from mupt.mupr.connection.alignment import ConnectorAntialignmentRigid
+
+    head = primitive_from_smiles("[H]-[CH2]-[CH2:1]-[*:2]", embed_positions=True)
+    tail = primitive_from_smiles("[*:1]-[CH2:2][CH3]", embed_positions=True)
+    chain = CompositePrimitive(children=[head, tail])
+
+    ours, theirs = next(
+        (x, y)
+        for x in head.connections.connectors_free
+        for y in tail.connections.connectors_free
+        if x.bondable_with(y)
+    )
+    ours.set_bond_length(1.54)
+    theirs.set_bond_length(1.54)
+    tail.rigidly_transform(
+        ConnectorAntialignmentRigid().antialignment_transformation(
+            align_connector=theirs, to_connector=ours
+        )
+    )
+    head.connect_neighbor(tail, our_connector=ours, their_connector=theirs)
+
+    tail.rigidly_transform(RigidTransform.from_translation(np.array([0.5, 0.0, 0.0])))
+    assert ours.neighbor is theirs
+    assert chain is head.parent
+    # the moved Connector's linker is re-aimed onto its fixed neighbor's anchor
+    assert np.allclose(theirs.linker.position, ours.anchor.position, atol=1e-6)
