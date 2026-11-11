@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" width="820" height="400" font-family="Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Hierarchy and topology in a MuPT representation</title>
+  <desc id="d">A polymer system as a tree of Primitives: a RootPrimitive holds a chain, the chain holds two repeat units, and each repeat unit holds atoms. Grey lines are parent-child hierarchy edges. A dashed red line is a bond between a carbon in the first repeat unit and a carbon in the second, made of a pair of Connectors; because Connectors are shared up the tree, the two repeat units are also bonded neighbors.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .edge { stroke: #6b7280; stroke-width: 1.5; }
+      .bond { stroke: #b42318; stroke-width: 2.5; stroke-dasharray: 7 4; fill: none; }
+      .bondlite { stroke: #b42318; stroke-width: 1.5; stroke-dasharray: 3 4; fill: none; }
+      .axis { fill: #6b7280; font-size: 12px; }
+      .rule { stroke: #e5e7eb; stroke-width: 1; }
+      .title { fill: #111827; font-size: 15px; font-weight: bold; }
+      .note { fill: #374151; font-size: 12px; }
+      .bondnote { fill: #b42318; font-size: 12px; font-weight: bold; }
+      .code { font-family: Menlo, Consolas, monospace; }
+      .lbl { fill: #111827; font-size: 13px; font-weight: bold; text-anchor: middle; }
+      .type { font-size: 10px; text-anchor: middle; font-family: Menlo, Consolas, monospace; }
+      .universe rect { fill: #e8ebf7; stroke: #3f4f9a; }  .universe .type { fill: #3f4f9a; }
+      .segment  rect { fill: #e3f2ee; stroke: #22705f; }  .segment  .type { fill: #22705f; }
+      .residue  rect { fill: #fbeede; stroke: #9a5212; }  .residue  .type { fill: #9a5212; }
+      .particle rect { fill: #f1e9f7; stroke: #6c3f92; }  .particle .type { fill: #6c3f92; }
+      rect { stroke-width: 1.6; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="820" height="400" rx="10"/>
+
+  <text class="title" x="300" y="30" text-anchor="middle">Hierarchy (tree) and topology (bonds) together</text>
+
+  <!-- level rules -->
+  <g>
+    <line class="rule" x1="20" y1="70" x2="580" y2="70"/>
+    <line class="rule" x1="20" y1="150" x2="580" y2="150"/>
+    <line class="rule" x1="20" y1="230" x2="580" y2="230"/>
+    <line class="rule" x1="20" y1="320" x2="580" y2="320"/>
+  </g>
+
+  <!-- hierarchy edges -->
+  <g>
+    <line class="edge" x1="300" y1="90" x2="300" y2="130"/>
+    <line class="edge" x1="300" y1="170" x2="175" y2="210"/>
+    <line class="edge" x1="300" y1="170" x2="425" y2="210"/>
+    <line class="edge" x1="175" y1="250" x2="85" y2="300"/>
+    <line class="edge" x1="175" y1="250" x2="175" y2="300"/>
+    <line class="edge" x1="175" y1="250" x2="265" y2="300"/>
+    <line class="edge" x1="425" y1="250" x2="335" y2="300"/>
+    <line class="edge" x1="425" y1="250" x2="425" y2="300"/>
+    <line class="edge" x1="425" y1="250" x2="515" y2="300"/>
+  </g>
+
+  <!-- bond between residues, seen at the residue level (shared Connectors) -->
+  <path class="bondlite" d="M 225 230 Q 300 250 375 230"/>
+
+  <!-- bond between atoms (the Connector pair lives here) -->
+  <path class="bond" d="M 265 340 Q 300 368 335 340"/>
+  <text class="bondnote" x="300" y="384" text-anchor="middle">C–C bond (Connector pair)</text>
+
+  <g class="universe"><rect x="230" y="50" width="140" height="40" rx="6"/><text class="lbl" x="300" y="67">melt</text><text class="type" x="300" y="82">RootPrimitive</text></g>
+  <g class="segment"><rect x="230" y="130" width="140" height="40" rx="6"/><text class="lbl" x="300" y="147">chain</text><text class="type" x="300" y="162">CompositePrimitive</text></g>
+  <g class="residue"><rect x="105" y="210" width="140" height="40" rx="6"/><text class="lbl" x="175" y="227">repeat unit 1</text><text class="type" x="175" y="242">CompositePrimitive</text></g>
+  <g class="residue"><rect x="355" y="210" width="140" height="40" rx="6"/><text class="lbl" x="425" y="227">repeat unit 2</text><text class="type" x="425" y="242">CompositePrimitive</text></g>
+  <g class="particle"><rect x="55" y="300" width="60" height="40" rx="6"/><text class="lbl" x="85" y="317">H</text><text class="type" x="85" y="332">Atomic</text></g>
+  <g class="particle"><rect x="145" y="300" width="60" height="40" rx="6"/><text class="lbl" x="175" y="317">C</text><text class="type" x="175" y="332">Atomic</text></g>
+  <g class="particle"><rect x="235" y="300" width="60" height="40" rx="6"/><text class="lbl" x="265" y="317">C</text><text class="type" x="265" y="332">Atomic</text></g>
+  <g class="particle"><rect x="305" y="300" width="60" height="40" rx="6"/><text class="lbl" x="335" y="317">C</text><text class="type" x="335" y="332">Atomic</text></g>
+  <g class="particle"><rect x="395" y="300" width="60" height="40" rx="6"/><text class="lbl" x="425" y="317">C</text><text class="type" x="425" y="332">Atomic</text></g>
+  <g class="particle"><rect x="485" y="300" width="60" height="40" rx="6"/><text class="lbl" x="515" y="317">H</text><text class="type" x="515" y="332">Atomic</text></g>
+
+  <!-- legend -->
+  <g>
+    <text class="title" x="605" y="80">Legend</text>
+    <line class="edge" x1="605" y1="105" x2="645" y2="105"/>
+    <text class="note" x="655" y="109">parent → child (hierarchy)</text>
+    <path class="bond" d="M 605 135 L 645 135"/>
+    <text class="note" x="655" y="139">bond: a pair of Connectors</text>
+    <path class="bondlite" d="M 605 165 L 645 165"/>
+    <text class="note" x="655" y="169">same bond, seen one</text>
+    <text class="note" x="655" y="184">level up (shared Connectors)</text>
+
+    <text class="note" x="605" y="230">Only Simple/Atomic Primitives</text>
+    <text class="note" x="605" y="246">hold Connectors directly; every</text>
+    <text class="note" x="605" y="262">ancestor refers to the same</text>
+    <text class="note" x="605" y="278">Connector objects, so bonds can</text>
+    <text class="note" x="605" y="294">be read at any level of the tree.</text>
+  </g>
+</svg>

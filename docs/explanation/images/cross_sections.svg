@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 380" width="820" height="380" font-family="Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Cross-sections of one hierarchy at two resolutions</title>
+  <desc id="d">Left: one Primitive tree for a three-unit chain. Two horizontal bands mark the Primitives selected by two predicates: role equals residue selects the three repeat units; is_atom selects the carbon atoms (hydrogens omitted). Right: the two resulting graphs. The residue cross-section is a path of three nodes; the atom cross-section is a path of six carbons. Edges in both graphs come from the same Connectors.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .edge { stroke: #9ca3af; stroke-width: 1.3; }
+      .title { fill: #111827; font-size: 15px; font-weight: bold; }
+      .note { fill: #374151; font-size: 12px; }
+      .code { font-family: Menlo, Consolas, monospace; }
+      .lbl { fill: #111827; font-size: 12px; font-weight: bold; text-anchor: middle; }
+      .band1 { fill: #fbeede; opacity: 0.55; }
+      .band2 { fill: #f1e9f7; opacity: 0.75; }
+      .bandTxt1 { fill: #9a5212; font-size: 12px; font-weight: bold; font-family: Menlo, Consolas, monospace; }
+      .bandTxt2 { fill: #6c3f92; font-size: 12px; font-weight: bold; font-family: Menlo, Consolas, monospace; }
+      .n0 rect { fill: #e8ebf7; stroke: #3f4f9a; stroke-width: 1.5; }
+      .n1 rect { fill: #e3f2ee; stroke: #22705f; stroke-width: 1.5; }
+      .res rect { fill: #ffffff; stroke: #9a5212; stroke-width: 1.8; }
+      .atm circle { fill: #ffffff; stroke: #6c3f92; stroke-width: 1.8; }
+      .gres { fill: #fbeede; stroke: #9a5212; stroke-width: 1.8; }
+      .gatm { fill: #f1e9f7; stroke: #6c3f92; stroke-width: 1.8; }
+      .gedge1 { stroke: #9a5212; stroke-width: 2.2; }
+      .gedge2 { stroke: #6c3f92; stroke-width: 2.2; }
+      .divider { stroke: #e5e7eb; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="820" height="380" rx="10"/>
+  <line class="divider" x1="500" y1="20" x2="500" y2="360"/>
+
+  <text class="title" x="250" y="30" text-anchor="middle">One hierarchy …</text>
+  <text class="title" x="660" y="30" text-anchor="middle">… many graphs</text>
+
+  <!-- bands -->
+  <rect class="band1" x="15" y="155" width="470" height="50" rx="8"/>
+  <rect class="band2" x="15" y="245" width="470" height="50" rx="8"/>
+  <text class="bandTxt1" x="22" y="222">role == "residue"</text>
+  <text class="bandTxt2" x="22" y="312">is_atom (C only shown)</text>
+
+  <!-- tree edges -->
+  <g>
+    <line class="edge" x1="250" y1="80" x2="250" y2="105"/>
+    <line class="edge" x1="250" y1="135" x2="110" y2="165"/>
+    <line class="edge" x1="250" y1="135" x2="250" y2="165"/>
+    <line class="edge" x1="250" y1="135" x2="390" y2="165"/>
+    <line class="edge" x1="110" y1="195" x2="85" y2="257"/>
+    <line class="edge" x1="110" y1="195" x2="135" y2="257"/>
+    <line class="edge" x1="250" y1="195" x2="225" y2="257"/>
+    <line class="edge" x1="250" y1="195" x2="275" y2="257"/>
+    <line class="edge" x1="390" y1="195" x2="365" y2="257"/>
+    <line class="edge" x1="390" y1="195" x2="415" y2="257"/>
+  </g>
+  <g class="n0"><rect x="200" y="50" width="100" height="30" rx="6"/><text class="lbl" x="250" y="70">system</text></g>
+  <g class="n1"><rect x="200" y="105" width="100" height="30" rx="6"/><text class="lbl" x="250" y="125">chain</text></g>
+  <g class="res"><rect x="70" y="165" width="80" height="30" rx="6"/><text class="lbl" x="110" y="185">unit 1</text></g>
+  <g class="res"><rect x="210" y="165" width="80" height="30" rx="6"/><text class="lbl" x="250" y="185">unit 2</text></g>
+  <g class="res"><rect x="350" y="165" width="80" height="30" rx="6"/><text class="lbl" x="390" y="185">unit 3</text></g>
+  <g class="atm">
+    <circle cx="85" cy="270" r="13"/><text class="lbl" x="85" y="274">C</text>
+    <circle cx="135" cy="270" r="13"/><text class="lbl" x="135" y="274">C</text>
+    <circle cx="225" cy="270" r="13"/><text class="lbl" x="225" y="274">C</text>
+    <circle cx="275" cy="270" r="13"/><text class="lbl" x="275" y="274">C</text>
+    <circle cx="365" cy="270" r="13"/><text class="lbl" x="365" y="274">C</text>
+    <circle cx="415" cy="270" r="13"/><text class="lbl" x="415" y="274">C</text>
+  </g>
+  <text class="note" x="250" y="340" text-anchor="middle"><tspan class="code">system.cross_section(predicate)</tspan> keeps the topmost</text>
+  <text class="note" x="250" y="356" text-anchor="middle">Primitives that satisfy the predicate, plus the bonds between them</text>
+
+  <!-- graphs -->
+  <text class="bandTxt1" x="525" y="110">residue graph</text>
+  <line class="gedge1" x1="560" y1="150" x2="660" y2="150"/>
+  <line class="gedge1" x1="660" y1="150" x2="760" y2="150"/>
+  <circle class="gres" cx="560" cy="150" r="17"/><text class="lbl" x="560" y="154">1</text>
+  <circle class="gres" cx="660" cy="150" r="17"/><text class="lbl" x="660" y="154">2</text>
+  <circle class="gres" cx="760" cy="150" r="17"/><text class="lbl" x="760" y="154">3</text>
+
+  <text class="bandTxt2" x="525" y="230">carbon backbone graph</text>
+  <line class="gedge2" x1="535" y1="270" x2="785" y2="270"/>
+  <circle class="gatm" cx="535" cy="270" r="13"/><text class="lbl" x="535" y="274">C</text>
+  <circle class="gatm" cx="585" cy="270" r="13"/><text class="lbl" x="585" y="274">C</text>
+  <circle class="gatm" cx="635" cy="270" r="13"/><text class="lbl" x="635" y="274">C</text>
+  <circle class="gatm" cx="685" cy="270" r="13"/><text class="lbl" x="685" y="274">C</text>
+  <circle class="gatm" cx="735" cy="270" r="13"/><text class="lbl" x="735" y="274">C</text>
+  <circle class="gatm" cx="785" cy="270" r="13"/><text class="lbl" x="785" y="274">C</text>
+  <text class="note" x="660" y="320" text-anchor="middle">Both are networkx graphs; the same</text>
+  <text class="note" x="660" y="336" text-anchor="middle">Connectors supply the edges in each.</text>
+</svg>

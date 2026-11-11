@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" width="820" height="300" font-family="Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Round trip from MuPT to mBuild, a simulation engine, and back</title>
+  <desc id="d">Four boxes in a loop. A MuPT hierarchy is exported with primitive_to_mbuild; every mBuild Compound carries the address of the Primitive it came from. The Compound goes to a simulation or packing tool such as flowerMD, which returns new positions. The new positions are set on the same Compound, and update_primitive_from_mbuild writes them back onto the Primitives with matching addresses. The hierarchy, roles and Connectors are kept; only coordinates change.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { fill: #111827; font-size: 15px; font-weight: bold; }
+      .note { fill: #374151; font-size: 12px; }
+      .code { font-family: Menlo, Consolas, monospace; font-size: 12px; }
+      .lbl { fill: #111827; font-size: 14px; font-weight: bold; text-anchor: middle; }
+      .sub { fill: #374151; font-size: 11px; text-anchor: middle; }
+      .mupt rect { fill: #e8ebf7; stroke: #3f4f9a; stroke-width: 1.6; }
+      .mb rect { fill: #e3f2ee; stroke: #22705f; stroke-width: 1.6; }
+      .sim rect { fill: #fbeede; stroke: #9a5212; stroke-width: 1.6; }
+      .flow { stroke: #374151; stroke-width: 2; fill: none; }
+      .flowTxt { fill: #111827; font-size: 12px; font-family: Menlo, Consolas, monospace; }
+    </style>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="820" height="300" rx="10"/>
+  <text class="title" x="410" y="30" text-anchor="middle">Coordinates leave MuPT and come back, matched by address</text>
+
+  <g class="mupt"><rect x="30" y="70" width="200" height="80" rx="8"/>
+    <text class="lbl" x="130" y="98">MuPT hierarchy</text>
+    <text class="sub" x="130" y="118">Primitives, roles,</text>
+    <text class="sub" x="130" y="134">Connectors (Å)</text></g>
+  <g class="mb"><rect x="310" y="70" width="200" height="80" rx="8"/>
+    <text class="lbl" x="410" y="98">mBuild Compound</text>
+    <text class="sub" x="410" y="118">one Compound per Primitive,</text>
+    <text class="sub" x="410" y="134">each tagged <tspan font-family="Menlo, Consolas, monospace">.address</tspan> (nm)</text></g>
+  <g class="sim"><rect x="590" y="70" width="200" height="80" rx="8"/>
+    <text class="lbl" x="690" y="98">simulation / packing</text>
+    <text class="sub" x="690" y="118">e.g. flowerMD AA-DPD</text>
+    <text class="sub" x="690" y="134">returns new positions</text></g>
+
+  <line class="flow" x1="230" y1="100" x2="305" y2="100" marker-end="url(#arr)"/>
+  <text class="flowTxt" x="268" y="62" text-anchor="middle">primitive_to_mbuild</text>
+  <line class="flow" x1="510" y1="100" x2="585" y2="100" marker-end="url(#arr)"/>
+
+  <path class="flow" d="M 690 150 L 690 215 L 410 215 L 410 155" marker-end="url(#arr)"/>
+  <text class="flowTxt" x="550" y="235" text-anchor="middle">compound.xyz = new_positions_nm</text>
+  <path class="flow" d="M 390 150 L 390 190 L 130 190 L 130 155" marker-end="url(#arr)"/>
+  <text class="flowTxt" x="260" y="210" text-anchor="middle">update_primitive_from_mbuild</text>
+
+  <text class="note" x="410" y="272" text-anchor="middle">Same tree, same roles, same Connectors: only coordinates (and parent PointClouds) change.</text>
+</svg>
