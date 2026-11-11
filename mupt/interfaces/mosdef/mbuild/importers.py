@@ -15,89 +15,7 @@ from mbuild.compound import Compound
 from scipy.spatial.transform import RigidTransform
 
 from ....geometry.shapes import PointCloud
-from ....mupr.connection.connectors import Connector
 from ....mupr.primitives.primitive import Primitive, PrimitiveAddress
-
-
-def _connectors_at_or_below(prim: Primitive) -> list[Connector]:
-    """Every distinct Connector held by a Primitive or any of its descendants"""
-    seen: dict[int, Connector] = dict()
-    for node in PreOrderIter(prim):
-        for connector in node.connections.connectors:
-            seen.setdefault(id(connector), connector)
-
-    return list(seen.values())
-
-
-def _translate_primitive(prim: Primitive, new_centroid: np.ndarray) -> None:
-    """
-    Move a Primitive (shape, descendant shapes and Connectors) so that its
-    centroid lands on new_centroid. A Primitive with no shape is given a
-    single-point PointCloud at new_centroid and its Connectors' anchors
-    are moved onto that point.
-    """
-    if prim.shape is None:
-        prim.shape = PointCloud(positions=new_centroid)
-        for connector in prim.connections.connectors:
-            offset = new_centroid - connector.anchor.position
-            connector.rigidly_transform(RigidTransform.from_translation(offset))
-        return
-
-    offset = new_centroid - np.asarray(prim.shape.centroid, dtype=float)
-    translation = RigidTransform.from_translation(offset)
-    for node in PreOrderIter(prim):
-        node._rigidly_transform_shape(translation)
-    for connector in _connectors_at_or_below(prim):
-        connector.rigidly_transform(translation)
-
-
-def _reaim_bonded_connectors(moved: list[Primitive]) -> None:
-    """Point each bonded Connector's linker at its neighbor's (updated) anchor"""
-    for prim in moved:
-        for connector in _connectors_at_or_below(prim):
-            if connector.has_neighbor:
-                connector.linker.position = np.array(
-                    connector.neighbor.anchor.position, dtype=float
-                )
-                connector.neighbor.linker.position = np.array(
-                    connector.anchor.position, dtype=float
-                )
-
-
-def _refresh_ancestor_shapes(
-    root: Primitive,
-    moved: list[Primitive],
-    old_centroids: dict[PrimitiveAddress, np.ndarray],
-) -> None:
-    """
-    Bring the shapes of Primitives above the moved ones back in line with their
-    children: PointClouds are rebuilt from their children's points, other shapes
-    are translated by the shift in their children's mean centroid, and Primitives
-    without a shape are left without one.
-    """
-    moved_ids = {id(prim) for prim in moved}
-    stale: set[int] = set()
-    for prim in moved:
-        for ancestor in prim.iter_path_reverse():
-            if ancestor is prim:
-                continue
-            stale.add(id(ancestor))
-            if ancestor is root:
-                break
-
-    for node in PostOrderIter(root):  # children before parents
-        if (id(node) not in stale) or (id(node) in moved_ids) or (node.shape is None):
-            continue
-
-        child_points = _child_points(node)
-        if child_points is None:
-            continue
-
-        if isinstance(node.shape, PointCloud):
-            node.shape = PointCloud(positions=child_points)
-        elif node.address in old_centroids:
-            offset = child_points.mean(axis=0) - old_centroids[node.address]
-            node._rigidly_transform_shape(RigidTransform.from_translation(offset))
 
 
 def _child_points(prim: Primitive) -> Optional[np.ndarray]:
@@ -118,25 +36,57 @@ def _child_points(prim: Primitive) -> Optional[np.ndarray]:
     return np.vstack(points) if points else None
 
 
+def _refresh_ancestor_shapes(root: Primitive, moved: list[Primitive]) -> None:
+    """
+    Rebuild the shapes of the Primitives between the moved ones and `root`
+    (inclusive) as PointClouds of their children's points, children first.
+    Primitives without a shape are left without one.
+
+    DEV: this assumes that, when interfacing with mBuild, every shaped Primitive
+    above the exported cross-section is a PointCloud (as the RDKit importers
+    build them). Any other shape on such a Primitive (e.g. a Sphere) is replaced
+    by a PointCloud here. Revisit if non-PointCloud parents need to be preserved.
+    """
+    moved_ids = {id(prim) for prim in moved}
+    stale: set[int] = set()
+    for prim in moved:
+        for ancestor in prim.iter_path_reverse():
+            if ancestor is not prim:
+                stale.add(id(ancestor))
+            if ancestor is root:
+                break
+
+    for node in PostOrderIter(root):  # children before parents
+        if (id(node) not in stale) or (id(node) in moved_ids) or (node.shape is None):
+            continue
+        child_points = _child_points(node)
+        if child_points is not None:
+            node.shape = PointCloud(positions=child_points)
+
+
 def update_primitive_from_mbuild(
     prim: Primitive,
     compound: Compound,
-    nm_to_coords: float = 10.0,
+    coords_to_nm: float = 1.0,
 ) -> list[Primitive]:
     """Write the positions of an mBuild Compound back onto an existing MuPT hierarchy.
 
     Each particle (leaf Compound) of `compound` is matched to the Primitive in
     `prim`'s hierarchy that has the same address, which `primitive_to_mbuild`
-    stores on every Compound it creates. The matched Primitive is translated so
-    that its centroid sits at the particle's position: its shape, the shapes of
-    any Primitives below it, and its Connectors all move with it. Afterwards,
-    bonded Connectors are re-aimed at their neighbors, and the shapes of the
-    Primitives above the moved ones are refreshed (PointClouds rebuilt from
-    their children, other shapes translated, absent shapes left absent).
+    stores on every Compound it creates. The matched Primitive is rigidly
+    translated (`Primitive.rigidly_transform`) so that its centroid sits at the
+    particle's position, which also moves its Connectors and the shapes of any
+    Primitives below it. A matched Primitive with no shape is treated as sitting
+    at the origin, as `primitive_to_mbuild` exports it. Afterwards, the shapes
+    of the Primitives above the moved ones are rebuilt as PointClouds.
+
+    mBuild particles carry positions only, so matched Primitives are translated,
+    never rotated: an anisotropic coarse-grained bead keeps its orientation.
 
     Typical use: export with `primitive_to_mbuild`, relax or simulate the
     Compound's coordinates elsewhere, set them on that same Compound (e.g.
-    `compound.xyz = new_positions_nm`), then call this function.
+    `compound.xyz = new_positions_nm`), then call this function with the same
+    `coords_to_nm` used for the export.
 
     Parameters
     ----------
@@ -146,10 +96,10 @@ def update_primitive_from_mbuild(
     compound : mbuild.Compound
         A Compound produced by `primitive_to_mbuild`, with updated particle positions.
         Coordinates must already be unwrapped across periodic boundaries.
-    nm_to_coords : float, default 10.0
-        Factor converting mBuild's nanometers into the hierarchy's length unit.
-        The default (10.0) converts to Angstrom; use the reciprocal of the
-        `coords_to_nm` passed to `primitive_to_mbuild`.
+    coords_to_nm : float, optional, default 1.0
+        Multiplication factor that converts the tree's coordinates into nanometers,
+        exactly as passed to `primitive_to_mbuild` (e.g., use 0.1 if the tree is in
+        Angstrom). Compound positions are divided by it.
 
     Returns
     -------
@@ -179,7 +129,7 @@ def update_primitive_from_mbuild(
                 f"mBuild particle {particle.name!r} refers to Primitive address "
                 f"{address!r}, which is not in the hierarchy of {prim}"
             )
-        position = np.asarray(particle.pos, dtype=float) * nm_to_coords
+        position = np.asarray(particle.pos, dtype=float) / coords_to_nm
         if not np.all(np.isfinite(position)):
             raise ValueError(
                 f"mBuild particle {particle.name!r} has a non-finite "
@@ -187,17 +137,14 @@ def update_primitive_from_mbuild(
             )
         targets.append((by_address[address], position))
 
-    old_centroids: dict[PrimitiveAddress, np.ndarray] = dict()
-    for node in PreOrderIter(prim):
-        if (node.shape is not None) and not isinstance(node.shape, PointCloud):
-            child_points = _child_points(node)
-            if child_points is not None:
-                old_centroids[node.address] = child_points.mean(axis=0)
+    for target, position in targets:
+        if target.shape is None:
+            # same convention as primitive_to_mbuild: no shape means the origin
+            target.shape = PointCloud(positions=np.zeros(3, dtype=float))
+        offset = position - np.asarray(target.shape.centroid, dtype=float)
+        target.rigidly_transform(RigidTransform.from_translation(offset))
 
     moved = [target for target, _ in targets]
-    for target, position in targets:
-        _translate_primitive(target, position)
-    _reaim_bonded_connectors(moved)
-    _refresh_ancestor_shapes(prim, moved, old_centroids)
+    _refresh_ancestor_shapes(prim, moved)
 
     return moved

@@ -97,7 +97,7 @@ def test_unchanged_compound_leaves_positions_unchanged(system: RootPrimitive) ->
     compound = primitive_to_mbuild(
         system, predicate=is_atom, preserve_intermediates=True, coords_to_nm=0.1
     )
-    update_primitive_from_mbuild(system, compound)
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
     for atom in _atoms(system):
         assert np.allclose(atom.shape.centroid, before[atom.address], atol=1e-6)
 
@@ -116,7 +116,7 @@ def test_positions_written_by_address(
     rng = np.random.default_rng(0)
     compound.xyz = compound.xyz + rng.normal(scale=0.05, size=compound.xyz.shape)
 
-    moved = update_primitive_from_mbuild(system, compound, nm_to_coords=10.0)
+    moved = update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
 
     assert len(moved) == compound.n_particles
     by_address = {a.address: a for a in _atoms(system)}
@@ -133,7 +133,7 @@ def test_connectors_follow_atoms(system: RootPrimitive) -> None:
     )
     rng = np.random.default_rng(1)
     compound.xyz = compound.xyz + rng.normal(scale=0.05, size=compound.xyz.shape)
-    update_primitive_from_mbuild(system, compound)
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
 
     bonded = _bonded_connectors(system)
     assert bonded
@@ -148,7 +148,7 @@ def test_parent_shapes_refreshed(system: RootPrimitive) -> None:
         system, predicate=is_atom, preserve_intermediates=True, coords_to_nm=0.1
     )
     compound.translate([1.0, -2.0, 0.5])  # nm
-    update_primitive_from_mbuild(system, compound)
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
     _assert_parent_pointclouds_match_atoms(system)
 
 
@@ -165,7 +165,7 @@ def test_coarse_grained_particles_move_rigidly(system: RootPrimitive) -> None:
         system, predicate=is_unit, preserve_intermediates=True, coords_to_nm=0.1
     )
     compound.translate([0.3, 0.3, 0.3])
-    update_primitive_from_mbuild(system, compound)
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
 
     for unit in units:
         internal_after = np.asarray([
@@ -179,16 +179,41 @@ def test_coarse_grained_particles_move_rigidly(system: RootPrimitive) -> None:
         assert conn.is_antialigned(conn.neighbor)
 
 
-def test_nm_to_coords_scaling(system: RootPrimitive) -> None:
-    """nm_to_coords sets the conversion from mBuild nanometers to hierarchy units"""
+def test_default_coords_to_nm_round_trip(system: RootPrimitive) -> None:
+    """With the exporter's default units (no conversion), positions come back as-is"""
     compound = primitive_to_mbuild(
-        system, predicate=is_atom, preserve_intermediates=True, coords_to_nm=1.0
+        system, predicate=is_atom, preserve_intermediates=True
     )
     compound.translate([0.5, 0.0, 0.0])
-    update_primitive_from_mbuild(system, compound, nm_to_coords=1.0)
+    update_primitive_from_mbuild(system, compound)
     by_address = {a.address: a for a in _atoms(system)}
     for particle in compound.particles():
         assert np.allclose(by_address[particle.address].shape.centroid, particle.pos)
+
+
+def test_unshaped_parents_stay_unshaped(system: RootPrimitive) -> None:
+    """Root and chains have no shape before the update and none after it"""
+    assert system.shape is None
+    compound = primitive_to_mbuild(
+        system, predicate=is_atom, preserve_intermediates=True, coords_to_nm=0.1
+    )
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
+    assert system.shape is None
+    assert all(chain.shape is None for chain in system.children)
+
+
+def test_unshaped_particle_placed_from_origin(system: RootPrimitive) -> None:
+    """A matched Primitive without a shape gets a PointCloud at the particle position"""
+    atom = _atoms(system)[0]
+    atom.shape = None
+    compound = primitive_to_mbuild(
+        system, predicate=is_atom, preserve_intermediates=True, coords_to_nm=0.1
+    )
+    particle = next(p for p in compound.particles() if p.address == atom.address)
+    particle.pos = np.array([0.1, 0.2, 0.3])
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
+    assert isinstance(atom.shape, PointCloud)
+    assert np.allclose(atom.shape.centroid, [1.0, 2.0, 3.0])
 
 
 def test_particle_without_address_rejected(system: RootPrimitive) -> None:
