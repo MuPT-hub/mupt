@@ -135,8 +135,10 @@ def is_atomizable(prim: Primitive) -> bool:
         return True
 
 
-# SAAMR properties - TODO: update to modern Primitive in interfaces stack
-def has_strict_SAAMR_depth(prim: PrimitiveLegacy) -> bool:
+# SAAMR properties
+# TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
+# functionality depending on PrimitiveLegacy has been refactored
+def has_strict_SAAMR_depth(prim: "PrimitiveLegacy | Primitive") -> bool:
     """Check whether a Primitive hierarchy is a strict depth-3 SAAMR tree.
 
     A strict SAAMR tree has exactly four levels:
@@ -146,11 +148,11 @@ def has_strict_SAAMR_depth(prim: PrimitiveLegacy) -> bool:
     SAAMR = Standard All-Atom Molecular Representation
 
     This is the structural precondition required by
-    :func:`~mupt.mupr.roles.assign_SAAMR_roles`, which walks the tree
+    :func:`~mupt.mupr.primitives.roles.assign_SAAMR_roles`, which walks the tree
     by depth to assign roles.  MDAnalysis export itself does **not**
     require strict depth-3 structure — any tree with the four SAAMR
     roles assigned can be exported regardless of depth.  Use
-    :func:`~mupt.mupr.roles.has_SAAMR_roles` to check role presence
+    :func:`~mupt.mupr.primitives.roles.has_SAAMR_roles` to check role presence
     instead.
 
     Parameters
@@ -168,4 +170,8 @@ def has_strict_SAAMR_depth(prim: PrimitiveLegacy) -> bool:
     has_SAAMR_roles : Checks that all four SAAMR roles are present (any depth).
     assign_SAAMR_roles : Assigns roles to a strict SAAMR hierarchy.
     """
-    return all(leaf.is_atom and (leaf.depth == 3) for leaf in prim.leaves)
+    # is_atom is a predicate function for Primitive, but a property on PrimitiveLegacy
+    return all(
+        (is_atom(leaf) or getattr(leaf, "is_atom", False) is True) and (leaf.depth == 3)
+        for leaf in prim.leaves
+    )
