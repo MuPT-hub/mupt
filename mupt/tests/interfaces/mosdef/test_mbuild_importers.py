@@ -243,3 +243,39 @@ def test_non_finite_position_rejected(system: RootPrimitive) -> None:
     first.pos = np.array([np.nan, 0.0, 0.0])
     with pytest.raises(ValueError, match="non-finite"):
         update_primitive_from_mbuild(system, compound)
+
+
+def test_coordinate_free_hierarchy() -> None:
+    """A hierarchy built without coordinates gets positions and aimed Connectors"""
+    from mupt.graphs.generators import path_graph_from_sequence
+
+    lexicon = {
+        name: primitive_from_smiles(smiles, label=name)  # no embedded positions
+        for name, smiles in {
+            "head": "[H:1]-[C:1](-[H])(-[H])-[C:2](-[H])(-[H])-[*:2]",
+            "mid": "[*:1]-[C:1](-[H])(-[H])-[C:2](-[H])(-[H])-[*:2]",
+            "tail": "[*:1]-[C:1](-[H])(-[H])-[C:2](-[H])(-[H])-[H:2]",
+        }.items()
+    }
+    chain = CompositePrimitive(label="chain")
+    chain.populate_from_topology_and_lexicon(
+        path_graph_from_sequence(["head", "mid", "mid", "tail"]), lexicon
+    )
+    system = RootPrimitive(label="system", children=[chain])
+    assert all(atom.shape is None for atom in _atoms(system))
+
+    compound = primitive_to_mbuild(system, predicate=is_atom, coords_to_nm=0.1)
+    rng = np.random.default_rng(2)
+    compound.xyz = rng.normal(size=compound.xyz.shape)
+    update_primitive_from_mbuild(system, compound, coords_to_nm=0.1)
+
+    by_address = {a.address: a for a in _atoms(system)}
+    for particle in compound.particles():
+        assert np.allclose(
+            by_address[particle.address].shape.centroid, particle.pos * 10
+        )
+    bonded = _bonded_connectors(system)
+    assert bonded
+    for conn in bonded:
+        assert conn.has_bond_vector
+        assert conn.is_antialigned(conn.neighbor)

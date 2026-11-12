@@ -64,6 +64,47 @@ def _refresh_ancestor_shapes(root: Primitive, moved: list[Primitive]) -> None:
             node.shape = PointCloud(positions=child_points)
 
 
+def _move_to_positions(targets: list[tuple[Primitive, np.ndarray]]) -> None:
+    """
+    Translate each Primitive so its centroid sits at its target position.
+
+    Primitive.rigidly_transform re-aims bonded Connectors, which needs every
+    Connector to have a direction. A hierarchy built without coordinates has
+    anchor == linker everywhere, so then translate without re-aiming and point
+    the bonded Connectors at their neighbors once everything has moved.
+    """
+    directionless = any(
+        not connector.has_bond_vector
+        for target, _ in targets
+        for connector in target.connectors
+    )
+    for target, position in targets:
+        if target.shape is None:
+            # same convention as primitive_to_mbuild: no shape means the origin
+            target.shape = PointCloud(positions=np.zeros(3, dtype=float))
+        offset = position - np.asarray(target.shape.centroid, dtype=float)
+        translation = RigidTransform.from_translation(offset)
+        if not directionless:
+            target.rigidly_transform(translation)
+            continue
+        for node in PreOrderIter(target):
+            node._rigidly_transform_shape(translation)
+        for connector in target.connectors:
+            connector.rigidly_transform(translation)
+
+    if not directionless:
+        return
+    for target, _ in targets:
+        for connector in target.connectors:
+            if connector.has_neighbor:
+                connector.linker.position = np.array(
+                    connector.neighbor.anchor.position, dtype=float
+                )
+                connector.neighbor.linker.position = np.array(
+                    connector.anchor.position, dtype=float
+                )
+
+
 def update_primitive_from_mbuild(
     prim: Primitive,
     compound: Compound,
@@ -77,7 +118,10 @@ def update_primitive_from_mbuild(
     translated (`Primitive.rigidly_transform`) so that its centroid sits at the
     particle's position, which also moves its Connectors and the shapes of any
     Primitives below it. A matched Primitive with no shape is treated as sitting
-    at the origin, as `primitive_to_mbuild` exports it. Afterwards, the shapes
+    at the origin, as `primitive_to_mbuild` exports it. If the hierarchy has no
+    coordinates yet (Connectors without a direction), Primitives are moved without
+    re-aiming and bonded Connectors are then pointed at their neighbors, which gives
+    them a direction. Afterwards, the shapes
     of the Primitives above the moved ones are rebuilt as PointClouds.
 
     mBuild particles carry positions only, so matched Primitives are translated,
@@ -137,14 +181,8 @@ def update_primitive_from_mbuild(
             )
         targets.append((by_address[address], position))
 
-    for target, position in targets:
-        if target.shape is None:
-            # same convention as primitive_to_mbuild: no shape means the origin
-            target.shape = PointCloud(positions=np.zeros(3, dtype=float))
-        offset = position - np.asarray(target.shape.centroid, dtype=float)
-        target.rigidly_transform(RigidTransform.from_translation(offset))
-
     moved = [target for target, _ in targets]
+    _move_to_positions(targets)
     _refresh_ancestor_shapes(prim, moved)
 
     return moved
