@@ -1,5 +1,6 @@
 """Tests for exporting MuPT hierarchies to GMSO Topologies"""
 
+import numpy as np
 import pytest
 
 pytest.importorskip("gmso")
@@ -27,3 +28,23 @@ def test_to_gmso_requires_predicate() -> None:
     ethanol = primitive_from_smiles("CCO", embed_positions=True)
     with pytest.raises(NotImplementedError):
         exporters.to_gmso(ethanol)
+
+
+@pytest.mark.parametrize("bead_position", ["centroid", "center_of_mass"])
+def test_to_gmso_bead_position(bead_position: str) -> None:
+    """to_gmso places a coarse-grained site the same way primitive_to_mbuild does"""
+    from mupt.interfaces.mosdef.mbuild import primitive_to_mbuild
+
+    toluene = primitive_from_smiles("Cc1ccccc1", embed_positions=True)
+
+    def whole(prim):
+        return prim is toluene
+
+    topology = exporters.to_gmso(
+        toluene, predicate=whole, coords_to_nm=0.1, bead_position=bead_position
+    )
+    compound = primitive_to_mbuild(
+        toluene, predicate=whole, coords_to_nm=0.1, bead_position=bead_position
+    )
+    site = next(iter(topology.sites))
+    assert np.allclose(site.position.to("nm").value, compound.pos, atol=1e-6)
