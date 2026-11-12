@@ -16,6 +16,7 @@ from scipy.spatial.transform import RigidTransform
 
 from ....geometry.shapes import PointCloud
 from ....mupr.primitives.primitive import Primitive, PrimitiveAddress
+from ..._shared.positions import BeadPosition, bead_position_of, check_bead_position
 
 
 def _child_points(prim: Primitive) -> Optional[np.ndarray]:
@@ -64,9 +65,13 @@ def _refresh_ancestor_shapes(root: Primitive, moved: list[Primitive]) -> None:
             node.shape = PointCloud(positions=child_points)
 
 
-def _move_to_positions(targets: list[tuple[Primitive, np.ndarray]]) -> None:
+def _move_to_positions(
+    targets: list[tuple[Primitive, np.ndarray]],
+    bead_position: BeadPosition = "centroid",
+) -> None:
     """
-    Translate each Primitive so its centroid sits at its target position.
+    Translate each Primitive so its position (per `bead_position`) sits at its
+    target position.
 
     Primitive.rigidly_transform re-aims bonded Connectors, which needs every
     Connector to have a direction. A hierarchy built without coordinates has
@@ -79,10 +84,12 @@ def _move_to_positions(targets: list[tuple[Primitive, np.ndarray]]) -> None:
         for connector in target.connectors
     )
     for target, position in targets:
-        if target.shape is None:
-            # same convention as primitive_to_mbuild: no shape means the origin
+        current = bead_position_of(target, bead_position)
+        if current is None:
+            # same convention as primitive_to_mbuild: no position means the origin
             target.shape = PointCloud(positions=np.zeros(3, dtype=float))
-        offset = position - np.asarray(target.shape.centroid, dtype=float)
+            current = np.zeros(3, dtype=float)
+        offset = position - current
         translation = RigidTransform.from_translation(offset)
         if not directionless:
             target.rigidly_transform(translation)
@@ -109,13 +116,15 @@ def update_primitive_from_mbuild(
     prim: Primitive,
     compound: Compound,
     coords_to_nm: float = 1.0,
+    bead_position: BeadPosition = "centroid",
 ) -> list[Primitive]:
     """Write the positions of an mBuild Compound back onto an existing MuPT hierarchy.
 
     Each particle (leaf Compound) of `compound` is matched to the Primitive in
     `prim`'s hierarchy that has the same address, which `primitive_to_mbuild`
     stores on every Compound it creates. The matched Primitive is rigidly
-    translated (`Primitive.rigidly_transform`) so that its centroid sits at the
+    translated (`Primitive.rigidly_transform`) so that its position (centroid or
+    center of mass, see `bead_position`) sits at the
     particle's position, which also moves its Connectors and the shapes of any
     Primitives below it. A matched Primitive with no shape is treated as sitting
     at the origin, as `primitive_to_mbuild` exports it. If the hierarchy has no
@@ -144,6 +153,10 @@ def update_primitive_from_mbuild(
         Multiplication factor that converts the tree's coordinates into nanometers,
         exactly as passed to `primitive_to_mbuild` (e.g., use 0.1 if the tree is in
         Angstrom). Compound positions are divided by it.
+    bead_position : {"centroid", "center_of_mass"}, default "centroid"
+        How a Primitive's position is measured, exactly as passed to
+        `primitive_to_mbuild`: each matched Primitive is moved so that this
+        position lands on its particle.
 
     Returns
     -------
@@ -156,6 +169,7 @@ def update_primitive_from_mbuild(
         If a particle carries no MuPT address, its address is not found in
         `prim`'s hierarchy, or its position is not finite.
     """
+    check_bead_position(bead_position)
     by_address: dict[PrimitiveAddress, Primitive] = {
         node.address: node for node in PreOrderIter(prim)
     }
@@ -182,7 +196,7 @@ def update_primitive_from_mbuild(
         targets.append((by_address[address], position))
 
     moved = [target for target, _ in targets]
-    _move_to_positions(targets)
+    _move_to_positions(targets, bead_position)
     _refresh_ancestor_shapes(prim, moved)
 
     return moved

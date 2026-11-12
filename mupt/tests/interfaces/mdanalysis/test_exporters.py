@@ -503,13 +503,30 @@ def test_cg_bead_names_and_masses(polyethylene_3mer, polyethylene_resname_map):
     assert np.allclose(universe.atoms.masses, [unit.mass for unit in chain.children])
 
 
-def test_cg_bead_position_is_center_of_mass():
-    """Beads sit at the mass-weighted center of their atoms."""
+def test_cg_bead_position_default_is_centroid():
+    """By default, beads sit at the geometric centroid of their shape."""
     toluene = primitive_from_smiles("Cc1ccccc1", label="toluene", embed_positions=True)
     universe = primitive_to_mdanalysis(
         single_molecule(toluene),
         {"toluene": "TOL"},
         strategy=CoarseGrainedExportStrategy(),
+    )
+    assert np.allclose(universe.atoms.positions[0], toluene.shape.centroid, atol=1e-5)
+
+
+def test_cg_invalid_bead_position_raises():
+    """bead_position must be "centroid" or "center_of_mass"."""
+    with pytest.raises(ValueError, match="bead_position"):
+        CoarseGrainedExportStrategy(bead_position="middle")
+
+
+def test_cg_bead_position_is_center_of_mass():
+    """With bead_position="center_of_mass", beads sit at their atoms' center of mass."""
+    toluene = primitive_from_smiles("Cc1ccccc1", label="toluene", embed_positions=True)
+    universe = primitive_to_mdanalysis(
+        single_molecule(toluene),
+        {"toluene": "TOL"},
+        strategy=CoarseGrainedExportStrategy(bead_position="center_of_mass"),
     )
     atoms = list(toluene.children)
     masses = np.array([atom.mass for atom in atoms])

@@ -279,3 +279,82 @@ def test_coordinate_free_hierarchy() -> None:
     for conn in bonded:
         assert conn.has_bond_vector
         assert conn.is_antialigned(conn.neighbor)
+
+
+# Bead positions: geometric centroid vs. center of mass
+
+
+def _is_unit(prim) -> bool:
+    return getattr(prim, "role", None) == "residue"
+
+
+def _center_of_mass(prim) -> np.ndarray:
+    atoms = _atoms(prim)
+    masses = np.array([a.mass for a in atoms])
+    positions = np.array([a.shape.centroid for a in atoms])
+    return (masses[:, None] * positions).sum(axis=0) / masses.sum()
+
+
+@pytest.mark.parametrize("bead_position", ["centroid", "center_of_mass"])
+def test_export_bead_positions(system: RootPrimitive, bead_position: str) -> None:
+    """Beads are exported at their centroid or center of mass, as asked"""
+    compound = primitive_to_mbuild(
+        system, predicate=_is_unit, coords_to_nm=0.1, bead_position=bead_position
+    )
+    units = {u.address: u for u in PreOrderIter(system) if _is_unit(u)}
+    for particle in compound.particles():
+        unit = units[particle.address]
+        expected = (
+            np.asarray(unit.shape.centroid)
+            if bead_position == "centroid"
+            else _center_of_mass(unit)
+        )
+        assert np.allclose(particle.pos * 10, expected)
+
+
+def test_centroid_and_center_of_mass_differ(system: RootPrimitive) -> None:
+    """Centroid and center of mass differ for a C2H4 bead, so these tests matter"""
+    unit = next(u for u in PreOrderIter(system) if _is_unit(u))
+    assert not np.allclose(unit.shape.centroid, _center_of_mass(unit), atol=1e-3)
+
+
+def test_invalid_bead_position_rejected(system: RootPrimitive) -> None:
+    """bead_position must be one of the two supported choices"""
+    with pytest.raises(ValueError, match="bead_position"):
+        primitive_to_mbuild(system, predicate=_is_unit, bead_position="middle")
+
+
+def test_center_of_mass_round_trip(system: RootPrimitive) -> None:
+    """Reading back with the same bead_position lands each bead's center of mass"""
+    compound = primitive_to_mbuild(
+        system, predicate=_is_unit, coords_to_nm=0.1, bead_position="center_of_mass"
+    )
+    compound.translate([0.2, -0.1, 0.3])
+    update_primitive_from_mbuild(
+        system, compound, coords_to_nm=0.1, bead_position="center_of_mass"
+    )
+    units = {u.address: u for u in PreOrderIter(system) if _is_unit(u)}
+    for particle in compound.particles():
+        assert np.allclose(_center_of_mass(units[particle.address]), particle.pos * 10)
+
+
+@pytest.mark.parametrize("bead_position", ["centroid", "center_of_mass"])
+def test_mbuild_and_mdanalysis_exports_agree(
+    system: RootPrimitive, bead_position: str
+) -> None:
+    """The mBuild and MDAnalysis exporters put every bead in the same place"""
+    pytest.importorskip("MDAnalysis")
+    from mupt.interfaces.mdanalysis import primitive_to_mdanalysis
+    from mupt.interfaces.mdanalysis.strategies import CoarseGrainedExportStrategy
+
+    system.role = "universe"
+    compound = primitive_to_mbuild(
+        system, predicate=_is_unit, coords_to_nm=0.1, bead_position=bead_position
+    )
+    universe = primitive_to_mdanalysis(
+        system,
+        {"A": "AAA", "B": "BBB", "C": "CCC"},
+        strategy=CoarseGrainedExportStrategy(bead_position=bead_position),
+    )
+    mbuild_positions = np.array([p.pos * 10 for p in compound.particles()])
+    assert np.allclose(universe.atoms.positions, mbuild_positions, atol=1e-4)
