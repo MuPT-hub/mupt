@@ -16,6 +16,7 @@
 import os
 import sys
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
 sys.path.insert(0, os.path.abspath('..'))
@@ -39,25 +40,41 @@ examples_repo_base = (
     'https://raw.githubusercontent.com/MuPT-hub/mupt-examples/main/'
 )
 
-# mappings: these map a URL for a raw file to a local path in the
-# documentation source tree.
+# mappings: these map a local path in the documentation source tree to the
+# raw file(s) it is downloaded from, tried in order (first one found wins).
+# TODO: remove the fallback (second) paths before cutting the release. They
+# are the mupt-examples paths from before its reorganization
+# (MuPT-hub/mupt-examples#40), kept so the docs build whether or not that
+# PR has merged.
 external_files = {
-    examples_repo_base + 'examples_repr/mol_from_scratch_basic.ipynb': (
-        'how_to/mol_from_scratch_basic.ipynb'
-    ),
-    examples_repo_base + 'examples_system/hierarchy_on_peptides.ipynb': (
-        'tutorials/hierarchy_on_peptides.ipynb'
-    ),
+    'how_to/mol_from_scratch_basic.ipynb': [
+        examples_repo_base + 'representation/01_hierarchy_basics.ipynb',
+        examples_repo_base + 'examples_repr/mol_from_scratch_basic.ipynb',
+    ],
+    'tutorials/hierarchy_on_peptides.ipynb': [
+        examples_repo_base + 'legacy/hierarchy_on_peptides.ipynb',
+        examples_repo_base + 'examples_system/hierarchy_on_peptides.ipynb',
+    ],
 }
 
 
 def download_external_files(app):
     """Download externally maintained documentation sources."""
     source_directory = Path(app.srcdir)
-    for source_url, relative_destination in external_files.items():
+    for relative_destination, source_urls in external_files.items():
         destination = source_directory / relative_destination
         destination.parent.mkdir(parents=True, exist_ok=True)
-        urlretrieve(source_url, destination)
+        for source_url in source_urls:
+            try:
+                urlretrieve(source_url, destination)
+                break
+            except HTTPError as error:
+                if error.code != 404:
+                    raise
+        else:
+            raise FileNotFoundError(
+                f"None of these exist for {relative_destination}: {source_urls}"
+            )
 
 
 # -- General configuration ---------------------------------------------------

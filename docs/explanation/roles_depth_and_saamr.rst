@@ -51,7 +51,7 @@ What a role is
 
 Every Primitive has a :attr:`~mupt.mupr.primitives.Primitive.role`
 attribute, whose value is a member of the
-:class:`~mupt.roles.PrimitiveRole` enum:
+:class:`~mupt.mupr.primitives.roles.PrimitiveRole` enum:
 
 ``UNIVERSE``
     The root container of the whole system.
@@ -79,7 +79,7 @@ A few properties of roles are worth knowing:
 - **Roles are opt-in.** MuPT never assigns roles on its own. Either you set
   them when building a Primitive (``Primitive(..., role=PrimitiveRole.RESIDUE)``),
   set them afterwards (``prim.role = PrimitiveRole.RESIDUE``), or call a
-  helper such as :func:`~mupt.roles.assign_SAAMR_roles`.
+  helper such as :func:`~mupt.mupr.primitives.roles.assign_SAAMR_roles`.
 - **Roles are preserved by copying.** ``Primitive.copy()`` carries roles
   through to the copied tree, so a residue template tagged once stays
   tagged when it is copied into many chains.
@@ -141,20 +141,20 @@ Roles versus depth in practice
 The simplest SAAMR tree is one where the roles and the depths line up
 exactly: universe at depth 0, segments at depth 1, residues at depth 2,
 and atoms at depth 3. MuPT calls this *strict SAAMR depth*, and for trees
-with this shape, :func:`~mupt.roles.assign_SAAMR_roles` will label every
+with this shape, :func:`~mupt.mupr.primitives.roles.assign_SAAMR_roles` will label every
 level for you:
 
 .. code-block:: python
 
     from mupt.chemistry import ELEMENTS
-    from mupt.mupr.primitives import Primitive
-    from mupt.mupr.properties import has_strict_SAAMR_depth
-    from mupt.roles import assign_SAAMR_roles, has_SAAMR_roles
+    from mupt.mupr.primitives import AtomicPrimitive, CompositePrimitive, RootPrimitive
+    from mupt.mupr.primitives.predicates import has_strict_SAAMR_depth
+    from mupt.mupr.primitives.roles import assign_SAAMR_roles, has_SAAMR_roles
 
-    universe = Primitive(label="universe")
-    chain = Primitive(label="chain")
-    unit = Primitive(label="HEL")
-    atom = Primitive(label="He", element=ELEMENTS[2])
+    universe = RootPrimitive(label="universe")
+    chain = CompositePrimitive(label="chain")
+    unit = CompositePrimitive(label="HEL")
+    atom = AtomicPrimitive(element=ELEMENTS[2], label="He")
 
     universe.attach_child(chain)
     chain.attach_child(unit)
@@ -175,13 +175,13 @@ the domain node is simply left ``UNASSIGNED``:
 .. code-block:: python
 
     from mupt.interfaces.mdanalysis import primitive_to_mdanalysis
-    from mupt.roles import PrimitiveRole
+    from mupt.mupr.primitives.roles import PrimitiveRole
 
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    domain = Primitive(label="domain")  # UNASSIGNED: transparent
-    chain = Primitive(label="chain", role=PrimitiveRole.SEGMENT)
-    unit = Primitive(label="HEL", role=PrimitiveRole.RESIDUE)
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = RootPrimitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    domain = CompositePrimitive(label="domain")  # UNASSIGNED: transparent
+    chain = CompositePrimitive(label="chain", role=PrimitiveRole.SEGMENT)
+    unit = CompositePrimitive(label="HEL", role=PrimitiveRole.RESIDUE)
+    atom = AtomicPrimitive(element=ELEMENTS[2], label="He", role=PrimitiveRole.PARTICLE)
 
     universe.attach_child(domain)
     domain.attach_child(chain)
@@ -200,11 +200,11 @@ strict SAAMR tree, but exporters only ever rely on the roles.
 
 It helps to keep the three checks straight:
 
-:func:`~mupt.mupr.properties.has_strict_SAAMR_depth`
+:func:`~mupt.mupr.primitives.predicates.has_strict_SAAMR_depth`
     A *structural* check: are all leaves atoms at depth exactly 3? This is
-    the precondition for :func:`~mupt.roles.assign_SAAMR_roles`.
+    the precondition for :func:`~mupt.mupr.primitives.roles.assign_SAAMR_roles`.
 
-:func:`~mupt.roles.has_SAAMR_roles`
+:func:`~mupt.mupr.primitives.roles.has_SAAMR_roles`
     A quick *presence* check: does at least one Primitive carry each of the
     four SAAMR roles? It does not check how those roles are arranged, so a
     tree can pass this check and still be rejected by an exporter (for
@@ -215,7 +215,7 @@ Exporter validation
     Every exporter for SAAMR systems confirms SAAMR compliance before
     writing anything and raises a ``ValueError`` explaining what is wrong.
 
-:func:`~mupt.roles.assign_SAAMR_roles` always labels every level of a
+:func:`~mupt.mupr.primitives.roles.assign_SAAMR_roles` always labels every level of a
 strict SAAMR tree, replacing any roles that were set before. To keep
 hand-assigned roles, set the remaining ones by hand instead of calling it.
 
@@ -269,11 +269,11 @@ labels:
 
 .. code-block:: python
 
-    universe = Primitive(label="universe", role=PrimitiveRole.UNIVERSE)
-    domain = Primitive(label="domain")
-    chain = Primitive(label="chain", role=PrimitiveRole.RESIDUE)  # was SEGMENT
-    unit = Primitive(label="HEL", role=PrimitiveRole.SEGMENT)     # was RESIDUE
-    atom = Primitive(label="He", element=ELEMENTS[2], role=PrimitiveRole.PARTICLE)
+    universe = RootPrimitive(label="universe", role=PrimitiveRole.UNIVERSE)
+    domain = CompositePrimitive(label="domain")
+    chain = CompositePrimitive(label="chain", role=PrimitiveRole.RESIDUE)  # was SEGMENT
+    unit = CompositePrimitive(label="HEL", role=PrimitiveRole.SEGMENT)     # was RESIDUE
+    atom = AtomicPrimitive(element=ELEMENTS[2], label="He", role=PrimitiveRole.PARTICLE)
 
     universe.attach_child(domain)
     domain.attach_child(chain)
@@ -283,15 +283,16 @@ labels:
     has_SAAMR_roles(universe)  # True: all four roles are still present
 
     primitive_to_mdanalysis(universe, resname_map={})
-    # ValueError: RESIDUE-role Primitives must be enclosed by a SEGMENT.
+    # ValueError: Segment 'HEL' contains no Primitive with role 'residue'.
 
-The tree builds, and it passes :func:`~mupt.roles.has_SAAMR_roles`,
+The tree builds, and it passes :func:`~mupt.mupr.primitives.roles.has_SAAMR_roles`,
 because that check only asks whether each role appears somewhere. The
-exporter checks how the roles are arranged and rejects the tree under
-rule 3. Putting one ``SEGMENT`` inside another fails the same way, under
+exporter checks how the roles are arranged and rejects the tree: the
+``SEGMENT`` it finds has no ``RESIDUE`` inside it (rule 5; rule 3 is broken
+too). Putting one ``SEGMENT`` inside another fails the same way, under
 rule 4::
 
-    ValueError: SEGMENT 'outer' contains nested SEGMENT(s) ['chain'].
+    ValueError: 'segment'-role Primitive 'outer' contains another 'segment'-role Primitive 'chain'.
 
 
 How roles are used
@@ -307,7 +308,10 @@ MDAnalysis export
 
 RDKit export
     :func:`~mupt.interfaces.rdkit.exporters.primitive_to_rdkit_mols`
-    yields one RDKit ``Mol`` per ``SEGMENT``. Residue and particle
+    yields one RDKit ``Mol`` per ``SEGMENT``. It has not been ported to the
+    refactored Primitive classes yet, so for now it only works on
+    pre-refactor (0.1.3a1-style) hierarchies; with refactored ones, reach
+    RDKit through mBuild (``primitive_to_mbuild(...).to_rdkit()``). Residue and particle
     membership is recorded on each RDKit atom as properties
     (``mupt_segment_index``, ``mupt_residue_index``, and so on), so the
     SAAMR hierarchy can be recovered from the molecule.
@@ -321,27 +325,32 @@ RDKit export
        for that.
 
 SDF files
-    MuPT's SDF writer is built on the RDKit exporter. The reader rebuilds a
+    MuPT's SDF writer (``mupt.temporary.sdf``) is built on the RDKit
+    exporter, so it shares that limitation. The reader rebuilds a
     strict four-level UNIVERSE / SEGMENT / RESIDUE / PARTICLE tree, so
     transparent ``UNASSIGNED`` levels are not preserved through a round
     trip.
 
 All-atom DPD initialization
-    :class:`~mupt.builders.all_atom_dpd.AllAtomDPDBuilder` uses the same
-    role rules to find the chains, residues, and atoms it needs to place
-    and relax. The geometric placement step itself is role-agnostic; the
-    builder is the layer that reads roles and hands placement a
-    chain-of-residues view of each segment.
+    The built-in :class:`~mupt.builders.all_atom_dpd.AllAtomDPDBuilder`
+    (pre-refactor hierarchies) uses the same role rules to find the chains,
+    residues, and atoms it needs to place and relax. It is being retired in
+    favor of flowerMD's AA-DPD
+    (`#139 <https://github.com/MuPT-hub/mupt/issues/139>`_); there, the
+    roles come along through the mBuild export, and the relaxed coordinates
+    come back with ``update_primitive_from_mbuild``.
 
 
 Beyond SAAMR
 ------------
 
 SAAMR is the first role system MuPT supports. Exporters are
-built around interchangeable *strategies* (for example, an all-atom
-strategy for MDAnalysis), so a different role convention, such as a
-coarse-grained hierarchy where ``PARTICLE``\ s are beads, can be supported
-by adding a strategy rather than rewriting the exporter.
+built around interchangeable *strategies*, so a different role convention
+is supported by adding a strategy rather than rewriting the exporter. The
+MDAnalysis exporter has two: ``AllAtomExportStrategy`` (the default, for
+SAAMR) and ``CoarseGrainedExportStrategy``, for hierarchies where the
+``PARTICLE``\ s are beads; pass one with
+``primitive_to_mdanalysis(universe, resname_map, strategy=...)``.
 
 What is fixed is the principle: meaning is attached to Primitives
 explicitly, and tools that need a fixed hierarchy read that meaning
@@ -350,6 +359,6 @@ instead of guessing it from the shape of the tree.
 See also
 --------
 
-- :mod:`mupt.roles` and :mod:`mupt.mupr.properties` in the API reference
+- :mod:`mupt.mupr.primitives.roles` and :mod:`mupt.mupr.primitives.predicates` in the API reference
 - :doc:`molecular_representation`, for the Primitive tree itself
 - :doc:`connectors`, for how bonds between Primitives are represented
