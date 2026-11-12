@@ -140,8 +140,10 @@ bookkeeping:
   lookup.
 - **Managers.** Collections of Connectors are handled by a
   ``ConnectorManager`` (``prim.connections``) rather than by the Primitive
-  itself. A mutable manager is used while building; a frozen one can cache
-  connection data once a topology is final.
+  itself. A mutable manager (``ConnectorManagerMutable``) is used while
+  building. A frozen one (``ConnectorManagerFrozen``) works out its free and
+  bound Connectors once, when it is created, locks every Connector it holds,
+  and offers no way to add or remove Connectors.
 
 .. code-block:: python
 

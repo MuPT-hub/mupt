@@ -269,8 +269,9 @@ Primitives:
        equivalent Simple Primitive that keeps its connectivity and shape.
 
 These are currently placeholders (they raise ``NotImplementedError``) on
-`#155 <https://github.com/MuPT-hub/mupt/pull/155>`_, which is not yet part
-of the merge order of the rest of the stack. Naming (e.g. *contract* vs.
+`#155 <https://github.com/MuPT-hub/mupt/pull/155>`_. That branch is not part
+of the refactor stack the interfaces are built on, so none of these methods
+exist there yet. Naming (e.g. *contract* vs.
 *retract*, *truncate* vs. *cauterize*) and making ``flatten`` deterministic
 in child order are still open questions there.
 
