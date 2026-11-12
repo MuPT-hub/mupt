@@ -76,13 +76,15 @@ def primitive_to_mbuild(
 
     Parameters
     ----------
-    root : Primitive
+    prim : Primitive
         Root of the MuPT hierarchy to export.
-    predicate: Optional[NodePredicate[Primitive]] = None,
+    predicate : NodePredicate[Primitive]
         The criterion to use to query for sub-primitives which are represented in
-        the 'slice' (cross section) of the representation exported to mbuild
+        the 'slice' (cross section) of the representation exported to mbuild.
+        Required: exporting without one is not supported yet and raises
+        NotImplementedError.
     name : str, optional
-        Name for the returned Compound. Defaults to the root Primitive's label.
+        Name for the returned Compound. Defaults to the label of `prim`.
     preserve_intermediates : bool, default False
         Whether to also include every level between the chosen cross section
         and the root Primitive passed in here in the final mBuild Compound

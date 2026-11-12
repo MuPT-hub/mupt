@@ -8,7 +8,7 @@ from typing import Optional
 
 from gmso.core.topology import Topology as GMSOTopology
 
-from ..mbuild.exporters import to_mbuild
+from ..mbuild.exporters import primitive_to_mbuild
 from ....trees.subselect import NodePredicate
 from ....mupr.primitives import Primitive
 
@@ -28,13 +28,12 @@ def to_gmso(
     ----------
     root : Primitive
         Root of the MuPT hierarchy to export.
-    resolution : None | int | PrimitiveRole | Callable[[Primitive], bool]
-        Designates the recursion floor whose nodes become the Compound's leaf
-        particles. Defaults to None (fully atomistic). An int depth is measured
-        relative to root, so resolution=1 always means "root's depth-1 children
-        are the beads", whatever subtree root points at.
+    predicate : NodePredicate[Primitive]
+        The criterion selecting which Primitives become GMSO sites (the cross
+        section of the hierarchy that is exported), e.g. `is_atom`. Required:
+        exporting without one is not supported yet and raises NotImplementedError.
     name : str, optional
-        Name for the returned Compound. Defaults to the root Primitive's label.
+        Name for the intermediate mBuild Compound. Defaults to the label of root.
     coords_to_nm : float, optional, default 1.0
         Multiplication factor that converts the tree's coordinates
         into nanometers, which is the unit mBuild always assumes
@@ -44,7 +43,7 @@ def to_gmso(
     -------
     gmso.core.Topology
     """
-    compound = to_mbuild(
-        root=root, predicate=predicate, name=name, coords_to_nm=coords_to_nm
+    compound = primitive_to_mbuild(
+        root, predicate=predicate, name=name, coords_to_nm=coords_to_nm
     )
     return compound.to_gmso()
