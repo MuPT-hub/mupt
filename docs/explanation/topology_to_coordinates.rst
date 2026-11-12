@@ -171,7 +171,7 @@ of the hierarchy, so the same system can go out as atoms or as beads.
      - `#157 <https://github.com/MuPT-hub/mupt/pull/157>`_
    * - mBuild / GMSO
      - ``primitive_to_mbuild`` (any cross-section, optionally keeping the
-       intermediate levels); GMSO export in progress
+       intermediate levels); ``to_gmso`` wraps it to give a GMSO Topology
      - `#158 <https://github.com/MuPT-hub/mupt/pull/158>`_
    * - mBuild → MuPT
      - ``update_primitive_from_mbuild``: read coordinates back onto an
