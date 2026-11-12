@@ -11,13 +11,14 @@ def randomly_placed_connector(
     linker_marker: Hashable = 1,
     L: float = 5.0,
     rng: Optional[np_random.Generator] = None,
+    assign_tangent: bool = False,
 ) -> Connector:
     """
     Produce a marked Connector with both attachment point
     positions chosen uniformly randomly from [-L, L]**3
     """
     sampler = np_random if rng is None else rng
-    return Connector(
+    conn = Connector(
         anchor=AttachmentPoint(
             {anchor_marker},
             attachment=anchor_marker,
@@ -29,3 +30,7 @@ def randomly_placed_connector(
             position=sampler.uniform(low=-L, high=L, size=3),
         ),
     )
+    if assign_tangent:
+        conn.set_tangent_from_coplanar_point(sampler.uniform(low=-L, high=L, size=3))
+
+    return conn
