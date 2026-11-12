@@ -49,29 +49,30 @@ class ConnectorAntialignmentStrategy(ABC):
                 "without explicitly-defined dihedral plane orientations"
             )
 
-        # DEV: could technically weaken to check when bond vectors are antiparallel
-        # (i.e. -1 dot product when normed) and difference between anchors is parallel
-        # and antiparallel with bond vectors respectively, but didn't for simplicity
+        # essential bond vectors be antialigned for dihedral assignment to make sense
+        # any dihedral angle assignment should only move the subspace orthogonal to
+        # the span of the two bond vectors, i.e. the dihedral rotation transformations
+        # have eigenvectors parallel to the bond vector(s) with eigenvalue 1.0
         if not align_connector.is_antialigned(to_connector, within=alignment_tolerance):
             raise ValueError(
                 "Cannot set dihedral angle with non-antialigned Connectors"
             )
 
-        # recall, tangent vectors are invariant under translation
-        tangent_alignment = alignment_rotation(
-            align_connector.tangent_vector,
-            to_connector.tangent_vector,
+        normal_alignment_rotation = alignment_rotation(
+            # don't need to normalize, already done by alignment rotation calculation
+            align_connector.normal_vector,
+            to_connector.normal_vector,
         )
-        # BUG: extra degree of freedom here; need to ensure tangents also line up
-        dihedral_rotation = Rotation.from_rotvec(
-            dihedral_angle_rad * to_connector.unit_bond_vector
+        dihedral_assignment_rotation = Rotation.from_rotvec(
+            dihedral_angle_rad * -to_connector.unit_bond_vector
+            # dihedral_angle_rad * align_connector.unit_bond_vector
         )
         # align tangents before setting dihedral to avoid inter-tangent angle calc
-        dihedral_alignment = dihedral_rotation * tangent_alignment
+        dihedral_rotation = dihedral_assignment_rotation * normal_alignment_rotation
 
         return (
             RigidTransform.from_translation(align_connector.anchor.position)
-            * RigidTransform.from_rotation(dihedral_alignment)
+            * RigidTransform.from_rotation(dihedral_rotation)
             * RigidTransform.from_translation(-align_connector.anchor.position)
         )
 
