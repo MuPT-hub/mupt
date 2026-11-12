@@ -204,10 +204,6 @@ def test_dihedral_assignment(
     )
     assert conn_b.is_antialigned(conn_a)
 
-    print(
-        np.cos(dihedral_angle_rad),
-        np.dot(conn_a.unit_normal_vector, conn_b.unit_normal_vector),
-    )
     assert_allclose(
         np.cos(dihedral_angle_rad),
         np.dot(conn_a.unit_normal_vector, conn_b.unit_normal_vector),
