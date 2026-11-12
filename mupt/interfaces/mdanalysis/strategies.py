@@ -13,6 +13,7 @@ from ...mupr.primitives.primitive import Primitive
 from ...mupr.primitives.predicates import is_atom
 from ...mupr.primitives.roles import PrimitiveRole
 from ...trees.subselect import NodePredicate, primoprogenitors
+from .._shared.positions import BeadPosition, bead_position_of, check_bead_position
 
 
 @dataclass
@@ -181,22 +182,15 @@ def _add_bonds(
         data.bond_orders = []  # export connectivity without orders
 
 
-def _position_of(prim: Primitive) -> Optional[np.ndarray]:
-    """Position of a Primitive: its atoms' center of mass, else its own shape.
+def _position_of(
+    prim: Primitive, bead_position: BeadPosition = "centroid"
+) -> Optional[np.ndarray]:
+    """Position of a Primitive per `bead_position` (see BeadPosition).
 
     For an atom this is just the atom's position. Returns None if no position
     can be determined.
     """
-    atoms = list(primoprogenitors(prim, is_atom))
-    if atoms and all(atom.shape is not None for atom in atoms):
-        positions = np.array([atom.shape.centroid for atom in atoms], dtype=float)
-        masses = np.array([atom.mass for atom in atoms], dtype=float)
-        return (masses[:, None] * positions).sum(axis=0) / masses.sum()
-
-    if prim.shape is not None:
-        return np.asarray(prim.shape.centroid, dtype=float)
-
-    return None
+    return bead_position_of(prim, bead_position)
 
 
 class MDAExportStrategy(ABC):
@@ -285,16 +279,21 @@ class CoarseGrainedExportStrategy(MDAExportStrategy):
     repeat units. Bonds between beads come from the bead cross-section of the
     hierarchy.
 
-    Each bead is placed at the mass-weighted center of its atoms if they all
-    have positions, otherwise at its own position if it has one, otherwise at
-    ``default_bead_position``.
+    Each bead is placed per ``bead_position``: ``"centroid"`` (default; the
+    geometric center of its shape, or of its atoms if it has none) or
+    ``"center_of_mass"`` (the mass-weighted center of its atoms). Beads with no
+    position are placed at ``default_bead_position``. Use the same
+    ``bead_position`` as for primitive_to_mbuild so both exports agree.
     Bead names and types are the bead's residue name.
     """
 
     def __init__(
         self,
         default_bead_position: Optional[np.ndarray] = None,
+        bead_position: BeadPosition = "centroid",
     ) -> None:
+        check_bead_position(bead_position)
+        self.bead_position = bead_position
         if default_bead_position is None:
             self.default_bead_position = np.array([0.0, 0.0, 0.0], dtype=float)
         else:
@@ -336,7 +335,7 @@ class CoarseGrainedExportStrategy(MDAExportStrategy):
             except TypeError:  # some descendant has no mass
                 masses.append(None)
 
-            position = _position_of(bead)
+            position = _position_of(bead, self.bead_position)
             data.atom_positions.append(
                 list(self.default_bead_position if position is None else position)
             )

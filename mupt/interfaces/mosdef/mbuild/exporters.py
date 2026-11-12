@@ -16,6 +16,7 @@ from ....chemistry.core import BOND_ORDER_ATTR
 from ....trees.subselect import NodePredicate
 from ....mupr.primitives.primitive import Primitive, PrimitiveAddress
 from ....mupr.primitives.simple.atomic import AtomicPrimitive
+from ..._shared.positions import BeadPosition, bead_position_of, check_bead_position
 
 
 # mBuild only accepts these bond orders.
@@ -27,16 +28,18 @@ def _primitive_to_mbuild_compound(
     name: Optional[str] = None,
     coords_to_nm: float = 1.0,
     as_particle: bool = False,
+    bead_position: BeadPosition = "centroid",
 ) -> Compound:
     """
     Convert a single Primitive instance and its
     attributes into a single mBuild Compound
     Only transfers attribute data, not connectivity or hierarchy info
     """
-    if prim.shape is None:
+    position = bead_position_of(prim, bead_position)
+    if position is None:
         pos = np.zeros(3, dtype=float)
     else:
-        pos = np.asarray(prim.shape.centroid, dtype=float) * coords_to_nm
+        pos = position * coords_to_nm
 
     element_symbol: Optional[str] = None
     # if is_atom(prim):
@@ -66,6 +69,7 @@ def primitive_to_mbuild(
     name: Optional[str] = None,
     preserve_intermediates: bool = False,
     coords_to_nm: float = 1.0,
+    bead_position: BeadPosition = "centroid",
 ) -> Compound:
     """Export a resolution slice of a MuPT hierarchy as a nested mBuild Compound.
     See https://mbuild.mosdef.org for information on mBuild.
@@ -87,15 +91,22 @@ def primitive_to_mbuild(
     coords_to_nm : float, optional, default 1.0
         Multiplication factor that converts the tree's coordinates into nanometers,
         which is the unit mBuild requires (e.g., use 0.1 to convert from Angstrom to nm)
+    bead_position : {"centroid", "center_of_mass"}, default "centroid"
+        Where to place a Primitive that stands in for several atoms (e.g. a
+        coarse-grained bead): the geometric centroid of its shape, or the
+        mass-weighted center of its atoms. Atoms are unaffected. Use the same
+        value with update_primitive_from_mbuild and the MDAnalysis exporter's
+        CoarseGrainedExportStrategy.
 
     Returns
     -------
     mbuild.Compound
         A Compound tree that mirrors the Primitive hierarchy down to the resolution.
         Nodes singled out by the passed predicate become mBuild particles.
-        Compounds are positioned at each node's shape.centroid scaled by
-        coords_to_nm, or the origin ([0., 0., 0.]) if a node has no shape).
+        Compounds are positioned per `bead_position`, scaled by coords_to_nm,
+        or at the origin ([0., 0., 0.]) if a node has no position.
     """
+    check_bead_position(bead_position)
     if predicate is None:
         # TB TODO: add support for complete hierarchy export if no predicate is provided
         raise NotImplementedError(
@@ -109,6 +120,7 @@ def primitive_to_mbuild(
         name=(str(prim.label) if (name is None) else name),
         coords_to_nm=coords_to_nm,
         as_particle=False,
+        bead_position=bead_position,
     )
     particle_of[prim.address] = compound_root
 
@@ -124,6 +136,7 @@ def primitive_to_mbuild(
                 name=str(interprim.label),
                 coords_to_nm=coords_to_nm,
                 as_particle=False,
+                bead_position=bead_position,
             )
             particle_of[interprim.address] = intercompound
 
@@ -136,6 +149,7 @@ def primitive_to_mbuild(
             name=str(subprim.label),
             coords_to_nm=coords_to_nm,
             as_particle=True,
+            bead_position=bead_position,
         )
         particle_of[subprim.address] = subcompound
 
