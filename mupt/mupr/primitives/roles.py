@@ -60,7 +60,7 @@ class PrimitiveRole(Enum):
 
 
 # TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
-# functionality dependeing on PrimitiveLegacy has been refactored
+# functionality depending on PrimitiveLegacy has been refactored
 def has_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> bool:
     """Check whether a Primitive hierarchy has all four SAAMR roles assigned.
 
@@ -89,18 +89,23 @@ def has_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> bool:
         PrimitiveRole.RESIDUE,
         PrimitiveRole.PARTICLE,
     }
-    present = {node.role for node in PreOrderIter(prim)}
-    return required.issubset(present)
+    # Primitive stores roles as (possibly custom) strings, PrimitiveLegacy as
+    # PrimitiveRole members, so compare role values; custom roles are ignored
+    present = {
+        node.role.value if isinstance(node.role, PrimitiveRole) else node.role
+        for node in PreOrderIter(prim)
+    }
+    return {role.value for role in required}.issubset(present)
 
 
 # TB: TODO (for anyone) - switch typehint to JUST Primitive, once downstream
-# functionality dependeing on PrimitiveLegacy has been refactored
+# functionality depending on PrimitiveLegacy has been refactored
 def assign_SAAMR_roles(prim: "PrimitiveLegacy | Primitive") -> None:
     """Assign PDB-like export roles for a strict depth-3 SAAMR hierarchy.
 
     Walks the tree by depth (0/1/2/3) and assigns UNIVERSE, SEGMENT,
     RESIDUE, and PARTICLE roles respectively.  Requires that the tree
-    satisfies :func:`~mupt.mupr.properties.has_strict_SAAMR_depth`.
+    satisfies :func:`~mupt.mupr.primitives.predicates.has_strict_SAAMR_depth`.
 
     Parameters
     ----------
