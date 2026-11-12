@@ -1,6 +1,7 @@
 """Unit tests for Connector bond antialignment protocols"""
 
 import pytest
+from itertools import product as cartesian
 
 import numpy as np
 from numpy.testing import assert_allclose
@@ -162,3 +163,53 @@ class TestAntialignment:
             conn.rigidly_transform(transform)
             assert_allclose(conn.anchor.position, direct.anchor.position, atol=1e-8)
             assert_allclose(conn.linker.position, direct.linker.position, atol=1e-8)
+
+
+@pytest.mark.parametrize(
+    "dihedral_angle_rad,antialign_strategy",
+    cartesian(
+        (
+            0.0,
+            np.pi / 6,
+            np.pi / 4,
+            1.0,
+            np.pi / 3,
+            np.pi / 2,
+            np.pi,
+            np.pi + 1e-6,
+            np.pi - 1e-6,
+            2.0,
+            2 / 3 * np.pi,
+            3 / 2 * np.pi,
+            2 * np.pi - 1e-6,
+        ),
+        [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()],
+    ),
+)
+def test_dihedral_assignment(
+    dihedral_angle_rad: float,
+    antialign_strategy: ConnectorAntialignmentStrategy,
+) -> None:
+    """
+    Test that antialigned Connectors can have their dihedral angles
+    configured to any desired angle about the mutual bond vector span
+    """
+    conn_a = randomly_placed_connector(assign_tangent=True)
+    conn_b = randomly_placed_connector(assign_tangent=True)
+
+    antialign_strategy.antialign_mutually(
+        conn_b,
+        to_connector=conn_a,
+        dihedral_angle_rad=dihedral_angle_rad,
+    )
+    assert conn_b.is_antialigned(conn_a)
+
+    print(
+        np.cos(dihedral_angle_rad),
+        np.dot(conn_a.unit_normal_vector, conn_b.unit_normal_vector),
+    )
+    assert_allclose(
+        np.cos(dihedral_angle_rad),
+        np.dot(conn_a.unit_normal_vector, conn_b.unit_normal_vector),
+        atol=1e-12,  # DEV: this epsilon may need adjustment
+    )
