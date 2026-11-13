@@ -170,6 +170,9 @@ class TestAntialignment:
     cartesian(
         (
             0.0,
+            1e-12,
+            1e-6,
+            2 * np.pi / 1_000,
             np.pi / 6,
             np.pi / 4,
             1.0,
