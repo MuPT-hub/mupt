@@ -13,18 +13,19 @@ from rdkit.Chem.rdmolfiles import (
     MolToSmiles,
     SmilesWriteParams,
 )
-from rdkit.Chem.rdDistGeom import EmbedMolecule
 
-from .rdkit import primitive_from_rdkit, primitive_to_rdkit
+from .rdkit import primitive_from_rdkit, rdkit_mol_from_primitive
 from ..mupr.primitives import Primitive, SupportsChildren
 from ..chemistry.smiles import DEFAULT_SMILES_READ_PARAMS, DEFAULT_SMILES_WRITE_PARAMS
 from ..chemistry.rdkit.sanitization import sanitized_mol
+from ..chemistry.rdkit.linkers import embed_with_linker_placeholders
 
 
 def primitive_from_smiles(
     smiles: str,
     label: Optional[Hashable] = None,
-    embed_positions: bool = False,
+    embed_positions: bool = True,
+    embed_random_seed: int = -1,
     ensure_explicit_Hs: bool = True,
     aromaticity_model: AromaticityModel = AROMATICITY_MDL,
     sanitize_ops: SanitizeFlags = SANITIZE_ALL,
@@ -33,9 +34,11 @@ def primitive_from_smiles(
     **kwargs,
 ) -> SupportsChildren:
     """
-    Create a Primitive from a SMILES string.
+    Create a Primitive from a SMILES string
 
-    Optionally embed positions, if specified
+    By default, embeds 3D coordinates for all atoms (and Connectors) using RDKit's
+    ETKDG embedding (see embed_with_linker_placeholders); pass embed_random_seed >= 0
+    for reproducible coordinates
     """
     rdmol = sanitized_mol(
         MolFromSmiles(smiles, params=smiles_reader_params),
@@ -45,9 +48,9 @@ def primitive_from_smiles(
     )
     conformer_idx: Optional[int] = None
     if embed_positions:
-        # NOTE: don't clobber existing conformers for safety
-        # (though new Mol shouldn't have any anyway)
-        conformer_idx = EmbedMolecule(rdmol, clearConfs=False)
+        conformer_idx = embed_with_linker_placeholders(rdmol, random_seed=embed_random_seed)
+        if conformer_idx < 0:
+            raise ValueError(f"RDKit failed to embed coordinates for SMILES {smiles!r}")
 
     return primitive_from_rdkit(
         rdmol,
@@ -65,6 +68,6 @@ def primitive_to_smiles(
 ) -> str:
     """Convert a Primitive to a SMILES string"""
     return MolToSmiles(
-        primitive_to_rdkit(primitive),
+        rdkit_mol_from_primitive(primitive),
         params=smiles_write_params,
     )

@@ -16,6 +16,7 @@ from .components import (
 from .importers import primitive_from_rdkit as primitive_from_rdkit
 from .exporters import (
     primitive_to_rdkit as primitive_to_rdkit,
+    rdkit_mol_from_primitive as rdkit_mol_from_primitive,
     primitive_to_rdkit_mols as primitive_to_rdkit_mols,
 )
 from .strategies import (

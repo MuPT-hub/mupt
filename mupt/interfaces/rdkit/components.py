@@ -39,6 +39,12 @@ type AttachablesFactory = Callable[
 ]  # Container is covariant
 
 
+# Metadata keys used to carry tetrahedral stereo through the MuPT representation
+CHIRAL_TAG_KEY = "mupt_chiral_tag"  # on atomic Primitives: int(Chem.ChiralType)
+BOND_RANK_KEY = "mupt_bond_rank"  # on Connectors: index of the bond among its anchor's bonds
+STEREO_METADATA_KEYS = frozenset({CHIRAL_TAG_KEY, BOND_RANK_KEY})
+
+
 def DEFAULT_ATOM_LABELLER(atom: Atom) -> str:
     """
     Default implementation of creating a commonly-understood
@@ -47,10 +53,30 @@ def DEFAULT_ATOM_LABELLER(atom: Atom) -> str:
     # return str(atom.GetIdx())
     return f"{rdkit_atom_to_element(atom)!s}-{atom.GetIdx()}"
 
-
+# GG: made the default connector labeller conserve map labels
+# DEV: this does not however stop internal bonds with number mapped atoms from being labelled, which should maybe be addressed?
 def DEFAULT_CONNECTOR_LABELLER(connector: Connector) -> ConnectorLabel:
-    """Default implementation for auto-assgining labels to Connector instances"""
+    """
+    Label a Connector by atom map number
+
+    The linker's ("*") map number takes precedence, then the anchor's,
+    falling back to the class default if neither is mapped.
+    Linker precedence lets a single atom carry several distinguishable
+    ports, e.g. "[*:1]-C-[*:2]"
+
+    Only integer attachables are treated as map numbers; any other
+    attachable types (e.g. TraversalDirection, element symbols) are ignored
+    """
+    for attachment in (connector.linker, connector.anchor):
+        map_nums = [
+            attachable
+            for attachable in attachment.attachables
+            if isinstance(attachable, int) and not isinstance(attachable, bool)
+        ]
+        if map_nums:
+            return min(map_nums)
     return connector.DEFAULT_LABEL
+
 
 
 def DEFAULT_ATTACHABLES_FACTORY(atom: Atom) -> set[int]:
@@ -252,6 +278,11 @@ def connector_from_rdkit_atoms(
     )
     metadata["bond_stereo"] = bond.GetStereo()
     metadata["bond_stereo_atoms"] = tuple(bond.GetStereoAtoms())
+    # position of this bond among the anchor's bonds; RDKit chiral tags are defined
+    # relative to that ordering, so exporters need it to restore tetrahedral stereo
+    metadata[BOND_RANK_KEY] = [
+        nb_bond.GetOtherAtomIdx(from_atom_idx) for nb_bond in anchor_atom.GetBonds()
+    ].index(to_atom_idx)
 
     query_smarts = MolFragmentToSmarts(
         parent_mol,
