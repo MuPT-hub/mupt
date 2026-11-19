@@ -440,7 +440,7 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
         Compute a rigid transformation which:
         1) translates align_connector so its anchor coincides with to_connector's linker
         2) rotates align_connector about its anchor so its bond vector is antiparallel
-           to the span of to_connector's bond vector
+        to the span of to_connector's bond vector
 
         If the two Connectors have the same bond length, the anchor of align_connector
         will be coincident with the linker of the other; otherwise, the anchor will
