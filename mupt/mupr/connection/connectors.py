@@ -26,7 +26,7 @@ from copy import deepcopy
 from itertools import product as cartesian
 
 import numpy as np
-from scipy.spatial.transform import RigidTransform
+from scipy.spatial.transform import Rotation, RigidTransform
 
 from .types import AttachmentLabel, ConnectorLabel
 from ..canonicalize import lex_order_multiset_str
@@ -328,6 +328,19 @@ class Connector(RigidlyTransformable):
         self.linker.rigidly_transform(transformation)
         if self.has_tangent_position:
             self._tangent_position = transformation.apply(self._tangent_position)
+
+    def rotation_about_anchor(self, rotation: Rotation) -> RigidTransform:
+        """
+        Convert a rotation about the origin into a RigidTransform which performss
+        an equivalent rotation about the anchor point of this Connector
+        """
+        # conjugate by origin-to-anchor shifting transform
+        # note that application order must be right-to-left (i.e. back-to-front below)
+        return (
+            RigidTransform.from_translation(self.anchor.position)
+            * RigidTransform.from_rotation(rotation)
+            * RigidTransform.from_translation(-self.anchor.position)
+        )
 
     # Comparison methods
     def bondable_with(self, other: "Connector") -> bool:

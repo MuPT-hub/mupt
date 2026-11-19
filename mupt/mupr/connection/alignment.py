@@ -55,11 +55,11 @@ class ConnectorAntialignmentStrategy(ABC):
         # have eigenvectors parallel to the bond vector(s) with eigenvalue 1.0
         if not align_connector.is_antialigned(to_connector, within=alignment_tolerance):
             raise ValueError(
-                "Cannot set dihedral angle with non-antialigned Connectors"
+                "Cannot set dihedral angle between non-antialigned Connectors"
             )
 
-        normal_alignment_rotation = alignment_rotation(
-            # don't need to normalize, already done by alignment rotation calculation
+        # don't need to normalize, already done by alignment rotation calculation
+        normal_alignment_rotation: Rotation = alignment_rotation(
             align_connector.normal_vector,
             to_connector.normal_vector,
         )
@@ -67,13 +67,9 @@ class ConnectorAntialignmentStrategy(ABC):
             dihedral_angle_rad * -to_connector.unit_bond_vector
             # dihedral_angle_rad * align_connector.unit_bond_vector
         )
-        # align tangents before setting dihedral to avoid inter-tangent angle calc
-        dihedral_rotation = dihedral_assignment_rotation * normal_alignment_rotation
 
-        return (
-            RigidTransform.from_translation(align_connector.anchor.position)
-            * RigidTransform.from_rotation(dihedral_rotation)
-            * RigidTransform.from_translation(-align_connector.anchor.position)
+        return align_connector.rotation_about_anchor(
+            dihedral_assignment_rotation * normal_alignment_rotation
         )
 
     def assign_dihedral(
@@ -342,12 +338,12 @@ class ConnectorAntialignmentRigid(ConnectorAntialignmentStrategy):
         )
 
         if self.tare_dihedrals:
-            tangent_alignment = alignment_rotation(
+            tangent_alignment: Rotation = alignment_rotation(
                 bond_antialignment.apply(align_connector.tangent_vector),
                 to_connector.tangent_vector,
             )
         else:
-            tangent_alignment = Rotation.identity()
+            tangent_alignment: Rotation = Rotation.identity()
 
         # order of application reads bottom-to-top (rightmost operator acts first)
         return (
@@ -385,16 +381,12 @@ class ConnectorAntialignmentBallistic(ConnectorAntialignmentStrategy):
         the bond vector of align_connector to face the linker point of to_connector
         The anchor positions of either Connector will be unaffected
         """
-        return (
-            RigidTransform.from_translation(align_connector.anchor.position)
-            * RigidTransform.from_rotation(
-                alignment_rotation(
-                    align_connector.bond_vector,
-                    to_connector.anchor.position - align_connector.anchor.position,
-                ),
-            )
-            * RigidTransform.from_translation(-align_connector.anchor.position)
+        antialign_rotation: Rotation = alignment_rotation(
+            align_connector.bond_vector,
+            to_connector.anchor.position - align_connector.anchor.position,
         )
+
+        return align_connector.rotation_about_anchor(antialign_rotation)
 
     def _match_bond_length(
         self,
