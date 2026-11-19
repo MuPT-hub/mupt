@@ -191,7 +191,7 @@ class ConnectorAntialignmentStrategy(ABC):
             transformation=self.dihedral_increment_transform(
                 align_connector=align_connector,
                 to_connector=to_connector,
-                dihedral_angle__increment_rad=dihedral_angle_increment_rad,
+                dihedral_angle_increment_rad=dihedral_angle_increment_rad,
                 alignment_tolerance=alignment_tolerance,
             )
         )
@@ -336,6 +336,7 @@ class ConnectorAntialignmentStrategy(ABC):
         to_connector: Connector,
         roll_back_transform: bool = False,
         dihedral_angle_rad: Optional[float] = None,
+        alignment_tolerance: float = 1e-6,
     ) -> Optional[tuple[RigidTransform, RigidTransform]]:
         """
         Antialign each connector in turn, accommodating asymmetric strategies.
@@ -364,6 +365,11 @@ class ConnectorAntialignmentStrategy(ABC):
             vectors IFF the two bond vectors are antialigned
 
             If not supplied, performs no dihedral rotation
+        alignment_tolerance : float, default 1e-6
+            The maximum anchor-to-linker distance error to allow
+            and still consider the two Connectors antialigned
+
+            Only needed if dihedral transformation is applied
 
         Returns
         -------
@@ -373,7 +379,8 @@ class ConnectorAntialignmentStrategy(ABC):
 
             Useful for transforming attached bodies & avoiding a local double-transform
         """
-        # Keep the first connector aligned while computing the second transformation.
+        # TB: may be more robust to do the "reverse" antalignment first (i.e. match
+        # to_connector to align_connector). Skipping to avoid downstream breaks for now
         with (
             self._antialignment_one_sided(
                 align_connector,
@@ -388,19 +395,31 @@ class ConnectorAntialignmentStrategy(ABC):
                 roll_back_transform=roll_back_transform,
             ) as to_connector_transform,
         ):
-            if not roll_back_transform and dihedral_angle_rad is not None:
-                self.assign_dihedral(
-                    align_connector,
-                    to_connector,
-                    dihedral_angle_rad=dihedral_angle_rad,
-                )
+            if dihedral_angle_rad is not None:
+                if not roll_back_transform:
+                    self.assign_dihedral(
+                        align_connector,
+                        to_connector,
+                        dihedral_angle_rad=dihedral_angle_rad,
+                        alignment_tolerance=alignment_tolerance,
+                    )
+                # if rolling back, append dihedral transform to
+                # alignment transform without actually applying it
+                else:
+                    dihedral_transform: RigidTransform = (
+                        self.dihedral_assignment_transform(
+                            align_connector=align_connector,
+                            to_connector=to_connector,
+                            dihedral_angle_rad=dihedral_angle_rad,
+                            alignment_tolerance=alignment_tolerance,
+                        )
+                    )
+
+                    align_connector_transform = (
+                        dihedral_transform * align_connector_transform
+                    )
 
         if roll_back_transform:
-            if dihedral_angle_rad is not None:
-                LOGGER.warning(
-                    "Overriding dihedral angle assignment, since the "
-                    "prerequisite rigid transformations were rolled back"
-                )
             return align_connector_transform, to_connector_transform
 
     # TODO: also add antialigned_mutually? TB - unclear if/when this is necessary
