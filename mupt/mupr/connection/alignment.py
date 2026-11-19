@@ -25,20 +25,17 @@ class ConnectorAntialignmentStrategy(ABC):
     the other's anchor and vice versa WITHOUT modifying the to_connector
     """
 
-    def dihedral_assignment_transform(
+    def _precondition_dihedral_antialign(
         self,
         align_connector: Connector,
         to_connector: Connector,
-        dihedral_angle_rad: float = 0.0,
         alignment_tolerance: float = 1e-6,
-    ) -> RigidTransform:
+    ) -> None:
         """
-        Transformation which, when applied to this Connector, rotates it
-        so that the dihedral planes between the Connectors subtends the
-        desired dihedral angle in radians (by default, 0.0 rad)
-
-        It is required (and enforced) for the pair of Connectors
-        to be antialigned for this operation to be valid
+        Precondition to ensure necessary conditions are met for
+        Connector dihedral operations are well-defined, viz:
+        * Both Connectors have a dihedral plane defined
+        * The two Connectors are mutually antialigned
         """
         if not (
             align_connector.has_dihedral_orientation
@@ -55,8 +52,27 @@ class ConnectorAntialignmentStrategy(ABC):
         # have eigenvectors parallel to the bond vector(s) with eigenvalue 1.0
         if not align_connector.is_antialigned(to_connector, within=alignment_tolerance):
             raise ValueError(
-                "Cannot set dihedral angle between non-antialigned Connectors"
+                "Cannot modify dihedral angle between non-antialigned Connectors"
             )
+
+    def dihedral_assignment_transform(
+        self,
+        align_connector: Connector,
+        to_connector: Connector,
+        dihedral_angle_rad: float = 0.0,
+        alignment_tolerance: float = 1e-6,
+    ) -> RigidTransform:
+        """
+        Transformation which, when applied to this Connector, rotates it
+        so that the dihedral planes between the Connectors subtends the
+        desired dihedral angle in radians (by default, 0.0 rad)
+
+        It is required (and enforced) for the pair of Connectors
+        to be antialigned for this operation to be valid
+        """
+        self._precondition_dihedral_antialign(
+            align_connector, to_connector, alignment_tolerance=alignment_tolerance
+        )
 
         # don't need to normalize, already done by alignment rotation calculation
         normal_alignment_rotation: Rotation = alignment_rotation(
