@@ -20,6 +20,9 @@ from typing import (
     TYPE_CHECKING,
 )
 
+if TYPE_CHECKING:
+    from .management import HoldsConnectors
+
 from dataclasses import dataclass, field
 from copy import deepcopy
 from itertools import product as cartesian
