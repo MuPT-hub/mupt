@@ -5,13 +5,14 @@ into the MuPT molecular representation
 
 from typing import Any, Hashable, Optional
 
-from rdkit.Chem.rdchem import Atom, Mol
+from rdkit.Chem.rdchem import Atom, ChiralType, Mol
 from rdkit.Chem.rdmolops import GetMolFrags
 
 from .components import (
     AtomLabeller,
     ConnectorLabeller,
     AttachablesFactory,
+    CHIRAL_TAG_KEY,
     DEFAULT_ATOM_LABELLER,
     DEFAULT_CONNECTOR_LABELLER,
     DEFAULT_ATTACHABLES_FACTORY,
@@ -73,6 +74,11 @@ def primitive_from_rdkit_atom(
     )
     if (map_num := atom.GetAtomMapNum()) != 0:
         metadata["molAtomMapNumber"] = map_num
+    if atom.GetChiralTag() in (
+        ChiralType.CHI_TETRAHEDRAL_CW,
+        ChiralType.CHI_TETRAHEDRAL_CCW,
+    ):
+        metadata[CHIRAL_TAG_KEY] = int(atom.GetChiralTag())
 
     ## Assembly
     atom_primitive = AtomicPrimitive(
@@ -96,7 +102,7 @@ def primitive_from_rdkit_atom(
 
     return atom_primitive
 
-
+# GG: modified to be 
 def primitive_from_rdkit_component(
     rdmol_comp: Mol,
     conformer_idx: Optional[int] = None,
@@ -152,12 +158,15 @@ def primitive_from_rdkit_component(
 
     ## Compile Connections
     for bond in rdmol_comp.GetBonds():
+        # GG: changed to pass in connector labeller to connector_pair_from_rdkit_bond
+        # GG: rather than the function being passed into the label in add_connector that should be a ConnectorLabel not a ConnectorLabeller
         # pre-links Connector pairs along each bond; no extra work necessary
         idxs_to_connectors: dict[int, Connector] = connector_pair_from_rdkit_bond(
             rdmol_comp,
             bond_idx=bond.GetIdx(),
             conformer_idx=conformer_idx,
             attachables_factory=attachables_factory,
+            connector_labeller=connector_labeller,
             locked=False,
         )
         for atom_idx, connector in idxs_to_connectors.items():
@@ -177,7 +186,6 @@ def primitive_from_rdkit_component(
 
             atomic_primitives[atom_idx].add_connector(
                 connector,
-                label=connector_labeller,
             )
 
     ## Geometry

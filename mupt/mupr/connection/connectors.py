@@ -597,18 +597,8 @@ class Connector(
 
     @neighbor.setter
     def neighbor(self, other: "Connector") -> None:
-        self._precondition_mutable_neighbor()
-        other._precondition_mutable_neighbor()
-
         # N.B.: if ALL positions are unset, will evaluate as antialigned
-        # TB: may relax this / allow passing alignment strategy
-        if not self.is_antialigned(other):
-            raise IncompatibleConnectorError(
-                "Candidate for neighbor Connector is not anti-aligned within tolerance"
-            )
-
-        self._neighbor = other
-        other._neighbor = self
+        self.bond_to(other, check_alignment=True)
 
     @neighbor.deleter
     def neighbor(self) -> None:
@@ -622,6 +612,26 @@ class Connector(
         self._neighbor = (
             None  # done second since reference is needed to find other Connector
         )
+
+    # GG: bonding primitives with internal coordinates fails antialignment checks (most of the time)
+    # this is a workaround for building the graph representation from units with internal but not external coordinates
+    def bond_to(self, other: "Connector", check_alignment: bool = False) -> None:
+        """
+        Make this Connector and another mutual neighbors
+
+        If check_alignment is True, raises IncompatibleConnectorError unless the pair
+        is already anti-aligned; otherwise the geometry is left for a builder to resolve
+        """
+        self._precondition_mutable_neighbor()
+        other._precondition_mutable_neighbor()
+
+        if check_alignment and not self.is_antialigned(other):
+            raise IncompatibleConnectorError(
+                "Candidate for neighbor Connector is not anti-aligned within tolerance"
+            )
+
+        self._neighbor = other
+        other._neighbor = self
 
     # Copying and attr transfer methods
     def individualize(

@@ -504,7 +504,11 @@ class Primitive(
                 copy_connector = orig_conn_to_copy[orig_connector]
 
                 # to avoid double-counting bonds, don't visit original neighbor later
-                copy_connector.neighbor = orig_conn_to_copy.pop(orig_neighbor)
+                # copies reproduce the original's geometry, so alignment is not re-checked
+                # (bonds formed without alignment, e.g. pre-placement, must survive copying)
+                copy_connector.bond_to(
+                    orig_conn_to_copy.pop(orig_neighbor), check_alignment=False
+                )
                 connectors_to_visit.remove(orig_neighbor)
 
         return clone_with_hierarchy

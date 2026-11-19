@@ -78,3 +78,37 @@ def renumber_linkers_as_last(rdmol: Mol) -> Mol:  # TODO: make optionally in-pla
     return Chem.RenumberAtoms(
         rdmol, real_atom_idxs + linker_idxs
     )  # place linker indices at end of list
+
+
+def embed_with_linker_placeholders(
+    rdmol: Mol,
+    random_seed: int = -1,
+    placeholder_atomic_num: int = 6,
+) -> int:
+    """
+    Embed a 3D conformer into a Mol in-place, returning its ID (negative on failure)
+
+    Linker atoms are temporarily swapped for hydrogen-free placeholder atoms (carbon by
+    default) while embedding; this sidesteps RDKit distance-geometry failures on wild-type
+    atoms (e.g. two linkers 4 bonds apart) and places linkers at realistic bond lengths.
+    Chiral tags are respected by the embedding
+    """
+    from rdkit.Chem.rdDistGeom import EmbedMolecule  # local import keeps module light
+
+    placeholder_mol = Chem.RWMol(rdmol)
+    for atom in placeholder_mol.GetAtoms():
+        if is_linker(atom):
+            atom.SetAtomicNum(placeholder_atomic_num)
+            atom.SetNoImplicit(True)
+            atom.SetNumExplicitHs(0)
+    placeholder_mol.UpdatePropertyCache(strict=False)
+
+    conformer_id = EmbedMolecule(placeholder_mol, randomSeed=random_seed)
+    if conformer_id < 0:
+        return conformer_id
+
+    # atom indices are unchanged, so the conformer transfers directly
+    return rdmol.AddConformer(
+        Chem.Conformer(placeholder_mol.GetConformer(conformer_id)),
+        assignId=True,
+    )
