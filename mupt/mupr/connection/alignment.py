@@ -275,7 +275,7 @@ class ConnectorAntialignmentStrategy(ABC):
 
             Useful for transforming attached bodies & avoiding a local double-transform
         """
-        with self._one_sided_antialignment(
+        with self._antialignment_one_sided(
             align_connector,
             to_connector=to_connector,
             roll_back_transform=roll_back_transform,
@@ -285,7 +285,7 @@ class ConnectorAntialignmentStrategy(ABC):
                 return transformation
 
     @contextmanager
-    def _one_sided_antialignment(
+    def _antialignment_one_sided(
         self,
         align_connector: Connector,
         to_connector: Connector,
@@ -375,13 +375,13 @@ class ConnectorAntialignmentStrategy(ABC):
         """
         # Keep the first connector aligned while computing the second transformation.
         with (
-            self._one_sided_antialignment(
+            self._antialignment_one_sided(
                 align_connector,
                 to_connector=to_connector,
                 match_bond_length=True,
                 roll_back_transform=roll_back_transform,
             ) as align_connector_transform,
-            self._one_sided_antialignment(
+            self._antialignment_one_sided(
                 to_connector,
                 to_connector=align_connector,
                 match_bond_length=True,
