@@ -25,6 +25,8 @@ class ConnectorAntialignmentStrategy(ABC):
     the other's anchor and vice versa WITHOUT modifying the to_connector
     """
 
+    # Dihedral angles
+    ## Preconditions
     def _precondition_dihedral_antialign(
         self,
         align_connector: Connector,
@@ -55,6 +57,7 @@ class ConnectorAntialignmentStrategy(ABC):
                 "Cannot modify dihedral angle between non-antialigned Connectors"
             )
 
+    ## Calculation of rigid transformations
     def dihedral_taring_transform(
         self,
         align_connector: Connector,
@@ -144,6 +147,7 @@ class ConnectorAntialignmentStrategy(ABC):
 
         return dihedral_increment_transform * dihedral_tare_transform
 
+    ## Application of dihedral rotations
     def assign_dihedral(
         self,
         align_connector: Connector,
@@ -168,6 +172,31 @@ class ConnectorAntialignmentStrategy(ABC):
             )
         )
 
+    def increment_dihedral(
+        self,
+        align_connector: Connector,
+        to_connector: Connector,
+        dihedral_angle_increment_rad: float = 0.0,
+        alignment_tolerance: float = 1e-6,
+    ) -> None:
+        """
+        Set the dihedral angle between this Connector and
+        another Connector by rigidly transforming this Connector
+        """
+        LOGGER.info(
+            f"incrementing dihedral angle between Connectors {align_connector.label} "
+            f"and {to_connector.label} to {dihedral_angle_increment_rad} radians"
+        )
+        align_connector.rigidly_transform(
+            transformation=self.dihedral_increment_transform(
+                align_connector=align_connector,
+                to_connector=to_connector,
+                dihedral_angle__increment_rad=dihedral_angle_increment_rad,
+                alignment_tolerance=alignment_tolerance,
+            )
+        )
+
+    # Antialignment
     @abstractmethod
     def antialignment_transformation(
         self,
