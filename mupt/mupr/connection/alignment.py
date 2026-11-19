@@ -55,6 +55,59 @@ class ConnectorAntialignmentStrategy(ABC):
                 "Cannot modify dihedral angle between non-antialigned Connectors"
             )
 
+    def dihedral_taring_transform(
+        self,
+        align_connector: Connector,
+        to_connector: Connector,
+        alignment_tolerance: float = 1e-6,
+        suppress_precondition: bool = False,
+    ) -> RigidTransform:
+        """
+        Transformation which rotates align_connector about its bond vector so its
+        normal vector is parallel to that of to_connector, assuming both Connectors
+        are mutually antiantialigned a priori
+        """
+        if not suppress_precondition:
+            self._precondition_dihedral_antialign(
+                align_connector, to_connector, alignment_tolerance=alignment_tolerance
+            )
+
+        # don't need to normalize, already done by alignment rotation calculation
+        normal_alignment_rotation: Rotation = alignment_rotation(
+            align_connector.normal_vector,
+            to_connector.normal_vector,
+        )
+
+        return align_connector.rotation_about_anchor(normal_alignment_rotation)
+
+    def dihedral_increment_transform(
+        self,
+        align_connector: Connector,
+        to_connector: Connector,
+        dihedral_angle_increment_rad: float = 0.0,
+        alignment_tolerance: float = 1e-6,
+        suppress_precondition: bool = False,
+    ) -> RigidTransform:
+        """
+        Transformation which rotates align_connector about its bond vector so the
+        angle between the Connectors' dihedral planes changes by the prescribed amount.
+        Angle is measured in radians (by default, assigned 0.0) and is taken
+        FROM the normal of to_connector TO the normal of align_connector
+        """
+        if not suppress_precondition:
+            self._precondition_dihedral_antialign(
+                align_connector, to_connector, alignment_tolerance=alignment_tolerance
+            )
+
+        # DEV: purposely NOT using align_connector-only check, since we REQUIRE
+        # antialignment for dihedral assignment to be valid (stronger precondition)
+        dihedral_increment_rotation: Rotation = Rotation.from_rotvec(
+            dihedral_angle_increment_rad * -to_connector.unit_bond_vector
+            # dihedral_angle_increment_rad * align_connector.unit_bond_vector
+        )
+
+        return align_connector.rotation_about_anchor(dihedral_increment_rotation)
+
     def dihedral_assignment_transform(
         self,
         align_connector: Connector,
@@ -63,30 +116,33 @@ class ConnectorAntialignmentStrategy(ABC):
         alignment_tolerance: float = 1e-6,
     ) -> RigidTransform:
         """
-        Transformation which, when applied to this Connector, rotates it
-        so that the dihedral planes between the Connectors subtends the
-        desired dihedral angle in radians (by default, 0.0 rad)
-
-        It is required (and enforced) for the pair of Connectors
-        to be antialigned for this operation to be valid
+        Transformation which rotates align_connector about its bond vector so the
+        angle between the dihedral planes of the Connectors subtends the chosen angle.
+        Angle is measured in radians (by default, assigned 0.0) and is taken
+        FROM the normal of to_connector TO the normal of align_connector
         """
+        # DEV: ALWAYS validate dihedral preconditions, suppress on sub-operations
         self._precondition_dihedral_antialign(
             align_connector, to_connector, alignment_tolerance=alignment_tolerance
         )
 
-        # don't need to normalize, already done by alignment rotation calculation
-        normal_alignment_rotation: Rotation = alignment_rotation(
-            align_connector.normal_vector,
-            to_connector.normal_vector,
+        dihedral_tare_transform: RigidTransform = self.dihedral_taring_transform(
+            align_connector,
+            to_connector,
+            alignment_tolerance=alignment_tolerance,
+            suppress_precondition=True,  # checked just prior
         )
-        dihedral_assignment_rotation = Rotation.from_rotvec(
-            dihedral_angle_rad * -to_connector.unit_bond_vector
-            # dihedral_angle_rad * align_connector.unit_bond_vector
+        dihedral_increment_transform: RigidTransform = (
+            self.dihedral_increment_transform(
+                align_connector,
+                to_connector,
+                dihedral_angle_rad,
+                alignment_tolerance=alignment_tolerance,
+                suppress_precondition=True,  # checked just prior
+            )
         )
 
-        return align_connector.rotation_about_anchor(
-            dihedral_assignment_rotation * normal_alignment_rotation
-        )
+        return dihedral_increment_transform * dihedral_tare_transform
 
     def assign_dihedral(
         self,
