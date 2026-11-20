@@ -1,12 +1,16 @@
 """Unit tests for Connector objects"""
 
 import pytest
-from warnings import catch_warnings, simplefilter, WarningMessage
+
+import numpy as np
+from numpy.testing import assert_allclose
 
 from networkx.algorithms import equivalence_classes
 
+from . import randomly_placed_connector
 from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
+from mupt.geometry.coordinates.directions import random_tangent
 from mupt.mupr.connection import Connector, AttachmentPoint
 
 
@@ -100,6 +104,17 @@ def test_connector_counterpart_bondable(conn: Connector) -> None:
 
     # XOR, since conditions are mutually-exclusive
     assert conn_empty ^ counterpart_bondable
+
+
+def test_counterpart_orthogonal_basis() -> None:
+    """Ensure that a Connector's counterpart is geometrically compatible with itself"""
+    conn = randomly_placed_connector()
+    conn.tangent_vector = random_tangent(conn.bond_vector)
+    conn_counter = conn.counterpart()
+
+    assert_allclose(conn.bond_vector / conn_counter.bond_vector, -1.0)
+    assert_allclose(conn.tangent_vector / conn_counter.tangent_vector, -1.0)
+    assert_allclose(conn.normal_vector / conn_counter.normal_vector, 1.0)
 
 
 # Comparison tests
@@ -218,39 +233,25 @@ def test_connector_bondability(
     assert Connector.bondable_with(conn1, conn2) == expected_bondable
 
 
-def test_anchor_position_depr_warnings_caught() -> None:
+@pytest.mark.parametrize(
+    "attr_vector,attr_vector_unit",
+    [
+        ("bond_vector", "unit_bond_vector"),
+        ("tangent_vector", "unit_tangent_vector"),
+        ("normal_vector", "unit_normal_vector"),
+    ],
+)
+def test_unit_vectors(attr_vector: str, attr_vector_unit: str) -> None:
     """
-    Test that Connector.anchor_position is marked
-    deprecated in favor of Connector.anchor.position
+    Test that all normalized vector attribute on Connector have unit length while
+    still pointing in the same direction as their unnormalized counterparts
     """
-    conn = Connector()
+    conn: Connector = randomly_placed_connector(0, 1, assign_tangent=True)
+    vector_unnormalized = getattr(conn, attr_vector)
+    vector_normalized = getattr(conn, attr_vector_unit)
 
-    with catch_warnings(record=True) as caught:
-        simplefilter("always")  # un-suppress in local scope
-        _ = conn.anchor_position
-
-        assert len(caught) == 1
-        depr_warn: WarningMessage = caught[0]
-        warn_msg: str = str(depr_warn.message)
-
-        assert depr_warn.category is DeprecationWarning
-        assert ("Connector.anchor_position" in warn_msg) and ("deprecation" in warn_msg)
-
-
-def test_linker_position_depr_warnings_caught() -> None:
-    """
-    Test that Connector.linker_position is marked
-    deprecated in favor of Connector.linker.position
-    """
-    conn = Connector()
-
-    with catch_warnings(record=True) as caught:
-        simplefilter("always")  # un-suppress in local scope
-        _ = conn.linker_position
-
-        assert len(caught) == 1
-        depr_warn: WarningMessage = caught[0]
-        warn_msg: str = str(depr_warn.message)
-
-        assert depr_warn.category is DeprecationWarning
-        assert ("Connector.linker_position" in warn_msg) and ("deprecation" in warn_msg)
+    assert_allclose(np.linalg.norm(vector_normalized), 1.0)
+    assert_allclose(  # if truly parallel, have that 1*|v|*cos(0) = |v|
+        np.linalg.norm(vector_unnormalized),
+        np.dot(vector_normalized, vector_unnormalized),
+    )
