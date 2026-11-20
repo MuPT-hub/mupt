@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 type AttachmentLabel = Hashable
 
+# TB: consider if this type needs to be more specific
+type ConnectorAddress = Hashable
 type ConnectorLabel = Hashable
 type ConnectorLabeller = Callable[[Connector], ConnectorLabel]
 type ConnectorLabelLike = Union[ConnectorLabel, ConnectorLabeller]

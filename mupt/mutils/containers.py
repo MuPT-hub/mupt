@@ -109,9 +109,8 @@ class UniqueRegistry(UserDict, Generic[LabelT, T]):
                 label = obj.label
             else:
                 raise TypeError(f"Cannot infer label from unlabelled object {obj!r}")
-        # N.B.: all Callables are Hashable, so order
-        # matters in isinstance checks for the latter
-        elif isinstance(label, Callable):
+        elif callable(label):
+            # N.B.: all Callables are Hashable, so callable check must occur second here
             label = label(obj)
 
         # TODO: reconcile types between the bound GEneric T and the external "Labelled"
