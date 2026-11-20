@@ -8,7 +8,7 @@ from numpy.testing import assert_allclose
 
 from . import randomly_placed_connector
 from mupt.geometry.measure import compare_optional_positions, normalized
-from mupt.geometry.coordinates.directions import random_unit_vector
+from mupt.geometry.coordinates.directions import random_unit_vector, random_tangent
 
 from mupt.mupr.connection.connectors import AttachmentPoint, Connector
 from mupt.mupr.connection.exceptions import ConnectorAntialignmentError
@@ -167,27 +167,85 @@ class TestAntialignment:
             assert_allclose(conn.linker.position, direct.linker.position, atol=1e-8)
 
 
+# Dihedral transformations
+def example_dihedral_angles() -> tuple[float, ...]:
+    """Collection of deihdral angles for testing various parts of precision range"""
+    return (
+        0.0,
+        1e-12,
+        1e-6,
+        2 * np.pi / 1_000,
+        np.pi / 6,
+        np.pi / 4,
+        1.0,
+        np.pi / 3,
+        np.pi / 2,
+        np.pi,
+        np.pi + 1e-6,
+        np.pi - 1e-6,
+        2.0,
+        2 / 3 * np.pi,
+        3 / 2 * np.pi,
+        2 * np.pi - 1e-6,
+    )
+
+
+@pytest.mark.parametrize(
+    "antialign_strategy",
+    [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()],
+)
+def test_dihedral_guard_missing_dihedral_planes(
+    antialign_strategy: ConnectorAntialignmentStrategy,
+) -> None:
+    """
+    Test that the dihedral precondition method catches pairs of
+    Connectors in which one of both do not have a defined tangent
+    vector (and by extension, dihedral plane orientation)
+    """
+    conn_a = Connector()
+    conn_b = Connector()
+
+    with pytest.raises(
+        ConnectorAntialignmentError,
+        match="undefined dihedral planes",
+    ):
+        antialign_strategy._precondition_dihedral_antialign(conn_a, conn_b)
+
+
+@pytest.mark.parametrize(
+    "antialign_strategy",
+    [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()],
+)
+def test_dihedral_guard_non_antialigned(
+    antialign_strategy: ConnectorAntialignmentStrategy,
+) -> None:
+    """
+    Test that the dihedral precondition method catches pairs of Connectors
+    which have not been antialigned (i.e. anchors and linkers don't overlap)
+    """
+    conn_a = Connector(
+        anchor=AttachmentPoint({0}, position=np.array([0.0, 0.0, 0.0])),
+        linker=AttachmentPoint({1}, position=np.array([0.0, 2.0, 0.0])),
+    )  # need to have valid tangents defined, but bond vectors non-antialigned
+    conn_a.tangent_vector = np.array([0.0, 0.0, 3.0])
+
+    conn_b = Connector(
+        anchor=AttachmentPoint({1}, position=np.array([1.0, 0.0, 0.0])),
+        linker=AttachmentPoint({0}, position=np.array([1.0, 0.0, 1.0])),
+    )  # need to have valid tangents defined, but bond vectors non-antialigned
+    conn_b.tangent_vector = np.array([-3.0, 0.0, 0.0])
+
+    with pytest.raises(
+        ConnectorAntialignmentError,
+        match="non-antialigned Connectors",
+    ):
+        antialign_strategy._precondition_dihedral_antialign(conn_a, conn_b)
+
+
 @pytest.mark.parametrize(
     "dihedral_angle_rad,antialign_strategy",
     cartesian(
-        (
-            0.0,
-            1e-12,
-            1e-6,
-            2 * np.pi / 1_000,
-            np.pi / 6,
-            np.pi / 4,
-            1.0,
-            np.pi / 3,
-            np.pi / 2,
-            np.pi,
-            np.pi + 1e-6,
-            np.pi - 1e-6,
-            2.0,
-            2 / 3 * np.pi,
-            3 / 2 * np.pi,
-            2 * np.pi - 1e-6,
-        ),
+        example_dihedral_angles(),
         [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()],
     ),
 )
@@ -217,50 +275,35 @@ def test_dihedral_assignment(
 
 
 @pytest.mark.parametrize(
-    "strategy", [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()]
+    "dihedral_angle_increment_rad,antialign_strategy",
+    cartesian(
+        example_dihedral_angles(),
+        [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()],
+    ),
 )
-def test_dihedral_guard_missing_dihedral_planes(
-    strategy: ConnectorAntialignmentStrategy,
+def test_increment_dihedral(
+    dihedral_angle_increment_rad: float,
+    antialign_strategy: ConnectorAntialignmentStrategy,
 ) -> None:
     """
-    Test that the dihedral precondition method catches pairs of
-    Connectors in which one of both do not have a defined tangent
-    vector (and by extension, dihedral plane orientation)
+    Test that antialigned Connectors can have their dihedral angles
+    incremented by a desired amount while remaining antialigned
     """
-    conn_a = Connector()
-    conn_b = Connector()
+    conn_a: Connector = randomly_placed_connector(assign_tangent=True)
+    conn_b: Connector = conn_a.counterpart()
+    conn_b.tangent_vector = random_tangent(conn_b.bond_vector)
 
-    with pytest.raises(
-        ConnectorAntialignmentError,
-        match="undefined dihedral planes",
-    ):
-        strategy._precondition_dihedral_antialign(conn_a, conn_b)
+    conn_b_normal_init = conn_b.unit_normal_vector[:]
+    antialign_strategy.increment_dihedral(
+        align_connector=conn_b,
+        to_connector=conn_a,
+        dihedral_angle_increment_rad=dihedral_angle_increment_rad,
+    )
+    conn_b_normal_final = conn_b.unit_normal_vector[:]
 
-
-@pytest.mark.parametrize(
-    "strategy", [ConnectorAntialignmentRigid(), ConnectorAntialignmentBallistic()]
-)
-def test_dihedral_guard_non_antialigned(
-    strategy: ConnectorAntialignmentStrategy,
-) -> None:
-    """
-    Test that the dihedral precondition method catches pairs of Connectors
-    which have not been antialigned (i.e. anchors and linkers don't overlap)
-    """
-    conn_a = Connector(
-        anchor=AttachmentPoint({0}, position=np.array([0.0, 0.0, 0.0])),
-        linker=AttachmentPoint({1}, position=np.array([0.0, 2.0, 0.0])),
-    )  # need to have valid tangents defined, but bond vectors non-antialigned
-    conn_a.tangent_vector = np.array([0.0, 0.0, 3.0])
-
-    conn_b = Connector(
-        anchor=AttachmentPoint({1}, position=np.array([1.0, 0.0, 0.0])),
-        linker=AttachmentPoint({0}, position=np.array([1.0, 0.0, 1.0])),
-    )  # need to have valid tangents defined, but bond vectors non-antialigned
-    conn_b.tangent_vector = np.array([-3.0, 0.0, 0.0])
-
-    with pytest.raises(
-        ConnectorAntialignmentError,
-        match="non-antialigned Connectors",
-    ):
-        strategy._precondition_dihedral_antialign(conn_a, conn_b)
+    assert conn_a.is_antialigned(conn_b)
+    assert_allclose(
+        np.dot(conn_b_normal_final, conn_b_normal_init),
+        np.cos(dihedral_angle_increment_rad),
+        atol=1e-12,
+    )
