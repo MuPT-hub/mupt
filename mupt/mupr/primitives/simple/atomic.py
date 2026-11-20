@@ -42,7 +42,6 @@ class AtomicPrimitive(SimplePrimitive):
             metadata=metadata,
         )
 
-    # Copying
     def _copy_instance(self) -> Self:
         """
         Make a copy of this AtomicPrimitive WITHOUT any

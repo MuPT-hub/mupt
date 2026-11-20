@@ -7,7 +7,13 @@ from typing import ClassVar, Iterable, Optional, Self
 
 from copy import deepcopy
 
-from ..primitive import PrimitiveLabel, SupportsParents, Metadata
+from ..primitive import (
+    PrimitiveLabel,
+    Metadata,
+    IrreducibilityError,
+    SupportsParents,
+    SupportsChildren,
+)
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager, ConnectorManagerMutable
 from ....geometry.shapes.shapes import BoundedTransformableShape
@@ -48,7 +54,6 @@ class SimplePrimitive(SupportsParents):
         for connector in connections.connectors:
             connector.holder = self
 
-    # Copying
     def _copy_instance(self) -> Self:
         """
         Make a copy of this SimplePrimitive WITHOUT any
@@ -61,3 +66,28 @@ class SimplePrimitive(SupportsParents):
             label=deepcopy(self.label),
         )
         return clone
+
+    # Hierarchy
+    def _post_attach(self, parent: SupportsChildren) -> None:
+        super()._post_attach(parent)
+        for connector in self.connections.connectors:
+            self.inject_connector_into_hierarchy(connector)
+
+    def _post_detach(self, parent: SupportsChildren) -> None:
+        super()._post_attach(parent)
+        for connector in self.connections.connectors:
+            self.withdraw_connector_from_hierarchy(connector, preserve_neighbor=False)
+
+    ## Explicitly bans attaching children to Simples
+    def _pre_attach_children(self, children: Iterable[SupportsParents]) -> None:
+        super()._pre_attach_children(children)
+        raise IrreducibilityError(
+            f"Simple Primitives cannot be assigned children {children}"
+        )
+
+    def _pre_detach_children(self, children: Iterable[SupportsParents]) -> None:
+        super()._pre_detach_children(children)
+        raise IrreducibilityError(
+            "Found hierarchy in undefined state, with "
+            f"Simple Primitive as parent of {children}"
+        )
