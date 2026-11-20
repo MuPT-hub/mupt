@@ -45,8 +45,8 @@ class ConnectorAntialignmentStrategy(ABC):
             and to_connector.has_dihedral_orientation
         ):
             raise ConnectorAntialignmentError(
-                "Cannot compute dihedral alignment between Connectors "
-                "without explicitly-defined dihedral plane orientations"
+                "Cannot modify dihedral angle between "
+                "Connectors with undefined dihedral planes"
             )
 
         # essential bond vectors be antialigned for dihedral assignment to make sense
