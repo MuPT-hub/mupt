@@ -15,6 +15,7 @@ from numpy.linalg import norm
 from scipy.spatial.transform import Rotation, RigidTransform
 
 from .connectors import Connector
+from .exceptions import ConnectorAntialignmentError
 from ...geometry.transforms.rigid.rotations import alignment_rotation
 
 
@@ -43,7 +44,7 @@ class ConnectorAntialignmentStrategy(ABC):
             align_connector.has_dihedral_orientation
             and to_connector.has_dihedral_orientation
         ):
-            raise ValueError(
+            raise ConnectorAntialignmentError(
                 "Cannot compute dihedral alignment between Connectors "
                 "without explicitly-defined dihedral plane orientations"
             )
@@ -53,7 +54,7 @@ class ConnectorAntialignmentStrategy(ABC):
         # the span of the two bond vectors, i.e. the dihedral rotation transformations
         # have eigenvectors parallel to the bond vector(s) with eigenvalue 1.0
         if not align_connector.is_antialigned(to_connector, within=alignment_tolerance):
-            raise ValueError(
+            raise ConnectorAntialignmentError(
                 "Cannot modify dihedral angle between non-antialigned Connectors"
             )
 

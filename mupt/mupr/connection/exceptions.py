@@ -29,3 +29,12 @@ class UnboundConnectorError(ConnectionError):
     """
 
     pass
+
+
+class ConnectorAntialignmentError(ConnectionError, ValueError):
+    """
+    Raised when a pair of Connectors which are
+    expected to be spatially antialigned are not
+    """
+
+    pass
