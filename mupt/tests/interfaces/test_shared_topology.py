@@ -9,7 +9,7 @@ from mupt.interfaces._shared.topology import (
     build_saamr_role_topology_index,
 )
 from mupt.mupr.primitives.primitives_legacy import PrimitiveLegacy
-from mupt.roles import PrimitiveRole
+from mupt.mupr.primitives.roles import PrimitiveRole
 
 
 def _particle(label: str) -> PrimitiveLegacy:

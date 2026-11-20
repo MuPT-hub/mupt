@@ -5,15 +5,14 @@ which behave as a simple part of a system must inherit from here
 
 from typing import ClassVar, Iterable, Optional, Self, Union
 
-from copy import deepcopy
-
 from ..primitive import (
+    DEFAULT_ROLE,
     PrimitiveLabel,
     Metadata,
-    IrreducibilityError,
     SupportsParents,
     SupportsChildren,
 )
+from ..exceptions import IrreducibilityError
 from ...connection.types import ConnectorAddress, ConnectorLabel
 from ...connection.connectors import Connector
 from ...connection.management import ConnectorManager, ConnectorManagerMutable
@@ -41,9 +40,10 @@ class SimplePrimitive(SupportsParents):
         shape: Optional[BoundedTransformableShape] = None,
         label: Optional[PrimitiveLabel] = None,
         mass: Optional[float] = None,
+        role: str = DEFAULT_ROLE,
         metadata: Optional[Metadata] = None,
     ) -> None:
-        self._init(shape=shape, label=label, mass=mass, metadata=metadata)
+        self._init(shape=shape, label=label, mass=mass, role=role, metadata=metadata)
 
         # TB: have to be careful in this typecheck if ConnectorManager is also Iterable
         if isinstance(connections, Iterable):
@@ -61,10 +61,8 @@ class SimplePrimitive(SupportsParents):
         hierarchical or Connection information included
         """
         clone = self.__class__(
-            connections=[],  # will be plumbed up in _copy_untransformed()
-            shape=None if (self.shape is None) else self.shape.copy(),
-            metadata={key: value for key, value in self.metadata.items()},
-            label=deepcopy(self.label),
+            connections=[],  # gets plumbed up in _copy_untransformed()
+            **self._copy_attrs_boilerplate(),
         )
         return clone
 

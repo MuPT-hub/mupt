@@ -41,7 +41,7 @@ from ..interfaces.rdkit.strategies import RDKitExportStrategy
 from ..mutils.filepaths.pathutils import asstrpath
 from ..mupr.connection import Connector
 from ..mupr.primitives.primitives_legacy import PrimitiveLegacy
-from ..roles import PrimitiveRole
+from ..mupr.primitives.roles import PrimitiveRole
 
 
 MUPT_SDF_ATOM_PROPS = MUPT_RDKIT_ATOM_PROPS

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from ...chemistry.core import BOND_ORDER
 from ...mupr.embedding import ConnectorReference
 from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
-from ...roles import PrimitiveRole
+from ...mupr.primitives.roles import PrimitiveRole
 
 
 @dataclass

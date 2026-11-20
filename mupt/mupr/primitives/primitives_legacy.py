@@ -62,7 +62,7 @@ from ...graphs.invariants import is_empty, is_indiscrete, canonical_form_graph
 from ...geometry.shapes import BoundedTransformableShape
 from ...geometry.transforms.rigid import RigidlyTransformable
 from ...chemistry.core import ElementLike, isatom, BOND_ORDER, valence_allowed
-from ...roles import PrimitiveRole
+from .roles import PrimitiveRole
 
 
 class AtomicityError(AttributeError):

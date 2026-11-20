@@ -2,13 +2,9 @@
 
 import pytest
 
-from mupt.mupr.primitives.primitive import (
-    Primitive,
-    SupportsParents,
-    SupportsChildren,
-    ImproperHierarchyError,
-    ArborescenceError,
-)
+from mupt.mupr.primitives.exceptions import ImproperHierarchyError, ArborescenceError
+
+from mupt.mupr.primitives.primitive import Primitive, SupportsParents, SupportsChildren
 from mupt.mupr.primitives.root import RootPrimitive
 from mupt.mupr.primitives.composite import CompositePrimitive
 from mupt.mupr.primitives.simple.simple import SimplePrimitive
