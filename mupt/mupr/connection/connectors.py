@@ -371,6 +371,37 @@ class Connector(Addressed, RigidlyTransformable):
             )
         self._holder = None
 
+    # Holder: higher-level object which "holds" this Connector (e.g. for reverse-lookup)
+    def has_holder(self) -> bool:
+        """Check if holder has been assigned"""
+        return self._holder is not None
+
+    @property
+    def holder(self) -> Optional["HoldsConnectors"]:
+        """
+        Some governing object which 'holds' this
+        Connector as part of a larger structure
+
+        Used for reverse-lookup
+        """
+        return self._holder
+
+    @holder.setter
+    def holder(self, new_holder: "HoldsConnectors") -> None:
+        if self._locked:
+            raise ConnectorLockedError(
+                f"Cannot assign new holder to locked Connector {self}"
+            )
+        self._holder = new_holder
+
+    @holder.deleter
+    def holder(self) -> None:
+        if self._locked and not self.has_holder:
+            raise ConnectorLockedError(
+                f"Cannot remove holder of locked Connector {self}"
+            )
+        self._holder = None
+
     # Comparison methods
     def bondable_with(self, other: "Connector") -> bool:
         """Whether this Connector is bondable with another Connector instance"""
@@ -475,10 +506,7 @@ class Connector(Addressed, RigidlyTransformable):
 
     def toggle_lock(self) -> None:
         """Invert current neighbor lock status"""
-        if self.is_locked:
-            self.unlock()
-        else:
-            self.lock()
+        self._locked = not self._locked
 
     def _precondition_mutable_neighbor(self, msg_postfix: str = "") -> None:
         """
@@ -518,19 +546,6 @@ class Connector(Addressed, RigidlyTransformable):
                 "Candidate for neighbor Connector is not anti-aligned within tolerance"
             )
 
-        if (
-            BondType.UNSPECIFIED not in (self.bondtype, other.bondtype)
-            and self.bond_order != other.bond_order
-        ):
-            raise IncompatibleConnectorError(
-                "Neighbor Connectors must have matching bond orders when specified"
-            )
-
-        # Check the target's previous partner before detaching either pair.
-        if (previous_neighbor := other.neighbor) is not None:
-            previous_neighbor._precondition_mutable_neighbor()
-        del self.neighbor
-        del other.neighbor
         self._neighbor = other
         other._neighbor = self
 

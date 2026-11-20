@@ -167,6 +167,7 @@ def attachment_with_idx_and_symbol(atom: Atom) -> AttachmentPoint:
     atom_symbol = atom.GetSymbol()
 
     return AttachmentPoint(markers={atom_idx, atom_symbol})
+    return AttachmentPoint(markers={atom_idx, atom_symbol})
 
 
 def connector_from_rdkit_atoms(
@@ -197,8 +198,10 @@ def connector_from_rdkit_atoms(
         A function which takes a Connector object and returns an appropriate label
         This is called after all other fields of the Connector have been set
         (i.e. can make use of those fields in determination of the label)
-    locked : bool, default False
-        Whether to make the produced Connectors read-only, locking it
+
+    The anchor_factory and linker_factory callables should only
+    define how the markers of eachAttachmentPoint are defined.
+    Positions of each point will be set later if conformer information is available
 
     Returns
     -------

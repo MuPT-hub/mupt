@@ -116,14 +116,14 @@ class ConnectorManagerFrozen(ConnectorManager):
     ) -> "ConnectorManagerFrozen":
         """Pre-compute connector properties prior to ConnectorManager creation"""
         obj = super(ConnectorManagerFrozen, cls).__new__(cls)
+        obj._connectors_all = tuple(connectors)
         obj._connectors_by_addr = MappingProxyType({
             connector.address: connector for connector in connectors
         })
-        obj._connectors_all = tuple(obj._connectors_by_addr.values())
 
         connectors_free_accum: list[Connector] = []
         connectors_bound_accum: list[Connector] = []
-        for connector in obj._connectors_all:
+        for connector in connectors:
             # TB DEV: lock here is not secure as yet,
             # since one could manually unlock after init
             connector.lock()  # ensure not mutations allowed subsequently
@@ -226,14 +226,14 @@ class ConnectorManagerMutable(ConnectorManager):
     # since Connectors might change neighbors during bond linking
     @property
     def connectors_free(self) -> tuple[Connector, ...]:
-        """Managed Connectors which DO NOT have an assigned neighbor"""
+        """Managed Connectors which have no assigned neighbor"""
         return tuple(
             connector for connector in self.connectors if not connector.has_neighbor
         )
 
     @property
     def connectors_bound(self) -> tuple[Connector, ...]:
-        """Managed Connectors which DO have an assigned neighbor"""
+        """Managed Connectors which have no assigned neighbor"""
         return tuple(
             connector for connector in self.connectors if connector.has_neighbor
         )

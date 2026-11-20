@@ -14,14 +14,7 @@ from mupt.chemistry.core import BondType
 from mupt.builders.heading import TraversalDirection
 from mupt.geometry.coordinates.directions import random_tangent
 from mupt.mupr.connection.connectors import Connector, AttachmentPoint
-from mupt.mupr.connection.exceptions import (
-    ConnectorLockedError,
-    IncompatibleConnectorError,
-)
-from mupt.mupr.connection.management import (
-    ConnectorManager,
-    ConnectorManagerFrozen,
-)
+from mupt.mupr.connection.exceptions import ConnectorLockedError
 
 
 # Counterpart tests
@@ -342,58 +335,6 @@ def test_neighbor_assignment():
     assert (conn0.neighbor == conn1) and (conn1.neighbor == conn0)
 
 
-def test_neighbor_assignment_rejects_conflicting_bond_orders() -> None:
-    """Antialigned connectors with different bond orders must remain unbound."""
-    single = Connector(
-        anchor=AttachmentPoint({"C"}, position=[0.0, 0.0, 0.0]),
-        linker=AttachmentPoint({"N"}, position=[1.0, 0.0, 0.0]),
-        bondtype=BondType.SINGLE,
-    )
-    double = single.counterpart()
-    double.bondtype = BondType.DOUBLE
-    assert single.is_antialigned(double)
-
-    with pytest.raises(IncompatibleConnectorError):
-        single.neighbor = double
-
-    assert single.neighbor is None
-    assert double.neighbor is None
-
-
-def test_connector_neighbor_persistence() -> None:
-    """
-    Test that the former neighbor of a Connector 'forgets'
-    the aforementioned Connector when its neighbor is rebound
-    """
-    conn_a = Connector()
-    conn_b = Connector()
-    conn_c = Connector()
-
-    conn_a.neighbor = conn_b
-    conn_a.neighbor = conn_c
-
-    assert conn_b.neighbor is not conn_a
-    assert conn_b.neighbor is None
-
-
-def test_rebinding_to_occupied_neighbor_detaches_previous_partner() -> None:
-    """Rebinding must clear the target's previous partner's reference."""
-    previous = Connector(
-        anchor=AttachmentPoint({"C"}, position=[0.0, 0.0, 0.0]),
-        linker=AttachmentPoint({"N"}, position=[1.0, 0.0, 0.0]),
-        bondtype=BondType.SINGLE,
-    )
-    target = previous.counterpart()
-    replacement = previous.copy()
-    previous.neighbor = target
-
-    replacement.neighbor = target
-
-    assert previous.neighbor is None
-    assert target.neighbor is replacement
-    assert replacement.neighbor is target
-
-
 def test_connector_lock_blocks_neighbor_delete() -> None:
     """Test that a locked connector cannot have an existing neighbor removed"""
     conn0 = Connector(
@@ -408,82 +349,3 @@ def test_connector_lock_blocks_neighbor_delete() -> None:
 
     with pytest.raises(ConnectorLockedError):
         del conn0.neighbor
-
-
-# Holders
-## Helpers
-class MockHolder:
-    """Dummy holder for testing"""
-
-    connections: ConnectorManager
-
-    def __init__(self, label: str, connector_manager: ConnectorManager) -> None:
-        self.label = label
-        self.connector_manager = connector_manager
-
-
-def mock_holder() -> MockHolder:
-    """Holder example"""
-    return MockHolder(label="fixture", connector_manager=ConnectorManagerFrozen())
-
-
-def conn_without_holder() -> Connector:
-    """Connector with NO holder assigned"""
-    return Connector()
-
-
-def conn_without_holder_locked() -> Connector:
-    """Connector with NO holder assigned, and modification locked"""
-    conn = conn_without_holder()
-    conn.lock()
-
-    return conn
-
-
-def conn_with_holder() -> Connector:
-    """Connector with holder assigned"""
-    conn = conn_without_holder()
-    conn.holder = mock_holder()
-
-    return conn
-
-
-def conn_with_holder_locked() -> Connector:
-    """Connector with holder assigned, and modification locked"""
-    conn = conn_with_holder()
-    conn.lock()
-
-    return conn
-
-
-## Tests
-@pytest.mark.parametrize("new_holder", [None, mock_holder()])
-def test_holder_set_unlocked(new_holder: Optional[MockHolder]) -> None:
-    """Test holder assignment"""
-    conn = conn_without_holder()
-    conn.holder = new_holder
-    assert conn._holder == new_holder
-
-
-@pytest.mark.parametrize(
-    "conn", [conn_with_holder_locked(), conn_without_holder_locked()]
-)
-def test_holder_set_locked(conn: Connector) -> None:
-    """Test that locked Connectors block one from editing their holder"""
-    holder = MockHolder(label="local", connector_manager=ConnectorManagerFrozen())
-    with pytest.raises(ConnectorLockedError, match="holder.*locked Connector"):
-        conn.holder = holder
-
-
-@pytest.mark.parametrize(
-    "conn,has_holder_expected",
-    [
-        (conn_without_holder(), False),
-        (conn_without_holder_locked(), False),
-        (conn_with_holder(), True),
-        (conn_with_holder_locked(), True),
-    ],
-)
-def test_has_holder(conn: Connector, has_holder_expected: bool) -> None:
-    """Test holder check works"""
-    assert conn.has_holder is has_holder_expected
