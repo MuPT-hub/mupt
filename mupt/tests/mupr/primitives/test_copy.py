@@ -2,7 +2,6 @@
 
 import pytest
 
-
 from anytree.iterators import PreOrderIter
 
 from mupt.chemistry.core import ELEMENTS
@@ -49,7 +48,7 @@ def hierarchy_example() -> RootPrimitive:
     simple_1 = SimplePrimitive(
         connections=(conn_10_0c, conn_11_1o, conn_12_0o, conn_13_0c)
     )
-    conn_20_1o = conn_prototype_1.counterpart()
+    conn_20_1o = conn_prototype_1.copy()
     conn_21_0o = conn_prototype_0.copy()
     conn_22_oc = conn_prototype_0.counterpart()
     simple_2 = SimplePrimitive(connections=(conn_20_1o, conn_21_0o, conn_22_oc))
