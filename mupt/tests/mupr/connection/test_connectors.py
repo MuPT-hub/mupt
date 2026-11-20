@@ -1,6 +1,8 @@
 """Unit tests for Connector objects"""
 
 import pytest
+
+import numpy as np
 from numpy.testing import assert_allclose
 
 from networkx.algorithms import equivalence_classes
@@ -229,3 +231,27 @@ def test_connector_bondability(
 ) -> None:
     """Test bondability checks between two Connectors"""
     assert Connector.bondable_with(conn1, conn2) == expected_bondable
+
+
+@pytest.mark.parametrize(
+    "attr_vector,attr_vector_unit",
+    [
+        ("bond_vector", "unit_bond_vector"),
+        ("tangent_vector", "unit_tangent_vector"),
+        ("normal_vector", "unit_normal_vector"),
+    ],
+)
+def test_unit_vectors(attr_vector: str, attr_vector_unit: str) -> None:
+    """
+    Test that all normalized vector attribute on Connector have unit length while
+    still pointing in the same direction as their unnormalized counterparts
+    """
+    conn: Connector = randomly_placed_connector(0, 1, assign_tangent=True)
+    vector_unnormalized = getattr(conn, attr_vector)
+    vector_normalized = getattr(conn, attr_vector_unit)
+
+    assert_allclose(np.linalg.norm(vector_normalized), 1.0)
+    assert_allclose(  # if truly parallel, have that 1*|v|*cos(0) = |v|
+        np.linalg.norm(vector_unnormalized),
+        np.dot(vector_normalized, vector_unnormalized),
+    )
