@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from ...chemistry.core import BOND_ORDER
 from ...mupr.embedding import ConnectorReference
-from ...mupr.primitives import Primitive
+from ...mupr.primitives.primitives_legacy import PrimitiveLegacy
 from ...roles import PrimitiveRole
 
 
@@ -13,12 +13,14 @@ from ...roles import PrimitiveRole
 class SAAMRRoleTopologyIndex:
     """Role-indexed view of a SAAMR-like Primitive hierarchy."""
 
-    segments: list[Primitive] = field(default_factory=list)
-    residues_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
-    particles_by_residue: dict[int, list[Primitive]] = field(default_factory=dict)
-    segment_of_node: dict[int, Primitive] = field(default_factory=dict)
-    bond_nodes: list[Primitive] = field(default_factory=list)
-    bond_nodes_by_segment: dict[int, list[Primitive]] = field(default_factory=dict)
+    segments: list[PrimitiveLegacy] = field(default_factory=list)
+    residues_by_segment: dict[int, list[PrimitiveLegacy]] = field(default_factory=dict)
+    particles_by_residue: dict[int, list[PrimitiveLegacy]] = field(default_factory=dict)
+    segment_of_node: dict[int, PrimitiveLegacy] = field(default_factory=dict)
+    bond_nodes: list[PrimitiveLegacy] = field(default_factory=list)
+    bond_nodes_by_segment: dict[int, list[PrimitiveLegacy]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass(frozen=True)
@@ -26,18 +28,18 @@ class SAAMRResidueRecord:
     """One RESIDUE-role node and its role-aware traversal context."""
 
     segment_idx: int
-    segment: Primitive
+    segment: PrimitiveLegacy
     residue_idx: int
     residue_global_idx: int
-    residue: Primitive
-    particles: tuple[Primitive, ...]
+    residue: PrimitiveLegacy
+    particles: tuple[PrimitiveLegacy, ...]
 
 
 # TB: supressing linter complexity (C901) warning for now,
 # but in the future this should be refactored to be more modular
 # and contain less branched business logic in one place
 def build_saamr_role_topology_index(  # noqa: C901
-    root: Primitive,
+    root: PrimitiveLegacy,
 ) -> SAAMRRoleTopologyIndex:
     """Build a single-pass role index for a SAAMR-like Primitive hierarchy.
 
@@ -57,9 +59,9 @@ def build_saamr_role_topology_index(  # noqa: C901
     # but in the future this should be refactored to be more modular
     # and contain less branched business logic in one place
     def visit(  # noqa: C901
-        node: Primitive,
-        current_segment: Primitive | None,
-        current_residue: Primitive | None,
+        node: PrimitiveLegacy,
+        current_segment: PrimitiveLegacy | None,
+        current_residue: PrimitiveLegacy | None,
     ) -> None:
         """Extract segment info from a particular Primitive"""
         role = node.role
@@ -156,7 +158,7 @@ def build_saamr_role_topology_index(  # noqa: C901
         if empty_residues:
             raise ValueError(
                 f"SEGMENT-role Primitive '{segment.label}' contains RESIDUE-role "
-                f"Primitive(s) with no PARTICLE leaves: {empty_residues}."
+                f"PrimitiveLegacy(s) with no PARTICLE leaves: {empty_residues}."
             )
 
     return index
@@ -210,11 +212,11 @@ def connector_reference_sort_key(conn_ref: ConnectorReference) -> tuple[str, str
 
 
 def _resolve_to_atom(
-    parent: Primitive,
+    parent: PrimitiveLegacy,
     conn_ref: ConnectorReference,
     _depth: int = 0,
     _max_depth: int = 50,
-) -> Primitive:
+) -> PrimitiveLegacy:
     """Recursively follow external connectors to find the leaf atom."""
     if _depth > _max_depth:
         raise ValueError(
@@ -250,10 +252,10 @@ def _resolve_to_atom(
 
 
 def resolve_to_atom_cached(
-    parent: Primitive,
+    parent: PrimitiveLegacy,
     conn_ref: ConnectorReference,
-    cache: dict[tuple[int, object, object], Primitive],
-) -> Primitive:
+    cache: dict[tuple[int, object, object], PrimitiveLegacy],
+) -> PrimitiveLegacy:
     """Resolve a connector reference to an atom using a caller-owned cache."""
     cache_key = (id(parent), conn_ref.primitive_handle, conn_ref.connector_handle)
     if cache_key not in cache:
@@ -261,7 +263,9 @@ def resolve_to_atom_cached(
     return cache[cache_key]
 
 
-def _bond_order_from_conn_ref(parent: Primitive, conn_ref: ConnectorReference) -> float:
+def _bond_order_from_conn_ref(
+    parent: PrimitiveLegacy, conn_ref: ConnectorReference
+) -> float:
     """Infer numeric bond order from a connection reference."""
     connector = parent.fetch_connector_on_child(conn_ref)
     return BOND_ORDER[connector.bondtype]

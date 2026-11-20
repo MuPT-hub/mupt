@@ -1,12 +1,14 @@
 """
-Properties of Primitives used to assess compatibility with a particular task
-E.g. checking atomicity, linearity, adherence to a "standard" hierarchy, etc.
+Logical predicates on Primitives, which evaluate whether a given
+Primitive has a specified property as either 'True' or 'False'
+
+Most commonly used for search, filtering, and selecting a working level of resolution
 """
 
-from .primitives import Primitive
+from .primitives_legacy import PrimitiveLegacy
 
 
-def has_strict_SAAMR_depth(prim: Primitive) -> bool:
+def has_strict_SAAMR_depth(prim: PrimitiveLegacy) -> bool:
     """Check whether a Primitive hierarchy is a strict depth-3 SAAMR tree.
 
     A strict SAAMR tree has exactly four levels:
